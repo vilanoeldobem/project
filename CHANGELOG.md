@@ -1,0 +1,97 @@
+# Changelog
+
+Todas as mudanças notáveis da Vila Noel do Bem são registradas neste arquivo.
+
+O formato segue [Keep a Changelog 1.1.0](https://keepachangelog.com/pt-BR/1.1.0/) e o projeto adota
+[Semantic Versioning 2.0.0](https://semver.org/lang/pt-BR/). A política completa (o que cada número significa,
+versão do schema D1, processo de release) está em [`docs/reference/versioning.md`](docs/reference/versioning.md).
+Cada versão indica o schema D1 que entrega.
+
+## [Unreleased]
+
+## [0.3.0] - 2026-11-08
+
+**Site público e domínio oficial** ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)). Schema D1 **v3**
+(migration `0003` aplicada em produção junto com este deploy).
+
+### Added
+
+- `apps/site`: site público em <https://www.vilanoeldobem.com.br> — como funciona, doação transparente, critérios
+  para ONGs; todos os "Entrar na Vila" levam ao jogo. Página 404 própria; `scripts/verify.mjs` (Chrome real).
+- Domínios: jogo em <https://app.vilanoeldobem.com.br>; `vilanoeldobem.com.br` redireciona (301) para `www`.
+- Scripts na raiz: `dev:site`, `deploy:site`; `build`/`typecheck`/`test` rodam em todos os apps.
+
+### Changed
+
+- Publicação da 0.2.0 (idiomas) em produção: migration `0003_english_schema` aplicada no D1 remoto.
+
+### Fixed
+
+- CSP bloqueava o beacon do Cloudflare Web Analytics injetado pela zona (erro de console); domínios liberados.
+
+## [0.2.0] - 2026-11-08
+
+**Padronização de idiomas** ([IMPL-0004](docs/decisions/0004-english-code-portuguese-docs.md)): código e conversa com
+agentes em inglês, documentação e interface em pt-BR. Mudança incompatível na API e no schema. Schema D1 **v3**.
+
+### Changed
+
+- **BREAKING (API):** `/api/lots` usa `ngo_name`/`ngo_summary`, estados `available`/`application_sent`/
+  `under_review`/`published` e ids `plaza-NN`; chaves de `/api/indicators` em inglês (`approved_ngos`,
+  `registered_users`, `confirmed_donations`, `confirmed_amount`, `people_impacted`). Textos exibidos não mudaram.
+- **BREAKING (schema):** migration `0003_english_schema` recria `ongs` → `ngos` (`ong_id` → `ngo_id`) com estados em
+  inglês, preservando dados; `audit_events` passa a usar `ngo.*`.
+- Ids de missões em inglês (`explore-gifts`, `play-memory`, `causes-visit-lot`, `causes-global-donation`); o progresso
+  local recomeça (chave `vila.progress.v2`).
+- Comentários, testes, scripts, tokens CSS e mensagens de `smoke-api.sh`/`verify.mjs` em inglês. Migrations
+  `0001`/`0002`: só comentários traduzidos (SQL idêntico).
+- `AGENTS.md`/`CLAUDE.md`: agentes respondem em inglês; regra de idiomas em `CONTRIBUTING.md` e no modelo de PR.
+
+### Fixed
+
+- `pnpm deploy` na raiz chamava o comando nativo do pnpm; agora `pnpm run deploy` executa o script.
+
+## [0.1.0] - 2026-11-08
+
+Fundação do repositório e **primeira fatia funcional** (rota de entrega B do doc 23: praça → terreno → jogo →
+missão). Stack proposta em [IMPL-0001](docs/decisions/0001-stack-react-threejs-cloudflare.md); doações
+desabilitadas por [IMPL-0002](docs/decisions/0002-donations-disabled-until-partner-contract.md).
+Schema D1 **v2**.
+
+### Added
+
+- Praça voxel 3D (React + Three.js): árvore central como marcador da doação global, rua circular, postes, palmeiras,
+  8 terrenos ao redor (P01, P03; layout provisório, PEN-017).
+- Avatar padrão com movimento por teclado (WASD/setas) e por clique/toque; câmera diagonal que acompanha e se
+  afasta em telas retrato (estudo, cartão G12).
+- Entrada com três caminhos: Explorar ONGs, Jogar, Doação global (DEC-026).
+- Painel da doação global com destinatário "Instituição parceira: a definir" e botão desabilitado (DEC-010..013).
+- Painel de terreno com os três critérios de elegibilidade (DEC-015) e painel de casa publicada com
+  "Jogar gratuitamente" e "Doar para esta ONG" desabilitado (DEC-028/029).
+- Jogo da Memória (P09, primeiro jogo do doc 23).
+- Caderno de Missões com 4 missões em 3 trilhas (Explorar, Brincar, Conhecer causas), XP e nível; progresso
+  idempotente salvo no navegador (DEC-039/040/042; missões e curva são proposta, PEN-025).
+- Indicadores públicos lidos da API; valores sem fonte verificável aparecem como "—" (DEC-027).
+- Worker Cloudflare com Static Assets e API somente leitura: `GET /api/health`, `/api/indicators`, `/api/lots`.
+- D1: migrations `0001_initial` (ongs, lots, audit_events) e `0002_seed_lots` (8 terrenos disponíveis).
+- Governança: `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `ROADMAP.md`, modelo de PR e `docs/` (Diátaxis) com
+  ADRs IMPL-0001..0003 e perguntas abertas.
+- `apps/web/scripts/verify.mjs`: verificação em Chrome real (desktop e celular) com capturas.
+- `scripts/smoke-api.sh`: conferência das rotas da API de qualquer deploy.
+- Publicação na conta Cloudflare do projeto: https://vilanoeldobem.vilanoeldobem.workers.dev (Worker `vilanoeldobem`, D1 `vilanoeldobem` em `enam`).
+
+### Security
+
+- Cabeçalhos estritos em `public/_headers` (CSP, `X-Frame-Options: DENY`, `Permissions-Policy` sem pagamento,
+  câmera, microfone e localização). API rejeita métodos de escrita (405).
+
+### Known limitations
+
+- Sem contas, cadastro de ONG, painel admin, chat, avatar editável, skins, badges (ver [ROADMAP.md](ROADMAP.md)).
+- Progresso de missões existe só no navegador até o cadastro (D06).
+- Paleta, tipografia e logo são marcadores provisórios.
+
+<!--
+[Unreleased]: <url>/compare/v0.1.0...HEAD
+[0.1.0]: <url>/releases/tag/v0.1.0
+-->

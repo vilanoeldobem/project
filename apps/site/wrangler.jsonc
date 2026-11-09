@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Vila Noel do Bem public website. Static Assets only; the Worker runs first just to
+  // redirect the apex domain to www (canonical host). See docs/reference/architecture.md.
+  "name": "vilanoeldobem-site",
+  "account_id": "9119b7496767fec497f6627c5ca56f32",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": true
+  },
+  "routes": [
+    { "pattern": "www.vilanoeldobem.com.br", "custom_domain": true },
+    { "pattern": "vilanoeldobem.com.br", "custom_domain": true }
+  ],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false
+}
