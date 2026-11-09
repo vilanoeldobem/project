@@ -26,8 +26,9 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Padronização de idiomas (IMPL-0004) | 0.2.0 | — | — | **Entregue** 2026-11-08 | 08/11 |
 | Site público e domínios (IMPL-0005) | 0.3.0 | — | — | **Entregue** 2026-11-08 | 08/11 |
 | Decisões e publicação de teste | 0.3.x | — | G11, G12, M01 | **Em andamento** | 09–10/11 |
-| Contas e ONGs | 0.4.0 | P12, P13, P03 completo | D05–D09 | Planejado | 11–17/11 |
-| HUD da ONG e progressão | 0.5.0 | P04, P14 (servidor) | D10, D12 | Planejado | 15–19/11 |
+| Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Próximo** (não depende de decisões) | 09–10/11 |
+| Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | Planejado — aguarda OQ-02/OQ-03 | 11–17/11 |
+| HUD da ONG e segundo jogo | 0.5.0 | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
 | Doação e badges | 0.6.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
 | Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
 | QA e release candidate | 1.0.0-rc | todas entregues | Q01–Q09, M04 | Planejado | 24–27/11 |
@@ -48,15 +49,36 @@ Caderno de Missões local. Ver [CHANGELOG](CHANGELOG.md#010---2026-11-08).
 **Objetivo:** validar a stack (G11) e a câmera/desempenho em celular real (G12) com a versão publicada na conta
 Cloudflare do projeto. **Publicado em 2026-11-08:** jogo em https://app.vilanoeldobem.com.br e site em https://www.vilanoeldobem.com.br; falta o teste em aparelhos reais.
 
+### Infraestrutura de entrega (0.3.x) — próximo
+
+**Objetivo:** tornar cada entrega até 30/11 segura e verificável, sem depender de decisões de produto.
+
+| # | Entrega | Pronto quando |
+|---|---|---|
+| 1 | **CI no GitHub Actions** | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
+| 2 | **Ambiente de homologação (staging)** | Worker `vilanoeldobem-staging` com D1 próprio (`wrangler.jsonc` → `env.staging`); migrations testadas lá antes do remoto de produção; endereço documentado em `docs/guides/deploy.md`. |
+| 3 | **Backup e restauração do D1** | Procedimento documentado com D1 Time Travel e export periódico; restauração ensaiada uma vez no staging. |
+| 4 | **Redução do chunk Three.js** | Importar só o necessário de `@react-three/drei`; meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
+
 ### Contas e ONGs (0.4.0)
 
-**Escopo:** cadastro leve (Nome, Nickname, Cidade, E-mail — DEC-038), método de login (pendente), candidatura de
-ONG em 4 etapas, aprovação admin com auditoria (DEC-037), estados do terreno (DEC-028).
-**Depende de:** método de autenticação e regra visitante × conta (open-questions OQ-02, OQ-03).
+**Objetivo:** fechar a jornada "ONG se candidata → admin aprova → casa aparece no terreno" e guardar o progresso
+do jogador no servidor.
 
-### HUD da ONG e progressão (0.5.0)
+| # | Entrega | Tela / decisão | Pronto quando |
+|---|---|---|---|
+| 1 | **Cadastro leve de usuário** | P13, DEC-038 | Exatamente Nome, Nickname, Cidade e E-mail; só o nickname é público; nickname único; e-mail verificado; nada além disso coletado (LGPD/ECA Digital). |
+| 2 | **Candidatura de ONG em 4 etapas** | P12, DEC-015, DEC-037 | "Dados da organização / Documentos e comprovações / Apresentação e projetos / Revisão e envio"; terreno passa a `application_sent`; documentos privados fora do repositório e dos logs. |
+| 3 | **Painel admin** | P12, DEC-037, DEC-028 | "Aprovar / Pedir ajustes / Rejeitar" com histórico em `audit_events`; só a aprovação publica a casa no terreno; acesso restrito a admins. |
+| 4 | **Missões e XP no servidor** | P14, DEC-039/040/042 | Eventos idempotentes por id único no D1; progresso local migrado ao entrar na conta; mesmas regras de `progress.ts` (doação sozinha não dá XP). |
 
-**Escopo:** casa publicada com conteúdo real, missões e XP no servidor com idempotência (DEC-042), segundo jogo.
+**Depende de:** regra visitante × conta (OQ-02) e método de login (OQ-03), a decidir no marco M01 (10/11);
+revisão LGPD / ECA Digital antes do cadastro.
+
+### HUD da ONG e segundo jogo (0.5.0)
+
+**Escopo:** casa publicada com conteúdo real (descrição, fotos, projetos, painel de estatísticas — DEC-028/029) e
+segundo minijogo (Jogo da Velha, doc 23).
 
 ### Doação e badges (0.6.0) — bloqueado
 
@@ -68,9 +90,10 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 
 | Tarefa | Status | Observação |
 |---|---|---|
-| CI (typecheck, test, build em PR) | Não iniciado | GitHub Actions após criação do remoto |
-| Ambiente de homologação (staging) | Não iniciado | Worker `vilanoeldobem-staging` + D1 separado |
-| Backup e restauração do D1 | Não iniciado | D1 Time Travel + export periódico |
+| CI (typecheck, test, build em PR) | **Próximo** | Marco "Infraestrutura de entrega", item 1 |
+| Ambiente de homologação (staging) | **Próximo** | Marco "Infraestrutura de entrega", item 2 |
+| Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
+| Redução do chunk Three.js | **Próximo** | Marco "Infraestrutura de entrega", item 4 |
 | Logs de erro | Parcial | `observability.enabled` no Worker |
 | Revisão LGPD / ECA Digital | Não iniciado | antes do cadastro (0.4.0) |
 
@@ -89,6 +112,6 @@ plano mudar, o plano vence e este arquivo é corrigido.
 
 | Item | Onde | Efeito | Sugestão |
 |---|---|---|---|
-| Chunk `three` de ~1,1 MB (310 kB gzip) | `apps/web` | Primeiro carregamento lento em 3G | Importar só módulos usados de `drei`; avaliar compressão de assets |
-| Progresso só em `localStorage` | `src/game/store.ts` | Perde-se ao trocar de aparelho | Persistir no D1 com a conta (0.4.0/0.5.0) |
+| Chunk `three` de ~1,1 MB (310 kB gzip) | `apps/web` | Primeiro carregamento lento em 3G | Infraestrutura de entrega, item 4 |
+| Progresso só em `localStorage` | `src/game/store.ts` | Perde-se ao trocar de aparelho | Persistir no D1 com a conta (0.4.0, item 4) |
 | Posições dos terrenos duplicadas (TS e SQL) | `world.ts`, `0002_seed_lots.sql` | Divergência possível | Coberto por teste; gerar SQL a partir do TS |

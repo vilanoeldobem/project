@@ -9,6 +9,12 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed
+
+- ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
+  marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
+  antecipadas para a 0.4.0.
+
 ## [0.3.0] - 2026-11-08
 
 **Site público e domínio oficial** ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)). Schema D1 **v3**
