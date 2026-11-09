@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Vila Noel do Bem: SPA served by Workers Static Assets; the Worker only runs
+  // code for /api/* (public data read from D1). See docs/reference/architecture.md.
+  "name": "vilanoeldobem",
+  "account_id": "9119b7496767fec497f6627c5ca56f32",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vilanoeldobem",
+      // Created 2026-11-08 (location enam), account 9119b749… (docs/guides/deploy.md).
+      "database_id": "7c65d21d-0431-4ec5-bdd0-691dacb81f92",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "vars": { "ENVIRONMENT": "production" },
+  // Game hostname (Workers custom domain on the vilanoeldobem.com.br zone). The public
+  // website lives in apps/site on www.vilanoeldobem.com.br.
+  "routes": [{ "pattern": "app.vilanoeldobem.com.br", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false
+}
