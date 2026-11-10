@@ -27,7 +27,7 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Site público e domínios (IMPL-0005) | 0.3.0 | — | — | **Entregue** 2026-11-08 | 08/11 |
 | Decisões e publicação de teste | 0.3.x | — | G11, G12, M01 | **Em andamento** | 09–10/11 |
 | Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Próximo** (não depende de decisões) | 09–10/11 |
-| Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | Planejado — aguarda OQ-02/OQ-03 | 11–17/11 |
+| Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | Planejado — aguarda OQ-08 e revisão LGPD | 11–17/11 |
 | HUD da ONG e segundo jogo | 0.5.0 | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
 | Doação e badges | 0.6.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
 | Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
@@ -72,7 +72,8 @@ do jogador no servidor.
 | 3 | **Painel admin** | P12, DEC-037, DEC-028 | "Aprovar / Pedir ajustes / Rejeitar" com histórico em `audit_events`; só a aprovação publica a casa no terreno; acesso restrito a admins. |
 | 4 | **Missões e XP no servidor** | P14, DEC-039/040/042 | Eventos idempotentes por id único no D1; progresso local migrado ao entrar na conta; mesmas regras de `progress.ts` (doação sozinha não dá XP). |
 
-**Depende de:** regra visitante × conta (OQ-02) e método de login (OQ-03), a decidir no marco M01 (10/11);
+**Decidido (2026-11-09):** visitante livre, conta opcional (OQ-02); login por link mágico no e-mail (OQ-03).
+**Depende de:** provedor de envio de e-mail (OQ-08) e revisão LGPD / ECA Digital antes do cadastro.
 revisão LGPD / ECA Digital antes do cadastro.
 
 ### HUD da ONG e segundo jogo (0.5.0)
