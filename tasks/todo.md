@@ -158,7 +158,8 @@ Scheduled events are code constants (versioned), not admin mutations.
   contract, `/api/environment`) + 2 site; build ok. `verify.mjs` (local `wrangler dev`, port 8799 because 8787 was
   taken by another local app) clean on desktop + phone + 5 environment scenes (dawn mist, day snow, dusk clear,
   night blizzard, night sky with aurora; presets low→ultra).
-- Not deployed, not committed (owner did not ask).
+- Committed, PR #3; deployed by the owner from the PR branch (version 4156a103…). Production: `/api/environment`
+  no-store ok, `smoke-api.sh` ok, `verify.mjs` clean (night, clear frost at 22:54 SP).
 - Not measured: real GPU performance (swiftshader runs at ~2 fps); needs a device benchmark (G12).
 - Deferred from the spec (documented in IMPL-0006): Durable Object/WebSocket, admin overrides, shared footprints,
   interiors (no enterable buildings), WebGPU/TSL, correlated weather v2.
