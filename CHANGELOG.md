@@ -30,6 +30,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
+  zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
+  (`PostFx`, 5 kB gzip) só é baixado nos presets Alta/Ultra.
 - Direção de arte: o estudo "Natal brasileiro de verão" (palmeiras, terracota) deu lugar à vila nevada, confirmada
   pelo responsável em 2026-11-09 (OQ-07 resolvida; DEC no repositório de documentação pendente).
   O id de missão `gift-palm` foi mantido.

@@ -171,3 +171,26 @@ Scheduled events are code constants (versioned), not admin mutations.
 - A point light with a `distance` cut-off draws a visible ring on bright snow; use `distance: 0` (inverse-square).
 - Anything per-frame that calls `Intl` must be memoised (events per year), or it also thrashes the civil-time cache.
 - Software GL screenshots: camera easing is per-frame with a clamped dt, so transitions need long waits.
+
+# Task 5: Three.js chunk ≤ 250 kB gzip (roadmap infra item 4)
+
+## Plan
+
+- [x] Measure chunk composition (rolldown `generateBundle` module sizes)
+- [x] Move react/react-dom/scheduler/zustand to a `react` vendor chunk (shell no longer preloads `three`)
+- [x] Lazy-load `PostFx` (bloom, high/ultra only); keep `three/examples` out of `three`
+- [x] typecheck, test, build, verify.mjs (bloom renders on high/ultra, no errors)
+- [x] Docs: architecture §6, ROADMAP, CHANGELOG
+
+## Review (2026-11-10)
+
+- `three` 317.5 → 244.7 kB gzip; shell critical path = `react` 69 kB + `index` 15 kB; `PostFx` 4.8 kB on demand.
+- drei was already only `Html` (13 kB raw); not the problem. The bulk was react-dom pulled into `three` by
+  rolldown's dependency capture, and the shell preloaded `three` because zustand landed there too.
+- Three itself stays whole: r3f does `import * as THREE` for its catalogue. Further cuts need r3f changes; measure on
+  a real phone first (G12).
+
+## Lessons
+
+- With rolldown `manualChunks`, shared deps of matched modules get captured into the group: check which chunks
+  `index.html` modulepreloads, not only chunk sizes.

@@ -59,7 +59,7 @@ Cloudflare do projeto. **Publicado em 2026-11-08:** jogo em https://app.vilanoel
 | 1 | **CI no GitHub Actions** — entregue 2026-11-09 (`.github/workflows/ci.yml`, `smoke.yml`); falta proteger a `main` | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
 | 2 | **Ambiente de homologação (staging)** | Worker `vilanoeldobem-staging` com D1 próprio (`wrangler.jsonc` → `env.staging`); migrations testadas lá antes do remoto de produção; endereço documentado em `docs/guides/deploy.md`. |
 | 3 | **Backup e restauração do D1** | Procedimento documentado com D1 Time Travel e export periódico; restauração ensaiada uma vez no staging. |
-| 4 | **Redução do chunk Three.js** | Importar só o necessário de `@react-three/drei`; meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
+| 4 | **Redução do chunk Three.js** — entregue 2026-11-10: 317 → 245 kB gzip (React em chunk próprio, bloom sob demanda) | Meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
 
 ### Contas e ONGs (0.4.0)
 
@@ -95,7 +95,7 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 | CI (typecheck, test, build em PR) | **Entregue** (falta proteção da `main`) | Marco "Infraestrutura de entrega", item 1 |
 | Ambiente de homologação (staging) | **Próximo** | Marco "Infraestrutura de entrega", item 2 |
 | Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
-| Redução do chunk Three.js | **Próximo** | Marco "Infraestrutura de entrega", item 4 |
+| Redução do chunk Three.js | **Entregue** (245 kB gzip) | Marco "Infraestrutura de entrega", item 4 |
 | Logs de erro | Parcial | `observability.enabled` no Worker |
 | Revisão LGPD / ECA Digital | Não iniciado | antes do cadastro (0.4.0) |
 
@@ -114,6 +114,6 @@ plano mudar, o plano vence e este arquivo é corrigido.
 
 | Item | Onde | Efeito | Sugestão |
 |---|---|---|---|
-| Chunk `three` de ~1,1 MB (310 kB gzip) | `apps/web` | Primeiro carregamento lento em 3G | Infraestrutura de entrega, item 4 |
+| Chunk `three` ainda com 245 kB gzip (three inteiro, r3f importa `* as THREE`) | `apps/web` | Cena demora em 3G (a interface já aparece antes) | Medir em celular (G12) antes de otimizar mais |
 | Progresso só em `localStorage` | `src/game/store.ts` | Perde-se ao trocar de aparelho | Persistir no D1 com a conta (0.4.0, item 4) |
 | Posições dos terrenos duplicadas (TS e SQL) | `world.ts`, `0002_seed_lots.sql` | Divergência possível | Coberto por teste; gerar SQL a partir do TS |

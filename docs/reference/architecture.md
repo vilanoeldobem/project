@@ -63,10 +63,15 @@ servidos direto pela borda.
 
 ## 6. Desempenho
 
-| Item | Valor (0.2.0) |
+Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; `three` chega com a cena
+(`World`, `lazy`) e o bloom (`PostFx`) só nos presets Alta/Ultra.
+
+| Item | Valor |
 |---|---|
-| Chunk `three` (three + r3f + drei) | ~1,1 MB / 313 kB gzip |
-| App + CSS | ~27 kB / 10 kB gzip |
+| Chunk `three` (three + r3f + drei `Html`) | ~924 kB / 245 kB gzip (r3f importa `* as THREE`: sem tree-shaking do three) |
+| Chunk `react` (react, react-dom, scheduler, zustand) | ~221 kB / 69 kB gzip |
+| App (`index` + `World`) + CSS | ~85 kB / 30 kB gzip |
+| `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
 | Draw calls estimadas | ~70 (floresta inteira em 3 InstancedMesh; neve em 1) |
 | `dpr` | 1 até o máximo do preset (1–2) |
 
