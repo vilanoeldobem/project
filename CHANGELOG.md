@@ -11,6 +11,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Decisões: OQ-02 (visitante livre, conta opcional) e OQ-03 (login por link mágico no e-mail) resolvidas; nova
+  pergunta OQ-08 (provedor de envio de e-mail).
+
 - Ambiente natalino ([IMPL-0006](docs/decisions/0006-christmas-environment-real-time-procedural-weather.md),
   PROPOSTA): a Vila segue a hora real de São Paulo (1:1, via fuso IANA) com amanhecer, dia, entardecer e noite;
   clima fictício e determinístico, igual para todos (neve leve a nevasca, névoa, vento), com eventos de Natal e
