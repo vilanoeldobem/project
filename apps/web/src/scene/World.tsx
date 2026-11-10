@@ -1,18 +1,20 @@
 import { Canvas } from "@react-three/fiber";
-import { Suspense } from "react";
+import { lazy, Suspense } from "react";
 
 import { usePreset } from "../environment/settings";
 import type { LotInfo } from "../lib/api";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
 import { Lighting } from "./environment/Lighting";
 import { Footprints, Sparkles } from "./environment/Particles";
-import { PostFx } from "./environment/PostFx";
 import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { Ground } from "./Ground";
 import { Player } from "./Player";
 import { ChristmasTree, Gifts, Lamps, Lots } from "./Props";
 import { LightStrings, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
+
+// Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
+const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
 
 /**
  * 3D village. Snowy Christmas village whose light follows the real São Paulo time and whose fictional
@@ -49,7 +51,11 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Snow />
         <Sparkles />
       </Suspense>
-      {preset.bloom && <PostFx strength={preset.bloomStrength} />}
+      {preset.bloom && (
+        <Suspense fallback={null}>
+          <PostFx strength={preset.bloomStrength} />
+        </Suspense>
+      )}
     </Canvas>
   );
 }
