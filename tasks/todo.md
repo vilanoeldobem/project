@@ -99,3 +99,74 @@ Interpretation: www (+ apex redirect) → website; app → game; every website C
 ## Lessons
 - Zone-level Cloudflare Web Analytics injects a beacon script; a strict CSP must allow it or the console errors.
 - `zsh` globs `?` in unquoted URLs: always quote URLs with query strings.
+
+---
+
+# Task 4: Christmas environment — real São Paulo time, procedural shared weather, snowy village (0.4.0) — 2026-11-09
+
+Context: owner pasted the "CHRISTMAS WORLD" technical spec (v1.0, PROPOSTA) and chose: **snowy village** (replaces the
+"Brazilian summer" scene study, itself PROPOSTA in the docs repo), **stateless Worker endpoint** (no Durable Object:
+the game has no multiplayer/WebSocket yet; D1 stays the only store), **full spec scope**.
+
+Audit (spec phase 0): three 0.187 + r3f 9 + drei 10, WebGLRenderer, no post-processing, instanced voxels
+(`scene/Voxels.tsx`), single-player, Worker = stateless `/api/*` + D1. No renderer migration (spec §6.1).
+
+Adaptations: spec §13 DO/WS → `GET /api/environment` snapshot (time authority + seed + versions + scheduled events);
+deterministic weather means every client computes the same macro state with no broadcast. Admin overrides, shared
+footprints and interiors need auth/multiplayer/enterable buildings that do not exist → deferred (documented).
+Scheduled events are code constants (versioned), not admin mutations.
+
+## Plan
+### Environment core (pure, shared by client and Worker)
+- [x] `src/environment/time.ts` — SP seconds-of-day via Intl (no fixed UTC-3), SP civil date → epoch, smoothstep, phase
+- [x] `random.ts` (Math.imul hash), `weather.ts` (slot model v1, circular wind lerp), `events.ts` (scheduled overrides)
+- [x] `keyframes.ts` — sky/sun/moon/hemi/artificial/stars/fog/exposure keyframes by SP time, continuous across midnight
+- [x] `network-clock.ts` — monotonic anchor, min-RTT sample filter, slew small corrections, outlier rejection
+- [x] `config.ts` — worldId, seed, versions, slot/transition (single source for Worker + client)
+- [x] Tests: time boundaries/midnight/year, determinism, continuity, wind wrap, ranges, events expiry, clock slew
+
+### Worker
+- [x] `GET /api/environment` (no-store) + test; docs/reference/api.md
+
+### Client runtime
+- [x] Environment driver: one timestamp per frame → mutable frame object (no React re-render per frame)
+- [x] Settings store (quality preset auto/manual, reduce motion, reduce flicker, particles, sound) persisted locally
+- [x] Snapshot bootstrap + periodic/visibility resync; offline fallback marked as not synced
+
+### Scene (snowy village)
+- [x] Snow palette; snowy ground with tonal variation; pines with snow caps replace palms (gift id `gift-palm` kept: mission event id)
+- [x] Sky dome shader (gradient), seeded stars, cartoon moon, clouds, rare shooting stars, aurora (event/rare)
+- [x] Lighting controller: sun/moon/hemi/fog driven by keyframes + weather; shadow budget by preset
+- [x] Emissive holiday lights: shared material with deterministic twinkle (reduce-flicker aware); window glow; light strings
+- [x] GPU snow (instanced billboards, camera-local volume, wind drift, density by snowfall × preset)
+- [x] Wind sway on pines (vertex shader), smoke leaning with wind on chimneys, footprints pool (local)
+- [x] Decor: snowmen, Santa's sleigh + reindeer (idle), frozen pond (ice shader), distant voxel mountains, magic sparkles
+- [x] Post-processing: bloom (high/ultra) + single tone-map/output pass
+- [x] Procedural WebAudio ambience (wind/bells), off by default
+
+### UI
+- [x] HUD time/weather chip; "Ambiente" settings panel (pt-BR); dev-only debug panel + time override
+
+### Docs & release
+- [x] ADR IMPL-0006; docs/reference/environment.md; architecture/api/development guide; OQ-07; CHANGELOG [Unreleased]
+  (no version bump: ROADMAP reserves 0.4.0 for "Contas e ONGs"; release decides the number)
+- [x] Gates: typecheck, test, build, verify.mjs desktop+phone (day/night/blizzard screenshots)
+
+## Review (2026-11-09)
+- Gates: typecheck ok (2 apps); tests 36 web (+25 environment: SP time/DST/year turn, phases, weather determinism,
+  distribution, continuity, wind wrap, events, keyframes continuity/fog cap, clock slew/jump/outliers, snapshot
+  contract, `/api/environment`) + 2 site; build ok. `verify.mjs` (local `wrangler dev`, port 8799 because 8787 was
+  taken by another local app) clean on desktop + phone + 5 environment scenes (dawn mist, day snow, dusk clear,
+  night blizzard, night sky with aurora; presets low→ultra).
+- Not deployed, not committed (owner did not ask).
+- Not measured: real GPU performance (swiftshader runs at ~2 fps); needs a device benchmark (G12).
+- Deferred from the spec (documented in IMPL-0006): Durable Object/WebSocket, admin overrides, shared footprints,
+  interiors (no enterable buildings), WebGPU/TSL, correlated weather v2.
+
+## Lessons
+- The gameplay camera never sees the horizon (top edge ~29° below it): sky work is invisible without a sky view.
+- Keyframe colours are sRGB; `Color.setRGB` and shader uniforms are Linear-sRGB → convert (`linear()`), and give
+  custom ShaderMaterials `#include <colorspace_fragment>` so composer and direct rendering match.
+- A point light with a `distance` cut-off draws a visible ring on bright snow; use `distance: 0` (inverse-square).
+- Anything per-frame that calls `Intl` must be memoised (events per year), or it also thrashes the civil-time cache.
+- Software GL screenshots: camera easing is per-frame with a clamped dt, so transitions need long waits.

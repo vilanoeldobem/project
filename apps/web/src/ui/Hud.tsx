@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { MISSIONS } from "../game/progress";
 import { useVila } from "../game/store";
+import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
 import { Wordmark } from "./Wordmark";
 
@@ -27,9 +28,12 @@ export function Hud() {
   return (
     <div className="hud">
       <div className="hud__top">
-        <button className="hud__brand" onClick={() => open({ kind: "welcome" })} aria-label="Início">
-          <Wordmark />
-        </button>
+        <div className="hud__left">
+          <button className="hud__brand" onClick={() => open({ kind: "welcome" })} aria-label="Início">
+            <Wordmark />
+          </button>
+          <EnvironmentChip />
+        </div>
         <nav className="hud__nav">
           <button className="btn btn--chip" onClick={() => open({ kind: "explore" })} aria-label="Explorar ONGs">
             🏡 <span>Explorar ONGs</span>

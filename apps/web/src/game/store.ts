@@ -11,7 +11,8 @@ export type Panel =
   | { kind: "explore" }
   | { kind: "memory" }
   | { kind: "missions" }
-  | { kind: "indicators" };
+  | { kind: "indicators" }
+  | { kind: "environment" };
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby = { kind: "tree" } | { kind: "lot"; lotId: string } | null;
@@ -45,6 +46,9 @@ interface VilaState {
   player: { x: number; z: number };
   progress: Progress;
   toast: { id: number; text: string } | null;
+  /** Optional camera tilt to look at the sky (PROPOSAL; the gameplay camera is OQ-05). Moving ends it. */
+  skyView: boolean;
+  setSkyView: (on: boolean) => void;
   open: (panel: Panel) => void;
   close: () => void;
   setNearby: (n: Nearby) => void;
@@ -63,6 +67,8 @@ export const useVila = create<VilaState>((set, get) => ({
   player: { ...SPAWN },
   progress: loadProgress(),
   toast: null,
+  skyView: false,
+  setSkyView: (skyView) => set({ skyView }),
   open: (panel) => set({ panel }),
   close: () => set({ panel: { kind: "none" } }),
   setNearby: (nearby) => {
@@ -70,7 +76,7 @@ export const useVila = create<VilaState>((set, get) => ({
     if (cur?.kind === nearby?.kind && (cur?.kind !== "lot" || (nearby?.kind === "lot" && cur.lotId === nearby.lotId))) return;
     set({ nearby });
   },
-  setTarget: (target) => set({ target }),
+  setTarget: (target) => set(target ? { target, skyView: false } : { target }),
   setPlayer: (x, z) => set({ player: { x, z } }),
   record: (missionId, eventId) => {
     const { progress, completed } = applyEvent(get().progress, missionId, eventId);

@@ -1,7 +1,7 @@
 # API HTTP
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
+> **Atualizado em:** 2026-11-09
 > **Fonte de verdade:** `apps/web/worker/api.ts`, `apps/web/worker/api.test.ts`
 
 Base: mesma origem da página. Chaves, valores de estado e códigos de erro em inglês; `label` e `note` são textos
@@ -40,6 +40,22 @@ Terrenos e, só quando a ONG está `published`, nome e resumo dela. Cache 30 s.
 { "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 20.33, "z": 8.42,
               "state": "available", "ngo_name": null, "ngo_summary": null } ] }
 ```
+
+## GET /api/environment
+
+Autoridade da hora e contrato do clima procedural ([environment.md](environment.md), IMPL-0006).
+`Cache-Control: no-store` (o cliente mede o RTT para ancorar o relógio). Sem dados pessoais.
+
+```json
+{ "type": "environment.snapshot", "schemaVersion": 1, "worldId": "vila-noel-do-bem",
+  "serverTimeMs": 1794274440067, "timezone": "America/Sao_Paulo", "timeScale": 1,
+  "configVersion": 1, "weatherAlgorithmVersion": 1, "weatherSeed": 1078754363,
+  "weatherSlotDurationMs": 2700000, "weatherTransitionMs": 300000,
+  "cycle": { "dawnStart": "05:00", "dayStart": "06:00", "duskStart": "17:00", "nightStart": "18:30" } }
+```
+
+O cliente rejeita snapshots com `schemaVersion`, `timezone`, `timeScale` ou `weatherAlgorithmVersion` diferentes
+dos que conhece e ignora `configVersion` menor que a atual.
 
 ## Erros
 

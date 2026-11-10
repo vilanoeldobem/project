@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseSnapshot } from "../src/environment/config";
 import { handleApi, type Env } from "./api";
 
 const env = (db?: Partial<D1Database>): Env => ({
@@ -35,6 +36,22 @@ describe("worker /api", () => {
     expect(sql).toContain("FROM ngos WHERE status = 'published'");
     expect(body.indicators.find((i) => i.key === "approved_ngos")?.value).toBe(3);
     expect(body.indicators.find((i) => i.key === "confirmed_donations")?.value).toBeNull();
+  });
+
+  it("environment is the clock authority and never cached", async () => {
+    const before = Date.now();
+    const res = await get("/api/environment", env());
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      type: "environment.snapshot",
+      timezone: "America/Sao_Paulo",
+      timeScale: 1,
+      weatherAlgorithmVersion: 1,
+    });
+    expect(body.serverTimeMs as number).toBeGreaterThanOrEqual(before);
+    expect(parseSnapshot(body)).not.toBeNull();
   });
 
   it("lots without db is 503", async () => {

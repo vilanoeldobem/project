@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useVila } from "./game/store";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { Donation } from "./ui/Donation";
+import { AmbienceSound, EnvironmentDebug, EnvironmentPanel } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
 import { Hud } from "./ui/Hud";
 import { Indicators } from "./ui/Indicators";
@@ -36,6 +37,9 @@ export function App() {
       {panel.kind === "memory" && <MemoryGame />}
       {panel.kind === "missions" && <Missions />}
       {panel.kind === "indicators" && <Indicators />}
+      {panel.kind === "environment" && <EnvironmentPanel />}
+      <AmbienceSound />
+      <EnvironmentDebug />
     </>
   );
 }
