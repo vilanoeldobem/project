@@ -1,6 +1,6 @@
 # Vila Noel do Bem — Task 1: repository foundation and first slice (0.1.0) — 2026-11-08
 
-Context: empty code repository (only `LICENSE`). Product docs live in `vilanoeldobem_docs`
+Context: empty code repository (only `LICENSE`). Product docs lived in `vilanoeldobem_docs` (now `vilanoeldobem/docs`)
 (DEC-001..DEC-044, `docs/decisions/registro-de-decisoes.md`). No technology is decided in the docs (card G11 open).
 The owner asked for Three.js + React + Cloudflare, published to Cloudflare account `9119b7496767fec497f6627c5ca56f32`.
 

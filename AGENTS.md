@@ -1,14 +1,14 @@
 # AGENTS.md — rules for coding agents working in this repository
 
 This file governs *this* repository only. Never rewrite other projects' `AGENTS.md`/`CLAUDE.md`
-(including `vilanoeldobem_docs`).
+(including `vilanoeldobem/docs`).
 
 ## What this is
 
 **Vila Noel do Bem** — a 3D voxel Christmas village on the web where people explore, play
 minigames, meet approved NGOs and donate voluntarily. Stack: React 19 + Three.js
 (react-three-fiber) game and a Cloudflare Worker (Static Assets + D1) in `apps/web`
-(app.vilanoeldobem.com.br), plus the public website in `apps/site` (www.vilanoeldobem.com.br). Product source of truth is the docs repository `vilanoeldobem_docs`
+(app.vilanoeldobem.com.br), plus the public website in `apps/site` (www.vilanoeldobem.com.br). Product source of truth is the docs repository `vilanoeldobem/docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 

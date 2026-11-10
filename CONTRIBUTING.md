@@ -7,7 +7,7 @@
 
 1. Leia [`docs/README.md`](docs/README.md) para saber onde cada coisa está documentada.
 2. Leia [`docs/specs/README.md`](docs/specs/README.md): o produto é definido no repositório
-   `vilanoeldobem_docs`. Toda mudança de produto cita a decisão relacionada (`DEC-NNN`) ou a pendência (`PEN-NNN`).
+   `vilanoeldobem/docs`. Toda mudança de produto cita a decisão relacionada (`DEC-NNN`) ou a pendência (`PEN-NNN`).
 3. Consulte [`ROADMAP.md`](ROADMAP.md) e o cartão correspondente no acompanhamento (Kanban/Gantt): trabalho fora
    do marco corrente precisa de justificativa.
 4. Distinga **CONFIRMADO**, **PROPOSTA**, **HIPÓTESE** e **PENDENTE**. Não implemente proposta como se fosse decisão.

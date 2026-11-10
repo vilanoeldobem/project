@@ -2,7 +2,7 @@
 
 Vila natalina virtual em 3D voxel para explorar, jogar, conhecer organizações sociais e fazer o bem.
 Este repositório contém o código; a definição do produto vive no repositório de documentação
-[`vilanoeldobem_docs`](https://github.com/vilanoeldobem/vilanoeldobem_docs).
+[`vilanoeldobem/docs`](https://github.com/vilanoeldobem/docs).
 
 > [!WARNING]
 > **Em desenvolvimento.** Primeira fatia funcional (praça, terrenos, missões, Jogo da Memória).

@@ -2,7 +2,7 @@
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
 > **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** `vilanoeldobem_docs` (DEC-001..044), `AGENTS.md`
+> **Fonte de verdade:** `vilanoeldobem/docs` (DEC-001..044), `AGENTS.md`
 
 ## 1. Solidariedade visível, nunca coagida
 
