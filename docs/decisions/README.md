@@ -24,6 +24,6 @@
 | [IMPL-0003](0003-cloudflare-workers-static-assets-d1.md) | Um Worker com Static Assets + D1, monorepo pnpm | Aceita (0.1.0, 2026-11-08) |
 | [IMPL-0004](0004-english-code-portuguese-docs.md) | Código e conversa com agentes em en-US; documentação em pt-BR | Aceita (0.2.0, 2026-11-08) |
 | [IMPL-0005](0005-public-site-and-domains.md) | Site público em `apps/site` e domínios `www` / `app` | Aceita (0.3.0, 2026-11-08) |
-| [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md) | Ambiente natalino: hora real de SP, clima procedural, vila nevada | Proposta — a validar (OQ-07) |
+| [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md) | Ambiente natalino: hora real de SP, clima procedural, vila nevada | Proposta — a validar (arte confirmada, OQ-07) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).
