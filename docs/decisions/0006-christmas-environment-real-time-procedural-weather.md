@@ -1,6 +1,7 @@
 # IMPL-0006: Ambiente natalino — hora real de São Paulo, clima procedural compartilhado e vila nevada
 
-**Status:** Proposta — a validar (direção de arte aguarda DEC no repositório de documentação, ver OQ-07)
+**Status:** Proposta — a validar (G11); direção de arte nevada confirmada pelo responsável em 2026-11-09 (OQ-07),
+DEC no repositório de documentação pendente
 **Data:** 2026-11-09
 **Fontes:** especificação "CHRISTMAS WORLD" v1.0 (proposta técnica, 09/11/2026) trazida pelo responsável técnico
 (Augusto, 2026-11-09); escolhas do responsável na mesma data: vila nevada, endpoint stateless, escopo completo;
@@ -42,7 +43,7 @@ voxels instanciados; jogo **sem multiplayer** (sem WebSocket); Worker stateless 
 8. **Vista "Olhar o céu"** (PROPOSTA): botão que inclina a câmera para o céu; a câmera de jogo continua a de
    OQ-05. Sem ela, céu/estrelas/aurora nunca aparecem (a câmera de jogo olha ~29° abaixo do horizonte no topo da tela).
 9. **Direção de arte:** vila nevada (pinheiros com neve no lugar das palmeiras, telhados nevados, chalés com janelas
-   acesas). Escolha do responsável técnico; precisa virar DEC no repositório de documentação (OQ-07).
+   acesas). Confirmada pelo responsável em 2026-11-09 (OQ-07 resolvida); falta a DEC no repositório de documentação.
 
 ## Alternativas consideradas
 

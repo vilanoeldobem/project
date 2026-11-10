@@ -44,7 +44,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Área | Status | Referência |
 |---|---|---|
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
-| Vila nevada, dia/noite real, clima compartilhado | Implementado — PROPOSTA (IMPL-0006, OQ-07) | [environment](reference/environment.md) |
+| Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial (leitura; sem cadastro) | [storage](reference/storage.md) |
 | Missões e XP | Parcial (local, sem servidor) | [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |

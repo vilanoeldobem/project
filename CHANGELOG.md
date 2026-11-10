@@ -24,7 +24,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
-- Direção de arte: o estudo "Natal brasileiro de verão" (palmeiras, terracota) deu lugar à vila nevada (OQ-07).
+- Direção de arte: o estudo "Natal brasileiro de verão" (palmeiras, terracota) deu lugar à vila nevada, confirmada
+  pelo responsável em 2026-11-09 (OQ-07 resolvida; DEC no repositório de documentação pendente).
   O id de missão `gift-palm` foi mantido.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
   marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
