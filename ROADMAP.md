@@ -25,8 +25,9 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Fundação + primeira fatia | 0.1.0 | P01, P02, P03, P04, P09, P14 (parciais) | D01, D02, D03, D04, D11 (parcial) | **Entregue** 2026-11-08 | 08–10/11 |
 | Padronização de idiomas (IMPL-0004) | 0.2.0 | — | — | **Entregue** 2026-11-08 | 08/11 |
 | Site público e domínios (IMPL-0005) | 0.3.0 | — | — | **Entregue** 2026-11-08 | 08/11 |
+| Ambiente natalino (IMPL-0006) | Unreleased | — | — | **Entregue** 2026-11-09 (em produção) | 09/11 |
 | Decisões e publicação de teste | 0.3.x | — | G11, G12, M01 | **Em andamento** | 09–10/11 |
-| Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Próximo** (não depende de decisões) | 09–10/11 |
+| Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Em andamento** (CI entregue) | 09–10/11 |
 | Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | Planejado — aguarda OQ-08 e revisão LGPD | 11–17/11 |
 | HUD da ONG e segundo jogo | 0.5.0 | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
 | Doação e badges | 0.6.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
@@ -49,13 +50,13 @@ Caderno de Missões local. Ver [CHANGELOG](CHANGELOG.md#010---2026-11-08).
 **Objetivo:** validar a stack (G11) e a câmera/desempenho em celular real (G12) com a versão publicada na conta
 Cloudflare do projeto. **Publicado em 2026-11-08:** jogo em https://app.vilanoeldobem.com.br e site em https://www.vilanoeldobem.com.br; falta o teste em aparelhos reais.
 
-### Infraestrutura de entrega (0.3.x) — próximo
+### Infraestrutura de entrega (0.3.x) — em andamento
 
 **Objetivo:** tornar cada entrega até 30/11 segura e verificável, sem depender de decisões de produto.
 
 | # | Entrega | Pronto quando |
 |---|---|---|
-| 1 | **CI no GitHub Actions** | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
+| 1 | **CI no GitHub Actions** — entregue 2026-11-09 (`.github/workflows/ci.yml`, `smoke.yml`); falta proteger a `main` | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
 | 2 | **Ambiente de homologação (staging)** | Worker `vilanoeldobem-staging` com D1 próprio (`wrangler.jsonc` → `env.staging`); migrations testadas lá antes do remoto de produção; endereço documentado em `docs/guides/deploy.md`. |
 | 3 | **Backup e restauração do D1** | Procedimento documentado com D1 Time Travel e export periódico; restauração ensaiada uma vez no staging. |
 | 4 | **Redução do chunk Three.js** | Importar só o necessário de `@react-three/drei`; meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
@@ -91,7 +92,7 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 
 | Tarefa | Status | Observação |
 |---|---|---|
-| CI (typecheck, test, build em PR) | **Próximo** | Marco "Infraestrutura de entrega", item 1 |
+| CI (typecheck, test, build em PR) | **Entregue** (falta proteção da `main`) | Marco "Infraestrutura de entrega", item 1 |
 | Ambiente de homologação (staging) | **Próximo** | Marco "Infraestrutura de entrega", item 2 |
 | Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
 | Redução do chunk Three.js | **Próximo** | Marco "Infraestrutura de entrega", item 4 |

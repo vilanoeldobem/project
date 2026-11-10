@@ -1,0 +1,24 @@
+# Production smoke test (read-only GETs plus one rejected POST). Run it by hand right after a deploy
+# (Actions → smoke → Run workflow) and once a day as an uptime check. No secrets, no writes.
+name: smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Base URL to check
+        default: https://app.vilanoeldobem.com.br
+        required: true
+  schedule:
+    - cron: "17 9 * * *" # 06:17 in São Paulo
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - run: sh scripts/smoke-api.sh "${{ inputs.url || 'https://app.vilanoeldobem.com.br' }}"

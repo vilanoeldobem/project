@@ -14,6 +14,8 @@ curl -s "$BASE/api/health" | grep -q '"db":true' && echo "ok   D1 connected" || 
 check "GET /api/indicators" 200 "$(code "$BASE/api/indicators")"
 check "GET /api/lots" 200 "$(code "$BASE/api/lots")"
 curl -s "$BASE/api/lots" | grep -q '"id":"plaza-01"' && echo "ok   lots use English ids" || { echo "FAIL lots missing plaza-01"; fail=1; }
+check "GET /api/environment" 200 "$(code "$BASE/api/environment")"
+curl -s "$BASE/api/environment" | grep -q '"timezone":"America/Sao_Paulo"' && echo "ok   environment uses São Paulo time" || { echo "FAIL environment timezone"; fail=1; }
 check "POST /api/lots" 405 "$(code -X POST "$BASE/api/lots")"
 check "GET /api/nope" 404 "$(code "$BASE/api/nope")"
 check "GET / (SPA)" 200 "$(code "$BASE/")"

@@ -11,6 +11,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- CI no GitHub Actions: `ci.yml` (typecheck, testes e build em todo PR e push na `main`) e `smoke.yml` (smoke de
+  produção diário e manual). `scripts/smoke-api.sh` passa a conferir `/api/environment`.
+
 - Decisões: OQ-02 (visitante livre, conta opcional) e OQ-03 (login por link mágico no e-mail) resolvidas; nova
   pergunta OQ-08 (provedor de envio de e-mail).
 

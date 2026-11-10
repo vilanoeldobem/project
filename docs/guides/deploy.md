@@ -53,6 +53,14 @@ pnpm run deploy                     # build (typecheck + vite) + wrangler deploy
 node scripts/verify.mjs https://app.vilanoeldobem.com.br
 ```
 
+### 4.1 Integração contínua (GitHub Actions)
+
+- `ci.yml`: todo PR e todo push na `main` rodam `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test` e
+  `pnpm build` (Node 24, pnpm do `packageManager`). Sem segredos e sem deploy.
+- `smoke.yml`: roda `scripts/smoke-api.sh` contra produção uma vez por dia (06:17 em São Paulo) e manualmente em
+  **Actions → smoke → Run workflow** logo depois de cada deploy.
+- O deploy continua manual (`pnpm run deploy`), feito por quem tem acesso à conta Cloudflare.
+
 ## 5. Site público e domínios
 
 ```bash
@@ -84,6 +92,7 @@ banco para um instante (`wrangler d1 time-travel restore vilanoeldobem --timesta
 ## Limitações conhecidas
 
 - Ainda não há ambiente de homologação separado (ROADMAP, tarefas de base).
+- A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 
 ## Ver também
 
