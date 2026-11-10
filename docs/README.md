@@ -27,6 +27,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 **Referência**
 - [reference/architecture.md](reference/architecture.md) — componentes, fluxo de dados, estrutura de pastas.
 - [reference/api.md](reference/api.md) — rotas `/api/*`, respostas e erros.
+- [reference/environment.md](reference/environment.md) — hora real de São Paulo, clima procedural, efeitos e presets.
 - [reference/storage.md](reference/storage.md) — schema D1, migrations, estados.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
 
@@ -43,6 +44,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Área | Status | Referência |
 |---|---|---|
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
+| Vila nevada, dia/noite real, clima compartilhado | Implementado — PROPOSTA (IMPL-0006, OQ-07) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial (leitura; sem cadastro) | [storage](reference/storage.md) |
 | Missões e XP | Parcial (local, sem servidor) | [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |

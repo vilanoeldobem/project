@@ -170,3 +170,23 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 
 .hud__action { white-space: nowrap; }
 @media (pointer: coarse) { .hud__action kbd { display: none; } }
+
+/* Environment (IMPL-0006): time/weather chip, "Ambiente" panel, dev debug overlay. */
+.hud__left { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
+.hud__left > * { pointer-events: auto; }
+.env-chip { display: flex; gap: 6px; }
+.env-chip .btn--chip { font-variant-numeric: tabular-nums; }
+.env-chip__label { margin-left: 2px; }
+.env-now { font-size: 1.05rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.env-fieldset { border: 2px solid var(--leaf); border-radius: 12px; padding: 10px 14px 12px; margin: 14px 0 0; }
+.env-fieldset legend { font-weight: 800; color: var(--pine); padding: 0 6px; }
+.env-options { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.env-radio, .env-check { display: flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.env-check { width: 100%; }
+.env-radio input, .env-check input { width: 20px; height: 20px; accent-color: var(--red); }
+.env-debug {
+  position: fixed; right: 8px; bottom: 8px; z-index: 40; margin: 0; padding: 8px 10px; max-width: calc(100vw - 16px);
+  overflow-x: auto; background: rgba(11, 21, 48, 0.82); color: #dfe9f5; font: 11px/1.45 ui-monospace, Menlo, monospace;
+  border-radius: 8px; pointer-events: none; white-space: pre;
+}
+@media (max-width: 640px) { .env-chip__label { display: none; } }

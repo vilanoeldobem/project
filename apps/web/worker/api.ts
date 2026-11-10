@@ -7,10 +7,13 @@
  *   GET /api/health      → { ok, version, environment, db }
  *   GET /api/indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /api/lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
+ *   GET /api/environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *
  * Nothing here writes, takes payments or records personal data (IMPL-0002, LGPD).
  * `label` and `note` are user-facing copy and stay in pt-BR.
  */
+
+import { localSnapshot } from "../src/environment/config";
 
 export interface Env {
   ASSETS: Fetcher;
@@ -92,6 +95,9 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
         );
       case "/api/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });
+      case "/api/environment":
+        // The server time is the clock authority; the rest is the deterministic weather contract.
+        return json({ ...localSnapshot(Date.now()) }, { headers: { "Cache-Control": "no-store" } });
       case "/api/lots": {
         const rows = await lots(env);
         if (rows === null) return json({ error: "db_unavailable" }, { status: 503 });

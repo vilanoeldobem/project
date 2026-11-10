@@ -63,8 +63,12 @@ Relate a saída de verdade. "Passou" sem ter rodado não existe.
 ### 4.3 Adicionar um objeto voxel à cena
 
 1. Gere os voxels em `src/scene/models.ts` (`[x, y, z, cor]`, origem no chão).
-2. Desenhe com `<Voxels voxels={...} size={...} emissive={[cores que brilham]} />` (1–2 draw calls).
+2. Desenhe com `<Voxels voxels={...} size={...} />` (1 draw call por papel de material). Papéis por cor:
+   `emissive` (lâmpadas que cintilam), `glow` (janelas que acendem à noite), `sway` (folhagem com vento).
 3. Use cores de `PALETTE` (`src/game/world.ts`). Mantenha o tamanho de bloco coerente (doc 17).
+4. Muitas cópias do mesmo objeto? Junte os voxels num único `<Voxels>` (ver `Pines` em `scene/Scenery.tsx`).
+5. Efeito que muda com a hora ou o clima: leia `env.frame` dentro de `useFrame`, nunca `new Date()`
+   ([reference/environment.md](../reference/environment.md)).
 
 ### 4.4 Adicionar uma missão
 

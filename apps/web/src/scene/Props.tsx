@@ -3,36 +3,24 @@ import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import type { Group } from "three";
 
-import { GIFTS, LAMPS, LOTS, PALETTE as P, PALMS } from "../game/world";
+import { GIFTS, LAMPS, LOTS, PALETTE as P } from "../game/world";
 import { useVila } from "../game/store";
 import type { LotInfo } from "../lib/api";
 import { Voxels } from "./Voxels";
-import { bench, gift, house, lamp, lotMarker, palm, tree } from "./models";
+import { Smoke } from "./environment/Particles";
+import { bench, BULBS, gift, house, HOUSE_CHIMNEY, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
+const WINDOWS = [P.window];
 
 export function ChristmasTree() {
   const v = useMemo(tree, []);
   const open = useVila((s) => s.open);
   return (
     <group onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
-      <Voxels voxels={v} emissive={GLOW} />
-      <pointLight position={[0, 13, 0]} intensity={40} distance={18} color="#FFD58A" />
+      <Voxels voxels={v} emissive={BULBS} />
       <Label y={14.5} text="Doação global" />
     </group>
-  );
-}
-
-export function Palms() {
-  const v = useMemo(palm, []);
-  return (
-    <>
-      {PALMS.map(([x, z], i) => (
-        <group key={i} position={[x, 0, z]} rotation-y={i * 1.3}>
-          <Voxels voxels={v} />
-        </group>
-      ))}
-    </>
   );
 }
 
@@ -59,17 +47,28 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const marker = useMemo(lotMarker, []);
   const home = useMemo(house, []);
   const open = useVila((s) => s.open);
+  const chimneys = useMemo(
+    () =>
+      LOTS.filter((lot) => info[lot.id]?.state === "published" && info[lot.id]?.ngo_name).map((lot): [number, number, number] => {
+        // Chimney local (x, z) rotated by the lot facing, then moved to the lot.
+        const [cx, cy, cz] = HOUSE_CHIMNEY;
+        const c = Math.cos(lot.facing), s = Math.sin(lot.facing);
+        return [lot.x + cx * c + cz * s, cy, lot.z - cx * s + cz * c];
+      }),
+    [info]
+  );
   return (
     <>
+      <Smoke origins={chimneys} />
       {LOTS.map((lot) => {
         const published = info[lot.id]?.state === "published" && info[lot.id]?.ngo_name;
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]} rotation-y={lot.facing}>
             <group onClick={(e) => (e.stopPropagation(), open({ kind: "lot", lotId: lot.id }))}>
-              <Voxels voxels={published ? home : marker} />
+              <Voxels voxels={published ? home : marker} glow={WINDOWS} />
               <mesh position={[0, 0.02, 0]} rotation-x={-Math.PI / 2} receiveShadow>
                 <planeGeometry args={[7, 7]} />
-                <meshStandardMaterial color={published ? P.leaf : "#A7B98C"} />
+                <meshStandardMaterial color={published ? P.snowShade : P.snowDeep} />
               </mesh>
             </group>
             <Label y={published ? 7.5 : 5} text={published ? String(info[lot.id]?.ngo_name) : "Terreno disponível"} />

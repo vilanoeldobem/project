@@ -10,6 +10,9 @@ import { avatar } from "./models";
 const SPEED = 9;
 /** Top-down diagonal camera (study; final angle is card G12). */
 const CAMERA_OFFSET = new Vector3(0, 24, 21);
+/** "Look at the sky" view: low behind the avatar, looking up over the village (PROPOSAL). */
+const SKY_OFFSET = new Vector3(0, 2.6, 10);
+const SKY_LOOK = new Vector3(0, 30, -40);
 const KEYS: Record<string, [number, number]> = {
   KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
   KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
@@ -19,6 +22,8 @@ export function Player() {
   const ref = useRef<Group>(null);
   const pressed = useRef(new Set<string>());
   const look = useMemo(() => new Vector3(), []);
+  const aim = useMemo(() => new Vector3(), []);
+  const goal = useMemo(() => new Vector3(), []);
   const camera = useThree((s) => s.camera);
   // Portrait (phones): pull the camera back so the same plaza width fits.
   const zoom = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
@@ -32,6 +37,7 @@ export function Player() {
       e.preventDefault();
       pressed.current.add(e.code);
       useVila.getState().setTarget(null);
+      useVila.getState().setSkyView(false);
     };
     const up = (e: KeyboardEvent) => pressed.current.delete(e.code);
     const blur = () => pressed.current.clear();
@@ -87,8 +93,13 @@ export function Player() {
     }
 
     look.set(g.position.x, 1, g.position.z);
-    camera.position.lerp(look.clone().addScaledVector(CAMERA_OFFSET, zoom), 1 - Math.exp(-4 * dt));
-    camera.lookAt(look);
+    const k = 1 - Math.exp(-(s.skyView ? 2 : 4) * dt);
+    if (s.skyView) goal.copy(look).add(SKY_OFFSET);
+    else goal.copy(look).addScaledVector(CAMERA_OFFSET, zoom);
+    camera.position.lerp(goal, k);
+    // The aim point eases too, so switching views pans smoothly instead of snapping.
+    aim.lerp(s.skyView ? goal.copy(look).add(SKY_LOOK) : look, k);
+    camera.lookAt(aim);
   });
 
   return (
