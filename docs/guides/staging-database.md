@@ -7,7 +7,7 @@ O ambiente `staging` da API usa um banco próprio. Não compartilha o binding de
 | Ambiente | Banco | Identificador | Migrations verificadas |
 |---|---|---|---|
 | Produção | `vilanoeldobem` | `7c65d21d-0431-4ec5-bdd0-691dacb81f92` | 0001-0003; somente leitura nesta entrega |
-| Homologação | `vilanoeldobem-staging` | `32ebb383-e765-4ed0-aa25-d8871be3e414` | 0001-0005 aplicadas e conferidas |
+| Homologação | `vilanoeldobem-staging` | `32ebb383-e765-4ed0-aa25-d8871be3e414` | 0001-0006 aplicadas e conferidas |
 
 Os recursos pertencem à conta do projeto configurada em `apps/api/wrangler.jsonc`. A configuração de homologação tem nome de Worker próprio, `routes: []`, `workers_dev: false` e nenhuma origem autorizada. Isso prepara o banco sem criar um endereço público de teste nem ativar o adaptador local de e-mail.
 
@@ -48,6 +48,16 @@ Antes da migration 0005, um novo export do schema v4 foi preservado fora do Git 
 Onze verificações passaram: restauração do export v4, histórico/FKs, rejeição de usuário ausente, JSON inválido e revisão negativa, uma linha por usuário, rejeição de CAS com revisão antiga, preservação da marca de importação em atualização posterior, cascata de exclusão, limpeza das tabelas de contas/progresso e produção inalterada. A marca é preservada pela escrita condicional da aplicação; o schema não impõe sozinho a política de importação única.
 
 Os testes usaram usuário sintético descartável e deixaram `auth_users`, `auth_links`, `auth_sessions`, `auth_local_outbox` e `player_progress` vazias. Produção permanece nas migrations 0001-0003, sem tabelas de conta/progresso; as consultas de verificação escreveram zero linhas. Não houve publicação de API nem teste HTTP remoto de autenticação. A jornada integrada de progresso foi validada localmente.
+
+## Candidatura de ONG - migration 0006
+
+Um export v5 foi preservado fora do Git e restaurado em SQLite descartável antes de aplicar somente `0006_ngo_applications.sql` ao banco/ambiente de homologação explícitos. Histórico 0001-0006 e integridade de chaves estrangeiras foram conferidos no D1 remoto.
+
+Onze casos passaram: restauração v5, produção antes/depois, histórico/FKs, rejeição de ONG/dono/terreno inexistentes, unicidade da candidatura por ONG e vínculo com dono, duas candidaturas sem reserva antecipada, revisão vencida sem marcador/efeitos, publicação vencedora com auditoria, replay/perdedor de terreno ocupado sem efeitos e limpeza final. Os guards SQL foram exercitados sequencialmente no remoto; concorrência e autorização HTTP integram os testes locais, não esta prova de schema.
+
+As fixtures usaram terreno próprio descartável. Depois da limpeza, `ngos`, `ngo_applications`, `audit_events`, tabelas de contas e `player_progress` ficaram vazias; os terrenos originais mantiveram seus vínculos/estados. Produção foi lida antes/depois, permanece em 0001-0003 sem contas/progresso/candidaturas, com zero linhas escritas.
+
+Não reservar terreno antes da aprovação continua **PROPOSTA local**. Nenhum administrador real foi configurado, nenhuma API publicada e nenhum upload/R2 usado. A candidatura pública depende de autenticação por e-mail, documentos/provas, administradores e ratificação da política de terrenos. O revisor sintético da jornada de navegador existiu apenas no processo local.
 
 ## Recuperação
 

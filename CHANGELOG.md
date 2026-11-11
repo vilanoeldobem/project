@@ -16,8 +16,7 @@ Cada versão indica o schema D1 que entrega.
 - Propriedade por sessão, asserção de conta e allowlist administrativa no servidor vazia por padrão. Formulário,
   documentos e política definitiva de terrenos continuam pendentes. [IMPL-0013](docs/decisions/0013-local-ngo-applications.md).
 
-
-### Added
+- Schema v6 aplicado somente ao D1 isolado de homologação após backup restaurado: vínculos, revisão/marcador, publicação de terreno, replay e limpeza sintética verificados. Produção permanece em v3.
 
 - Progresso de conta no D1: eventos idempotentes, recompensas calculadas pelo catálogo compartilhado e importação
   de visitante uma vez, preservando IDs reais dos presentes. Migration aditiva v5, revisão concorrente e isolamento por sessão.

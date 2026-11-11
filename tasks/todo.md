@@ -8,10 +8,13 @@
 - [x] Coordinator gates on 2026-11-11: all package typechecks, 216 tests and builds passed.
 - [x] Migration0006 applied locally; actual UI browser proof passed: owner signup/submission, admin-only access, requested adjustments, owner resubmission, manual approval, four audit records and same-page fresh public lot/NGO view.
 - [x] AIOX QA static review passed; paragraph/UTF-8 payload and publication-cache findings corrected.
-- [ ] Final expanded general browser regression (coordinator running).
+- [x] Final expanded general browser regression passed on functional tree9f5499c: desktop/mobile viewports, all five environment scenes, gift/cosmetics, two-browser multiplayer and all five content galleries; no console/page errors. Software GL/viewport proof, not physical-phone or GPU performance measurement.
 
 Production remains disabled; no real administrators or document requirements were invented.
-No remote schema or deployment changes were made by this backend implementer.
+- [x] DevOps restored staging v5 export locally, applied only migration0006 to isolated staging and passed eleven SQL/backup/readback cases.
+- [x] Synthetic NGO/application/audit/account/progress fixtures cleaned, original lots unchanged, production still migrations1-3 with zero verification writes.
+
+No Worker deployed, public auth/admin enabled or R2 integration used. Remote cases prove schema/SQL guards; integrated HTTP/UI remains local.
 
 # Account progress - 2026-11-11
 
