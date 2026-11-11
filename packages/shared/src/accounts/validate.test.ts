@@ -30,6 +30,14 @@ describe("registration (DEC-038: exactly four fields)", () => {
     expect(errors.nickname).toMatch(/letras/);
   });
 
+  it("turns control characters into spaces (no NUL, ESC or line breaks stored)", () => {
+    const { value, errors } = validateRegistration({ name: "Ana\u0000Lima", nickname: "ana_lima", city: "Re\u001b[31mcife\n", email: "ana@example.com" });
+    expect(errors).toEqual({});
+    expect(value.name).toBe("Ana Lima");
+    expect(value.city).toBe("Re [31mcife");
+    expect(validateApplication({ ...VALID_APP, summary: "Apoio\u0007 escolar para crianças do bairro." }, TODAY).value.summary).toBe("Apoio escolar para crianças do bairro.");
+  });
+
   it("limits nickname charset and length", () => {
     for (const ok of ["abc", "noel.2026", "a-b_c", "X".repeat(20)]) expect(validateRegistration({ nickname: ok }).errors.nickname).toBeUndefined();
     for (const bad of ["ab", "X".repeat(21), ".abc", "abc.", "ab c", "ação"]) expect(validateRegistration({ nickname: bad }).errors.nickname).toBeDefined();
@@ -48,6 +56,8 @@ describe("NGO application (P12; DEC-015)", () => {
     expect(isAtLeastOneYearOld("2025-11-11", TODAY)).toBe(true);
     expect(isAtLeastOneYearOld("2025-11-12", TODAY)).toBe(false);
     expect(isAtLeastOneYearOld("not-a-date", TODAY)).toBe(false);
+    for (const impossible of ["2020-02-30", "2021-02-29", "2020-04-31", "2020-13-01"]) expect(isAtLeastOneYearOld(impossible, TODAY)).toBe(false);
+    expect(isAtLeastOneYearOld("2020-02-29", TODAY)).toBe(true);
   });
 
   it("accepts a complete application and drops unknown tags", () => {

@@ -21,7 +21,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
-import { allowedOrigins, errorResponse, HttpError, json, NO_STORE } from "./http";
+import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 
@@ -128,7 +128,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   const method = request.method;
   if (method === "OPTIONS") return new Response(null, { status: 204 });
   try {
-    if (ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return await accountRoute(request, env, url);
+    if (ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return noStore(await accountRoute(request, env, url));
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }

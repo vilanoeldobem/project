@@ -60,5 +60,13 @@ export async function requireAdmin(request: Request, env: Env): Promise<User> {
   return user;
 }
 
+/**
+ * Writes name the account the page believes is signed in (`accountId`). If another tab switched accounts in
+ * the meantime, the cookie belongs to someone else: refuse instead of writing into the wrong account.
+ */
+export function assertAccount(body: Record<string, unknown>, user: User): void {
+  if (body.accountId !== user.id) throw new HttpError(409, "account_changed");
+}
+
 /** What the person's own client may see about themselves (e-mail included; never sent to anyone else). */
 export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role });

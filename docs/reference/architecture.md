@@ -89,12 +89,12 @@ jogo (play.*)                     API (api.*)                          D1 / Emai
  │                                 token aleatório ──────────────────▶ login_tokens (SHA-256, 15 min)
  │                                 envia e-mail ─────────────────────▶ EMAIL.send (só o link)
  │ ◀── 202 {ok} (+ devLink fora de produção)
- │ pessoa abre <origin>/?login=<token>
+ │ pessoa abre <origin>/#login=<token>   (fragmento: nunca chega a servidor)
  │ POST /auth/verify {token} ────▶ marca used_at (uso único), verified_at
  │                                 cria sessão ──────────────────────▶ sessions (SHA-256, 30 dias)
  │ ◀── 200 {user} + Set-Cookie __Host-vila_session (HttpOnly, Secure, SameSite=Lax)
- │ GET /progress, POST /progress/events (progresso local, em lotes de 50) ─▶ progress_events
- │ adota o progresso do servidor; cada evento novo é espelhado enquanto houver sessão
+ │ GET /progress, POST /progress/events {accountId} (visitante, lotes de 50) ─▶ progress_events
+ │ apaga o progresso de visitante do navegador e mostra o da conta; cada evento novo é enviado
 ```
 
 O token sai da barra de endereço logo ao ser lido. O link aponta para o jogo, não para a API, para que scanners de

@@ -122,9 +122,15 @@ Avaliadas nesta ordem, para toda rota de conta:
 4. `/auth/*`: limite por IP com o binding `AUTH_LIMITER` (10 requisições a cada 60 s por `CF-Connecting-IP`; o IP é
    só a chave do limite, nunca gravado) → `429 too_many_requests`.
 5. Corpo (`POST`): exige `Content-Type: application/json` (`415 json_required`; também força o preflight de CORS),
-   no máximo 16 000 bytes (32 000 na candidatura; `413 too_large`), objeto JSON (`400 bad_json`).
+   no máximo 16 000 bytes (32 000 na candidatura; `413 too_large`), objeto JSON (`400 bad_json`). Sem
+   `Content-Length`, a leitura para assim que o limite é passado (nunca guarda um corpo enorme na memória).
+6. Escritas da própria conta (`POST /progress/events`, `POST /ngo/application`) levam `accountId`, o id da conta que
+   a página acredita estar conectada. Diferente da sessão do cookie (outra aba trocou de conta) → `409
+   account_changed`, nada é gravado; o cliente relê `/me` e passa a mostrar a conta certa.
 
-Todas as respostas de conta têm `Cache-Control: no-store`. Erros de validação vêm como
+Todas as respostas de conta têm `Cache-Control: no-store`, imposto pelo roteador (inclusive em erros).
+Campos de texto de cadastro e candidatura: caracteres de controle (NUL, ESC, quebras de linha…) viram espaço e
+espaços repetidos são juntados. Erros de validação vêm como
 `{"error":"invalid","fields":{"campo":"mensagem em pt-BR"}}`.
 
 **Sessão:** cookie `__Host-vila_session` (`HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`, 30 dias) no host da
@@ -158,15 +164,17 @@ são **PROPOSTA** (`packages/shared/src/accounts/validate.ts`, mesmas regras e m
 
 **Link:** token aleatório de 256 bits, guardado como SHA-256, válido por 15 minutos e de uso único (só a primeira
 requisição que marca `used_at` vence). No máximo 3 links por conta a cada 15 minutos (acima disso a resposta continua
-`202`, sem envio). O link aponta para o jogo (`<origin>/?login=<token>`); o cliente confirma com `POST /auth/verify` e
-tira o token da barra de endereço. A primeira confirmação marca a conta como verificada. Cadastros não confirmados
+`202`, sem envio). O link aponta para o jogo (`<origin>/#login=<token>`): o token vai no **fragmento**, que o navegador
+nunca envia a servidor nenhum, então não aparece em log de acesso do Worker do jogo. O cliente confirma com
+`POST /auth/verify` e tira o token da barra de endereço. A primeira confirmação marca a conta como verificada e
+encerra a sessão que aquele navegador já tinha (um navegador, uma conta). Cadastros não confirmados
 são apagados depois de 24 horas (na próxima chamada de `POST /auth/register`).
 
 **Sem enumeração de contas:** `POST /auth/link` responde igual para e-mail cadastrado ou não; `POST /auth/register`
 com e-mail já cadastrado responde `202` como um cadastro novo (e reenvia o link à conta existente).
 
 **`devLink`:** só quando `ENVIRONMENT` é exatamente `development` ou `test`, a resposta `202` traz também
-`{"devLink":"http://localhost:8799/?login=…"}`, para desenvolvimento e testes de navegador. Qualquer outro valor
+`{"devLink":"http://localhost:8799/#login=…"}`, para desenvolvimento e testes de navegador. Qualquer outro valor
 (ausente, `production`, `staging`…) nunca devolve o link: ele só vai por e-mail (falha fechada — devolver o link
 permitiria entrar na conta de qualquer pessoa).
 
@@ -201,15 +209,19 @@ candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vi
 | Método e rota | Corpo | Resposta |
 |---|---|---|
 | `GET /progress` | — | `{progress}` |
-| `POST /progress/events` | `{events: [{missionId, eventId}]}` (1 a 50) | `{progress}` |
+| `POST /progress/events` | `{accountId, events: [{missionId, eventId}]}` (1 a 50) | `{progress}` |
 
-- `missionId` precisa existir em `MISSIONS` (`packages/shared/src/game/progress.ts`); `eventId` casa com
-  `/^[A-Za-z0-9:_.-]{1,64}$/`. Qualquer item inválido → `400 bad_events` (nada é gravado).
+- `missionId` precisa existir em `MISSIONS` (`packages/shared/src/game/progress.ts`) e `eventId` precisa ser um que
+  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`) ou `panel`
+  (`KNOWN_EVENTS` em `apps/api/src/progress.ts`). Qualquer item inválido → `400 bad_events` (nada é gravado).
 - Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo
   (`INSERT OR IGNORE`). O progresso é refeito repetindo os eventos pelo mesmo `applyEvent` do cliente: cada missão dá
   XP uma vez.
-- Ao entrar, o cliente envia o progresso local (em lotes de 50) e adota o do servidor; depois espelha cada evento novo.
-- Confiança (**PROPOSTA**): o servidor confere ids de missão, formato do evento e idempotência; não prova que o
+- Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
+  o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
+  são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
+  num navegador compartilhado a próxima pessoa não herda nada.
+- Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos e idempotência; não prova que o
   presente foi achado na cena. XP não dá nada que dinheiro compre, e doação não dá XP.
 
 ### Candidatura de ONG (P12, DEC-015, DEC-037)
@@ -217,7 +229,7 @@ candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vi
 | Método e rota | Resposta |
 |---|---|
 | `GET /ngo/application` | `{application}` (a da própria conta) ou `{application: null}` |
-| `POST /ngo/application` | `201 {application}` (primeira) ou `200 {application}` (reenvio) |
+| `POST /ngo/application` | `201 {application}` (primeira) ou `200 {application}` (reenvio); corpo com `accountId` e os campos abaixo |
 
 Quatro etapas do wireframe; a lista de campos é **PROPOSTA** (G08, PEN-019). **Não há upload de documentos** nesta
 versão: os documentos são declarados e a administração os pede na análise.
@@ -269,7 +281,7 @@ outras → `403 admin_only`.
 |---|---|---|
 | `GET /admin/applications[?status=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}]}` (até 200, mais recentes primeiro) |
 | `GET /admin/applications/:id` | — | `{application, applicant: {nickname} \| null, history: [{at, action, detail, actor}]}` |
-| `POST /admin/applications/:id/decision` | `{action, note?}` | `{application}` |
+| `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
 `status` filtra por um dos cinco estados; sem filtro, lista as candidaturas (exclui ONGs publicadas sem candidatura).
 `:id` é o UUID da candidatura. Quem enviou aparece só pelo nickname (`null` se a conta foi excluída); `actor` no
@@ -283,10 +295,16 @@ histórico é o nickname do admin.
 | `reject` | `submitted`, `under_review`, `changes_requested` | `rejected` / `available` | obrigatória, ≥ 10 caracteres |
 
 - `note` (até 1000 caracteres) é a mensagem à organização; fica em `ngos.review_note` e aparece para quem enviou.
-- Ação desconhecida → `400 bad_action`; mensagem faltando → `400 note_required` (com `fields.note`); transição fora
-  da tabela ou corrida com outra decisão → `409 bad_transition`; candidatura inexistente → `404 not_found`.
+- `revision` (obrigatório, inteiro) é a versão que o admin está vendo. Se a organização reenviou enquanto a tela
+  estava aberta, a decisão é recusada (`409 stale_revision`, nada é gravado) em vez de valer para um conteúdo que
+  ninguém analisou.
+- `approve` exige `checks: {activeCnpj, oneYear, fundsConfirmable}`, os três `true` (as verificações do DEC-015);
+  senão `400 checks_required`.
+- Ação desconhecida → `400 bad_action`; sem `revision` → `400 revision_required`; mensagem faltando → `400
+  note_required` (com `fields.note`); transição fora da tabela ou corrida com outra decisão → `409 bad_transition`
+  (só uma de duas decisões simultâneas vale, com uma linha de auditoria); candidatura inexistente → `404 not_found`.
 - Cada decisão grava `audit_events` `ngo.<action>` com o id do admin e `detail`
-  `{from, to, lot, revision, hasNote}` — sem e-mail e sem o texto da mensagem.
+  `{from, to, lot, revision, hasNote}` (na aprovação, também `checks`) — sem e-mail e sem o texto da mensagem.
 - A aprovação publica a casa: `/lots` passa a trazer nome e resumo, e o jogo desenha o chalé gerado pela semente do
   terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
 
@@ -351,7 +369,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 503 | `mail_unavailable` | produção sem binding `EMAIL` ou falha no envio |
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |
 | API | 403 | `admin_only` | rota `/admin/*` sem papel `admin` |
-| API | 400 | `bad_events` | `/progress/events` vazio, com mais de 50 ou com item inválido |
+| API | 400 | `bad_events` | `/progress/events` vazio, com mais de 50 ou com missão/evento desconhecido |
 | API | 403 | `not_verified` | candidatura de conta não verificada |
 | API | 409 | `application_active` | já existe candidatura `submitted`, `under_review` ou `published` |
 | API | 409 | `lot_unavailable` (+ `fields.lotId`) | terreno ocupado (inclusive por corrida) |
@@ -359,6 +377,10 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 400 | `bad_action` | `action` desconhecida na decisão |
 | API | 400 | `note_required` (+ `fields.note`) | pedir ajustes ou rejeitar sem mensagem de ≥ 10 caracteres |
 | API | 409 | `bad_transition` | decisão fora da tabela de transições |
+| API | 409 | `account_changed` | escrita com `accountId` diferente da sessão (outra aba trocou de conta) |
+| API | 409 | `stale_revision` | decisão sobre versão que já não é a atual |
+| API | 400 | `revision_required` | decisão sem `revision` inteiro |
+| API | 400 | `checks_required` | aprovação sem as três verificações do DEC-015 |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |
 | servidor | 403 | `forbidden_origin` | `/room` com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
 | servidor | 400 | `bad_room` | `/room` com `i` fora de `0…7` |

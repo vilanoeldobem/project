@@ -47,7 +47,8 @@ LGPD por enquanto.
    análise, aprovar, pedir ajustes, rejeitar (as duas últimas com mensagem obrigatória à organização). Cada decisão
    grava `audit_events` com o id do admin, sem e-mail e sem o texto da mensagem. A aprovação publica a casa gerada
    pela semente do terreno (IMPL-0010). O painel mostra a lista dos três critérios do DEC-015 como apoio (não
-   gravada) e só libera "Aprovar" com os três marcados.
+   gravada até o adendo de 2026-11-11 abaixo; agora fica no `detail` da auditoria) e só libera "Aprovar" com os três
+   marcados.
 9. **Validação compartilhada** (`packages/shared/src/accounts/validate.ts`): mesmas regras e mensagens pt-BR no
    formulário e na API.
 
@@ -60,6 +61,15 @@ LGPD por enquanto.
   consumiriam o token. O link abre o jogo, que confirma com `POST /auth/verify`.
 - **Upload de documentos no R2:** adiado: documentos de ONG são sensíveis e a lista ainda é PENDENTE (PEN-019);
   a administração os pede na análise.
+- **Linha paralela de contas (PRs #9–#12, equipe, 11/11/2026):** esquema próprio (`auth_*`, `player_progress` como
+  um retrato por pessoa com revisão, `ngo_applications`), adaptador de e-mail local em D1 (`auth_local_outbox`),
+  administradores por lista em variável (`ADMIN_USER_IDS`), sessões de 7 dias, link preso ao navegador que o pediu
+  (um segundo cookie) e candidaturas **sem reservar o terreno** até a aprovação. Substituída por esta decisão (PR
+  #13, já revisada); o que ela tinha a mais virou o adendo "endurecimento" abaixo. Ficaram de fora, de propósito:
+  o retrato de progresso (o registro de eventos idempotentes é mais simples), a lista de admins em variável (o papel
+  no D1 + `self_review` basta), o link preso ao navegador (impede abrir o link em outro aparelho; risco aceito: quem
+  repassa o próprio link entrega a própria conta) e a não reserva do terreno (reservar no envio evita que duas
+  organizações preparem a casa para o mesmo terreno; a análise libera o terreno ao rejeitar).
 - **E-mail de aviso a cada decisão:** adiado (sem regra de conteúdo/frequência no repositório de documentação); a
   organização vê a situação e a mensagem no próprio jogo.
 
@@ -101,3 +111,21 @@ Uma revisão independente do código levou a estas mudanças, todas com teste:
 
 Fica para depois (anotado em `tasks/todo.md`): CAPTCHA (Turnstile) no cadastro e no pedido de link contra envio
 abusivo de e-mails para terceiros.
+
+## Adendo (2026-11-11): endurecimento trazido da linha paralela (#9–#12)
+
+Uma comparação com a implementação paralela da equipe apontou lacunas reais, corrigidas com teste:
+
+- **Token no fragmento:** o link passa a ser `<jogo>/#login=<token>`. Com `?login=`, a primeira requisição ao Worker
+  do jogo (que roda antes dos arquivos estáticos e tem observabilidade ligada) gravava o token vivo no log.
+- **Progresso separado por pessoa no mesmo navegador:** a chave `vila.progress.v2` guarda só o progresso de
+  visitante. Ao entrar, ele migra uma vez para a conta e é apagado do navegador; ao sair, o jogo volta ao progresso de
+  visitante. Antes, a próxima pessoa que entrasse no mesmo navegador herdava os eventos da anterior.
+- **Escrita na conta errada:** `POST /progress/events` e `POST /ngo/application` levam `accountId`; se outra aba
+  trocou a conta, `409 account_changed` e nada é gravado.
+- **Decisão presa à versão analisada:** `revision` obrigatório na decisão; um reenvio no meio → `409 stale_revision`.
+- **Verificações do DEC-015 no servidor:** aprovar exige as três marcadas e as registra na auditoria.
+- **Validação:** datas impossíveis (`2021-02-29`) recusadas em vez de viradas para o mês seguinte; caracteres de
+  controle viram espaço; ids de evento precisam existir para a missão (presentes, terrenos).
+- **Outros:** `no-store` imposto em toda rota de conta; entrar encerra a sessão anterior do navegador; erros de
+  banco na candidatura não viram mais "terreno indisponível"; corpo sem `Content-Length` lido só até o limite.

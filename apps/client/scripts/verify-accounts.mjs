@@ -1,7 +1,8 @@
 /**
  * verify-accounts.mjs — real-browser check of 0.4.0 (IMPL-0011) against LOCAL Workers only:
- * sign-up with the magic link (dev link), progress sync, NGO application (4 steps), admin review
- * (changes requested → resubmit → approve) and the published house on the lot. Fails on console errors.
+ * sign-up with the magic link (dev link), progress sync, shared-browser isolation (the next account does not
+ * inherit progress), NGO application (4 steps), admin review (changes requested → resubmit → approve) and the
+ * published house on the lot. Fails on console errors.
  *
  * Needs: `pnpm --filter @vila/api dev` (ACCOUNTS_ENABLED=true, ENVIRONMENT=development), server and client
  * running locally. The admin role is granted with `wrangler d1 execute --local` (never remote).
@@ -61,7 +62,13 @@ async function newPage(name) {
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
-  await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false }));
+    } catch {
+      /* about:blank has no storage */
+    }
+  });
   await page.goto(url, { waitUntil: "load" });
   await page.getByRole("button", { name: "Entrar na Vila" }).dispatchEvent("click");
   return page;
@@ -77,9 +84,12 @@ async function signUp(page, nickname, email) {
   await page.getByLabel("E-mail *").fill(email);
   await click(page.getByRole("button", { name: "Criar conta", exact: true }));
   const link = await page.getByRole("link", { name: /Abrir link/ }).getAttribute("href", { timeout: 15000 });
+  if (new URL(link).search) errors.push(`${nickname}: token in the query string (must be in the fragment)`);
+  // Same URL apart from the fragment would not reload the page: open it fresh, like a link from the inbox.
+  await page.goto("about:blank");
   await page.goto(link, { waitUntil: "load" });
   await page.getByRole("button", { name: `Sua conta: ${nickname}` }).waitFor({ timeout: 20000 });
-  if (new URL(page.url()).searchParams.has("login")) errors.push(`${nickname}: login token left in the address bar`);
+  if (new URL(page.url()).hash.includes("login")) errors.push(`${nickname}: login token left in the address bar`);
 }
 
 // 1. Applicant: local progress first, then sign-up (progress migrates), then the application.
@@ -97,6 +107,30 @@ await a
   )
   .catch(() => errors.push("applicant: local progress not migrated to the server"));
 await a.screenshot({ path: `${out}accounts-1-signed-in.png` });
+
+// 1b. Shared browser: after signing out, the guest starts empty and the next account inherits nothing.
+const serverXp = (page) => page.evaluate(async (api) => (await (await fetch(`${api}/progress`, { credentials: "include" })).json()).progress, apiUrl);
+await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
+await click(a.getByRole("button", { name: "Sair" }));
+await a.getByRole("button", { name: "Entrar ou criar conta" }).waitFor({ timeout: 10000 });
+if (Object.keys(await a.evaluate(() => window.__vila.progress().seen)).length) errors.push("shared browser: guest progress kept the account's events after sign-out");
+const other = `out_${run}`;
+await signUp(a, other, `${other}@example.com`);
+await a.waitForTimeout(1500);
+const otherProgress = await serverXp(a);
+if (otherProgress?.seen?.["explore-gifts:gift-bench"] || otherProgress?.xp) errors.push(`shared browser: second account inherited progress (${JSON.stringify(otherProgress)})`);
+// Back to the applicant (sign in with a fresh link).
+await click(a.getByRole("button", { name: `Sua conta: ${other}` }));
+await click(a.getByRole("button", { name: "Sair" }));
+await click(a.getByRole("button", { name: "Entrar ou criar conta" }));
+await click(a.getByRole("tab", { name: "Já tenho conta" }));
+await a.getByLabel("E-mail da sua conta").fill(`${nick}@example.com`);
+await click(a.getByRole("button", { name: "Enviar link de acesso" }));
+const again = await a.getByRole("link", { name: /Abrir link/ }).getAttribute("href", { timeout: 15000 });
+await a.goto("about:blank");
+await a.goto(again, { waitUntil: "load" });
+await a.getByRole("button", { name: `Sua conta: ${nick}` }).waitFor({ timeout: 20000 });
+if (!(await serverXp(a))?.seen?.["explore-gifts:gift-bench"]) errors.push("applicant: progress lost after signing in again");
 
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await click(a.getByRole("button", { name: "Minha candidatura de ONG" }));

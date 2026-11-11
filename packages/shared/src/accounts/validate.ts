@@ -15,7 +15,10 @@ export interface Registration {
 
 export type Errors<T> = Partial<Record<keyof T, string>>;
 
-const clean = (v: unknown, max: number) => (typeof v === "string" ? v.trim().replace(/\s+/g, " ").slice(0, max + 1) : "");
+/** Trims, turns control characters (NUL, ESC, line breaks…) into spaces and collapses whitespace. */
+const clean = (v: unknown, max: number) =>
+  // eslint-disable-next-line no-control-regex
+  typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().replace(/\s+/g, " ").slice(0, max + 1) : "";
 
 export const NICKNAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{1,18}[A-Za-z0-9_]$/;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,189}\.[^\s@]{2,}$/;
@@ -99,7 +102,8 @@ export function isValidCnpj(raw: string): boolean {
 export function isAtLeastOneYearOld(openedOn: string, today: Date): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(openedOn)) return false;
   const opened = new Date(`${openedOn}T00:00:00Z`);
-  if (Number.isNaN(opened.getTime())) return false;
+  // Impossible dates (2021-02-29, 2020-04-31) would silently roll over to the next month.
+  if (Number.isNaN(opened.getTime()) || opened.toISOString().slice(0, 10) !== openedOn) return false;
   const limit = new Date(Date.UTC(today.getUTCFullYear() - 1, today.getUTCMonth(), today.getUTCDate()));
   return opened <= limit;
 }

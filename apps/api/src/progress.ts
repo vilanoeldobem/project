@@ -5,18 +5,29 @@
  * progress made before signing in is migrated by sending its events once (OQ-02).
  *
  *   GET  /progress                                      → {progress}
- *   POST /progress/events {events: [{missionId, eventId}]} → {progress}   (≤ 50 per request)
+ *   POST /progress/events {accountId, events: [{missionId, eventId}]} → {progress}   (≤ 50 per request)
  *
- * Trust (PROPOSTA): the server checks mission ids, event id format and idempotency; it cannot prove that a
- * gift was found in the 3D scene. XP grants nothing that money could buy, and a donation grants no XP.
+ * Trust (PROPOSTA): the server checks mission ids, that each event id exists for its mission (gift ids, lot
+ * ids…) and idempotency; it cannot prove that a gift was found in the 3D scene. XP grants nothing that money could buy, and a donation grants no XP.
  */
-import { applyEvent, EMPTY_PROGRESS, MISSIONS, type Progress } from "@vila/shared/game/progress";
+import { applyEvent, EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
+import { GIFTS, LOTS } from "@vila/shared/game/world";
 
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { requireUser } from "./session";
+import { assertAccount, requireUser } from "./session";
 import type { Env } from "./api";
 
-const EVENT_ID = /^[A-Za-z0-9:_.-]{1,64}$/;
+/** The event ids the client can produce for each mission (store.record calls in apps/client). */
+export const KNOWN_EVENTS: Record<string, ReadonlySet<string>> = {
+  "explore-gifts": new Set(GIFTS.map((g) => g.id)),
+  "play-memory": new Set(["win"]),
+  "causes-visit-lot": new Set(LOTS.map((l) => l.id)),
+  "causes-global-donation": new Set(["panel"]),
+};
+const isKnownEvent = (e: unknown): e is { missionId: string; eventId: string } => {
+  const { missionId, eventId } = (e ?? {}) as { missionId?: unknown; eventId?: unknown };
+  return typeof missionId === "string" && typeof eventId === "string" && Object.hasOwn(KNOWN_EVENTS, missionId) && KNOWN_EVENTS[missionId].has(eventId);
+};
 const MAX_EVENTS = 50;
 /** Every mission together needs a handful of events; this cap keeps a scripted client from growing the table. */
 const MAX_EVENTS_PER_USER = 500;
@@ -36,12 +47,10 @@ export async function getProgress(request: Request, env: Env): Promise<Response>
 export async function postEvents(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const body = await readJson(request);
+  assertAccount(body, user);
   const events = Array.isArray(body.events) ? body.events : [];
   if (events.length === 0 || events.length > MAX_EVENTS) throw new HttpError(400, "bad_events");
-  const valid = events.filter(
-    (e): e is { missionId: string; eventId: string } =>
-      !!e && typeof e === "object" && MISSIONS.some((m) => m.id === (e as { missionId?: unknown }).missionId) && EVENT_ID.test(String((e as { eventId?: unknown }).eventId))
-  );
+  const valid = events.filter(isKnownEvent);
   if (valid.length !== events.length) throw new HttpError(400, "bad_events");
   const db = env.DB!;
   const stored = await db.prepare("SELECT COUNT(*) AS n FROM progress_events WHERE user_id = ?").bind(user.id).first<{ n: number }>();

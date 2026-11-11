@@ -21,7 +21,9 @@ export type Panel =
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby = { kind: "tree" } | { kind: "lot"; lotId: string } | null;
 
-// v2: mission ids were renamed to English in 0.2.0; v1 progress is discarded.
+// v2: mission ids were renamed to English in 0.2.0; v1 progress is discarded. This key holds GUEST progress
+// only: a signed-in account's progress lives on the server (and in memory), so on a shared browser the next
+// person never inherits it (IMPL-0011).
 const STORAGE_KEY = "vila.progress.v2";
 
 function loadProgress(): Progress {
@@ -59,6 +61,8 @@ interface VilaState {
   /** Click/tap destination; null when idle or moving with the keyboard. */
   target: { x: number; z: number } | null;
   progress: Progress;
+  /** Whose progress is on screen: null = guest (saved in this browser), else the signed-in account id. */
+  progressOwner: string | null;
   look: Look;
   setLook: (patch: Partial<Look>) => void;
   toast: { id: number; text: string } | null;
@@ -70,8 +74,12 @@ interface VilaState {
   setNearby: (n: Nearby) => void;
   setTarget: (t: { x: number; z: number } | null) => void;
   record: (missionId: string, eventId: string) => void;
-  /** Replaces local progress with the server's (after sign-in); the look is re-checked against it. */
-  adoptProgress: (p: Progress) => void;
+  /** Shows an account's progress (from the server); the look is re-checked against it. */
+  adoptProgress: (p: Progress, owner: string) => void;
+  /** Back to guest progress (after sign-out or account deletion). */
+  restoreGuest: () => void;
+  /** Guest progress was migrated to an account: this browser keeps none of it. */
+  clearGuest: () => void;
   notify: (text: string) => void;
 }
 
@@ -84,6 +92,7 @@ export const useVila = create<VilaState>((set, get) => ({
   nearby: null,
   target: null,
   progress: initialProgress,
+  progressOwner: null,
   look: loadLook(initialProgress),
   setLook: (patch) => {
     const look = sanitizeLook({ ...get().look, ...patch }, get().progress);
@@ -109,7 +118,7 @@ export const useVila = create<VilaState>((set, get) => ({
     const previous = get().progress;
     const { progress, completed } = applyEvent(previous, missionId, eventId);
     if (progress === get().progress) return;
-    saveProgress(progress);
+    if (get().progressOwner === null) saveProgress(progress);
     set({ progress });
     if (completed) {
       // New cosmetics are a consequence of the mission, never a separate reward roll (PROPOSTA).
@@ -119,10 +128,12 @@ export const useVila = create<VilaState>((set, get) => ({
       events.emit({ type: "mission", missionId: completed.id });
     }
   },
-  adoptProgress: (p) => {
-    saveProgress(p);
-    set({ progress: p, look: sanitizeLook(get().look, p) });
+  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLook(get().look, p) }),
+  restoreGuest: () => {
+    const p = loadProgress();
+    set({ progress: p, progressOwner: null, look: sanitizeLook(get().look, p) });
   },
+  clearGuest: () => saveProgress(EMPTY_PROGRESS),
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),
 }));
 

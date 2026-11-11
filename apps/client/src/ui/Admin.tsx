@@ -92,10 +92,16 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
     setError("");
     setFieldError("");
     try {
-      await api.adminDecide(id, action, note || undefined);
+      const ticked = { activeCnpj: checks.cnpj, oneYear: checks.year, fundsConfirmable: checks.funds };
+      await api.adminDecide(id, action, a.revision, note || undefined, action === "approve" ? ticked : undefined);
       setD(await api.adminGet(id));
       setNote("");
     } catch (e) {
+      // The applicant resubmitted while this screen was open: show the new version, untick the checks.
+      if ((e as { code?: string }).code === "stale_revision") {
+        setD(await api.adminGet(id).catch(() => d));
+        setChecks({ cnpj: false, year: false, funds: false });
+      }
       setFieldError((e as { fields?: Record<string, string> }).fields?.note ?? "");
       setError(errorText(e));
     } finally {
@@ -147,7 +153,7 @@ function ReviewDetail({ id, onBack }: { id: string; onBack: () => void }) {
             {label}
           </label>
         ))}
-        <p className="note">Esta lista é só um apoio para quem analisa; não fica gravada.</p>
+        <p className="note">Ao aprovar, as três confirmações ficam registradas no histórico da decisão.</p>
       </fieldset>
       {(open || a.status === "changes_requested") && (
         <>
