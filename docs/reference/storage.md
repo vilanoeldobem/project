@@ -121,7 +121,7 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 
 Progresso de visitantes sem conta (só `localStorage` do navegador, chave `vila.progress.v2`; migra para
 `progress_events` ao entrar e é apagado do navegador; o progresso de uma conta nunca é gravado nessa chave, e eventos
-ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento), documentos de ONG (sem upload nesta versão), pagamentos. Logs de pagamento ficarão
+ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), documentos de ONG (sem upload nesta versão), pagamentos. Logs de pagamento ficarão
 separados dos dados de gamificação (dossiê §13).
 
 ## Ver também

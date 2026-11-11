@@ -43,7 +43,7 @@ export const PROFILES: Record<WeatherKind, Profile> = {
   SNOW: { snowfall: 0.48, windStrength: 0.25, fogStrength: 0.26, cloudCover: 0.65, sparkle: 0.35 },
   HEAVY_SNOW: { snowfall: 0.78, windStrength: 0.5, fogStrength: 0.48, cloudCover: 0.85, sparkle: 0.22 },
   BLIZZARD: { snowfall: 1.0, windStrength: 0.9, fogStrength: 0.76, cloudCover: 1.0, sparkle: 0.06 },
-  MISTY_FROST: { snowfall: 0.12, windStrength: 0.06, fogStrength: 0.82, cloudCover: 0.7, sparkle: 0.18 },
+  MISTY_FROST: { snowfall: 0.12, windStrength: 0.06, fogStrength: 0.6, cloudCover: 0.7, sparkle: 0.18 },
 };
 
 export const WEATHER_KINDS = TYPES.map((t) => t.kind);

@@ -24,7 +24,7 @@ export function Welcome() {
         <button className="btn btn--primary" onClick={close} autoFocus>
           Entrar na Vila
         </button>
-        <p className="hint">Ande com WASD / setas ou toque no chão. Chegue perto da árvore e dos terrenos para interagir.</p>
+        <p className="hint">Clique ou toque no chão para andar. Aproxime com a roda do mouse, o gesto de pinça ou os botões ＋/－. Chegue perto da árvore e dos terrenos para interagir.</p>
         <p className="disclaimer">Versão de desenvolvimento · conteúdo e visual em definição.</p>
       </div>
     </div>

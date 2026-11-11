@@ -316,6 +316,9 @@ const KICK: BurstStyle = { per: 6, slots: 10, life: 0.55, speed: 0.9, up: 1.6, g
 /** Gold sparkle burst when a gift is found. */
 const GIFT: BurstStyle = { per: 40, slots: 2, life: 1.3, speed: 2.6, up: 4.5, gravity: 4, size: 0.2, color: [1, 0.82, 0.42], opacity: 1, additive: true };
 
+/** Small frost twinkle where the player clicked/tapped to walk. */
+const TAP: BurstStyle = { per: 12, slots: 3, life: 0.5, speed: 1.6, up: 1.4, gravity: 5, size: 0.09, color: [1, 0.9, 0.62], opacity: 0.9, additive: true };
+
 /**
  * Pooled GPU particle bursts: each burst writes one spawn record into a ring of slots; motion is
  * computed in the vertex shader from the age (no per-particle CPU work, one draw call per style).
@@ -378,13 +381,15 @@ function Bursts({ style, accept }: { style: BurstStyle; accept: (e: GameEvent) =
 
 const kickAt = (e: GameEvent): [number, number, number] | null =>
   e.type === "step" && e.surface === "snow" && e.speed > 3 ? [e.x, 0.1, e.z] : null;
+const tapAt = (e: GameEvent): [number, number, number] | null => (e.type === "tap" ? [e.x, 0.15, e.z] : null);
 const giftAt = (e: GameEvent): [number, number, number] | null => (e.type === "gift" ? [e.x, 0.6, e.z] : null);
 
-/** Gameplay-driven particle effects (snow kick-up, gift sparkle). */
+/** Gameplay-driven particle effects (snow kick-up, click twinkle, gift sparkle). */
 export function GameplayBursts() {
   return (
     <>
       <Bursts style={KICK} accept={kickAt} />
+      <Bursts style={TAP} accept={tapAt} />
       <Bursts style={GIFT} accept={giftAt} />
     </>
   );

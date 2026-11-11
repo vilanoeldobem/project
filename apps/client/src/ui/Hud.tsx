@@ -4,7 +4,7 @@ import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
 import { NPCS } from "@vila/shared/game/world";
 import { questsEnabled } from "../game/questsFlag";
-import { type Nearby, useVila } from "../game/store";
+import { type Nearby, useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
 import { AccountChip } from "./Account";
 import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
@@ -26,7 +26,10 @@ function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   }
 }
 
-/** Fixed HUD: brand, missions, indicators, contextual action and toasts. */
+/** One zoom button/key press: 15% closer or farther. */
+const ZOOM_STEP = 1.15;
+
+/** Fixed HUD: brand, missions, indicators, contextual action, zoom and toasts. */
 export function Hud() {
   const open = useVila((s) => s.open);
   const nearby = useVila((s) => s.nearby);
@@ -39,6 +42,8 @@ export function Hud() {
   const quests = questsEnabled();
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
   const bag = quests ? activeInventory(progress) : [];
+  const zoom = useVila((s) => s.zoom);
+  const zoomBy = useVila((s) => s.zoomBy);
 
   const activate = (n: NonNullable<Nearby>) => {
     switch (n.kind) {
@@ -66,12 +71,14 @@ export function Hud() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (useVila.getState().panel.kind !== "none") return;
+      if (e.key === "+" || e.key === "=") return zoomBy(1 / ZOOM_STEP);
+      if (e.key === "-") return zoomBy(ZOOM_STEP);
       const n = useVila.getState().nearby;
       if ((e.key === "e" || e.key === "E" || e.key === "Enter") && n) activate(n);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [nearby, open, record, notify]);
+  }, [nearby, open, record, notify, zoomBy]);
 
   return (
     <div className="hud">
@@ -117,6 +124,17 @@ export function Hud() {
         <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
           {actionLabel(nearby, readActive)} <kbd>E</kbd>
         </button>
+      )}
+
+      {panel.kind === "none" && (
+        <div className="hud__zoom" role="group" aria-label="Zoom da câmera">
+          <button className="btn btn--chip" onClick={() => zoomBy(1 / ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Aproximar" title="Aproximar (+)">
+            ＋
+          </button>
+          <button className="btn btn--chip" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Afastar" title="Afastar (−)">
+            －
+          </button>
+        </div>
       )}
 
       {toast && <Toast key={toast.id} text={toast.text} />}

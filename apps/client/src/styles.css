@@ -81,6 +81,8 @@ kbd {
 /* Quest bag chip (PROPOSTA quests-v1): text + counts, never colour alone. */
 .hud__bag { display: flex; flex-wrap: wrap; gap: 6px; max-width: min(360px, 70vw); }
 .hud__bag span { background: var(--cream); border: 2px solid var(--gold); border-radius: 999px; padding: 2px 10px; font-weight: 800; font-size: 0.85rem; color: var(--pine); box-shadow: var(--shadow); }
+.hud__zoom { position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; }
+.hud__zoom .btn--chip { min-width: 44px; min-height: 44px; padding: 0; font-size: 1.2rem; font-weight: 800; }
 .hud__action { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)); font-size: 1.05rem; }
 .hud__action:active:not(:disabled) { transform: translateX(-50%) translateY(2px); }
 
@@ -169,6 +171,7 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   .btn--path { flex-direction: row; min-height: 56px; }
   .ngo-hud { grid-template-columns: 1fr; }
   .hud__missions { right: 16px; }
+  .hud__zoom { bottom: max(104px, calc(env(safe-area-inset-bottom) + 88px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {
