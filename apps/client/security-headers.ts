@@ -8,7 +8,7 @@ const GOOGLE_TAG_CONNECT = "https://*.google-analytics.com https://*.analytics.g
 export function headersFile(connectSrc: string): string {
   const csp = [
     "default-src 'self'",
-    "script-src 'self' https://static.cloudflareinsights.com https://*.googletagmanager.com",
+    "script-src 'self' https://static.cloudflareinsights.com https://www.googletagmanager.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://*.google-analytics.com https://*.googletagmanager.com",

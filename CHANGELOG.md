@@ -12,8 +12,11 @@ Cada versão indica o schema D1 que entrega.
 ### Added — medição
 
 - Google Tag Manager (`GTM-MQP2RVMB`) no site e no jogo. A inicialização do `dataLayer` fica em `/gtag-init.js`
-  (a CSP não aceita script inline) e a CSP dos dois apps libera `*.googletagmanager.com` (script, imagem, conexão),
-  `*.google-analytics.com` e `*.analytics.google.com`. Tags HTML personalizadas do GTM continuam bloqueadas pela CSP.
+  (a CSP não aceita script inline). A CSP dos dois apps libera `https://www.googletagmanager.com` como script e
+  `*.googletagmanager.com`, `*.google-analytics.com` e `*.analytics.google.com` como imagem e conexão. Tags HTML
+  personalizadas do GTM continuam bloqueadas pela CSP.
+- No jogo, o token do link mágico (`#login=`) sai da barra de endereço antes de o GTM carregar
+  (`/login-fragment.js`, guardado só em memória), para nunca aparecer na URL medida.
 
 ### Changed — controles
 
