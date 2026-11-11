@@ -9,7 +9,10 @@
 - [x] Local migration 0005 and real-browser UI proof passed: guest import, reload, duplicate reward rejection, independent-browser recovery, guest restoration and account isolation.
 - [x] AIOX QA re-review closed both findings (gift identity and cross-tab account mismatch); no unresolved P1/P2.
 
-No public authentication activation, deployment or remote migration performed by this implementer.
+- [x] DevOps exported/restored staging v4, applied only migration 0005 remotely to isolated staging and passed eleven SQL/backup/readback cases.
+- [x] Synthetic accounts/progress cleaned; production remains migrations 0001-0003 with no account/progress tables and zero verification writes.
+
+No public authentication activation or Worker deployment. Staging HTTP auth remains unavailable pending OQ-08; remote checks cover database invariants, while integrated UI was validated locally.
 
 # Isolated staging database - 2026-11-11
 

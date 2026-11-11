@@ -31,4 +31,3 @@ export function database() {
   } as unknown as D1Database;
   return { sqlite, db };
 }
-

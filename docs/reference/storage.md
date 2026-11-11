@@ -1,12 +1,12 @@
 # Armazenamento (D1)
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 em produção / v5 em homologação ·
+> **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v3**; v4 disponível para teste local, sem aplicação remota nesta entrega). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(**v3** em produção; **v5** aplicada somente em homologação isolada). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
 ## 1. Migrations
@@ -15,6 +15,7 @@ Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 |---|---|
 | `0001_initial.sql` | tabelas `ongs` (nome antigo), `lots`, `audit_events` e índices |
 | `0002_seed_lots.sql` | 8 terrenos `praca-01..08` disponíveis (estrutura do mundo, não dados fictícios) |
+| `0005_player_progress.sql` | progresso por usuário, JSON, revisão CAS e marca de importação (IMPL-0012) |
 | `0004_accounts.sql` | contas verificadas, links, sessões, limites e caixa exclusivamente local (IMPL-0011) |
 | `0003_english_schema.sql` | nomes em inglês: `ongs` → `ngos`, `ong_id` → `ngo_id`, estados e ids (`praca-NN` → `plaza-NN`); dados migrados ([IMPL-0004](../decisions/0004-english-code-portuguese-docs.md)) |
 
@@ -56,7 +57,7 @@ Logs de pagamento ficarão separados dos dados de gamificação (dossiê §13).
 
 ## Ver também
 
-[Banco de homologação](../guides/staging-database.md) - D1 isolado com migrations 0001-0004 verificadas; produção continua em v3 nesta entrega.
+[Banco de homologação](../guides/staging-database.md) - D1 isolado com migrations 0001-0005 verificadas; produção continua em v3 nesta entrega.
 
 [api.md](api.md) · [guides/deploy.md](../guides/deploy.md)
 
@@ -72,12 +73,12 @@ não são anonimização. Não há listagem pública de usuários; dados pessoai
 Aplicação de migration não significa autenticação pública habilitada. Retenção/exclusão e envio real devem ser
 revistos antes da produção. O banco continua pertencendo exclusivamente à API, não ao cliente ou presença.
 
-## Progresso por conta - v5 disponível para teste
+## Progresso por conta - v5 em homologação
 
 `0005_player_progress.sql` adiciona `player_progress`: `user_id` PK/FK de auth_users com exclusão em cascata,
 `state_json` JSON válido, `revision` não negativa, `guest_imported_at` e created_at/updated_at em segundos Unix.
 Progresso é calculado pelo servidor. Importação e atualização de revisão ocorrem na mesma escrita condicional;
 requisições concorrentes releem o estado antes de tentar novamente. Não há tabelas de progresso em Durable Objects.
 
-A existência do arquivo não comprova aplicação no remoto. O visitante continua no localStorage; a conta usa D1,
+Aplicação v5 e integridade foram conferidas no D1 de homologação; produção continua em v3, sem autenticação pública. O visitante continua no localStorage; a conta usa D1,
 com cache/fila local isolados por ID para retomada offline. Cookies não são persistidos nesse cache.

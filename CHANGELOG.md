@@ -16,8 +16,7 @@ Cada versão indica o schema D1 que entrega.
 - Fila de sincronização por conta com retomada offline, estado visível de pendência, restauração do visitante no logout
   e proteção contra respostas antigas/troca de conta em outra aba. [IMPL-0012](docs/decisions/0012-account-progress.md).
 
-
-### Added
+- Progresso v5 aplicado e validado somente no D1 de homologação: backup restaurável, integridade de vínculos, JSON, revisão concorrente e limpeza de fixtures; produção permanece em v3.
 
 - Banco D1 de homologação isolado, configuração `env.staging` da API e guia de backup/migrations; schema v4 validado sem alteração de produção. Nenhum Worker ou login público de homologação ativado.
 
