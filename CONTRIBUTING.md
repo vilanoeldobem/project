@@ -1,13 +1,13 @@
 # Contribuindo com a Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-08 · Aplica-se a pessoas e a agentes de código. As regras não negociáveis para
+> **Atualizado em:** 2026-11-10 · Aplica-se a pessoas e a agentes de código. As regras não negociáveis para
 > agentes estão em [`AGENTS.md`](AGENTS.md) e prevalecem em caso de conflito.
 
 ## Antes de começar
 
 1. Leia [`docs/README.md`](docs/README.md) para saber onde cada coisa está documentada.
 2. Leia [`docs/specs/README.md`](docs/specs/README.md): o produto é definido no repositório
-   `vilanoeldobem_docs`. Toda mudança de produto cita a decisão relacionada (`DEC-NNN`) ou a pendência (`PEN-NNN`).
+   `vilanoeldobem/docs`. Toda mudança de produto cita a decisão relacionada (`DEC-NNN`) ou a pendência (`PEN-NNN`).
 3. Consulte [`ROADMAP.md`](ROADMAP.md) e o cartão correspondente no acompanhamento (Kanban/Gantt): trabalho fora
    do marco corrente precisa de justificativa.
 4. Distinga **CONFIRMADO**, **PROPOSTA**, **HIPÓTESE** e **PENDENTE**. Não implemente proposta como se fosse decisão.
@@ -27,13 +27,15 @@ pnpm test
 pnpm build
 ```
 
-Mudanças visíveis na interface também passam por `node apps/web/scripts/verify.mjs` (desktop 1440×900 e celular
-390×844) contra `pnpm dev:worker`. Resultados são relatados como são: se algo falhou, diga o quê e com que saída.
+Mudanças visíveis na interface também passam por `node apps/client/scripts/verify.mjs http://localhost:8799`
+(desktop 1440×900 e celular 390×844), com API, servidor e jogo rodando localmente
+([getting-started](docs/getting-started.md)). Resultados são relatados como são: se algo falhou, diga o quê e com que saída.
 
 ## Fluxo de mudança
 
 1. Mudanças pequenas e focadas; uma preocupação por PR. Branch a partir de `main` (`feat/…`, `fix/…`, `docs/…`).
-2. Código novo vem com testes (lógica pura em `src/game/*.test.ts`; API em `worker/*.test.ts`).
+2. Código novo vem com testes ao lado do código (lógica pura em `packages/shared/src/**/*.test.ts`; API em
+   `apps/api/src/*.test.ts`; servidor em `apps/server/src/*.test.ts`).
 3. Atualize a referência afetada em `docs/reference/` **no mesmo PR**.
 4. Adicione uma linha em `[Unreleased]` do [`CHANGELOG.md`](CHANGELOG.md) descrevendo o efeito para quem usa
    (*Added*, *Changed*, *Deprecated*, *Removed*, *Fixed*, *Security*).
@@ -46,7 +48,8 @@ Mudanças visíveis na interface também passam por `node apps/web/scripts/verif
 - Nenhum botão de doação ou compra simula pagamento concluído (IMPL-0002).
 - Indicador sem fonte verificável é `null` na API e "—" na tela (DEC-027).
 - Missões e XP idempotentes por id de evento; doação sozinha não dá XP (DEC-042).
-- Só `/api/*` executa código no Worker; D1 é o único armazenamento do servidor.
+- Um Worker por app ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)); apps nunca importam uns
+  dos outros e o código comum fica em `packages/shared` (puro). D1 é o único armazenamento persistente do servidor.
 - Migrations em `migrations/NNNN_nome.sql` são imutáveis depois de aplicadas no remoto.
 - Nunca registrar em log dados pessoais, e-mails, tokens ou documentos de ONGs. Nada de credenciais no repositório.
 
@@ -54,7 +57,7 @@ Mudanças visíveis na interface também passam por `node apps/web/scripts/verif
 
 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/pt-br/v1.0.0/):
 `tipo(escopo): descrição no imperativo`. Tipos: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`,
-`ci`, `chore`. Escopos: `web`, `scene`, `ui`, `game`, `worker`, `db`, `docs`, `release`. Quebras de contrato
+`ci`, `chore`. Escopos: `client`, `api`, `server`, `shared`, `site`, `scene`, `ui`, `game`, `db`, `docs`, `release`. Quebras de contrato
 (API, schema) levam `!` e rodapé `BREAKING CHANGE:`. O corpo explica o porquê e cita `DEC-`/`PEN-`/`IMPL-`.
 
 ```text

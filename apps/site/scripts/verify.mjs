@@ -21,7 +21,7 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
   await page.goto(url, { waitUntil: "networkidle" });
   const hrefs = await page.getByRole("link", { name: "Entrar na Vila" }).evaluateAll((els) => els.map((e) => e.getAttribute("href")));
-  if (hrefs.length === 0 || hrefs.some((h) => h !== "https://app.vilanoeldobem.com.br")) errors.push(`${name}: bad game links ${hrefs}`);
+  if (hrefs.length === 0 || hrefs.some((h) => h !== "https://play.vilanoeldobem.com.br")) errors.push(`${name}: bad game links ${hrefs}`);
   await page.screenshot({ path: `${out}${name}.png`, fullPage: true });
   await page.close();
 }

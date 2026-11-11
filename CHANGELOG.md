@@ -11,16 +11,50 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
-- Conta opcional: cadastro com nome, nickname, cidade e e-mail; link mágico com confirmação explícita,
-  sessão HttpOnly e saída com revogação. Visitante continua livre; progresso permanece local.
-- Schema D1 **v4** (`0004_accounts.sql`): conta só após verificação, credenciais com hash, consumo atômico,
-  unicidade de e-mail/nickname e limites de pedidos. Migração disponível, sem aplicação remota nesta entrega.
-- Adaptador de e-mail exclusivamente local, com caixa de teste lida pelo CLI; produção falha fechada até
-  escolha e integração do provedor (OQ-08). [Guia de teste](docs/guides/auth-local.md) e [IMPL-0007](docs/decisions/0007-optional-magic-link-accounts.md).
-- Testes de autenticação com SQL real: confirmação, expiração, replay, concorrência, isolamento de perfil,
-  CSRF, limites, sessão e bloqueio em produção; regressões do cliente para fragmento e respostas fora de ordem.
-- Verificação de login em navegador real, desktop/celular (`verify-auth.mjs`); Chrome alternativo configurável
-  por `CHROME_EXECUTABLE_PATH` e temporário curto para os processos de navegador.
+- Conta opcional: quatro campos, link mágico com confirmação explícita, sessão HttpOnly e saída; visitante livre.
+  Integração com `apps/client` e `apps/api`, callback para o jogo, CORS credenciado restrito e testes entre origens.
+- Migration v4 aditiva para contas, links, sessões e limites; entrega exclusivamente local, produção desabilitada
+  enquanto OQ-08 estiver pendente. Progresso e cosméticos continuam locais. [IMPL-0011](docs/decisions/0011-optional-magic-link-accounts.md).
+- Guia de login local e verificação de navegador desktop/celular com cliente/API separados.
+
+
+### Changed
+
+- **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
+  `apps/client` (jogo, `play.vilanoeldobem.com.br`; `app.*` redireciona com 301), `apps/api` (API + D1,
+  `api.vilanoeldobem.com.br`), `apps/server` (presença em tempo real, `server.vilanoeldobem.com.br`), `apps/site`
+  (sem mudança, links para `play.*`) e `packages/shared` (lógica pura comum). **Incompatível:** rotas da API perdem
+  o prefixo `/api` (`/health`, `/indicators`, `/lots`, `/environment`); presença em `wss://server.…/room`. CORS e
+  WebSocket só para origens exatas; CSP do jogo gerada por build. `smoke-api.sh` confere os três serviços.
+
+### Added
+
+- Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
+  núcleo de geradores determinísticos (PRNG por semente, partes, paleta nomeada, orçamento por categoria testado,
+  snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,
+  barraca, barraca de panetone) e de chalés (planta, andares, três telhados, varanda, guirlanda, chaminé), moradores (corpo, casaco, cachecol, chapéu,
+  tons de pele) e animais (rena, cachorro, gato, passarinho, coelho, coruja noturna) com respiração em shader;
+  decoração com 3 moradores e 6 animais na Vila (PROPOSTA).
+- Visual do avatar (PROPOSTA): chapéus, cachecóis, suéteres e paletas como camadas sobre o avatar, liberados só por
+  missões e nível (tudo alcançável sem doar; nada se compra ou sorteia). Escolha em "Caderno de Missões". Presentes
+  escondidos gerados pelo id; terrenos com ONG publicada ganham um chalé gerado pelo id do terreno. Galeria `?gallery` (só desenvolvimento)
+  e `scripts/gallery.mjs`. Ver [content.md](docs/reference/content.md).
+
+- Multiplayer de presença ([IMPL-0008](docs/decisions/0008-multiplayer-presence-durable-objects.md)): quem está na
+  mesma praça vê os outros andando em tempo real (Durable Object `VillageRoom` + WebSocket `GET /api/room`, até 40
+  por sala, 8 salas). Bonecos anônimos, sem nomes, sem chat, nada gravado. Chip "👥 N" no HUD; opção "Outros
+  visitantes" no painel "Ambiente". `verify.mjs` testa dois navegadores se vendo e a coleta dos presentes.
+
+- Motor e jogabilidade ([IMPL-0007](docs/decisions/0007-voxel-mesher-fixed-step-simulation.md), PROPOSTA): malha de
+  voxels com remoção de faces escondidas e oclusão de ambiente por vértice; adereços repetidos instanciados.
+  Medido no `verify.mjs` (preset Média): 96 → 56 chamadas de desenho e 362 mil → 108 mil triângulos por quadro.
+- Avatar com simulação em passo fixo (aceleração, chegada suave, giro suave), colisão com pinheiros, postes, bancos,
+  bonecos de neve, trenó e chalés, caminhada articulada, sombra de contato e câmera com antecipação.
+- Efeitos: neve levantada pelos passos, brilho dourado ao achar presente; pegadas por passo (não na pedra nem no gelo).
+- Som: passos por superfície (neve, neve batida, pedra, gelo), carrilhão do presente e vinheta de missão, além do
+  vento e dos sininhos; continua desligado por padrão.
+- Resolução adaptativa pelo p95 do tempo de quadro; `?envDebug` mostra chamadas, triângulos, p50/p95 e DPR;
+  `verify.mjs` grava `verify-output/stats.json`.
 
 - CI no GitHub Actions: `ci.yml` (typecheck, testes e build em todo PR e push na `main`) e `smoke.yml` (smoke de
   produção diário e manual). `scripts/smoke-api.sh` passa a conferir `/api/environment`.
@@ -41,6 +75,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
   zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
   (`PostFx`, 5 kB gzip) só é baixado nos presets Alta/Ultra.
@@ -50,6 +85,14 @@ Cada versão indica o schema D1 que entrega.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
   marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
   antecipadas para a 0.4.0.
+
+### Fixed
+
+- Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
+  deslizamento.
+
+- Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
+- A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
 
 ## [0.3.0] - 2026-11-08
 

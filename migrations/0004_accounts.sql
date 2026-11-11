@@ -1,4 +1,4 @@
--- IMPL-0007: accounts exist only after email verification. Times are Unix seconds.
+-- IMPL-0011: accounts exist only after email verification. Times are Unix seconds.
 CREATE TABLE auth_users (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL COLLATE NOCASE UNIQUE,

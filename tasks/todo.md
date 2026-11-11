@@ -1,3 +1,17 @@
+# Account integration after the application split - 2026-11-11
+
+- [x] Preserve main engine, multiplayer, procedural content and cosmetics; relocate account UI to client and auth to API.
+- [x] Explicit API fetch URLs with credentials; exact credentialed auth CORS and preflight validation.
+- [x] Separate API origin from page/callback origin; keep cookies host-only and production fail-closed.
+- [x] Preserve migration 0004; rename the account ADR to IMPL-0011 to retain main IMPL-0007.
+- [x] Adapt SQL/client tests and browser harness to separate local client/API ports and API-owned D1 state.
+- [x] Final typecheck, 199 tests across five packages, and production builds passed on 2026-11-11 (Node 26.13.0, pnpm 11.25.0).
+- [x] Local API migrations 0001-0004 and cross-origin auth browser flow passed in desktop/mobile viewports.
+- [x] Expanded general browser verification passed: environment scenes, gifts/cosmetics, two-browser multiplayer and all five content gallery categories.
+- [x] Independent AIOX QA static security review: no unresolved P1/P2 findings.
+
+No remote migration, deployment or public authentication activation is included.
+
 # Optional accounts — signup and magic-link login — 2026-11-10
 
 Branch: `feat/account-magic-link-login`. Local delivery for owner review before publication.
@@ -31,7 +45,7 @@ No push, deployment or remote migration was performed.
 
 # Vila Noel do Bem — Task 1: repository foundation and first slice (0.1.0) — 2026-11-08
 
-Context: empty code repository (only `LICENSE`). Product docs live in `vilanoeldobem_docs`
+Context: empty code repository (only `LICENSE`). Product docs lived in `vilanoeldobem_docs` (now `vilanoeldobem/docs`)
 (DEC-001..DEC-044, `docs/decisions/registro-de-decisoes.md`). No technology is decided in the docs (card G11 open).
 The owner asked for Three.js + React + Cloudflare, published to Cloudflare account `9119b7496767fec497f6627c5ca56f32`.
 
@@ -225,3 +239,204 @@ Scheduled events are code constants (versioned), not admin mutations.
 
 - With rolldown `manualChunks`, shared deps of matched modules get captured into the group: check which chunks
   `index.html` modulepreloads, not only chunk sizes.
+
+---
+
+# Task 6: engine, graphics and gameplay polish (voxel mesher, fixed-step sim, feel, VFX, SFX) — 2026-11-10
+
+Context: owner asked for a full engine/graphics/gameplay/audio quality pass. Audit (2026-11-10):
+
+- **Rendering:** every voxel is a full instanced cube (12 tris), hidden faces included; ground ≈ 4.4k cubes, forest
+  ≈ 12k cubes; one `InstancedMesh` per material role per prop instance (lamps ×8, lots ×8, snowmen ×3…) → many
+  draw calls, doubled by the shadow pass. No ambient occlusion: voxels read flat. 2% cube gap = seams.
+- **Simulation:** player moves at constant speed with instant start/stop and a snapped rotation; no collision with
+  pines, lamps, snowmen, sleigh or houses; variable-dt integration; position written to zustand **every frame**
+  (every store selector re-runs each frame).
+- **Feel/feedback:** avatar is a rigid block with a sine bob (no walk cycle); gift pickup and mission completion
+  have no VFX/SFX; footprints are not tied to steps; camera has no look-ahead.
+- **Audio:** only wind + random bells; no footsteps, interaction or reward sounds.
+- **Perf:** no adaptive resolution; no runtime stats beyond FPS.
+- **Multiplayer:** none (single-player by design, IMPL-0006). Out of scope: no Durable Object/WebSocket (AGENTS.md
+  forbids new Cloudflare resources without authorisation). Prepare instead: pure fixed-step simulation separated
+  from presentation.
+
+## Plan
+
+- [x] Instrumentation: draw calls, triangles, frame time p50/p95 in `?envDebug`; verify.mjs saves stats → baseline
+- [x] Voxel mesher (`scene/mesher.ts`, pure + tests): face culling across roles, per-vertex AO, AO-aware quad flip,
+      per-vertex `aCenter` for sway/twinkle shaders; `Voxels` renders merged meshes, repeated props as one
+      instanced draw (`transforms`)
+- [x] Shaders: foliage sway as downwind gust wave from `aCenter` (rigid voxels), twinkle phase from `aCenter`
+- [x] Simulation (`game/motion.ts`, pure + tests): acceleration/friction, smooth turn, circle colliders with
+      sliding, stuck target release; fixed 60 Hz step + render interpolation; player pose in a mutable `sim` object
+      (no per-frame store writes)
+- [x] Surfaces (`surfaceAt`) + gameplay event bus (step, gift, mission) driving footprints, VFX and SFX
+- [x] Avatar animation: walk cycle (legs/arms), lean, idle breathing; blob contact shadow; camera look-ahead
+- [x] VFX: pooled GPU bursts — snow kick-up on steps, gold sparkle burst on gift pickup
+- [x] Audio engine: one AudioContext, compressor bus, ambience + surface-aware footsteps, pickup chime, mission
+      jingle; voice cap and pitch/volume variation; still off by default
+- [x] Adaptive DPR from frame-time p95 (stable frame pacing)
+- [x] Gates + verify.mjs before/after stats; docs (architecture, environment, ADR IMPL-0007), CHANGELOG
+
+## Review (2026-11-10)
+
+- Gates: typecheck ok (2 apps); tests 54 web (+18: mesher culling/AO/winding/dedupe/off-grid, motion
+  accel/brake/arrival/collision slide/stuck/world bound/footsteps/determinism, obstacle clearance, surfaces) + 2 site;
+  build ok, `three` chunk unchanged (244.7 kB gzip). `verify.mjs` (local `wrangler dev`, port 8799) clean on
+  desktop + phone + 5 environment scenes.
+- Measured (verify.mjs stats, medium, "dia-neve"): draw calls 96 → 56, triangles/frame 362k → 108k. Low preset
+  scene: 210k → 69k triangles. Real GPU timing still unmeasured (swiftshader); needs device benchmark (G12).
+- Independent review: 0 critical; fixed 4 risks (Instanced effect deps, instanced foliage wind direction, adaptive
+  DPR on CPU-bound devices, backoff never decaying) and 2 questions (pine collider 1.1 → 1.6, AO diagonal comment).
+- Not done / limits: no real-time multiplayer (needs authorised Cloudflare resources); greedy meshing deferred;
+  gift pickup not exercised in the browser script (software GL too slow) — covered by unit tests of the pieces.
+- Docs: ADR IMPL-0007, architecture, environment, CHANGELOG [Unreleased].
+
+## Lessons
+
+- In r3f, any `useFrame` with priority > 0 turns off automatic rendering: read `gl.info` at the start of the next
+  frame (negative priority) with `autoReset = false` instead of adding a late callback.
+- Adaptive resolution must check that stepping down actually bought frame time; CPU-bound devices otherwise lose
+  resolution for nothing.
+- Moving a per-frame value out of zustand removed 60 Hz selector churn for the whole HUD.
+
+---
+
+# Task 7: real-time multiplayer presence (IMPL-0008) — 2026-11-10
+
+- [x] Shared protocol (`src/net/protocol.ts`), pure room logic (`worker/room.ts`), `VillageRoom` DO (hibernation)
+- [x] `/api/room` same-origin upgrade, bounded room index, 503 without binding; `wrangler.jsonc` DO binding + migration
+- [x] Client: connection manager (room fallback, backoff), snapshot interpolation, instanced remote avatars
+- [x] Opt-out toggle, visitor chip; CSP `wss://`
+- [x] Gift pickup verified in a real browser (dev hook `window.__vila`, localhost only); tree is a sliding collider
+- [x] Docs: IMPL-0008, api, architecture, deploy guide, AGENTS.md storage rule, CHANGELOG
+
+## Review (2026-11-10)
+- Gates: typecheck ok; tests 69 web (+15: protocol, room capacity/teleport/batching/rate limit, `/api/room` guards,
+  interpolation) + 2 site; build ok. `verify.mjs` on local `wrangler dev`: gifts + mission in browser; two browser
+  contexts see each other, walking shows up, leaving removes the avatar; no console errors.
+- Not deployed (needs owner authorisation: creates the DO class). Not measured: cross-region latency, 40-person room.
+
+## Lessons
+- Two software-GL pages starve Playwright's "stable" actionability check: use `dispatchEvent("click")` there.
+
+---
+
+# Task 8: seeded procedural voxel content (approved 2026-11-10; phases 0–5 done) — 2026-11-10
+
+Goal: deterministic generators for houses, characters, animals, props and avatar cosmetics that match the existing
+models and stay inside a measured budget. Product rules: cosmetics only from missions/levels (PROPOSTA), no purchases,
+loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules unchanged.
+
+## Phase 0 — shared generator core
+- [x] `scene/gen/rng.ts`: seeded PRNG (`seedOf` FNV-1a → mulberry32), `int`, `float`, `pick`, `chance`
+- [x] `scene/gen/parts.ts`: `box`, `shell`, `disc`, `mirrorX`, `place` (quarter turns), snow-cap pass, palette
+      variants as named derivations of `PALETTE` (no free colours)
+- [x] `scene/gen/budget.ts`: per-category max voxels + max faces (counted with `meshVoxels`)
+- [x] Generic test harness: deterministic per seed, budget, ≥ N distinct variants (hash), integer coords, base y=0,
+      snapshot hashes for fixed seeds (art changes show up as failing tests)
+- [x] Lint guard test: no `Math.random` under `scene/gen/`
+- [x] Dev gallery `?gallery` (localhost only): grid per category × 8 seeds, orbit camera, voxel/face counts per model
+- [x] `verify.mjs`: gallery screenshots + calls/tris/p95 per category
+
+## Phase 1 — props and items (budget: ≤ 220 voxels, ≤ 600 faces)
+- [x] Gifts (pattern stripes/dots/checks, ribbon cross/bow), lanterns (emissive), fences, sleds, mailboxes,
+      signposts (no text), garlands (emissive bulbs), market stalls; Brazilian touches: panetone stand
+- [x] Replace the hand-made `gift()` with the generator (gift ids/positions unchanged)
+
+### Phases 0–1 review (2026-11-10)
+- 9 prop generators; max voxels/faces over 8 gallery seeds vs budget 220/600: gift 130/166, lantern 85/216,
+  fence 49/166, sled 80/250, mailbox 64/146, signpost 25/102, garland 44/154, stall 111/318, panettone 110/322.
+- Village ("dia-neve", medium): 56 → 55 calls, 108.1k → 109.0k tris (generated gifts). Gallery props: 100 calls,
+  27.6k tris. Tests +38 (contract × 9 generators, snapshot, Math.random guard).
+- Placement of new props in the village waits for the layout decision (PEN-017/PEN-023).
+
+## Phase 2 — houses (budget: ≤ 900 voxels, ≤ 1 800 faces)
+- [x] Footprint 5–7, 1–2 floors, roof (gable / hip / A-frame), porch, wreath, snow on roof, chimney at a
+      generator-reported chimney point (smoke uses it), windows on the `glow` role (lit by real SP time already)
+- [x] NGO lots: seed = lot id; neutral palette; never logos or text
+- [x] Far LOD: deferred (houses only on 8 lots, ≤ 950 faces each; not worth it until measured)
+
+### Phase 2 review (2026-11-10)
+- House max over gallery seeds: 367/900 voxels, 950/1800 faces. Gallery houses: 16 calls, 13.3k tris.
+- Village unchanged locally (no published NGO in local D1; no fake NGOs added). Tests: chimney anchor, lit windows,
+  footprint ≤ 5 voxels from lot centre, contract + snapshot.
+
+## Phase 3 — characters (budget: ≤ 160 voxels, ≤ 420 faces)
+- [x] Neutral villagers: body height, coat, scarf, hat from palette variants; no names, short or no labels
+- [x] Placed as decor (`CRITTERS`, PROPOSTA); idle breathing/look-around in shader via `aCenter` (`idleMaterial`)
+
+## Phase 4 — animals (budget: ≤ 140 voxels, ≤ 380 faces)
+- [x] Reindeer variants, dogs, cats, birds, rabbits, owls (night only, from SP time)
+- [x] `idle` material role: vertex-shader breathing / head bob keyed on `aCenter` + instance phase
+
+### Phases 3–4 review (2026-11-10)
+- Max over gallery seeds vs budget: villager 128/160 voxels, 266/420 faces; reindeer 124/140, 294/380; dog 80/190;
+  cat 59/160; bird 30/78; rabbit 62/140; owl 58/106.
+- Village ("dia-neve", medium): 55 → 66 calls, 109.0k → 112.6k tris with 9 critters (tiny animals skip the shadow
+  pass). Gallery: characters 12 calls / 4.6k tris; animals 68 / 19.5k.
+- One verify run timed out on `networkidle` under load; the rerun passed (flake, not a regression).
+
+## Phase 5 — avatar cosmetics (PROPOSTA; budget per layer ≤ 40 voxels)
+- [x] Layers that fit `avatarParts()`: hats, scarves, sweater patterns, colour palettes
+- [x] Unlock table keyed on mission completion / level (`progress.ts` read-only; XP rules untouched; reachable
+      without donating); local selection stored as layer ids (`vila.look.v1`)
+- [ ] Presence sync of the look (layer ids over IMPL-0008): deferred — remote avatars show the default look
+- [x] Docs: catalogue and unlocks marked PROPOSTA
+
+### Phase 5 review (2026-11-10)
+- Layers max vs budget 40/140: hat 14/42, scarf 19/76, sweater 12/38. Avatar parts unchanged in draw calls.
+- Browser: gifts mission → toast "Novo visual", beanie unlocked and equipped; level-2 items stay locked.
+- Tests: shared cosmetics (unique ids, one default per slot, mission/level only, all reachable without donating,
+  not tied to the donation mission, sanitising stored looks) + contract for 3 layer generators.
+
+## Every phase
+- [x] `pnpm typecheck && pnpm test && pnpm build`, `verify.mjs` real browser, gallery screenshots
+- [x] Report: budgets vs actual voxel/face counts, calls/tris/p95 before → after
+- [x] Docs pt-BR (`docs/reference/content.md`), CHANGELOG, ADR IMPL-0010 (generator architecture), Conventional Commits
+
+Ideas deferred unless approved: Advent progression (1–25 Dec, SP time), snow build-up on roofs, NPC routines,
+lot decoration kit (admin colours via audit flow), avatar creator UI, gift-wrapping minigame.
+
+---
+
+# Task 9: split apps into client / api / server + packages/shared (IMPL-0009) — 2026-11-10
+
+Owner choice: 4 apps + shared package, hosts `play.*` (client), `api.*` (api), `server.*` (realtime).
+
+- [x] `git mv apps/web apps/client`; pure modules → `packages/shared` (`@vila/shared/*`, TS source exports)
+- [x] `apps/api`: HTTP routes without `/api`, exact-origin CORS, OPTIONS 204, D1; `wrangler deploy --dry-run` in build
+- [x] `apps/server`: `/health`, `/room` (exact-origin WebSocket), `VillageRoom` DO + migration
+- [x] `apps/client`: endpoints per build mode, CSP generated per build, API preconnect, `app.*` → `play.*` 301 worker
+- [x] Site links → `play.*`; root scripts (`dev`, `deploy:*`, `db:migrate:local`); smoke script for 3 services; smoke workflow
+- [x] AGENTS.md, ADR IMPL-0009, CHANGELOG; pt-BR docs (subagent)
+
+## Review (2026-11-10)
+- Gates: typecheck 5 packages; tests 2 site + 44 shared + 7 api + 15 client + 7 server; build 5 packages
+  (api/server bundles via `wrangler deploy --dry-run`). Local: three `wrangler dev` (8787/8788/8799):
+  `smoke-api.sh` 14/14; `verify.mjs` clean (cross-origin data, CSP, two browsers see each other, gifts + mission).
+- Not deployed. First deploy order: api → server → client → site; daily prod smoke fails until then.
+
+## Lessons
+- Vite reserves the mode name `local` (`.env.local` suffix): use another name (`workers`).
+- Several `wrangler dev` at once collide on the inspector port (9229): give each `--inspector-port`.
+- `wrangler dev` rewrites `Host`: test host-based logic with unit tests, not curl.
+- `.env*` is gitignored here: per-mode endpoints live in code (`endpoints.ts`), not env files.
+
+---
+
+# Task 10: production deploy (owner: "deploy to close this session") — 2026-11-10
+
+- [x] `pnpm deploy:api` → vilanoeldobem-api cf8a3c8a (api.vilanoeldobem.com.br, D1; no new migrations)
+- [x] `pnpm deploy:server` → vilanoeldobem-server 9c92585f (server.vilanoeldobem.com.br, DO VillageRoom created)
+- [x] `pnpm deploy:client` → vilanoeldobem 41bca2ec (play.* + app.* 301)
+- [x] `pnpm deploy:site` → vilanoeldobem-site 958763b3 (links to play.*)
+
+## Review
+- `smoke-api.sh` (production defaults) 14/14; foreign Origin → 403, game origin → 101; app.* → 301 play.* (path and
+  query kept); API CORS for play.*; two real browsers on play.* see each other ("👥 2"), no console errors.
+- Deployed from branch `feat/engine-polish` (not merged, not pushed).
+
+## Lessons
+- The edge speaks HTTP/2 to curl and drops `Upgrade`, and rejects an incomplete handshake with 400 before the
+  Worker runs: WebSocket smoke checks need `--http1.1` and a full handshake (`Sec-WebSocket-Key/Version`).

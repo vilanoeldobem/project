@@ -1,71 +1,74 @@
 # Testar cadastro e login localmente
 
-> **Status:** implementado para revisão local (Unreleased) · **Schema D1:** v4 · **Atualizado em:** 2026-11-10
-> **Fonte de verdade:** `apps/web/worker/auth.ts`, `apps/web/scripts/verify-auth.mjs`
-> Envio real de e-mail e autenticação pública continuam desabilitados (OQ-08).
+> Estado: implementação para revisão (IMPL-0011). Envio real e login público continuam desabilitados (OQ-08).
 
-Use Node 24 ou superior, dependências instaladas e apenas dados fictícios. A conta pede nome, nickname,
-cidade e e-mail. Missões e XP continuam no `localStorage`, sem sincronização com a conta.
+Use Node 24+, pnpm e somente dados fictícios. A conta pede nome, nickname, cidade e e-mail.
+Missões, XP e aparência continuam neste navegador, sem sincronização com a conta.
 
-## Preparar
+## Preparar três serviços locais
 
 Na raiz do repositório:
 
 ```bash
-cp apps/web/.dev.vars.example apps/web/.dev.vars
-pnpm --filter @vila/web db:migrate:local
-pnpm dev:worker
+cp apps/api/.dev.vars.example apps/api/.dev.vars
+pnpm db:migrate:local
+pnpm --filter @vila/api dev
+# Em outro terminal:
+pnpm --filter @vila/server dev
+# Em outro terminal:
+pnpm --filter @vila/client dev:worker
 ```
 
-Abra **http://localhost:8787**, exatamente a origem de `.dev.vars`. Esse arquivo é ignorado pelo Git.
-Não misture localhost com 127.0.0.1: origem e cookies são diferentes. As três condições são obrigatórias:
-`ENVIRONMENT=development`, `AUTH_MODE=local` e `AUTH_ORIGIN` igual à origem local. Nenhuma dessas opções deve
-ser publicada no Worker. Não use bindings remotos no desenvolvimento desse adaptador.
-O script `dev:worker` passa `--local --infer-origin-from-routes=false` ao Wrangler para preservar a origem
-localhost. Ao iniciar o Wrangler diretamente, mantenha essas opções; inferir a origem da rota de produção
-faz o bloqueio de segurança recusar corretamente o adaptador local.
+Abra **http://localhost:8799**. A API fica em **http://localhost:8787** e a presença em **http://localhost:8788**.
+A API usa `--infer-origin-from-routes=false` para preservar sua origem local em vez do domínio de produção.
+`AUTH_API_ORIGIN` identifica a API; `AUTH_PAGE_ORIGIN` identifica o jogo e o destino do link.
+Esta última origem também precisa estar em `ALLOWED_ORIGINS`. Não misture localhost e 127.0.0.1.
 
-## Validar o fluxo manual
+Para usar o Vite em :5173, troque `AUTH_PAGE_ORIGIN` em `.dev.vars` para `http://localhost:5173` e reinicie a API.
+O arquivo é ignorado pelo Git. Nunca publique as opções do adaptador local no Worker.
 
-1. Abra **Minha conta → Criar conta**. Preencha os quatro campos com dados fictícios e solicite o link.
-2. A conta ainda não existe. O adaptador grava uma mensagem somente no D1 local, sem mandar e-mail.
-3. Em outro terminal, leia a caixa local:
+## Validar a jornada
+
+1. Abra **Criar conta ou entrar → Criar conta** e preencha dados fictícios.
+2. O pedido ainda não cria conta. A entrega de teste fica somente no D1 local da API.
+3. Leia a caixa em outro terminal:
 
    ```bash
-   cd apps/web
+   cd apps/api
    pnpm exec wrangler d1 execute vilanoeldobem --local --command "SELECT recipient, link FROM auth_local_outbox ORDER BY created_at DESC;"
    ```
 
-4. Abra o link no **mesmo navegador/perfil** que fez o pedido. O fragmento desaparece imediatamente da URL;
-   clique **Confirmar acesso**. Agora a conta é criada, o cookie de sessão é emitido e a mensagem é removida.
-5. Recarregue a página: a sessão permanece. Use **Sair da conta**: ela é invalidada no servidor.
-6. Para voltar, use **Já tenho conta** e informe só o e-mail. Um novo cadastro com esse e-mail não altera o perfil.
+4. Abra o link no **mesmo navegador/perfil** que fez o pedido. Ele aponta ao jogo, nunca à API.
+   O fragmento desaparece imediatamente, inclusive na mesma aba. Clique **Confirmar acesso** para criar a conta.
+5. Recarregue: a sessão permanece. **Sair da conta** invalida a sessão no servidor.
+6. **Já tenho conta** solicita um novo link só com o e-mail. Repetir cadastro não altera o perfil existente.
 
-O link vale por 15 minutos e é de uso único. Se o nickname já estiver ocupado, peça outro link de cadastro
-com um nickname diferente. Credenciais ficam apenas em memória/cookies, nunca no `localStorage`.
-O CLI acima mostra uma credencial temporária: não publique sua saída ou capturas em issues/PRs.
-Não existe `/api/auth/outbox` nem endpoint que revele links.
+O CLI mostra uma credencial temporária: não publique sua saída. Não existe endpoint de leitura da caixa.
+O link dura 15 minutos e só funciona uma vez. Sessão e vínculo ficam em cookies HttpOnly da API; o jogo não lê
+os cookies. O cliente usa `credentials: include`; CORS credenciado exige a origem exata do jogo, sem curinga.
+Respostas de conta são `no-store`. HTTP sem Secure é exceção exclusiva de loopback; HTTPS sempre usa Secure.
 
 ## Verificação automática
 
 ```bash
-pnpm --filter @vila/web exec vitest run worker/auth.test.ts src/lib/auth.test.ts --maxWorkers=2
+pnpm --filter @vila/api exec vitest run src/auth.test.ts --maxWorkers=2
+pnpm --filter @vila/client exec vitest run src/lib/auth.test.ts --maxWorkers=2
 pnpm typecheck
+pnpm test
 pnpm build
-CHROME_EXECUTABLE_PATH=/usr/bin/chromium node apps/web/scripts/verify-auth.mjs http://localhost:8787
+CHROME_EXECUTABLE_PATH=/usr/bin/chromium node apps/client/scripts/verify-auth.mjs http://localhost:8799 http://localhost:8787
 ```
 
-O último comando usa o Worker local já rodando e cria contas de teste no D1 local. Confere cadastro ainda
-não verificado, confirmação na mesma aba, sessão após reload, saída, replay e novo login em desktop/celular.
-Sem `CHROME_EXECUTABLE_PATH`, usa o Chrome instalado padrão. O navegador recebe `TMPDIR=/tmp` e perfil isolado.
-As provas unitárias usam o SQL real com `node:sqlite`, chaves estrangeiras e transações; o teste de navegador
-completa a prova no runtime real do Worker/D1.
+O último comando requer os três serviços rodando e cria contas fictícias no D1 local da API. Confere cadastro,
+confirmação na mesma aba, sessão após reload, saída, replay e novo login em viewports desktop/celular.
+Sem `CHROME_EXECUTABLE_PATH`, usa o canal Chrome. O navegador recebe `TMPDIR=/tmp` e perfil isolado.
+As provas unitárias usam SQL real com `node:sqlite`, chaves estrangeiras e transações; cobrem também CORS,
+callbacks para o jogo, origem inválida e os limites do adaptador. Nenhum resultado de celular físico é presumido.
 
-## Limites desta entrega
+## Limites
 
-- Produção responde `auth_unavailable` para escritas; o visitante pode continuar explorando normalmente.
-- Nenhum provedor de e-mail foi escolhido ou contratado. O ponto de substituição está em `requestLink`, no
-  adaptador de entrega de `worker/auth.ts`; entregar e-mail real exige implementação e revisão próprias.
-- Nenhuma migration remota, deploy, pagamento, admin de ONG ou progresso de servidor faz parte desse fluxo.
+Produção falha fechada: o provedor de e-mail não foi escolhido nem integrado. O adaptador local não habilita
+login de homologação/produção apenas por aplicar a migration. Autenticação multiplayer, pagamentos, admin de ONG
+e progresso no servidor são entregas separadas. Nenhuma migration remota ou deploy faz parte deste guia.
 
-[Decisão técnica](../decisions/0007-optional-magic-link-accounts.md) · [Contrato HTTP](../reference/api.md)
+[ADR IMPL-0011](../decisions/0011-optional-magic-link-accounts.md) · [API](../reference/api.md)

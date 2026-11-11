@@ -1,16 +1,18 @@
 # Versionamento
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** `package.json`, `apps/web/package.json`, `apps/web/worker/api.ts` (`VERSION`), `CHANGELOG.md`
+> **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** `package.json`, `apps/*/package.json`, `packages/shared/package.json`,
+> `apps/api/src/api.ts` (`VERSION`), `CHANGELOG.md`
 
 ## 1. O que é versionado
 
 | Item | Onde | Regra |
 |---|---|---|
-| Versão do software | `package.json` (raiz e `apps/web`), `VERSION` em `worker/api.ts` | SemVer; os três iguais |
+| Versão do software | `package.json` (raiz, `apps/client`, `apps/api`, `apps/server`, `apps/site`, `packages/shared`), `VERSION` em `apps/api/src/api.ts` | SemVer; todos iguais |
 | Schema D1 | número da última migration | sobe a cada migration |
-| API HTTP | rotas `/api/*` | aditivo não quebra; remoção/renomeação = breaking |
+| API HTTP | rotas de `api.*` (`/health`, `/indicators`, `/lots`, `/environment`) | aditivo não quebra; remoção/renomeação = breaking (a retirada do prefixo `/api` na IMPL-0009 foi breaking) |
+| Protocolo de presença | `server.*/room`, `packages/shared/src/net/protocol.ts` | mudança de mensagem = breaking (cliente e servidor juntos) |
 
 ## 2. SemVer durante 0.y.z
 
@@ -29,7 +31,7 @@ Keep a Changelog 1.1.0. Toda mudança visível entra em `[Unreleased]`. Cada ver
 ## 5. Processo de release
 
 1. Mover `[Unreleased]` para `## [X.Y.Z] - AAAA-MM-DD` com parágrafo-resumo (ADRs, DEC/PEN).
-2. Atualizar as três versões, README ("Versão atual") e ROADMAP.
+2. Atualizar todas as versões (tabela acima), README ("Versão atual") e ROADMAP.
 3. Gates + `verify.mjs`.
 4. Commit `chore(release): X.Y.Z`, tag `vX.Y.Z`.
 5. Deploy ([guides/deploy.md](../guides/deploy.md)) com autorização.

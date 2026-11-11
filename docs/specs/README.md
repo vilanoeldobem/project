@@ -1,11 +1,11 @@
 # Especificações do produto
 
-> **Status:** referência externa · **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** repositório [`vilanoeldobem_docs`](https://github.com/vilanoeldobem/vilanoeldobem_docs)
+> **Status:** referência externa · **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** repositório [`vilanoeldobem/docs`](https://github.com/vilanoeldobem/docs)
 
 As especificações **não** são copiadas para cá, para não divergirem. A equipe discute e registra regras de negócio
 no repositório de documentação; o código implementa as regras CONFIRMADAS e cita o `DEC-` (fluxo em
-`vilanoeldobem_docs/docs/guides/fluxo-negocio-para-codigo.md`). Caminhos abaixo são daquele repositório:
+`vilanoeldobem/docs/docs/guides/fluxo-negocio-para-codigo.md`). Caminhos abaixo são daquele repositório:
 
 | Documento | Para quê |
 |---|---|
@@ -26,11 +26,13 @@ Estados: **CONFIRMADO** (decisão), **PROPOSTA**, **HIPÓTESE**, **PENDENTE**. S
 
 ## Mapa telas → código (0.2.0)
 
+Caminhos relativos a `apps/client/src/`, salvo indicação.
+
 | Tela | Código | Status |
 |---|---|---|
 | P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx` | Parcial |
-| P02 | `ui/Indicators.tsx`, `worker/api.ts` | Parcial |
+| P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
 | P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx`, `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |
-| P14 | `game/progress.ts`, `ui/Missions.tsx` | Parcial |
+| P14 | `packages/shared/src/game/progress.ts`, `ui/Missions.tsx` | Parcial |
 | demais | — | Planejado |

@@ -30,3 +30,7 @@
 ## Relacionados
 
 [guides/deploy.md](../guides/deploy.md) · [reference/architecture.md](../reference/architecture.md)
+
+**Adendo (2026-11-10):** a parte de topologia (um Worker com Static Assets + API + D1) foi substituída por
+[IMPL-0009](0009-split-client-api-server-shared.md): jogo, API e servidor de tempo real passam a ser Workers
+separados (`play.*`, `api.*`, `server.*`) e as rotas perdem o prefixo `/api`. D1 e o monorepo pnpm continuam valendo.

@@ -1,8 +1,8 @@
 # Modelo de domínio
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** `apps/web/src/game/`, `migrations/`, doc 19 do repositório de documentação
+> **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** `packages/shared/src/game/`, `migrations/`, doc 19 do repositório de documentação
 
 ## Entidades
 

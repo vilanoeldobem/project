@@ -5,7 +5,7 @@ DEC no repositório de documentação pendente
 **Data:** 2026-11-09
 **Fontes:** especificação "CHRISTMAS WORLD" v1.0 (proposta técnica, 09/11/2026) trazida pelo responsável técnico
 (Augusto, 2026-11-09); escolhas do responsável na mesma data: vila nevada, endpoint stateless, escopo completo;
-`vilanoeldobem_docs/docs/reference/guia-identidade-visual-voxel.md` ("Natal brasileiro de verão" = PROPOSTA);
+`vilanoeldobem/docs/docs/reference/guia-identidade-visual-voxel.md` ("Natal brasileiro de verão" = PROPOSTA);
 Código: `apps/web/src/environment/`, `apps/web/src/scene/environment/`, `apps/web/worker/api.ts`
 
 ## Contexto

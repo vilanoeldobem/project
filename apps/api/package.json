@@ -1,0 +1,27 @@
+{
+  "name": "@vila/api",
+  "private": true,
+  "version": "0.3.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Vila Noel do Bem \u2014 public HTTP API Worker (api.vilanoeldobem.com.br) with D1",
+  "scripts": {
+    "dev": "wrangler dev --local --infer-origin-from-routes=false --port 8787 --inspector-port 9230 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799",
+    "build": "tsc --noEmit -p . && wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply vilanoeldobem --local",
+    "db:migrate:remote": "wrangler d1 migrations apply vilanoeldobem --remote",
+    "deploy": "pnpm build && wrangler deploy"
+  },
+  "dependencies": {
+    "@vila/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261108.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.158.0",
+    "@types/node": "^24.19.2"
+  }
+}

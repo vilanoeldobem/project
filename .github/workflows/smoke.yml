@@ -5,9 +5,17 @@ name: smoke
 on:
   workflow_dispatch:
     inputs:
-      url:
-        description: Base URL to check
-        default: https://app.vilanoeldobem.com.br
+      api:
+        description: API base URL
+        default: https://api.vilanoeldobem.com.br
+        required: true
+      server:
+        description: Realtime server base URL
+        default: https://server.vilanoeldobem.com.br
+        required: true
+      client:
+        description: Game client URL
+        default: https://play.vilanoeldobem.com.br
         required: true
   schedule:
     - cron: "17 9 * * *" # 06:17 in São Paulo
@@ -21,4 +29,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
-      - run: sh scripts/smoke-api.sh "${{ inputs.url || 'https://app.vilanoeldobem.com.br' }}"
+      - run: >-
+          sh scripts/smoke-api.sh
+          "${{ inputs.api || 'https://api.vilanoeldobem.com.br' }}"
+          "${{ inputs.server || 'https://server.vilanoeldobem.com.br' }}"
+          "${{ inputs.client || 'https://play.vilanoeldobem.com.br' }}"

@@ -1,0 +1,24 @@
+{
+  "name": "@vila/server",
+  "private": true,
+  "version": "0.3.0",
+  "license": "MIT",
+  "type": "module",
+  "description": "Vila Noel do Bem — realtime Worker (server.vilanoeldobem.com.br): VillageRoom Durable Object presence over WebSocket",
+  "scripts": {
+    "dev": "wrangler dev --port 8788 --inspector-port 9231 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799",
+    "build": "tsc --noEmit -p . && wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "deploy": "pnpm build && wrangler deploy"
+  },
+  "dependencies": {
+    "@vila/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261108.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.158.0"
+  }
+}

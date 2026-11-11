@@ -1,0 +1,5 @@
+# Local API only; never publish these values. Use the exact client origin.
+ENVIRONMENT=development
+AUTH_MODE=local
+AUTH_API_ORIGIN=http://localhost:8787
+AUTH_PAGE_ORIGIN=http://localhost:8799
