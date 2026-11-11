@@ -7,11 +7,15 @@
  */
 import { create } from "zustand";
 
+import { DEFAULT_LOOK, type Look, SLOTS } from "@vila/shared/game/cosmetics";
+
 import { sim } from "../game/sim";
+import { useVila } from "../game/store";
 import { SERVICES } from "../lib/services";
 import {
   CLOSE_FULL,
   decodeServer,
+  encodeLook,
   encodePose,
   MAX_ROOMS,
   type PoseEntry,
@@ -41,11 +45,40 @@ export interface Remote {
   speed: number;
   /** Walk-cycle phase, advanced by the distance walked on screen. */
   walk: number;
+  /** Cosmetic look (IMPL-0010) and its key for grouping instanced draws. */
+  look: Look;
+  lookKey: string;
 }
+
+export const lookKey = (l: Look) => SLOTS.map((s) => l[s]).join("|");
+const DEFAULT_KEY = lookKey(DEFAULT_LOOK);
 
 export type NetStatus = "off" | "connecting" | "online" | "full" | "offline";
 
-export const useNet = create<{ status: NetStatus; others: number }>(() => ({ status: "off", others: 0 }));
+/** `looks`: distinct looks currently worn by others (one instanced group each). */
+export const useNet = create<{ status: NetStatus; others: number; looks: Record<string, Look> }>(() => ({
+  status: "off",
+  others: 0,
+  looks: { [DEFAULT_KEY]: DEFAULT_LOOK },
+}));
+
+/** Looks that arrived before the first pose of that visitor. */
+const pendingLooks = new Map<number, Look>();
+
+function refreshLooks() {
+  const looks: Record<string, Look> = { [DEFAULT_KEY]: DEFAULT_LOOK };
+  for (const r of remotes.values()) looks[r.lookKey] = r.look;
+  const prev = useNet.getState().looks;
+  if (Object.keys(prev).sort().join() !== Object.keys(looks).sort().join()) useNet.setState({ looks });
+}
+
+export function setRemoteLook(id: number, look: Look) {
+  const r = remotes.get(id);
+  if (!r) return void pendingLooks.set(id, look);
+  r.look = look;
+  r.lookKey = lookKey(look);
+  refreshLooks();
+}
 
 export const remotes = new Map<number, Remote>();
 
@@ -61,8 +94,11 @@ export function ingestSnapshot(poses: PoseEntry[], tick: number, selfId: number 
     if (id === selfId) continue;
     let r = remotes.get(id);
     if (!r) {
-      r = { id, samples: [], x, z, yaw, speed, walk: 0 };
+      const look = pendingLooks.get(id) ?? DEFAULT_LOOK;
+      pendingLooks.delete(id);
+      r = { id, samples: [], x, z, yaw, speed, walk: 0, look, lookKey: lookKey(look) };
       remotes.set(id, r);
+      refreshLooks();
     }
     r.samples.push({ t: tick - age, x, z, yaw, speed });
     if (r.samples.length > HISTORY) r.samples.shift();
@@ -74,6 +110,8 @@ export function ingestSnapshot(poses: PoseEntry[], tick: number, selfId: number 
 /** Drops every remote and the clock estimate (disconnect, tests). */
 export function resetRemotes() {
   remotes.clear();
+  pendingLooks.clear();
+  useNet.setState({ looks: { [DEFAULT_KEY]: DEFAULT_LOOK } });
   offset = null;
   useNet.setState({ others: 0 });
 }
@@ -116,6 +154,10 @@ export function connectPresence(): () => void {
   let sendTimer: ReturnType<typeof setInterval> | null = null;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   let last = "";
+  // Re-send the look whenever the person changes it (the room relays it to everyone else).
+  const offLook = useVila.subscribe((s, prev) => {
+    if (s.look !== prev.look && ws?.readyState === WebSocket.OPEN) ws.send(encodeLook(s.look));
+  });
 
   const clear = () => {
     if (sendTimer) clearInterval(sendTimer);
@@ -137,13 +179,18 @@ export function connectPresence(): () => void {
         tries = 0;
         useNet.setState({ status: "online" });
       } else if (m.t === "s") ingestSnapshot(m.poses, m.tick, selfId);
-      else if (m.t === "l") {
+      else if (m.t === "k") {
+        if (m.id !== selfId) setRemoteLook(m.id, m.look);
+      } else if (m.t === "l") {
         remotes.delete(m.id);
+        pendingLooks.delete(m.id);
         useNet.setState({ others: remotes.size });
+        refreshLooks();
       }
     };
     ws.onopen = () => {
       last = "";
+      ws?.send(encodeLook(useVila.getState().look));
       sendTimer = setInterval(() => {
         const p = sim.pose;
         const msg = encodePose({ x: p.x, z: p.z, yaw: p.yaw, speed: p.speed < 0.05 ? 0 : p.speed });
@@ -177,6 +224,7 @@ export function connectPresence(): () => void {
   open();
   return () => {
     closed = true;
+    offLook();
     if (retry) clearTimeout(retry);
     clear();
     ws?.close(1000, "bye");

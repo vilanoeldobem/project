@@ -20,6 +20,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Multiplayer mostra o visual de cada visitante (chapéu, cachecol, suéter, cores) e `apps/server/scripts/load.mjs`
+  testa uma sala cheia (40 visitantes: ~10 kB/s por visitante, p95 9 ms local).
+
 - Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
   núcleo de geradores determinísticos (PRNG por semente, partes, paleta nomeada, orçamento por categoria testado,
   snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,

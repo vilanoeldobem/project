@@ -5,12 +5,15 @@
  * avatar pose. No chat, no free text (minors: ECA Digital, LGPD). Messages are compact JSON arrays.
  *
  *   client → server  ["p", x, z, yaw, speed]                 pose, ≤ 10 Hz, only when it changed
+ *                    ["k", hat, scarf, sweater, palette]     avatar look (catalogue ids only, IMPL-0010)
  *                    "ping"                                  keep-alive (answered "pong" without waking the room)
  *   server → client  ["w", selfId, room]                     welcome
  *                    ["s", tickMs, [[id, x, z, yaw, speed, ageMs], …]]  poses that changed since the last tick
+ *                    ["k", id, [hat, scarf, sweater, palette]] someone's look (on change; all of them on join)
  *                    ["l", id]                                someone left
  *   close 4001 = room full (try the next room) · 1008 = protocol abuse
  */
+import { COSMETICS, type Look, SLOTS } from "../game/cosmetics";
 import { MOTION } from "../game/motion";
 import { WORLD_RADIUS } from "../game/world";
 
@@ -35,6 +38,7 @@ export type PoseEntry = [number, number, number, number, number, number];
 export type ServerMessage =
   | { t: "w"; id: number; room: number }
   | { t: "s"; tick: number; poses: PoseEntry[] }
+  | { t: "k"; id: number; look: Look }
   | { t: "l"; id: number };
 
 const q = (n: number) => Math.round(n * 100) / 100;
@@ -63,7 +67,44 @@ export function decodePose(raw: string): Pose | null {
   return { x: px, z: pz, yaw: wrap(yaw as number), speed: Math.min(Math.max(speed as number, 0), MOTION.maxSpeed) };
 }
 
+/** Look as the four slot ids, in `SLOTS` order. */
+const lookArray = (l: Look) => SLOTS.map((s) => l[s]);
+
+/**
+ * Validates a look array: exactly one known catalogue id per slot. (Unlocks are checked on the client
+ * and, with accounts, on the server; here only "is this a real item in the right slot".)
+ */
+export function parseLook(raw: unknown): Look | null {
+  if (!Array.isArray(raw) || raw.length !== SLOTS.length) return null;
+  const out = {} as Look;
+  for (let i = 0; i < SLOTS.length; i++) {
+    const c = COSMETICS.find((x) => x.id === raw[i]);
+    if (!c || c.slot !== SLOTS[i]) return null;
+    out[SLOTS[i]] = c.id;
+  }
+  return out;
+}
+
+export const encodeLook = (l: Look) => JSON.stringify(["k", ...lookArray(l)]);
+
+/** Client message → pose or look (null = junk). */
+export function decodeClient(raw: string): { t: "p"; pose: Pose } | { t: "k"; look: Look } | null {
+  if (raw.length > MAX_MESSAGE_BYTES) return null;
+  if (raw.startsWith('["k"')) {
+    try {
+      const m = JSON.parse(raw) as unknown[];
+      const look = parseLook(m.slice(1));
+      return look ? { t: "k", look } : null;
+    } catch {
+      return null;
+    }
+  }
+  const pose = decodePose(raw);
+  return pose ? { t: "p", pose } : null;
+}
+
 export function encodeServer(m: ServerMessage): string {
+  if (m.t === "k") return JSON.stringify(["k", m.id, lookArray(m.look)]);
   if (m.t === "w") return JSON.stringify(["w", m.id, m.room]);
   if (m.t === "l") return JSON.stringify(["l", m.id]);
   return JSON.stringify(["s", m.tick, m.poses.map((p) => [p[0], q(p[1]), q(p[2]), q(p[3]), q(p[4]), Math.round(p[5])])]);
@@ -80,6 +121,10 @@ export function decodeServer(raw: string): ServerMessage | null {
   const num = (v: unknown) => typeof v === "number" && Number.isFinite(v);
   if (m[0] === "w" && num(m[1]) && num(m[2])) return { t: "w", id: m[1], room: m[2] };
   if (m[0] === "l" && num(m[1])) return { t: "l", id: m[1] };
+  if (m[0] === "k" && num(m[1])) {
+    const look = parseLook(m[2]);
+    return look ? { t: "k", id: m[1], look } : null;
+  }
   if (m[0] === "s" && num(m[1]) && Array.isArray(m[2])) {
     const poses = (m[2] as unknown[]).filter(
       (p): p is PoseEntry => Array.isArray(p) && p.length === 6 && p.every(num)

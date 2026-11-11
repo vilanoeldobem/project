@@ -29,3 +29,17 @@ describe("presence protocol", () => {
   });
 });
 
+
+describe("look messages", () => {
+  it("round-trips a valid look and rejects invalid ones", async () => {
+    const { DEFAULT_LOOK } = await import("../game/cosmetics");
+    const { decodeClient, encodeLook } = await import("./protocol");
+    const look = { ...DEFAULT_LOOK, hat: "hat-holly", palette: "palette-night" };
+    const raw = encodeLook(look);
+    expect(raw.length).toBeLessThanOrEqual(96);
+    expect(decodeClient(raw)).toEqual({ t: "k", look });
+    expect(decodeServer(encodeServer({ t: "k", id: 4, look }))).toEqual({ t: "k", id: 4, look });
+    expect(decodeClient('["k","hat-holly"]')).toBeNull();
+    expect(decodeServer('["k",4,["x","y","z","w"]]')).toBeNull();
+  });
+});

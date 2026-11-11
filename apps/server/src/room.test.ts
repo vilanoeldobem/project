@@ -75,3 +75,25 @@ describe("realtime routes", () => {
     expect((await req({}, "/nope")).status).toBe(404);
   });
 });
+
+describe("looks", () => {
+  const look = (...ids: string[]) => JSON.stringify(["k", ...ids]);
+
+  it("stores valid looks, broadcasts changes once, and replays custom looks to newcomers", () => {
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    expect(r.accept(a, look("hat-beanie", "scarf-stripes", "sweater-none", "palette-classic"), 0)).toBe("ok");
+    expect(r.flushLooks().map((x) => x.id)).toEqual([a]);
+    expect(r.flushLooks()).toEqual([]);
+    expect(r.flushLooks(true).map((x) => x.id)).toEqual([a]); // b still wears the default
+    expect(b).toBeGreaterThan(0);
+  });
+
+  it("rejects unknown ids, wrong slots and wrong lengths", () => {
+    const r = new RoomState();
+    const a = r.join(0)!;
+    for (const bad of [look("hat-crown", "scarf-none", "sweater-none", "palette-classic"), look("scarf-none", "hat-santa", "sweater-none", "palette-classic"), look("hat-santa")])
+      expect(r.accept(a, bad, 0)).toBe("dropped");
+    expect(r.flushLooks()).toEqual([]);
+  });
+});

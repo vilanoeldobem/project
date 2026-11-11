@@ -6,7 +6,8 @@
  * each connection with a token bucket and batches changed poses into one broadcast per tick.
  */
 import { MOTION } from "@vila/shared/game/motion";
-import { decodePose, type Pose, type PoseEntry, ROOM_CAPACITY } from "@vila/shared/net/protocol";
+import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
+import { decodeClient, type Pose, type PoseEntry, ROOM_CAPACITY } from "@vila/shared/net/protocol";
 import { SPAWN } from "@vila/shared/game/world";
 
 /** Messages per second allowed per connection, and the burst. */
@@ -26,6 +27,8 @@ interface Member {
   dropped: number;
   /** False until the first pose: a (re)connecting visitor may start anywhere, once. */
   placed: boolean;
+  look: Look;
+  lookDirty: boolean;
 }
 
 export type AcceptResult = "ok" | "dropped" | "abuse";
@@ -58,6 +61,8 @@ export class RoomState {
       refilledAt: now,
       dropped: 0,
       placed: false,
+      look: DEFAULT_LOOK,
+      lookDirty: false,
     });
     return id;
   }
@@ -71,12 +76,18 @@ export class RoomState {
     if (!m) return "dropped";
     m.tokens = Math.min(BURST, m.tokens + ((now - m.refilledAt) / 1000) * RATE);
     m.refilledAt = now;
-    const pose = m.tokens >= 1 ? decodePose(raw) : null;
-    if (!pose) {
+    const msg = m.tokens >= 1 ? decodeClient(raw) : null;
+    if (!msg) {
       m.dropped++;
       return m.dropped > ABUSE_LIMIT ? "abuse" : "dropped";
     }
     m.tokens -= 1;
+    if (msg.t === "k") {
+      m.look = msg.look;
+      m.lookDirty = true;
+      return "ok";
+    }
+    const pose = msg.pose;
     // Anti-teleport: clamp the step to what the avatar could have walked since the last pose.
     const dt = Math.min((now - m.acceptedAt) / 1000, 2);
     const max = MOTION.maxSpeed * 1.25 * dt + SLACK;
@@ -91,6 +102,17 @@ export class RoomState {
     m.acceptedAt = now;
     m.dirty = true;
     return "ok";
+  }
+
+  /** Looks changed since the last call (`all` = every non-default look, for a newcomer). */
+  flushLooks(all = false): Array<{ id: number; look: Look }> {
+    const out: Array<{ id: number; look: Look }> = [];
+    for (const [id, m] of this.members) {
+      const custom = Object.keys(DEFAULT_LOOK).some((k) => m.look[k as keyof Look] !== DEFAULT_LOOK[k as keyof Look]);
+      if (all ? custom : m.lookDirty) out.push({ id, look: m.look });
+      if (!all) m.lookDirty = false;
+    }
+    return out;
   }
 
   /** Poses changed since the last flush (`all` = the whole roster, for a newcomer). */

@@ -82,7 +82,8 @@ Regras: libera só por missão ou nível (derivado do progresso; regras de XP in
 ou contagem regressiva. Ao concluir uma missão que libera algo, o aviso diz "Novo visual: …". O painel "Caderno de
 Missões" mostra "Visual do avatar", com cadeado e o requisito exato nos itens ainda fechados.
 
-Limitação: outros visitantes ainda veem o visual padrão (a presença IMPL-0008 não transmite o visual).
+O visual viaja pela presença (IMPL-0008) como ids do catálogo: os outros visitantes veem seu chapéu, cachecol, suéter
+e cores. Avatares remotos com o mesmo visual são desenhados juntos (5 chamadas por visual diferente presente).
 
 ## 5. Testes (contrato de todo gerador)
 

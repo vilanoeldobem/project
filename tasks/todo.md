@@ -395,3 +395,42 @@ Owner choice: 4 apps + shared package, hosts `play.*` (client), `api.*` (api), `
 ## Lessons
 - The edge speaks HTTP/2 to curl and drops `Upgrade`, and rejects an incomplete handshake with 400 before the
   Worker runs: WebSocket smoke checks need `--http1.1` and a full handshake (`Sec-WebSocket-Key/Version`).
+
+---
+
+# Task 11: 0.4.0 accounts + NGOs + admin + server XP; presence looks; load test; props in the village — 2026-11-11
+
+Owner (2026-11-11): go ahead with 0.4.0, LGPD/ECA review excluded for now, e-mail via Cloudflare (OQ-08 →
+Cloudflare Email Service `send_email`); also the smaller items. Product rules researched in `vilanoeldobem/docs`:
+CONFIRMADO = 4 P13 fields (DEC-038), admin approval before publishing (DEC-037), DEC-015 criteria, mission XP once
+(DEC-040/042). Everything else PENDENTE → implemented as PROPOSTA and labelled so.
+
+Safety: `ACCOUNTS_ENABLED` flag (production `false` until the owner flips it after the LGPD/ECA review);
+AGENTS.md data rules still apply (4 fields, only nickname public, no logs of e-mails/tokens).
+
+## Plan
+### Smaller items
+- [x] Presence carries the avatar look (`["k", …]`, catalogue ids validated by the room); remotes grouped per look
+- [x] Load test (`apps/server/scripts/load.mjs`, local only): 41 bots → 40 connected, 1 refused as full (4001),
+      0 failures; per visitor 9.7 msg/s, 10.1 kB/s down; tick→receive p50 4 ms / p95 9 ms (local, no network).
+      Browser with 39 bot visitors: 77 calls (66 empty), 140k tris, no errors
+- [ ] Place generated props in the village (PROPOSTA decor; PEN-017 still open)
+
+### 0.4.0 (PROPOSTA where docs are PENDENTE)
+- [ ] Migration 0004: users, login_tokens (hashed, 15 min, single use), sessions (hashed, 30 d), progress_events,
+      ngo application columns; roles (admin set by hand in D1, documented)
+- [ ] API auth: register (Nome, Nickname, Cidade, E-mail), link (generic answer, no enumeration), verify → HttpOnly
+      Secure SameSite=Lax cookie on api.*; me; logout; delete account. CORS with credentials; Origin check on
+      mutations; per-e-mail and per-IP rate limits (IP never stored). E-mail via `send_email` binding; dev returns
+      the link instead of sending.
+- [ ] Server XP: events idempotent per (user, mission, event); replay with shared `applyEvent`; local progress
+      migrated once on login
+- [ ] P12 application (4 steps): org data + CNPJ check digits + opening date ≥ 1 year (DEC-015), declarations +
+      how funds are confirmed (no uploads yet), presentation/projects/tags, review + preferred lot; states and lot
+      states; resubmit after changes requested
+- [ ] Admin (DEC-037): list/detail/decision (start review, approve, request changes, reject; note required for
+      the last two); every mutation writes `audit_events` (actor id, no personal data)
+- [ ] Client: account chip + P13 panel + login link handling; progress sync; P12 wizard from the lot panel; admin
+      panel for admins; all copy pt-BR
+- [ ] Tests (api pure handlers with in-memory D1 fake or sqlite), verify.mjs flows, docs (api, storage, ADR
+      IMPL-0011, open-questions OQ-08 resolved), CHANGELOG, deploy guide (Email Service onboarding)

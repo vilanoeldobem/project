@@ -111,11 +111,16 @@ texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada 
 | sala → cliente | `["w", id, sala]` | boas-vindas com o id anônimo |
 | sala → cliente | `["s", tickMs, [[id, x, z, yaw, speed, idadeMs], …]]` | poses que mudaram (10 Hz); na entrada, a lista toda |
 | sala → cliente | `["l", id]` | alguém saiu |
+| cliente → sala | `["k", chapéu, cachecol, suéter, cores]` | visual do avatar (ids do catálogo, IMPL-0010); a sala só aceita ids existentes no encaixe certo |
+| sala → cliente | `["k", id, [chapéu, cachecol, suéter, cores]]` | visual de alguém (ao mudar; na entrada, todos os não padrão) |
 
 A sala corrige a pose recebida: dentro do mundo, velocidade até a máxima do avatar, sem teletransporte (o passo é
 limitado ao que daria para andar desde a última pose; a primeira pose é livre). Limite de 20 mensagens/s por
 conexão (rajada de 40); mais de 200 descartadas → fecha com `1008`. Sala cheia → fecha com `4001` e o cliente tenta
 a próxima.
+
+Carga medida (`apps/server/scripts/load.mjs`, `wrangler dev` local, 2026-11-11): 41 robôs → 40 conectados e 1
+recusado como cheio; cada visitante recebe ~9,7 mensagens/s e ~10 kB/s; do tick à chegada p95 9 ms (sem rede real).
 
 ## Erros
 
