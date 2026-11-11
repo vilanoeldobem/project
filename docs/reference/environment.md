@@ -1,7 +1,7 @@
 # Ambiente: hora, clima e efeitos
 
 > **Status:** Implementado (Unreleased) — **PROPOSTA** ([IMPL-0006](../decisions/0006-christmas-environment-real-time-procedural-weather.md))
-> · **Atualizado em:** 2026-11-09
+> · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** `apps/web/src/environment/` (lógica pura, testada), `apps/web/src/scene/environment/`
 > (renderização), `apps/web/worker/api.ts`
 
@@ -27,7 +27,7 @@
 | `environment/frame.ts` | Um timestamp → quadro completo (`computeFrame`, puro) |
 | `environment/runtime.ts` | Sincronização, quadro compartilhado `env.frame`, override de depuração |
 | `environment/settings.ts` | Presets e opções de conforto (por aparelho, `localStorage`) |
-| `environment/audio.ts` | Som ambiente procedural (vento + sininhos) |
+| `environment/audio.ts` | Som procedural: vento e sininhos (ambiente), passos por superfície, carrilhão do presente, vinheta de missão |
 | `scene/environment/*` | Driver de uniforms, luz, céu, neve, partículas, pós-processamento |
 
 Ordem por quadro: `EnvironmentDriver` (prioridade −1) calcula `env.frame` uma única vez → uniforms compartilhados →
@@ -80,16 +80,24 @@ corte). Correlação entre janelas seria o algoritmo v2.
 | Bloom | não | não | 0,3 | 0,4 |
 | Brilhos / pegadas | 60 / 24 | 120 / 48 | 200 / 80 | 320 / 120 |
 
+Além do preset, a resolução é adaptativa (IMPL-0007): o DPR cai em passos de 0,25 (até 0,75) quando o p95 do tempo
+de quadro passa de 22 ms e volta a subir quando sobra folga.
+
 "Automática" escolhe pela quantidade de núcleos, memória e tipo de ponteiro (toque → Baixa ou Média). Conforto:
 neve e brilhos (liga/desliga), luzes fixas sem piscar, menos movimento (padrão segue `prefers-reduced-motion`),
-som ambiente (sempre começa desligado; nunca fica salvo como ligado).
+som (vento, sininhos, passos e efeitos; sempre começa desligado; nunca fica salvo como ligado).
 
 ## 7. Cena
 
 Vila nevada: chão de voxels com variação tonal, pinheiros com neve (balançam com o vento), chalés com janelas acesas,
 telhados nevados, pingentes e chaminé com fumaça (terrenos publicados), postes com guirlanda, cordões de lâmpadas
-entre os postes, bonecos de neve, trenó com duas renas, lago congelado, floresta e montanhas ao fundo. Elementos
-decorativos não têm colisão nem efeito no jogo. Interiores: não há prédios com interior; não se aplica.
+entre os postes, bonecos de neve, trenó com duas renas, lago congelado, floresta e montanhas ao fundo. Pinheiros da área andável,
+postes, bancos, bonecos de neve, trenó, renas e chalés publicados bloqueiam o avatar (PROPOSTA, IMPL-0007); lago e
+terrenos disponíveis são atravessáveis. Nenhum elemento decorativo afeta missões ou XP.
+
+Retorno da jogabilidade (IMPL-0007): pegadas a cada passo na neve (não na pedra da praça nem no gelo), neve levantada
+ao andar na neve fofa, brilho dourado ao achar presente; com som ligado, passos com timbre por superfície, carrilhão
+do presente e vinheta de missão concluída. "Neve e brilhos" desligado também desliga essas partículas. Interiores: não há prédios com interior; não se aplica.
 
 Vista **"Olhar o céu"** (botão 🌌 no HUD, PROPOSTA): a câmera desce e olha para o céu; andar ou tocar o chão volta à
 vista normal. A câmera de jogo segue OQ-05.

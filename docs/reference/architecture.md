@@ -1,7 +1,7 @@
 # Arquitetura
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-09
+> **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** `apps/web/`, `migrations/`
 
 ## 1. Visão geral
@@ -20,12 +20,15 @@ servidos direto pela borda.
 
 | Camada | Arquivos | Responsabilidade |
 |---|---|---|
-| Lógica | `game/world.ts`, `game/progress.ts` | Layout do mundo, paleta, missões/XP (puro, testado) |
-| Estado | `game/store.ts` | zustand: painel aberto, alvo próximo, posição, progresso, avisos |
+| Lógica | `game/world.ts`, `game/progress.ts` | Layout do mundo, obstáculos, superfícies, paleta, missões/XP (puro, testado) |
+| Simulação | `game/motion.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos (puro, testado); estado vivo mutável fora do zustand ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
+| Eventos | `game/events.ts` | Barramento `step` / `gift` / `mission`: pegadas, partículas e som reagem à jogabilidade |
+| Estado | `game/store.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro) |
 | Ambiente | `environment/*` | Hora real de SP, relógio de rede, clima procedural, eventos, keyframes, presets ([environment.md](environment.md)) |
 | Cena 3D | `scene/*` | react-three-fiber; `World` (canvas, presets), `Ground` (chão nevado + clique), `Props` (árvore, postes, terrenos, presentes), `Scenery` (pinheiros, montanhas, lago, bonecos de neve, trenó, cordões de luz), `Player` (movimento, câmera, vista do céu, proximidade) |
 | Efeitos | `scene/environment/*` | Driver de uniforms, luz, céu, neve GPU, brilhos, fumaça, pegadas, bloom |
-| Voxels | `scene/Voxels.tsx`, `scene/models.ts` | Modelos gerados por código; `InstancedMesh` por papel de material (sólido, lâmpadas, janelas, folhagem) |
+| Voxels | `scene/mesher.ts`, `scene/Voxels.tsx`, `scene/models.ts` | Modelos gerados por código → malha única por papel de material (sólido, lâmpadas, janelas, folhagem) sem faces escondidas, com oclusão de ambiente por vértice; cópias repetidas (`placements`) numa única chamada instanciada |
+| Desempenho | `scene/RenderStats.tsx`, `scene/perf.ts` | Chamadas, triângulos, p50/p95 do quadro; resolução adaptativa |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | API | `lib/api.ts` | `fetch` com degradação silenciosa (retorna `null`) |
 
@@ -33,12 +36,17 @@ servidos direto pela borda.
 
 ### 2.1 Loop por quadro (`Player`)
 
-1. Direção = teclas pressionadas ou alvo de clique/toque.
-2. Move a `9 u/s`, limita ao raio do mundo e fora da árvore (`clampToWorld`).
-3. Coleta presentes a < 1,4 u (missão `explore-gifts`).
-4. Define `nearby` (árvore ou terreno a < 4,5 u) → botão de ação.
-5. Câmera segue com amortecimento; deslocamento `(0, 24, 21)`, multiplicado até 1,8× em telas retrato. Na vista
-   "Olhar o céu", deslocamento `(0, 2.6, 10)` mirando para cima; andar encerra a vista.
+1. Intenção = teclas pressionadas ou destino de clique/toque (painel aberto = parado).
+2. Simulação em passos fixos de 1/60 s (`stepBody`): velocidade máxima `8,5 u/s` com aceleração e frenagem
+   exponenciais, desaceleração ao chegar ao destino, colisão com círculos (`OBSTACLES` + chalés publicados)
+   deslizando pelo obstáculo, limite do mundo e da árvore (`clampToWorld`). Destino bloqueado por 0,5 s é abandonado.
+3. A cada `0,75 u` andados: evento `step` com a superfície (`surfaceAt`) → pegadas, neve levantada, som de passo.
+4. Coleta presentes a < 1,4 u (missão `explore-gifts`; evento `gift`). Concluída a missão, os restantes somem.
+5. Pose renderizada interpolada entre os dois últimos passos; pernas e braços seguem a distância andada.
+6. Define `nearby` (árvore ou terreno a < 4,5 u) → botão de ação.
+7. Câmera segue com amortecimento e leve antecipação na direção da velocidade; deslocamento `(0, 24, 21)`,
+   multiplicado até 1,8× em telas retrato. Na vista "Olhar o céu", deslocamento `(0, 2.6, 10)` mirando para cima;
+   andar encerra a vista.
 
 ## 3. Worker (`apps/web/worker`)
 
@@ -72,13 +80,18 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | Chunk `react` (react, react-dom, scheduler, zustand) | ~221 kB / 69 kB gzip |
 | App (`index` + `World`) + CSS | ~85 kB / 30 kB gzip |
 | `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
-| Draw calls estimadas | ~70 (floresta inteira em 3 InstancedMesh; neve em 1) |
-| `dpr` | 1 até o máximo do preset (1–2) |
+| Chamadas de desenho (medido, `verify.mjs`, Média, "dia-neve") | 56 (antes da malha de voxels: 96), sombra incluída |
+| Triângulos por quadro (mesma cena) | ~108 mil (antes: ~362 mil) |
+| `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
+
+Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;
+chamadas e triângulos independem da GPU.
 
 ## Limitações conhecidas
 
 - Sem autenticação nem rotas de escrita.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
+- Sem multiplayer em tempo real: a simulação pura em passo fixo é o ponto de partida (IMPL-0007).
 
 ## Ver também
 

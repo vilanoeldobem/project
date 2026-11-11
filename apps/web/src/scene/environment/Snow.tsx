@@ -5,7 +5,7 @@ import { InstancedBufferAttribute, InstancedBufferGeometry, PlaneGeometry, Shade
 import { env } from "../../environment/runtime";
 import { mulberry32 } from "../../environment/random";
 import { useEnvSettings, usePreset } from "../../environment/settings";
-import { useVila } from "../../game/store";
+import { sim } from "../../game/sim";
 import { U } from "./materials";
 
 /** Snow volume around the avatar (world units). Flakes wrap inside it: no flake follows the camera. */
@@ -111,7 +111,7 @@ export function Snow() {
 
   useFrame(() => {
     const { weather, look } = env.frame;
-    const p = useVila.getState().player;
+    const p = sim.pose;
     const u = material.uniforms;
     u.uDensity.value = particles ? weather.snowfall : 0;
     u.uFall.value = weather.snowfall;

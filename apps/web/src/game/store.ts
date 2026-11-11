@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "./progress";
-import { SPAWN } from "./world";
+import { events } from "./events";
 
 export type Panel =
   | { kind: "none" }
@@ -43,7 +43,6 @@ interface VilaState {
   nearby: Nearby;
   /** Click/tap destination; null when idle or moving with the keyboard. */
   target: { x: number; z: number } | null;
-  player: { x: number; z: number };
   progress: Progress;
   toast: { id: number; text: string } | null;
   /** Optional camera tilt to look at the sky (PROPOSAL; the gameplay camera is OQ-05). Moving ends it. */
@@ -53,7 +52,6 @@ interface VilaState {
   close: () => void;
   setNearby: (n: Nearby) => void;
   setTarget: (t: { x: number; z: number } | null) => void;
-  setPlayer: (x: number, z: number) => void;
   record: (missionId: string, eventId: string) => void;
   notify: (text: string) => void;
 }
@@ -64,7 +62,6 @@ export const useVila = create<VilaState>((set, get) => ({
   panel: { kind: "welcome" },
   nearby: null,
   target: null,
-  player: { ...SPAWN },
   progress: loadProgress(),
   toast: null,
   skyView: false,
@@ -77,13 +74,15 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ nearby });
   },
   setTarget: (target) => set(target ? { target, skyView: false } : { target }),
-  setPlayer: (x, z) => set({ player: { x, z } }),
   record: (missionId, eventId) => {
     const { progress, completed } = applyEvent(get().progress, missionId, eventId);
     if (progress === get().progress) return;
     saveProgress(progress);
     set({ progress });
-    if (completed) get().notify(missionDoneMessage(completed));
+    if (completed) {
+      get().notify(missionDoneMessage(completed));
+      events.emit({ type: "mission", missionId: completed.id });
+    }
   },
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),
 }));

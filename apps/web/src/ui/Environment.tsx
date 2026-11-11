@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 
-import { Ambience } from "../environment/audio";
+import { GameAudio } from "../environment/audio";
 import { EVENT_LABEL, PHASE_LABEL, WEATHER_LABEL } from "../environment/labels";
 import { debugAllowed, env, useEnvUi } from "../environment/runtime";
 import { PRESETS, resolveQuality, useEnvSettings, type QualitySetting } from "../environment/settings";
 import { saoPauloCivil } from "../environment/time";
+import { perf } from "../scene/perf";
+import { events } from "../game/events";
+import { MOTION } from "../game/motion";
 import { useVila } from "../game/store";
 import { Panel } from "./Panel";
 
@@ -119,7 +122,7 @@ export function EnvironmentPanel() {
         </label>
         <label className="env-check">
           <input type="checkbox" checked={s.sound} onChange={(e) => s.set({ sound: e.target.checked })} />
-          Som ambiente (vento e sininhos)
+          Som (vento, sininhos, passos e efeitos)
         </label>
       </fieldset>
       <p className="note">Essas opções mudam só a aparência e o som neste aparelho, nunca o jogo.</p>
@@ -127,17 +130,23 @@ export function EnvironmentPanel() {
   );
 }
 
-/** Plays the procedural ambience while "Som ambiente" is on. */
-export function AmbienceSound() {
+/** Plays the procedural ambience and gameplay sounds while "Som" is on. */
+export function GameSound() {
   const on = useEnvSettings((s) => s.sound);
   useEffect(() => {
     if (!on || typeof AudioContext === "undefined") return;
-    const amb = new Ambience();
-    amb.update(env.frame);
-    const id = setInterval(() => amb.update(env.frame), 250);
+    const audio = new GameAudio();
+    audio.update(env.frame);
+    const id = setInterval(() => audio.update(env.frame), 250);
+    const off = events.on((e) => {
+      if (e.type === "step") audio.footstep(e.surface, Math.min(e.speed / MOTION.maxSpeed, 1), e.left);
+      else if (e.type === "gift") audio.chime();
+      else if (e.type === "mission") audio.jingle();
+    });
     return () => {
+      off();
       clearInterval(id);
-      amb.close();
+      audio.close();
     };
   }, [on]);
   return null;
@@ -181,6 +190,7 @@ export function EnvironmentDebug() {
         `cloud ${w.cloudCover.toFixed(2)} · sparkle ${w.sparkle.toFixed(2)} · aurora ${w.aurora.toFixed(2)}`,
         `events ${f.events.map((e) => e.eventId).join(", ") || "—"}`,
         `preset ${q} (${settings.quality}) · flakes ${PRESETS[q].snowFlakes} · fps ${fps}`,
+        `calls ${perf.calls} · tris ${perf.triangles} · frame p50 ${perf.p50.toFixed(1)} p95 ${perf.p95.toFixed(1)} ms · dpr ${perf.dpr}`,
       ].join("\n")}
     </pre>
   );

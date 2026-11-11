@@ -24,11 +24,15 @@ const HASH = /* glsl */ `
 float vilaHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 `;
 
-const INSTANCE_ORIGIN = /* glsl */ `
+/**
+ * World-space centre of the current voxel. Every vertex of a voxel carries the same `aCenter` (mesher),
+ * so effects keyed on it move or phase a whole voxel rigidly — never a rubbery stretch.
+ */
+const VOXEL_CENTER = /* glsl */ `
 #ifdef USE_INSTANCING
-  vec3 vilaOrigin = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  vec3 vilaCenter = (modelMatrix * instanceMatrix * vec4(aCenter, 1.0)).xyz;
 #else
-  vec3 vilaOrigin = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  vec3 vilaCenter = (modelMatrix * vec4(aCenter, 1.0)).xyz;
 #endif
 `;
 
@@ -41,22 +45,28 @@ export function linear(rgb: Rgb): [number, number, number] {
 }
 
 /** Plain voxel surface (soft, matte). */
-export const solidMaterial = new MeshStandardMaterial({ roughness: 0.85 });
+export const solidMaterial = new MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
 
 /**
  * Christmas bulbs, stars, lanterns: emissive tinted by the instance colour, with a slow deterministic
  * twinkle (≈0.25 Hz, never a flash) phased by world position → identical pattern on every client.
  */
-export const lightsMaterial = new MeshStandardMaterial({ roughness: 0.4, emissive: "#ffffff", emissiveIntensity: 1.2, toneMapped: false });
+export const lightsMaterial = new MeshStandardMaterial({
+  roughness: 0.4,
+  emissive: "#ffffff",
+  emissiveIntensity: 1.2,
+  toneMapped: false,
+  vertexColors: true,
+});
 lightsMaterial.onBeforeCompile = (shader) => {
   shader.uniforms.uWorldTime = U.uWorldTime;
   shader.uniforms.uTwinkle = U.uTwinkle;
   shader.vertexShader = shader.vertexShader
-    .replace("#include <common>", `#include <common>\nuniform float uWorldTime;\nuniform float uTwinkle;\nvarying float vTwinkle;\n${HASH}`)
+    .replace("#include <common>", `#include <common>\nattribute vec3 aCenter;\nuniform float uWorldTime;\nuniform float uTwinkle;\nvarying float vTwinkle;\n${HASH}`)
     .replace(
       "#include <begin_vertex>",
-      `#include <begin_vertex>\n${INSTANCE_ORIGIN}
-      float vilaPhase = vilaHash(floor(vilaOrigin * 4.0)) * 6.2831;
+      `#include <begin_vertex>\n${VOXEL_CENTER}
+      float vilaPhase = vilaHash(floor(vilaCenter * 4.0)) * 6.2831;
       float vilaWave = 0.5 + 0.5 * sin(uWorldTime * 1.6 + vilaPhase);
       vTwinkle = 1.0 - uTwinkle * 0.55 * vilaWave;`
     );
@@ -74,27 +84,39 @@ lightsMaterial.onBeforeCompile = (shader) => {
 lightsMaterial.customProgramCacheKey = () => "vila-lights";
 
 /** Lit windows: warm steady glow (no twinkle), intensity follows the time of day. */
-export const windowMaterial = new MeshStandardMaterial({ roughness: 0.6, emissive: "#FFC785", emissiveIntensity: 0, toneMapped: false });
+export const windowMaterial = new MeshStandardMaterial({
+  roughness: 0.6,
+  emissive: "#FFC785",
+  emissiveIntensity: 0,
+  toneMapped: false,
+  vertexColors: true,
+});
 
-/** Pine foliage: gentle wind sway that grows with height (voxels stay rigid blocks, no rubber bending). */
-export const foliageMaterial = new MeshStandardMaterial({ roughness: 0.9 });
+/**
+ * Pine foliage: wind sway that grows with height and travels downwind as a gust wave across the forest
+ * (phase from each voxel's world position along the wind). Voxels stay rigid blocks.
+ */
+export const foliageMaterial = new MeshStandardMaterial({ roughness: 0.9, vertexColors: true });
 foliageMaterial.onBeforeCompile = (shader) => {
   Object.assign(shader.uniforms, { uTime: U.uTime, uWindDir: U.uWindDir, uWindStrength: U.uWindStrength, uMotion: U.uMotion });
   shader.vertexShader = shader.vertexShader
-    .replace("#include <common>", "#include <common>\nuniform float uTime;\nuniform vec2 uWindDir;\nuniform float uWindStrength;\nuniform float uMotion;")
+    .replace(
+      "#include <common>",
+      "#include <common>\nattribute vec3 aCenter;\nuniform float uTime;\nuniform vec2 uWindDir;\nuniform float uWindStrength;\nuniform float uMotion;"
+    )
     .replace(
       "#include <begin_vertex>",
       `#include <begin_vertex>
+      ${VOXEL_CENTER}
+      float vilaGust = sin(uTime * 1.3 - dot(vilaCenter.xz, uWindDir) * 0.14);
+      float vilaK = max(aCenter.y - 1.5, 0.0) * (0.01 + uWindStrength * 0.035) * uMotion;
       #ifdef USE_INSTANCING
-        float vilaH = instanceMatrix[3].y;
+        mat3 vilaToLocal = transpose(mat3(modelMatrix) * mat3(instanceMatrix));
       #else
-        float vilaH = position.y;
+        mat3 vilaToLocal = transpose(mat3(modelMatrix));
       #endif
-      vec3 vilaRoot = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
-      float vilaSway = sin(uTime * 1.3 + vilaRoot.x * 0.37 + vilaRoot.z * 0.21);
-      float vilaK = max(vilaH - 1.5, 0.0) * (0.01 + uWindStrength * 0.035) * uMotion;
-      vec3 vilaWind = transpose(mat3(modelMatrix)) * vec3(uWindDir.x, 0.0, uWindDir.y);
-      transformed.xz += vilaWind.xz * vilaK * (0.65 + 0.35 * vilaSway);`
+      vec3 vilaWind = vilaToLocal * vec3(uWindDir.x, 0.0, uWindDir.y);
+      transformed.xz += vilaWind.xz * vilaK * (0.65 + 0.35 * vilaGust);`
     );
 };
 foliageMaterial.customProgramCacheKey = () => "vila-foliage";

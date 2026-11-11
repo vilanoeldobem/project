@@ -11,6 +11,17 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Motor e jogabilidade ([IMPL-0007](docs/decisions/0007-voxel-mesher-fixed-step-simulation.md), PROPOSTA): malha de
+  voxels com remoção de faces escondidas e oclusão de ambiente por vértice; adereços repetidos instanciados.
+  Medido no `verify.mjs` (preset Média): 96 → 56 chamadas de desenho e 362 mil → 108 mil triângulos por quadro.
+- Avatar com simulação em passo fixo (aceleração, chegada suave, giro suave), colisão com pinheiros, postes, bancos,
+  bonecos de neve, trenó e chalés, caminhada articulada, sombra de contato e câmera com antecipação.
+- Efeitos: neve levantada pelos passos, brilho dourado ao achar presente; pegadas por passo (não na pedra nem no gelo).
+- Som: passos por superfície (neve, neve batida, pedra, gelo), carrilhão do presente e vinheta de missão, além do
+  vento e dos sininhos; continua desligado por padrão.
+- Resolução adaptativa pelo p95 do tempo de quadro; `?envDebug` mostra chamadas, triângulos, p50/p95 e DPR;
+  `verify.mjs` grava `verify-output/stats.json`.
+
 - CI no GitHub Actions: `ci.yml` (typecheck, testes e build em todo PR e push na `main`) e `smoke.yml` (smoke de
   produção diário e manual). `scripts/smoke-api.sh` passa a conferir `/api/environment`.
 
@@ -39,6 +50,11 @@ Cada versão indica o schema D1 que entrega.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
   marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
   antecipadas para a 0.4.0.
+
+### Fixed
+
+- Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
+- A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
 
 ## [0.3.0] - 2026-11-08
 

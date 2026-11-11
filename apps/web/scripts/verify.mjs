@@ -4,7 +4,7 @@
  *
  * Usage: node scripts/verify.mjs [url]   (default http://localhost:8787, e.g. `pnpm dev:worker`)
  */
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
@@ -14,6 +14,7 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const errors = [];
+const stats = {};
 for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
@@ -65,9 +66,13 @@ for (const [name, time, weather, sky, quality] of scenes) {
   // Software GL runs at a few fps; the camera eases per frame, so the sky view needs longer to settle.
   await page.waitForTimeout(sky ? 14000 : 1500);
   await page.screenshot({ path: `${out}env-${name}.png` });
+  // Render cost of the scene (draw calls/triangles are resolution independent; timings are software GL).
+  stats[name] = (await page.locator(".env-debug").textContent())?.split("\n").find((l) => l.startsWith("calls")) ?? null;
   await page.close();
 }
 await browser.close();
+writeFileSync(`${out}stats.json`, JSON.stringify(stats, null, 2));
+console.log(stats);
 if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);

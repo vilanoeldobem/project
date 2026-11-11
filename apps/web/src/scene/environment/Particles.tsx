@@ -5,6 +5,7 @@ import {
   InstancedBufferAttribute,
   InstancedBufferGeometry,
   type InstancedMesh,
+  NormalBlending,
   Object3D,
   PlaneGeometry,
   ShaderMaterial,
@@ -14,7 +15,7 @@ import {
 import { env } from "../../environment/runtime";
 import { mulberry32 } from "../../environment/random";
 import { useEnvSettings, usePreset } from "../../environment/settings";
-import { useVila } from "../../game/store";
+import { events, type GameEvent } from "../../game/events";
 import { U } from "./materials";
 
 function quadGeometry(count: number, seed: number, attrs = 4) {
@@ -205,14 +206,17 @@ void main() {
 }
 `;
 
-const STRIDE = 0.75;
 const dummy = new Object3D();
 
-/** Local footprints (spec §8.7): stamped per distance walked, pooled, fading; never sent over the network. */
+/**
+ * Local footprints (spec §8.7): one print per simulated footstep (left/right offset), pooled and fading;
+ * never sent over the network. Hard ground (plaza stone, ice) keeps no prints.
+ */
 export function Footprints() {
   const { footprints } = usePreset();
   const ref = useRef<InstancedMesh>(null);
-  const state = useRef({ last: new Vector3(Number.NaN, 0, 0), next: 0, left: false });
+  const queue = useRef<Array<{ x: number; z: number; yaw: number; left: boolean }>>([]);
+  const next = useRef(0);
   const { geometry, material } = useMemo(() => {
     const g = new PlaneGeometry(0.22, 0.34);
     g.rotateX(-Math.PI / 2);
@@ -228,6 +232,13 @@ export function Footprints() {
     return { geometry: g, material: m };
   }, [footprints]);
   useEffect(() => () => (geometry.dispose(), material.dispose()), [geometry, material]);
+  useEffect(
+    () =>
+      events.on((e) => {
+        if (e.type === "step" && (e.surface === "snow" || e.surface === "packed")) queue.current.push(e);
+      }),
+    []
+  );
 
   useFrame(({ clock }) => {
     const mesh = ref.current;
@@ -236,26 +247,145 @@ export function Footprints() {
     material.uniforms.uNow.value = now;
     // Fresh snowfall covers tracks faster.
     material.uniforms.uTtl.value = 24 - 16 * env.frame.weather.snowfall;
-    const p = useVila.getState().player;
-    const s = state.current;
-    if (Number.isNaN(s.last.x)) s.last.set(p.x, 0, p.z);
-    const dx = p.x - s.last.x, dz = p.z - s.last.z;
-    const dist = Math.hypot(dx, dz);
-    if (dist < STRIDE) return;
-    const nx = dx / dist, nz = dz / dist;
-    const side = s.left ? 0.13 : -0.13;
-    dummy.position.set(p.x - nz * side, 0.03, p.z + nx * side);
-    dummy.rotation.set(0, Math.atan2(nx, nz), 0);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(s.next, dummy.matrix);
-    mesh.instanceMatrix.needsUpdate = true;
+    const q = queue.current;
+    if (q.length === 0) return;
     const birth = geometry.getAttribute("aBirth") as InstancedBufferAttribute;
-    birth.setX(s.next, now);
+    for (const step of q) {
+      const side = step.left ? 0.13 : -0.13;
+      const nx = Math.sin(step.yaw), nz = Math.cos(step.yaw);
+      dummy.position.set(step.x - nz * side, 0.03, step.z + nx * side);
+      dummy.rotation.set(0, step.yaw, 0);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(next.current, dummy.matrix);
+      birth.setX(next.current, now);
+      next.current = (next.current + 1) % footprints;
+    }
+    q.length = 0;
+    mesh.instanceMatrix.needsUpdate = true;
     birth.needsUpdate = true;
-    s.next = (s.next + 1) % footprints;
-    s.left = !s.left;
-    s.last.set(p.x, 0, p.z);
   });
 
   return <instancedMesh ref={ref} args={[geometry, material, footprints]} frustumCulled={false} renderOrder={1} />;
+}
+
+/* -------------------------------------------------------------------- bursts */
+
+const burstVertex = /* glsl */ `
+attribute vec4 aSeed;
+attribute vec4 aSpawn; // xyz origin, w birth time (s); w < 0 = unused slot
+uniform float uNow;
+uniform float uLife;
+uniform float uSpeed;
+uniform float uUp;
+uniform float uGravity;
+uniform float uSize;
+varying float vAlpha;
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  float age = uNow - aSpawn.w;
+  float t = age / (uLife * (0.7 + 0.6 * aSeed.w));
+  if (aSpawn.w < 0.0 || t >= 1.0 || t < 0.0) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); vAlpha = 0.0; return; }
+  float a = aSeed.x * 6.2831;
+  vec3 v = vec3(cos(a), 0.0, sin(a)) * uSpeed * (0.4 + 0.6 * aSeed.y) + vec3(0.0, uUp * (0.5 + aSeed.z), 0.0);
+  vec3 p = aSpawn.xyz + v * age - vec3(0.0, 0.5 * uGravity * age * age, 0.0);
+  p.y = max(p.y, 0.05);
+  vAlpha = smoothstep(0.0, 0.08, t) * (1.0 - t);
+  vec4 mv = viewMatrix * vec4(p, 1.0);
+  mv.xy += position.xy * uSize * (0.6 + 0.8 * aSeed.w) * (1.0 - 0.5 * t);
+  gl_Position = projectionMatrix * mv;
+}
+`;
+
+export interface BurstStyle {
+  /** Particles per burst and bursts kept alive at once (pool = per × slots). */
+  per: number;
+  slots: number;
+  life: number;
+  speed: number;
+  up: number;
+  gravity: number;
+  size: number;
+  color: [number, number, number];
+  opacity: number;
+  additive: boolean;
+}
+
+/** Snow kicked up by a footstep in soft snow. */
+const KICK: BurstStyle = { per: 6, slots: 10, life: 0.55, speed: 0.9, up: 1.6, gravity: 6, size: 0.12, color: [0.93, 0.96, 1], opacity: 0.85, additive: false };
+/** Gold sparkle burst when a gift is found. */
+const GIFT: BurstStyle = { per: 40, slots: 2, life: 1.3, speed: 2.6, up: 4.5, gravity: 4, size: 0.2, color: [1, 0.82, 0.42], opacity: 1, additive: true };
+
+/**
+ * Pooled GPU particle bursts: each burst writes one spawn record into a ring of slots; motion is
+ * computed in the vertex shader from the age (no per-particle CPU work, one draw call per style).
+ */
+function Bursts({ style, accept }: { style: BurstStyle; accept: (e: GameEvent) => [number, number, number] | null }) {
+  const particles = useEnvSettings((s) => s.particles);
+  const { geometry, material } = useMemo(() => {
+    const count = style.per * style.slots;
+    const g = quadGeometry(count, 0xb0057 + style.per);
+    g.setAttribute("aSpawn", new InstancedBufferAttribute(new Float32Array(count * 4).fill(-1), 4));
+    const m = new ShaderMaterial({
+      vertexShader: burstVertex,
+      fragmentShader: glowFragment,
+      transparent: true,
+      depthWrite: false,
+      blending: style.additive ? AdditiveBlending : NormalBlending,
+      uniforms: {
+        uNow: { value: 0 },
+        uLife: { value: style.life },
+        uSpeed: { value: style.speed },
+        uUp: { value: style.up },
+        uGravity: { value: style.gravity },
+        uSize: { value: style.size },
+        uColor: { value: new Vector3(...style.color) },
+        uOpacity: { value: style.opacity },
+      },
+    });
+    return { geometry: g, material: m };
+  }, [style]);
+  useEffect(() => () => (geometry.dispose(), material.dispose()), [geometry, material]);
+  const slot = useRef(0);
+  const pending = useRef<Array<[number, number, number]>>([]);
+  useEffect(
+    () =>
+      events.on((e) => {
+        const at = accept(e);
+        if (at) pending.current.push(at);
+      }),
+    [accept]
+  );
+  useFrame(({ clock }) => {
+    const now = clock.elapsedTime;
+    material.uniforms.uNow.value = now;
+    // Snow puffs take the ambient light (no glowing white at night); sparkles are their own light.
+    if (!style.additive) material.uniforms.uColor.value.set(...style.color).multiplyScalar(0.5 + 0.5 * env.frame.look.daylight);
+    const q = pending.current;
+    if (q.length === 0) return;
+    if (particles) {
+      const spawn = geometry.getAttribute("aSpawn") as InstancedBufferAttribute;
+      for (const [x, y, z] of q) {
+        for (let i = 0; i < style.per; i++) spawn.setXYZW(slot.current * style.per + i, x, y, z, now);
+        slot.current = (slot.current + 1) % style.slots;
+      }
+      spawn.needsUpdate = true;
+    }
+    q.length = 0;
+  });
+  return <mesh geometry={geometry} material={material} frustumCulled={false} renderOrder={3} />;
+}
+
+const kickAt = (e: GameEvent): [number, number, number] | null =>
+  e.type === "step" && e.surface === "snow" && e.speed > 3 ? [e.x, 0.1, e.z] : null;
+const giftAt = (e: GameEvent): [number, number, number] | null => (e.type === "gift" ? [e.x, 0.6, e.z] : null);
+
+/** Gameplay-driven particle effects (snow kick-up, gift sparkle). */
+export function GameplayBursts() {
+  return (
+    <>
+      <Bursts style={KICK} accept={kickAt} />
+      <Bursts style={GIFT} accept={giftAt} />
+    </>
+  );
 }

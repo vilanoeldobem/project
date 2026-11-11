@@ -180,19 +180,34 @@ export function reindeer(): Voxel[] {
   return v;
 }
 
-/** Default avatar (draw with size 0.3) wearing a Santa hat. The avatar editor is P07 (DEC-032). */
-export function avatar(): Voxel[] {
-  const v: Voxel[] = [];
-  box(v, -1, -1, 0, 2, 0, 0, "#2E3A4A"); // legs
-  box(v, 1, 1, 0, 2, 0, 0, "#2E3A4A");
-  box(v, -1, 1, 3, 5, 0, 0, P.red); // torso
-  box(v, -1, 1, 3, 3, 0, 0, P.cream); // belt trim
-  box(v, -2, -2, 3, 5, 0, 0, P.skin); // arms
-  box(v, 2, 2, 3, 5, 0, 0, P.skin);
-  box(v, -1, 1, 6, 8, -1, 1, P.skin); // head
-  v.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes (front = +z)
-  box(v, -1, 1, 9, 9, -1, 1, P.cream); // hat brim
-  box(v, -1, 0, 10, 10, -1, 0, P.red);
-  v.push([0, 11, 0, P.cream]);
-  return v;
+/** Avatar voxel size and the pivot heights (world units) of its animated limbs. */
+export const AVATAR_SIZE = 0.3;
+export const HIP_Y = 3 * AVATAR_SIZE;
+export const SHOULDER_Y = 6 * AVATAR_SIZE;
+
+export interface AvatarParts {
+  body: Voxel[];
+  /** Limbs hang below their pivot (y < 0); the pivot sits at x = ±1 (legs) or ±2 (arms) voxels. */
+  legL: Voxel[];
+  legR: Voxel[];
+  armL: Voxel[];
+  armR: Voxel[];
+}
+
+/**
+ * Default avatar wearing a Santa hat, split into body and four limbs so it can walk (draw with
+ * AVATAR_SIZE). Front = +z. The avatar editor is P07 (DEC-032).
+ */
+export function avatarParts(): AvatarParts {
+  const body: Voxel[] = [];
+  box(body, -1, 1, 3, 5, 0, 0, P.red); // torso
+  box(body, -1, 1, 3, 3, 0, 0, P.cream); // belt trim
+  box(body, -1, 1, 6, 8, -1, 1, P.skin); // head
+  body.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes
+  box(body, -1, 1, 9, 9, -1, 1, P.cream); // hat brim
+  box(body, -1, 0, 10, 10, -1, 0, P.red);
+  body.push([0, 11, 0, P.cream]);
+  const leg = (): Voxel[] => [[0, -3, 0, "#2E3A4A"], [0, -2, 0, "#2E3A4A"], [0, -1, 0, "#2E3A4A"]];
+  const arm = (): Voxel[] => [[0, -3, 0, P.skin], [0, -2, 0, P.red], [0, -1, 0, P.red]];
+  return { body, legL: leg(), legR: leg(), armL: arm(), armR: arm() };
 }

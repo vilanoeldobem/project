@@ -113,3 +113,41 @@ export function clampToWorld(x: number, z: number): [number, number] {
   }
   return [x, z];
 }
+
+/** Circle obstacle on the ground plane (avatar collision). */
+export interface Obstacle {
+  x: number;
+  z: number;
+  r: number;
+}
+
+/**
+ * Static obstacles inside the walkable area: pines (trunk + lower boughs), lamp posts, benches,
+ * snowmen, the sleigh and its reindeer. The tree and the world edge are handled by `clampToWorld`.
+ * Pines block at their lower boughs' core (art reaches 2–3 u at the base, thinning upwards), so the
+ * avatar may brush into the outer needles but never walks through a trunk.
+ */
+export const OBSTACLES: Obstacle[] = [
+  ...PINES.filter(([x, z]) => Math.hypot(x, z) < WORLD_RADIUS + 1).map(([x, z]) => ({ x: Math.round(x), z: Math.round(z), r: 1.6 })),
+  ...LAMPS.map(([x, z]) => ({ x, z, r: 0.3 })),
+  ...LAMPS.filter((_, i) => i % 2 === 1).map(([x, z]) => ({ x: x * 0.92, z: z * 0.92, r: 0.6 })),
+  ...SNOWMEN.map(([x, z]) => ({ x, z, r: 0.85 })),
+  { x: SLEIGH.x - 0.6, z: SLEIGH.z, r: 1.2 },
+  { x: SLEIGH.x + 1.2, z: SLEIGH.z, r: 1.1 },
+  { x: SLEIGH.x + 4.8, z: SLEIGH.z - 0.9, r: 0.8 },
+  { x: SLEIGH.x + 7.8, z: SLEIGH.z + 0.9, r: 0.8 },
+];
+
+/** Chalet footprint of a published lot (walls ±2.5, eaves ±3.5): close enough to still interact. */
+export const HOUSE_RADIUS = 3;
+
+export type Surface = "stone" | "packed" | "snow" | "ice";
+
+/** Ground material under a point (footstep sound, snow kick-up). Mirrors the ground layout. */
+export function surfaceAt(x: number, z: number): Surface {
+  if (Math.hypot(x - POND.x, z - POND.z) <= POND.radius) return "ice";
+  const r = Math.hypot(x, z);
+  if (r <= PLAZA_RADIUS) return "stone";
+  if (r >= STREET_INNER && r <= STREET_OUTER) return "packed";
+  return "snow";
+}

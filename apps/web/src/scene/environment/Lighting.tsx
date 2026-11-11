@@ -4,7 +4,7 @@ import { Color, type DirectionalLight, FogExp2, type HemisphereLight, Object3D, 
 
 import { env } from "../../environment/runtime";
 import { usePreset } from "../../environment/settings";
-import { useVila } from "../../game/store";
+import { sim } from "../../game/sim";
 import { linear } from "./materials";
 
 const SHADOW_EXTENT = 30;
@@ -39,7 +39,7 @@ export function Lighting() {
 
   useFrame(() => {
     const { look } = env.frame;
-    const p = useVila.getState().player;
+    const p = sim.pose;
     const k = key.current, h = hemi.current;
     if (!k || !h) return;
 

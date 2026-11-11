@@ -16,7 +16,7 @@ import {
 } from "../game/world";
 import { linear, U } from "./environment/materials";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
-import { Voxels } from "./Voxels";
+import { type Placement, Voxels } from "./Voxels";
 
 /** Rotates a voxel model by quarter turns and moves it (merging many props into one instanced draw). */
 function place(model: Voxel[], dx: number, dz: number, quarter: number, scale = 1): Voxel[] {
@@ -151,15 +151,8 @@ export function Pond() {
 
 export function Snowmen() {
   const v = useMemo(snowman, []);
-  return (
-    <>
-      {SNOWMEN.map(([x, z, rot], i) => (
-        <group key={i} position={[x, 0, z]} rotation-y={rot}>
-          <Voxels voxels={v} size={0.4} />
-        </group>
-      ))}
-    </>
-  );
+  const at = useMemo(() => SNOWMEN.map(([x, z, rot]): Placement => ({ x, z, rot })), []);
+  return <Voxels voxels={v} size={0.4} placements={at} />;
 }
 
 /** Santa's parked sleigh and two reindeer breathing gently (spec §9.2). Decor only. */

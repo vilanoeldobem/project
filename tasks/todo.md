@@ -194,3 +194,63 @@ Scheduled events are code constants (versioned), not admin mutations.
 
 - With rolldown `manualChunks`, shared deps of matched modules get captured into the group: check which chunks
   `index.html` modulepreloads, not only chunk sizes.
+
+---
+
+# Task 6: engine, graphics and gameplay polish (voxel mesher, fixed-step sim, feel, VFX, SFX) — 2026-11-10
+
+Context: owner asked for a full engine/graphics/gameplay/audio quality pass. Audit (2026-11-10):
+
+- **Rendering:** every voxel is a full instanced cube (12 tris), hidden faces included; ground ≈ 4.4k cubes, forest
+  ≈ 12k cubes; one `InstancedMesh` per material role per prop instance (lamps ×8, lots ×8, snowmen ×3…) → many
+  draw calls, doubled by the shadow pass. No ambient occlusion: voxels read flat. 2% cube gap = seams.
+- **Simulation:** player moves at constant speed with instant start/stop and a snapped rotation; no collision with
+  pines, lamps, snowmen, sleigh or houses; variable-dt integration; position written to zustand **every frame**
+  (every store selector re-runs each frame).
+- **Feel/feedback:** avatar is a rigid block with a sine bob (no walk cycle); gift pickup and mission completion
+  have no VFX/SFX; footprints are not tied to steps; camera has no look-ahead.
+- **Audio:** only wind + random bells; no footsteps, interaction or reward sounds.
+- **Perf:** no adaptive resolution; no runtime stats beyond FPS.
+- **Multiplayer:** none (single-player by design, IMPL-0006). Out of scope: no Durable Object/WebSocket (AGENTS.md
+  forbids new Cloudflare resources without authorisation). Prepare instead: pure fixed-step simulation separated
+  from presentation.
+
+## Plan
+
+- [x] Instrumentation: draw calls, triangles, frame time p50/p95 in `?envDebug`; verify.mjs saves stats → baseline
+- [x] Voxel mesher (`scene/mesher.ts`, pure + tests): face culling across roles, per-vertex AO, AO-aware quad flip,
+      per-vertex `aCenter` for sway/twinkle shaders; `Voxels` renders merged meshes, repeated props as one
+      instanced draw (`transforms`)
+- [x] Shaders: foliage sway as downwind gust wave from `aCenter` (rigid voxels), twinkle phase from `aCenter`
+- [x] Simulation (`game/motion.ts`, pure + tests): acceleration/friction, smooth turn, circle colliders with
+      sliding, stuck target release; fixed 60 Hz step + render interpolation; player pose in a mutable `sim` object
+      (no per-frame store writes)
+- [x] Surfaces (`surfaceAt`) + gameplay event bus (step, gift, mission) driving footprints, VFX and SFX
+- [x] Avatar animation: walk cycle (legs/arms), lean, idle breathing; blob contact shadow; camera look-ahead
+- [x] VFX: pooled GPU bursts — snow kick-up on steps, gold sparkle burst on gift pickup
+- [x] Audio engine: one AudioContext, compressor bus, ambience + surface-aware footsteps, pickup chime, mission
+      jingle; voice cap and pitch/volume variation; still off by default
+- [x] Adaptive DPR from frame-time p95 (stable frame pacing)
+- [x] Gates + verify.mjs before/after stats; docs (architecture, environment, ADR IMPL-0007), CHANGELOG
+
+## Review (2026-11-10)
+
+- Gates: typecheck ok (2 apps); tests 54 web (+18: mesher culling/AO/winding/dedupe/off-grid, motion
+  accel/brake/arrival/collision slide/stuck/world bound/footsteps/determinism, obstacle clearance, surfaces) + 2 site;
+  build ok, `three` chunk unchanged (244.7 kB gzip). `verify.mjs` (local `wrangler dev`, port 8799) clean on
+  desktop + phone + 5 environment scenes.
+- Measured (verify.mjs stats, medium, "dia-neve"): draw calls 96 → 56, triangles/frame 362k → 108k. Low preset
+  scene: 210k → 69k triangles. Real GPU timing still unmeasured (swiftshader); needs device benchmark (G12).
+- Independent review: 0 critical; fixed 4 risks (Instanced effect deps, instanced foliage wind direction, adaptive
+  DPR on CPU-bound devices, backoff never decaying) and 2 questions (pine collider 1.1 → 1.6, AO diagonal comment).
+- Not done / limits: no real-time multiplayer (needs authorised Cloudflare resources); greedy meshing deferred;
+  gift pickup not exercised in the browser script (software GL too slow) — covered by unit tests of the pieces.
+- Docs: ADR IMPL-0007, architecture, environment, CHANGELOG [Unreleased].
+
+## Lessons
+
+- In r3f, any `useFrame` with priority > 0 turns off automatic rendering: read `gl.info` at the start of the next
+  frame (negative priority) with `autoReset = false` instead of adding a late callback.
+- Adaptive resolution must check that stepping down actually bought frame time; CPU-bound devices otherwise lose
+  resolution for nothing.
+- Moving a per-frame value out of zustand removed 60 Hz selector churn for the whole HUD.
