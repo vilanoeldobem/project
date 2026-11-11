@@ -23,7 +23,9 @@ Cada versão indica o schema D1 que entrega.
 - Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
   núcleo de geradores determinísticos (PRNG por semente, partes, paleta nomeada, orçamento por categoria testado,
   snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,
-  barraca, barraca de panetone) e de chalés (planta, andares, três telhados, varanda, guirlanda, chaminé). Presentes
+  barraca, barraca de panetone) e de chalés (planta, andares, três telhados, varanda, guirlanda, chaminé), moradores (corpo, casaco, cachecol, chapéu,
+  tons de pele) e animais (rena, cachorro, gato, passarinho, coelho, coruja noturna) com respiração em shader;
+  decoração com 3 moradores e 6 animais na Vila (PROPOSTA). Presentes
   escondidos gerados pelo id; terrenos com ONG publicada ganham um chalé gerado pelo id do terreno. Galeria `?gallery` (só desenvolvimento)
   e `scripts/gallery.mjs`. Ver [content.md](docs/reference/content.md).
 

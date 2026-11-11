@@ -28,7 +28,7 @@ function Turntable({ children, x, z }: { children: React.ReactNode; x: number; z
   );
 }
 
-/** Scale that fits a model's largest extent into a gallery cell (small props are capped, not blown up). */
+/** Scale that fits a model's largest extent into a gallery cell (tiny animals are enlarged for review). */
 function fit(m: GenModel) {
   let span = 0;
   for (const axis of [0, 1, 2] as const) {
@@ -36,7 +36,7 @@ function fit(m: GenModel) {
     for (const v of m.voxels) (lo = Math.min(lo, v[axis])), (hi = Math.max(hi, v[axis]));
     span = Math.max(span, (hi - lo + 1) * m.size);
   }
-  return Math.min(1.25, 2.8 / Math.max(span, 1e-3));
+  return Math.min(4, 2.8 / Math.max(span, 1e-3));
 }
 
 function Row({ g, row }: { g: Generator; row: number }) {
@@ -46,7 +46,7 @@ function Row({ g, row }: { g: Generator; row: number }) {
       {models.map((m, i) => (
         <Turntable key={i} x={(i - (SEEDS.length - 1) / 2) * SPACING} z={row * SPACING}>
           <group scale={fit(m)}>
-            <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} glow={m.glow} sway={m.sway} />
+            <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} glow={m.glow} sway={m.sway} idle={m.idle} />
           </group>
         </Turntable>
       ))}

@@ -1,5 +1,29 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`generator snapshots > bird keeps the output of fixed seeds stable 1`] = `
+[
+  "b0a4500d",
+  "345830",
+  "c3253387",
+]
+`;
+
+exports[`generator snapshots > cat keeps the output of fixed seeds stable 1`] = `
+[
+  "5fc75e3c",
+  "cc6fae1f",
+  "d71ab1e",
+]
+`;
+
+exports[`generator snapshots > dog keeps the output of fixed seeds stable 1`] = `
+[
+  "beeed572",
+  "8208a467",
+  "acf04791",
+]
+`;
+
 exports[`generator snapshots > fence keeps the output of fixed seeds stable 1`] = `
 [
   "a03bc3b0",
@@ -56,11 +80,35 @@ exports[`generator snapshots > market-stall keeps the output of fixed seeds stab
 ]
 `;
 
+exports[`generator snapshots > owl keeps the output of fixed seeds stable 1`] = `
+[
+  "e3ec65dc",
+  "671b7442",
+  "9de57291",
+]
+`;
+
 exports[`generator snapshots > panettone-stand keeps the output of fixed seeds stable 1`] = `
 [
   "ec241412",
   "156cc35f",
   "797fe134",
+]
+`;
+
+exports[`generator snapshots > rabbit keeps the output of fixed seeds stable 1`] = `
+[
+  "8b908db7",
+  "21f736a1",
+  "5c9a22a6",
+]
+`;
+
+exports[`generator snapshots > reindeer keeps the output of fixed seeds stable 1`] = `
+[
+  "f0623d66",
+  "cc4a40a",
+  "93e5735f",
 ]
 `;
 
@@ -77,5 +125,13 @@ exports[`generator snapshots > sled keeps the output of fixed seeds stable 1`] =
   "30b095e7",
   "c11c2da",
   "bccd9138",
+]
+`;
+
+exports[`generator snapshots > villager keeps the output of fixed seeds stable 1`] = `
+[
+  "ccfd3f2b",
+  "33dfdcc5",
+  "29fbe6ba",
 ]
 `;

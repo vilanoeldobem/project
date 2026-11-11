@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–2 implementadas (núcleo, galeria, adereços, casas) · **Atualizado em:** 2026-11-10
+> **Status:** Fases 0–4 implementadas (núcleo, galeria, adereços, casas, moradores, animais) · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -40,11 +40,24 @@
 | `market-stall` | Barraca | props | toldo listrado, madeira, largura, mercadorias | 111 / 318 |
 | `panettone-stand` | Barraca de panetone | props | toldo, madeira, largura (toque brasileiro) | 110 / 322 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
+| `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
+| `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
+| `dog` | Cachorro | animals | pelagem, manchas, porte, orelhas, coleira | 80 / 190 |
+| `cat` | Gato | animals | pelagem, listras, cauda | 59 / 160 |
+| `bird` | Passarinho | animals | plumagem (6 pares), cauda, topete | 30 / 78 |
+| `rabbit` | Coelho | animals | pelagem, orelhas (em pé/caídas) | 62 / 140 |
+| `owl` | Coruja (noite) | animals | penas (nevada ou marrom), olhos que brilham, tufos | 58 / 106 |
 
 Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gift-palm`, `gift-bench`,
 `gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
 casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
-fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua). Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
+fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua).
+
+Moradores e animais (PROPOSTA de decoração, `CRITTERS` em `packages/shared/src/game/world.ts`): 3 moradores, um
+cachorro, um gato no banco, dois passarinhos nos postes, um coelho e uma coruja num pinheiro, cada um com semente
+fixa. Respiram e olham em volta pelo material `idle` (shader de vértice; "Menos movimento" desliga). A coruja só
+aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores e cachorro bloqueiam o avatar;
+animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
 
 ## 4. Testes (contrato de todo gerador)
 

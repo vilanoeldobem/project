@@ -24,6 +24,14 @@ export const V = {
   stoneWarm: shade(P.stone, 0.95),
   crust: shade(P.gold, 0.68),
   ice: P.ice,
+  // Skin tones for villagers: named variations of the palette skin (no single "default" person).
+  skinLight: shade(P.skin, 1.18),
+  skinDeep: shade(P.skin, 0.72),
+  skinDark: shade(P.skin, 0.5),
+  // Animal coats.
+  furLight: shade(P.wood, 1.45),
+  furGrey: shade(P.stoneDark, 0.8),
+  ginger: shade(P.carrot, 0.85),
 } as const;
 
 /** Wrapping paper pairs (base, pattern) and ribbons for gifts. */

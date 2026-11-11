@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { BufferAttribute, BufferGeometry, Color, type InstancedMesh, type Material, Object3D } from "three";
 
-import { foliageMaterial, lightsMaterial, solidMaterial, windowMaterial } from "./environment/materials";
+import { foliageMaterial, idleMaterial, lightsMaterial, solidMaterial, windowMaterial } from "./environment/materials";
 import { meshVoxels } from "./mesher";
 import type { Voxel } from "./models";
 
@@ -26,6 +26,8 @@ interface Props {
   castShadow?: boolean;
   /** Draw the model once per placement (instanced). Omitted = a single copy at the group origin. */
   placements?: Placement[];
+  /** Living thing: the solid role breathes/looks around in the vertex shader (`idleMaterial`). */
+  idle?: boolean;
 }
 
 const ROLES = ["solid", "lights", "glow", "sway"] as const;
@@ -84,7 +86,7 @@ export function voxelGeometries(
  * Draws a voxel model as merged, face-culled, ambient-occluded meshes (see `mesher.ts`): one draw call
  * per material role, and per role for all `placements` together.
  */
-export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements }: Props) {
+export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false }: Props) {
   const geometries = useMemo(
     () => voxelGeometries(voxels, size, { emissive, glow, sway }),
     // Colour lists are literals at call sites; their content, not identity, defines the grouping.
@@ -100,9 +102,9 @@ export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], 
         if (!geometry) return null;
         const cast = castShadow && role !== "lights" && role !== "glow";
         return placements ? (
-          <Instanced key={role} geometry={geometry} material={MATERIAL[role]} placements={placements} castShadow={cast} />
+          <Instanced key={role} geometry={geometry} material={role === "solid" && idle ? idleMaterial : MATERIAL[role]} placements={placements} castShadow={cast} />
         ) : (
-          <mesh key={role} geometry={geometry} material={MATERIAL[role]} castShadow={cast} receiveShadow />
+          <mesh key={role} geometry={geometry} material={role === "solid" && idle ? idleMaterial : MATERIAL[role]} castShadow={cast} receiveShadow />
         );
       })}
     </group>

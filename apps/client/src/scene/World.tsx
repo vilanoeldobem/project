@@ -15,7 +15,7 @@ import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
 import { ChristmasTree, Gifts, Lamps, Lots } from "./Props";
-import { LightStrings, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
+import { Critters, LightStrings, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
@@ -54,6 +54,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Lamps />
         <LightStrings />
         <Snowmen />
+        <Critters />
         <Sleigh />
         <Lots info={lots} />
         <Gifts />

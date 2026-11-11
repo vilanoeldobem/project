@@ -120,3 +120,29 @@ foliageMaterial.onBeforeCompile = (shader) => {
     );
 };
 foliageMaterial.customProgramCacheKey = () => "vila-foliage";
+
+/**
+ * Living things (villagers, animals; IMPL-0010): gentle breathing and a slow look-around in the vertex
+ * shader. Offsets grow with each voxel's height (`aCenter.y`) and are phased per object (from its
+ * position), so a crowd never moves in lockstep; voxels move rigidly. Respects "menos movimento".
+ */
+export const idleMaterial = new MeshStandardMaterial({ roughness: 0.85, vertexColors: true });
+idleMaterial.onBeforeCompile = (shader) => {
+  Object.assign(shader.uniforms, { uTime: U.uTime, uMotion: U.uMotion });
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", `#include <common>\nattribute vec3 aCenter;\nuniform float uTime;\nuniform float uMotion;\n${HASH}`)
+    .replace(
+      "#include <begin_vertex>",
+      `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        vec3 vilaRoot = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+      #else
+        vec3 vilaRoot = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+      #endif
+      float vilaPhase = vilaHash(floor(vilaRoot * 2.0)) * 6.2831;
+      float vilaH = max(aCenter.y, 0.0);
+      transformed.y += vilaH * 0.02 * sin(uTime * 2.1 + vilaPhase) * uMotion;
+      transformed.z += vilaH * vilaH * 0.012 * sin(uTime * 0.6 + vilaPhase * 1.7) * uMotion;`
+    );
+};
+idleMaterial.customProgramCacheKey = () => "vila-idle";

@@ -318,12 +318,19 @@ loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules
   footprint ≤ 5 voxels from lot centre, contract + snapshot.
 
 ## Phase 3 — characters (budget: ≤ 160 voxels, ≤ 420 faces)
-- [ ] Neutral villagers: body height, coat, scarf, hat from palette variants; no names, short or no labels
-- [ ] Placed as instanced variants (one draw per variant per role); idle sway in shader via `aCenter`
+- [x] Neutral villagers: body height, coat, scarf, hat from palette variants; no names, short or no labels
+- [x] Placed as decor (`CRITTERS`, PROPOSTA); idle breathing/look-around in shader via `aCenter` (`idleMaterial`)
 
 ## Phase 4 — animals (budget: ≤ 140 voxels, ≤ 380 faces)
-- [ ] Reindeer variants, dogs, cats, birds, rabbits, owls (night only, from SP time)
-- [ ] `idle` material role: vertex-shader breathing / head bob keyed on `aCenter` + instance phase
+- [x] Reindeer variants, dogs, cats, birds, rabbits, owls (night only, from SP time)
+- [x] `idle` material role: vertex-shader breathing / head bob keyed on `aCenter` + instance phase
+
+### Phases 3–4 review (2026-11-10)
+- Max over gallery seeds vs budget: villager 128/160 voxels, 266/420 faces; reindeer 124/140, 294/380; dog 80/190;
+  cat 59/160; bird 30/78; rabbit 62/140; owl 58/106.
+- Village ("dia-neve", medium): 55 → 66 calls, 109.0k → 112.6k tris with 9 critters (tiny animals skip the shadow
+  pass). Gallery: characters 12 calls / 4.6k tris; animals 68 / 19.5k.
+- One verify run timed out on `networkidle` under load; the rerun passed (flake, not a regression).
 
 ## Phase 5 — avatar cosmetics (PROPOSTA; budget per layer ≤ 40 voxels)
 - [ ] Layers that fit `avatarParts()`: hats, scarves, sweater patterns, colour palettes

@@ -11,6 +11,8 @@ export interface GenModel {
   emissive?: string[];
   glow?: string[];
   sway?: string[];
+  /** Living thing: drawn with the idle (breathing) material. */
+  idle?: boolean;
   /** Named points in voxel units (e.g. chimney top for smoke). */
   anchors?: Record<string, [number, number, number]>;
 }

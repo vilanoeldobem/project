@@ -91,6 +91,33 @@ export const SNOWMEN: [number, number, number][] = [
 /** Santa's parked sleigh with two reindeer (decor). Faces +x. */
 export const SLEIGH = { x: -4, z: 30.5 } as const;
 
+/**
+ * Generated villagers and animals placed as decor (IMPL-0010, PROPOSTA; final layout is PEN-017).
+ * `kind` = generator id, `seed` fixes the variant for every visitor. `y` lifts perched animals.
+ * Ground-level ones block the avatar (see OBSTACLES); none affects missions or XP.
+ */
+export interface Critter {
+  kind: "villager" | "dog" | "cat" | "bird" | "rabbit" | "owl";
+  seed: string;
+  x: number;
+  z: number;
+  y?: number;
+  /** Rotation around Y (rad). */
+  rot: number;
+}
+
+export const CRITTERS: Critter[] = [
+  { kind: "villager", seed: "villager-1", x: 6, z: -6.5, rot: -2.4 },
+  { kind: "dog", seed: "dog-1", x: 4.6, z: -7.6, rot: 0.6 },
+  { kind: "villager", seed: "villager-2", x: -7, z: 2.5, rot: 1.9 },
+  { kind: "villager", seed: "villager-3", x: 14.5, z: -7.5, rot: -1.1 },
+  { kind: "cat", seed: "cat-1", x: 7.6, z: 8.3, y: 1, rot: -2.3 },
+  { kind: "bird", seed: "bird-1", x: 12.2, z: 0, y: 4.5, rot: Math.PI },
+  { kind: "bird", seed: "bird-2", x: -12.2, z: 0, y: 4.5, rot: 0 },
+  { kind: "rabbit", seed: "rabbit-1", x: 29, z: 13, rot: 2.5 },
+  { kind: "owl", seed: "owl-1", x: 26, z: 18, y: 11, rot: -2.5 },
+];
+
 export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
   const a = (2 * Math.PI * i) / 8;
   return [Math.round(12.2 * Math.cos(a) * 100) / 100, Math.round(12.2 * Math.sin(a) * 100) / 100];
@@ -138,6 +165,7 @@ export const OBSTACLES: Obstacle[] = [
   { x: SLEIGH.x + 1.2, z: SLEIGH.z, r: 1.1 },
   { x: SLEIGH.x + 4.8, z: SLEIGH.z - 0.9, r: 0.8 },
   { x: SLEIGH.x + 7.8, z: SLEIGH.z + 0.9, r: 0.8 },
+  ...CRITTERS.filter((c) => !c.y && (c.kind === "villager" || c.kind === "dog")).map((c) => ({ x: c.x, z: c.z, r: c.kind === "villager" ? 0.5 : 0.4 })),
 ];
 
 /** Chalet footprint of a published lot (walls ±2.5, eaves ±3.5): close enough to still interact. */

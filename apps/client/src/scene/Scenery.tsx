@@ -5,6 +5,7 @@ import { type Group, ShaderMaterial, UniformsLib, UniformsUtils, Vector3 } from 
 import { mulberry32 } from "@vila/shared/environment/random";
 import { env } from "../environment/runtime";
 import {
+  CRITTERS,
   FOREST_INNER,
   FOREST_OUTER,
   LAMPS,
@@ -15,6 +16,8 @@ import {
   SNOWMEN,
 } from "@vila/shared/game/world";
 import { linear, U } from "./environment/materials";
+import { bird, cat, dog, NIGHT_ONLY, owl, rabbit } from "./gen/animals";
+import { villager } from "./gen/characters";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
 import { type Placement, Voxels } from "./Voxels";
 
@@ -209,5 +212,35 @@ export function Snowfield() {
       <circleGeometry args={[240, 48]} />
       <meshStandardMaterial color={P.snowShade} roughness={1} />
     </mesh>
+  );
+}
+
+const CRITTER_GEN = { villager, dog, cat, bird, rabbit, owl } as const;
+
+/**
+ * Generated villagers and animals (IMPL-0010, PROPOSTA decor): each a seeded variant, breathing through
+ * the idle material. Night-only animals (owls) appear once the village lights are on.
+ */
+export function Critters() {
+  const items = useMemo(() => CRITTERS.map((c) => ({ c, m: CRITTER_GEN[c.kind](c.seed) })), []);
+  const night = useRef<Group[]>([]);
+  useFrame(() => {
+    const dark = env.frame.look.artificial > 0.5;
+    for (const g of night.current) if (g) g.visible = dark;
+  });
+  return (
+    <>
+      {items.map(({ c, m }, i) => (
+        <group
+          key={c.seed}
+          position={[c.x, c.y ?? 0, c.z]}
+          rotation-y={c.rot}
+          ref={NIGHT_ONLY.has(c.kind) ? (g) => void (g && (night.current[i] = g)) : undefined}
+        >
+          {/* Tiny animals skip the shadow pass: their shadow is sub-pixel at gameplay distance. */}
+          <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow={m.size >= 0.2} />
+        </group>
+      ))}
+    </>
   );
 }
