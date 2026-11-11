@@ -7,6 +7,7 @@ import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
 import { sim } from "./sim";
 import { useVila } from "./store";
+import { QUESTS, questState } from "@vila/shared/game/quests";
 
 export interface VilaDevtools {
   walkTo: (x: number, z: number) => void;
@@ -14,7 +15,8 @@ export interface VilaDevtools {
   progress: () => ReturnType<typeof useVila.getState>["progress"];
   /** Gameplay events seen since load (type only, newest last). */
   events: string[];
-  extra: Record<string, () => unknown>;
+  /** Ad-hoc hooks for the verify scripts (`never[]` keeps typed callers out; the scripts are plain JS). */
+  extra: Record<string, (...args: never[]) => unknown>;
 }
 
 declare global {
@@ -34,6 +36,10 @@ export function installDevtools() {
     pose: () => ({ x: sim.pose.x, z: sim.pose.z }),
     progress: () => useVila.getState().progress,
     events: log,
-    extra: { remotes: () => [...remotes.values()].map((r) => ({ id: r.id, x: r.x, z: r.z })) },
+    extra: {
+      remotes: () => [...remotes.values()].map((r) => ({ id: r.id, x: r.x, z: r.z })),
+      quest: (id) => questState(useVila.getState().progress, String(id)),
+      quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
+    },
   };
 }

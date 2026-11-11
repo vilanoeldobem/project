@@ -33,10 +33,11 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 
 | Camada | Arquivos | Responsabilidade |
 |---|---|---|
-| Lógica | `shared/game/world.ts`, `shared/game/progress.ts` | Layout do mundo, obstáculos, superfícies, paleta, missões/XP (puro, testado) |
+| Lógica | `shared/game/world.ts`, `shared/game/progress.ts`, `shared/game/quests.ts` | Layout do mundo, obstáculos, superfícies, paleta, missões/XP e o catálogo/estado das quests (puro, testado) |
 | Simulação | `shared/game/motion.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos (puro, testado); estado vivo mutável fora do zustand ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
 | Eventos | `game/events.ts` | Barramento `step` / `gift` / `mission`: pegadas, partículas e som reagem à jogabilidade |
-| Estado | `game/store.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro) |
+| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local) |
+| Missões narrativas | `shared/game/quests.ts`, `scene/Props.tsx` (NPCs, itens, atril), `ui/NpcDialog.tsx`, `ui/Missions.tsx`, `ui/Donation.tsx`, `ui/Lot.tsx` | Quests `quests-v1` (PROPOSTA, DEC-039..042, PEN-025): uma missão ativa, diálogo, entrega, bolsa derivada e Caderno de cadeias ([quests.md](quests.md)) |
 | Ambiente | `shared/environment/*`, `environment/runtime.ts`, `settings.ts`, `audio.ts`, `labels.ts` | Hora real de SP, relógio de rede, clima procedural, eventos, keyframes (puros, em `shared`); sincronização, presets, som e rótulos (navegador) ([environment.md](environment.md)) |
 | Cena 3D | `scene/*` | react-three-fiber; `World` (canvas, presets), `Ground` (chão nevado + clique), `Props` (árvore, postes, terrenos, presentes), `Scenery` (pinheiros, montanhas, lago, bonecos de neve, trenó, cordões de luz), `Player` (movimento, câmera, vista do céu, proximidade) |
 | Efeitos | `scene/environment/*` | Driver de uniforms, luz, céu, neve GPU, brilhos, fumaça, pegadas, bloom |
@@ -57,9 +58,11 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
    exponenciais, desaceleração ao chegar ao destino, colisão com círculos (`OBSTACLES` + chalés publicados)
    deslizando pelo obstáculo, limite do mundo e da árvore (`clampToWorld`). Destino bloqueado por 0,5 s é abandonado.
 3. A cada `0,75 u` andados: evento `step` com a superfície (`surfaceAt`) → pegadas, neve levantada, som de passo.
-4. Coleta presentes a < 1,4 u (missão `explore-gifts`; evento `gift`). Concluída a missão, os restantes somem.
+4. Coleta presentes a < 1,4 u (missão `explore-gifts`; evento `gift`). Concluída a missão, os restantes somem. Com
+   `quests-v1` ligada, coleta os itens da missão de coleta ativa (`QUEST_SPAWNS`) e registra a visita à árvore.
 5. Pose renderizada interpolada entre os dois últimos passos; pernas e braços seguem a distância andada.
-6. Define `nearby` (árvore ou terreno a < 4,5 u) → botão de ação.
+6. Define `nearby` entre NPC, interação de quest, painel de doação, árvore e terreno (menor distância; empate de
+   0,5 u segue a ordem de prioridade) → botão de ação.
 7. Câmera segue com amortecimento e leve antecipação na direção da velocidade; deslocamento `(0, 24, 21)`,
    multiplicado até 1,8× em telas retrato. Na vista "Olhar o céu", deslocamento `(0, 2.6, 10)` mirando para cima;
    andar encerra a vista.
@@ -75,7 +78,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me` |
 | `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pelo Cloudflare Email Service (binding `EMAIL`); `devLink` fora de produção |
-| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado |
+| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico, decisões auditadas |
 
@@ -117,7 +120,7 @@ Cloudflare.
 
 | Pasta | Módulos | Usado por |
 |---|---|---|
-| `game/` | `world.ts`, `motion.ts`, `progress.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor) |
+| `game/` | `world.ts`, `motion.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
 | `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura) |
 | `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`) |
 | `net/` | `protocol.ts` | client, server |

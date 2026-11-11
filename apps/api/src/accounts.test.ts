@@ -4,9 +4,13 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { MISSIONS } from "@vila/shared/game/progress";
+import { QUESTS } from "@vila/shared/game/quests";
+
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
 import { loginEmail } from "./mail";
+import { KNOWN_EVENTS } from "./progress";
 
 const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
@@ -61,13 +65,16 @@ const APP = {
 
 beforeEach(() => {
   db = createD1();
-  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
+  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", QUESTS_V1_ENABLED: "true" };
 });
 
 describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {
     env.ACCOUNTS_ENABLED = "false";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false });
+    env.QUESTS_V1_ENABLED = "false";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false });
+    env.QUESTS_V1_ENABLED = "true";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true });
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });
@@ -222,10 +229,44 @@ describe("server XP (P14, DEC-042)", () => {
       expect((await events(a, [{ missionId, eventId }])).status).toBe(200);
   });
 
-  it("knows the event ids of every mission", async () => {
-    const { MISSIONS } = await import("@vila/shared/game/progress");
-    const { KNOWN_EVENTS } = await import("./progress");
-    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual(MISSIONS.map((m) => m.id).sort());
+  it("knows the event ids of every mission and quest", () => {
+    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual([...MISSIONS, ...QUESTS].map((m) => m.id).sort());
+  });
+
+  it("accepts a full quest chain once and replays it without extra XP", async () => {
+    const a = await signUp();
+    const flightNight = [
+      { missionId: "harness-bells", eventId: "accept" },
+      { missionId: "harness-bells", eventId: "bell-pine-north" },
+      { missionId: "harness-bells", eventId: "bell-pine-east" },
+      { missionId: "harness-bells", eventId: "turn-in" },
+      { missionId: "route-memory-game", eventId: "accept" },
+      { missionId: "route-memory-game", eventId: "memory-win" },
+      { missionId: "route-memory-game", eventId: "turn-in" },
+      { missionId: "charm-for-the-flight", eventId: "accept" },
+      { missionId: "charm-for-the-flight", eventId: "turn-in" },
+    ];
+    const first = await events(a, flightNight);
+    expect(first.status).toBe(200);
+    expect(first.body.progress.xp).toBe(100);
+    expect(first.body.progress.completed["charm-for-the-flight"]).toBe(true);
+    const replay = await events(a, flightNight);
+    expect(replay.status).toBe(200);
+    expect(replay.body.progress.xp).toBe(100);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(100);
+  });
+
+  it("rejects an unknown quest event id", async () => {
+    const a = await signUp();
+    expect((await events(a, [{ missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "charm-for-the-flight", eventId: "memory-win" }])).status).toBe(400);
+  });
+
+  it("refuses quest events while the flag is off but keeps the four missions", async () => {
+    env.QUESTS_V1_ENABLED = "false";
+    const a = await signUp();
+    expect((await events(a, [{ missionId: "harness-bells", eventId: "accept" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "causes-global-donation", eventId: "panel" }])).status).toBe(200);
   });
 });
 

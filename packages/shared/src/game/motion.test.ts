@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
 
 import { createBody, type Intent, MOTION, STEP, stepBody } from "./motion";
-import { OBSTACLES, surfaceAt, WORLD_RADIUS } from "./world";
+import {
+  DONATION_PANEL,
+  LOTS,
+  NPCS,
+  OBSTACLES,
+  POND,
+  QUEST_INTERACTIONS,
+  QUEST_SPAWNS,
+  SLEIGH,
+  surfaceAt,
+  TREE_RADIUS,
+  WORLD_RADIUS,
+} from "./world";
 
 const idle: Intent = { moveX: 0, moveZ: 0, target: null };
 const run = (b: ReturnType<typeof createBody>, intent: Intent, seconds: number, colliders = OBSTACLES) => {
@@ -114,5 +126,70 @@ describe("world helpers", () => {
     expect(surfaceAt(0, 15)).toBe("packed");
     expect(surfaceAt(0, 25)).toBe("snow");
     expect(surfaceAt(28.5, -4)).toBe("ice");
+  });
+});
+
+describe("quest placements (PROPOSTA quests-v1)", () => {
+  it("keeps every NPC clear of the pre-existing scenery, lots, pond and each other", () => {
+    // The last entries of OBSTACLES are the quest NPCs plus the donation lectern (appended in world.ts).
+    const scenery = OBSTACLES.slice(0, OBSTACLES.length - NPCS.length - 1);
+    for (const { id, x, z } of NPCS) {
+      for (const o of scenery) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius + 0.3);
+      for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
+      expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
+      expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
+      expect(Math.hypot(x, z), `${id} world`).toBeLessThan(WORLD_RADIUS);
+      expect(Math.hypot(x - DONATION_PANEL.x, z - DONATION_PANEL.z), `${id} lectern`).toBeGreaterThan(DONATION_PANEL.r + MOTION.radius);
+    }
+    for (const a of NPCS) for (const b of NPCS) if (a !== b) expect(Math.hypot(a.x - b.x, a.z - b.z), `${a.id}/${b.id}`).toBeGreaterThan(2);
+  });
+
+  it("keeps every quest spawn reachable and off lots, pond, tree and scenery", () => {
+    expect(new Set(QUEST_SPAWNS.map((s) => s.id)).size).toBe(QUEST_SPAWNS.length);
+    for (const { id, x, z } of QUEST_SPAWNS) {
+      for (const o of OBSTACLES) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius);
+      for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
+      expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
+      expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
+      expect(Math.hypot(x, z), `${id} world`).toBeLessThan(WORLD_RADIUS);
+    }
+  });
+
+  it("places the donation lectern clear of props, lots, sleigh, pond and NPCs", () => {
+    for (const o of OBSTACLES) {
+      if (o.x === DONATION_PANEL.x && o.z === DONATION_PANEL.z) continue;
+      expect(Math.hypot(DONATION_PANEL.x - o.x, DONATION_PANEL.z - o.z), "lectern obstacles").toBeGreaterThan(o.r + MOTION.radius);
+    }
+    for (const l of LOTS) expect(Math.hypot(DONATION_PANEL.x - l.x, DONATION_PANEL.z - l.z), `lectern vs ${l.id}`).toBeGreaterThan(5.5);
+    expect(Math.hypot(DONATION_PANEL.x - SLEIGH.x, DONATION_PANEL.z - SLEIGH.z), "lectern sleigh").toBeGreaterThan(5);
+    expect(Math.hypot(DONATION_PANEL.x - POND.x, DONATION_PANEL.z - POND.z), "lectern pond").toBeGreaterThan(POND.radius + 1);
+    for (const n of NPCS) expect(Math.hypot(DONATION_PANEL.x - n.x, DONATION_PANEL.z - n.z), `lectern ${n.id}`).toBeGreaterThan(1.2);
+  });
+
+  /*
+   * The current layout is the frozen PROPOSTA (final layout is PEN-017/PEN-023): moving a piece must be
+   * an intentional test diff. The clearance checks above stay; this one pins the coordinates themselves.
+   */
+  it("pins the exact coordinates of NPCs, quest spawns, quest interactions and the donation lectern", () => {
+    expect(NPCS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
+      { id: "sleigh-keeper", x: -2.5, z: 28.5 },
+      { id: "market-keeper", x: -18.6, z: 0 },
+      { id: "postmaster", x: 4.5, z: 11.8 },
+      { id: "pond-keeper", x: 24.5, z: -2.5 },
+      { id: "storyteller", x: 5, z: 4 },
+    ]);
+    expect(QUEST_SPAWNS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
+      { id: "bell-pine-north", x: -10, z: -12.4 },
+      { id: "bell-pine-east", x: 12.2, z: 9.5 },
+      { id: "crate-street", x: -14.5, z: 8.6 },
+      { id: "crate-market", x: -16.8, z: -3.6 },
+      { id: "lantern-lake-1", x: 23.5, z: 17 },
+      { id: "lantern-lake-2", x: 30.5, z: 10 },
+    ]);
+    expect(QUEST_INTERACTIONS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
+      { id: "mailbox-open", x: 2.4, z: 12.6 },
+      { id: "sled-ride", x: 2.5, z: 27 },
+    ]);
+    expect({ x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r }).toEqual({ x: 4.6, z: 6.4, r: 0.5 });
   });
 });

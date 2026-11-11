@@ -2,11 +2,15 @@ import { COSMETICS, isUnlocked, requirement, SLOTS, type Slot } from "@vila/shar
 
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Track } from "@vila/shared/game/progress";
+import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Progress, type Track } from "@vila/shared/game/progress";
+import { activeInventory, CHAIN_TITLES, type NpcId, QUESTS, questProgress, questState } from "@vila/shared/game/quests";
+import { NPCS } from "@vila/shared/game/world";
+import { questsEnabled } from "../game/questsFlag";
+import type { LotInfo } from "../lib/api";
 import { Panel } from "./Panel";
 
 /** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
-export function Missions() {
+export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
   const p = useVila((s) => s.progress);
   return (
     <Panel kicker="Missões da Vila" title="Caderno de Missões">
@@ -33,9 +37,84 @@ export function Missions() {
           </ul>
         </section>
       ))}
+      {questsEnabled() && <QuestBook progress={p} lots={lots} />}
       <LookPicker />
       <SavedWhere />
     </Panel>
+  );
+}
+
+const npcName = (id: NpcId) => NPCS.find((n) => n.id === id)?.name ?? id;
+
+/**
+ * Quest chains and carried items (PROPOSTA quests-v1; DEC-039..042, PEN-025). States are text plus a
+ * symbol, never colour alone. The blocked visit quest says so honestly when no house is published.
+ */
+function QuestBook({ progress, lots }: { progress: Progress; lots: Record<string, LotInfo> }) {
+  const hasPublishedLot = Object.values(lots).some((l) => l.state === "published" && Boolean(l.ngo_name));
+  const bag = activeInventory(progress);
+  const stateLine = (questId: string) => {
+    const quest = QUESTS.find((q) => q.id === questId);
+    if (!quest) return "";
+    const state = questState(progress, quest.id);
+    if (state === "completed") return "★ Concluída";
+    if (state === "ready_to_turn_in") return `➜ Entregar a ${npcName(quest.turnInNpcId)}`;
+    if (state === "active") {
+      const { count, target } = questProgress(progress, quest.id);
+      return `◐ Em andamento ${count}/${target} ${quest.unit}`;
+    }
+    if (state === "available" && quest.needsPublishedLot && !hasPublishedLot) return "⏳ Aguardando uma casa publicada";
+    if (state === "available") return `☆ Disponível com ${npcName(quest.giverNpcId)}`;
+    const prerequisite = QUESTS.find((q) => q.id === quest.prerequisiteId);
+    return `🔒 Bloqueada · Requer: ${prerequisite?.title ?? "a missão anterior"}`;
+  };
+  return (
+    <>
+      {bag.length > 0 && (
+        <section className="track quest-bag">
+          <h3>Bolsa de Missão</h3>
+          <ul className="mission-list" aria-label="Bolsa de missão">
+            {bag.map((item) => (
+              <li key={item.questId}>
+                <span aria-hidden>🎒</span>
+                <span>
+                  {item.name}
+                  <small>
+                    {item.count}/{item.target}
+                  </small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {Object.entries(CHAIN_TITLES).map(([chainId, title]) => (
+        <section key={chainId} className="track quest-chain">
+          <h3>{title}</h3>
+          <ul className="mission-list">
+            {QUESTS.filter((q) => q.chainId === chainId)
+              .sort((a, b) => a.order - b.order)
+              .map((q) => {
+                const { count, target } = questProgress(progress, q.id);
+                const done = questState(progress, q.id) === "completed";
+                return (
+                  <li key={q.id} className={done ? "done" : ""}>
+                    <span aria-hidden>{done ? "★" : questState(progress, q.id) === "ready_to_turn_in" ? "➜" : "☆"}</span>
+                    <span>
+                      {q.title}
+                      <small>{stateLine(q.id)}</small>
+                      <small>{q.description}</small>
+                      <small>
+                        {npcName(q.giverNpcId)} → {npcName(q.turnInNpcId)} · {count}/{target} {q.unit} · {q.xp} XP
+                      </small>
+                    </span>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
+      ))}
+    </>
   );
 }
 

@@ -40,6 +40,10 @@ do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
 `Access-Control-Allow-Credentials` existe por causa do cookie de sessão das rotas de conta; o cliente chama com
 `credentials: "include"`.
 
+`handleApi` aplica esses cabeçalhos na própria resposta devolvida pelo roteador (`res.headers.set`) e devolve a mesma
+`Response`, em vez de reembrulhar `res.body` num `Response` novo: reembrulhar transforma um corpo de tamanho fixo
+(`Content-Length`) em fluxo, e o navegador local podia ficar esperando o fim do corpo depois de um `POST`.
+
 ### GET /health
 
 `Cache-Control: no-store`.
@@ -55,11 +59,15 @@ do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false }
+{ "accounts": false, "quests": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o cliente esconde toda a interface de conta
 (chip "Entrar", candidatura de ONG, painel de análise) e a Vila segue jogável sem conta (OQ-02).
+
+`quests` é `true` só quando `QUESTS_V1_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
+staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025); o cliente também aceita `?quests=1`
+em localhost/desenvolvimento. Ver [quests.md](quests.md).
 
 ### GET /indicators
 
@@ -211,12 +219,15 @@ candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vi
 | `GET /progress` | — | `{progress}` |
 | `POST /progress/events` | `{accountId, events: [{missionId, eventId}]}` (1 a 50) | `{progress}` |
 
-- `missionId` precisa existir em `MISSIONS` (`packages/shared/src/game/progress.ts`) e `eventId` precisa ser um que
-  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`) ou `panel`
-  (`KNOWN_EVENTS` em `apps/api/src/progress.ts`). Qualquer item inválido → `400 bad_events` (nada é gravado).
+- `missionId` precisa existir em `MISSIONS` ou em `QUESTS` (`packages/shared/src/game/`); `eventId` precisa ser um que
+  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`), `panel`, ou, nas quests,
+  `accept`, `turn-in` e os ids de objetivo de `objectiveEventIds` (`KNOWN_EVENTS` em `apps/api/src/progress.ts`).
+  Qualquer item inválido → `400 bad_events` (nada é gravado).
+- Eventos de quest só são aceitos com `QUESTS_V1_ENABLED = "true"`; as quatro missões rápidas valem sempre. A flag é
+  exposta em `GET /config` (`quests`). O conteúdo e os valores de XP são PROPOSTA (PEN-025); ver [quests.md](quests.md).
 - Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo
   (`INSERT OR IGNORE`). O progresso é refeito repetindo os eventos pelo mesmo `applyEvent` do cliente: cada missão dá
-  XP uma vez.
+  XP uma vez (e o XP de uma quest entra só no `turn-in`).
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
   são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):

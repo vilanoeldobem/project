@@ -5,6 +5,7 @@ import { usePreset } from "../environment/settings";
 import type { Collider } from "@vila/shared/game/motion";
 import { HOUSE_RADIUS, LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
+import { questsEnabled } from "../game/questsFlag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
 import { Lighting } from "./environment/Lighting";
 import { Footprints, GameplayBursts, Sparkles } from "./environment/Particles";
@@ -14,7 +15,7 @@ import { Ground } from "./Ground";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
-import { ChristmasTree, Gifts, Lamps, Lots } from "./Props";
+import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
@@ -51,6 +52,9 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Pines />
         <Pond />
         <ChristmasTree />
+        <DonationLectern />
+        {questsEnabled() && <QuestNpcs />}
+        {questsEnabled() && <QuestItems />}
         <Lamps />
         <LightStrings />
         <Snowmen />

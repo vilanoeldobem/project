@@ -2,8 +2,9 @@
 
 > **Status: PROPOSTA** — conjunto inicial de missões para a função Missão da Vila
 > (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025). Nada aqui é decisão
-> aprovada; nomes, números e recompensas aguardam avaliação do responsável. Esta
-> proposta não acompanha código de jogo.
+> aprovada; nomes, números e recompensas aguardam avaliação do responsável. O runtime
+> desta proposta está implementado para avaliação local/dev atrás de flags
+> (`VITE_QUESTS_V1_ENABLED` / `?quests=1` e `QUESTS_V1_ENABLED`), desligado em produção.
 
 ## 1. Tom da Vila
 
@@ -23,7 +24,7 @@ trenó ou terrenos. Os três moradores decorativos da praça continuam sem nome 
 
 | NPC | Papel | Base | Voz |
 |---|---|---|---|
-| Baltazar (`sleigh-keeper`) | Guardião do trenó do Noel | Ao norte, junto ao trenó | Grave e calorosa; fala de voo, noite e promessas antigas |
+| Baltazar (`sleigh-keeper`) | Guardião do trenó do Noel | Ao sul, junto ao trenó | Grave e calorosa; fala de voo, noite e promessas antigas |
 | Dona Filó (`market-keeper`) | Mercadora do mercado oeste | Entre as barracas do mercado oeste | Prática e afetuosa; frases curtas que misturam comida e carinho |
 | Seu Nivaldo (`postmaster`) | Carteiro da Vila | Ao lado da caixa de correio | Formal e poético; trata cartas como promessas |
 | Aurora (`pond-keeper`) | Vigia do lago congelado | Na margem oeste do lago | Calma e sonhadora; imagens de luz e reflexo |

@@ -197,6 +197,9 @@ for (const [label, re] of [["TODO", /\bTODO\b/], ["TBD", /\bTBD\b/], ["lorem", /
   if (re.test(allText)) fail(`filler marker found: ${label}`);
 }
 
+// --- cardinal copy: the camera makes +z south, where the sleigh and the kids-sled are
+if (/ao norte/i.test(allText)) fail('cardinal direction "ao norte" found in CSV copy (sleigh and sled are at +z, ao sul)');
+
 // --- report
 if (problems.length > 0) {
   console.error(`FAIL: ${problems.length} problem(s)`);

@@ -201,6 +201,10 @@ await b.screenshot({ path: `${out}accounts-4-admin-approved.png` });
 const lots = await (await fetch(`${apiUrl}/lots`)).json();
 const lot = lots.lots.find((l) => l.id === lotValue);
 if (lot?.state !== "published" || !lot.ngo_name?.includes(run)) errors.push(`public: lot ${lotValue} not published (${JSON.stringify(lot)})`);
+// Close the applicant and admin pages first: three software-rendered WebGL canvases at once starve the
+// renderer here (frame p95 over 300 ms on SwiftShader) and the final screenshot times out.
+await a.context().close();
+await b.context().close();
 const c = await newPage("visitor");
 await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });

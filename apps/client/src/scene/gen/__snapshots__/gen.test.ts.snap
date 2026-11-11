@@ -104,11 +104,43 @@ exports[`generator snapshots > panettone-stand keeps the output of fixed seeds s
 ]
 `;
 
+exports[`generator snapshots > quest-donation-panel keeps the output of fixed seeds stable 1`] = `
+[
+  "427f2ade",
+  "9636bacc",
+  "f49a53be",
+]
+`;
+
+exports[`generator snapshots > quest-lucky-charm keeps the output of fixed seeds stable 1`] = `
+[
+  "1247a742",
+  "cc09df74",
+  "b0b9d73f",
+]
+`;
+
+exports[`generator snapshots > quest-ornament-crate keeps the output of fixed seeds stable 1`] = `
+[
+  "ed67c880",
+  "645816b6",
+  "c15d7e36",
+]
+`;
+
 exports[`generator snapshots > quest-reindeer-bell keeps the output of fixed seeds stable 1`] = `
 [
-  "6d391bca",
-  "2133aff2",
-  "1658b425",
+  "459b5191",
+  "5c35e37b",
+  "befbd4d4",
+]
+`;
+
+exports[`generator snapshots > quest-story-page keeps the output of fixed seeds stable 1`] = `
+[
+  "a690fe74",
+  "20a4592f",
+  "17fbd4f8",
 ]
 `;
 

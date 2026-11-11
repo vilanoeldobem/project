@@ -10,7 +10,12 @@ Cada versão indica o schema D1 que entrega.
 ## [Unreleased]
 
 ### Added
-- `content/proposals/quests-v1/pilot-plan.md` planeja o piloto da cadeia `flight-night` (`harness-bells` → `route-memory-game` → `charm-for-the-flight`, 100 XP): modelo de dados e máquina de estados sem quebrar as 4 missões atuais, persistência local e XP idempotente no servidor sem migration, NPCs com o gerador `villager` e folgas medidas em `world.ts`, diálogos de aceitar/entregar, marcadores, bolsa de missão, spawn e pickup dos sinos, feature flag, testes puros e no navegador, riscos (UX, persistência, acessibilidade, público jovem, LGPD) e perguntas ao responsável; sem código de jogo, migration ou deploy
+- Runtime das quests narrativas `quests-v1` (PROPOSTA, DEC-039 a DEC-042; PEN-025) atrás de flags
+- Painel de doação global físico (`DONATION_PANEL`, gerador `quest-donation-panel`), sempre visível como ponto de
+- API: `GET /config` informa `quests`; a whitelist de eventos inclui `accept`, `turn-in` e os objetivos das quests
+- Testes do runtime de quests: `packages/shared/src/game/quests.test.ts` (catálogo, sincronia com os CSVs, estados,
+- `docs/reference/quests.md` (pt-BR, Diátaxis) e índice em `docs/README.md`
+- `content/proposals/quests-v1/pilot-plan.md` planeja o piloto da cadeia `flight-night` (`harness-bells` → `route-memory-game` → `charm-for-the-flight`, 100 XP): modelo de dados e máquina de estados sem quebrar as 4 missões atuais, persistência local e XP idempotente no servidor sem migration, NPCs com o gerador `villager` e folgas medidas em `world.ts`, diálogos de aceitar/entregar, marcadores, bolsa de missão, spawn e pickup dos sinos, feature flag, testes puros e no navegador, riscos (UX, persistência, acessibilidade, público jovem, LGPD) e perguntas ao responsável; o runtime correspondente foi implementado depois, atrás das flags de `quests-v1`
 - Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
 - Multiplayer mostra o visual de cada visitante (chapéu, cachecol, suéter, cores) e `apps/server/scripts/load.mjs`
 - Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
@@ -29,20 +34,33 @@ Cada versão indica o schema D1 que entrega.
 - Depuração local: `?envDebug`, `?envTime=`, `?envWeather=` (só localhost/dev); `verify.mjs` fotografa as fases.
 - `content/proposals/quests-v1/` reúne uma proposta de 15 missões para avaliação, com 5 cadeias de NPC, diálogos, bíblia de história e validador estrutural sem dependências; não inclui código de jogo
 - `content/proposals/quests-v1/review.md` audita a proposta (15 missões, 5 NPCs, 8 objetos, 5 prompts): veredito com ressalvas, sem violação de regra de produto; `validate-objects.mjs` passa a contar as 9 missões com objeto e a posição sugerida de `pond-keeper` foi afastada dos terrenos
-- `content/proposals/quests-v1/objects.csv` e `objects.md` normalizam os 8 objetos únicos das missões (5 itens de quest e 3 adereços de mundo; 3 reutilizam geradores existentes e 5 pedem silhueta própria), com fila de prompts em `object-prompts/` e o validador `validate-objects.mjs`; nenhum gerador foi implementado
-- Itens de quest (PROPOSTA, `quests-v1`): gerador `quest-reindeer-bell` (Sino do arreio) em `apps/client/src/scene/gen/quest-items.ts`, com sino de ouro/bronze, badalo, alça de couro, laço e neve, dentro de 80 voxels e 200 faces; primeiro dos 5 objetos novos da fila, sem ligar missões, XP ou o mundo
+- `content/proposals/quests-v1/review.md` e `pilot-plan.md` atualizados com os cinco objetos implementados, medidas de voxels e faces por gerador e verificação na galeria de adereços; `object-prompts/` reflete a fila concluída
+- `content/proposals/quests-v1/objects.csv` e `objects.md` normalizam os 8 objetos únicos das missões (5 itens de quest e 3 adereços de mundo; 3 reutilizam geradores existentes e 5 pedem silhueta própria), com fila de prompts em `object-prompts/` e o validador `validate-objects.mjs`; os geradores dos 5 objetos `new` foram implementados depois em `quest-items.ts`
+- Itens de quest (PROPOSTA, `quests-v1`): cinco geradores em `apps/client/src/scene/gen/quest-items.ts` — `quest-reindeer-bell` (Sino do arreio), `quest-lucky-charm` (Patuá da sorte), `quest-ornament-crate` (Caixa de enfeites), `quest-donation-panel` (Painel de doação global) e `quest-story-page` (Página da história) — com receitas visuais pesquisadas em `content/proposals/quests-v1/object-references.md`, todos dentro de 80 voxels e 200 faces (itens) ou 220 e 600 (adereço de mundo), sem ligar missões, XP ou o mundo
+- Runtime das quests narrativas `quests-v1` atrás de flags, com catálogo, máquina de estados, NPCs, coleta, bolsa, diálogos, Caderno de cadeias e integração com XP idempotente na API
+- Cinco geradores de itens de quest, painel de doação global físico e verificações de quests no navegador
 
 ### Changed
+- Rótulos de missão sobre os cinco NPCs e o atril da doação (`@react-three/drei` `Html`) só são montados com o
+- `packages/shared/src/game/motion.test.ts` ganhou um teste de coordenadas exatas para `NPCS`, `QUEST_SPAWNS`,
+- `apps/api/src/api.ts`: os cabeçalhos de CORS passam a ser aplicados na própria `Response` do roteador
+- Copy cardinal corrigida para **ao sul** onde se refere ao trenó do Noel e ao trenó pequeno (`quests.csv`, `npcs.csv`,
+- Diálogo modal (`ui/Panel.tsx`) segue o padrão APG: o foco entra no diálogo, Tab/Shift+Tab circulam entre os controles
+- HUD: um botão de ação por alvo (NPC, interação de quest, painel de doação, árvore, terreno) com E/Enter, chip de
+- `docs/reference/{api,architecture,content}.md` e `docs/README.md` descrevem as quests, a flag e o painel de doação
 - **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
 - Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
 - Direção de arte: o estudo "Natal brasileiro de verão" (palmeiras, terracota) deu lugar à vila nevada, confirmada
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
+- Documentação de quests, API, arquitetura e conteúdo atualizada para descrever o runtime e suas flags
 
 ### Fixed
+- O contador "Missões n/4" do HUD passaria a contar as 15 quests concluídas; agora conta apenas as quatro missões
 - Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
+- Contador do HUD restrito às quatro missões rápidas, mantendo as cadeias em seção própria
 ## [0.3.0] - 2026-11-08
 
 **Site público e domínio oficial** ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)). Schema D1 **v3**

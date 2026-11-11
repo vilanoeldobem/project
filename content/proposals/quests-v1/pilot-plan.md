@@ -6,7 +6,13 @@
 > **Fonte de verdade:** [`quests.csv`](quests.csv), [`npcs.csv`](npcs.csv), [`dialogues.csv`](dialogues.csv),
 > [`objects.md`](objects.md), [`story-bible.md`](story-bible.md), [`review.md`](review.md) e o código em
 > `packages/shared/src/game/`, `apps/client/src/` e `apps/api/src/`.
-> **Este documento é só plano:** nenhum código de jogo, migration ou deploy acompanha a proposta.
+> **Este documento é o plano do piloto da cadeia 1:** nenhum deploy, migration remota ou publicação acompanha a
+> proposta. O runtime das 15 missões (todas as cadeias, não só `flight-night`) está implementado para avaliação
+> local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` e `QUESTS_V1_ENABLED`), desligado em produção;
+> os passos abaixo registram o desenho original e continuam válidos como contrato técnico.
+> **Arte 3D:** os cinco objetos `new` da proposta já têm gerador (`status_build: done`), incluindo
+> `quest-lucky-charm` (máximo 50/108 voxels e faces); a integração na cena e nas missões está no runtime
+> descrito em [`docs/reference/quests.md`](../../docs/reference/quests.md), atrás das flags.
 
 ## Contexto
 
@@ -23,7 +29,7 @@ dinheiro ou dados pessoais. Todo o piloto fica atrás de uma feature flag deslig
 |---:|---|---|---|---|---|---:|---:|---|---|---|---|
 | 1 | `harness-bells` | Sinos do arreio | `explore` | `collect` | `reindeer-bell` (`quest_item`) | 2 | 20 | `sleigh-keeper` (Baltazar) | `sleigh-keeper` (Baltazar) | — | `quest-reindeer-bell` (`done`) |
 | 2 | `route-memory-game` | A rota na memória | `play` | `minigame` | `none` | 0 | 30 | `sleigh-keeper` (Baltazar) | `postmaster` (Seu Nivaldo) | `harness-bells` | — (reusa `MemoryGame.tsx`) |
-| 3 | `charm-for-the-flight` | O patuá da Noite de Voo | `explore` | `deliver` | `lucky-charm` (`quest_item`) | 1 | 50 | `sleigh-keeper` (Baltazar) | `storyteller` (Dona Guida) | `route-memory-game` | `quest-lucky-charm` (hoje `pending`) |
+| 3 | `charm-for-the-flight` | O patuá da Noite de Voo | `explore` | `deliver` | `lucky-charm` (`quest_item`) | 1 | 50 | `sleigh-keeper` (Baltazar) | `storyteller` (Dona Guida) | `route-memory-game` | `quest-lucky-charm` (`done`, 50/108) |
 
 Textos de oferta e entrega: [`dialogues.csv`](dialogues.csv). Vozes e continuidade: [`story-bible.md`](story-bible.md).
 Nenhuma fala cita ONG, doador, parceiro ou pessoa real; doação não aparece como objetivo e jogar nunca é doar.
@@ -32,19 +38,20 @@ Nenhuma fala cita ONG, doador, parceiro ou pessoa real; doação não aparece co
 
 Cada passo abaixo é independente dos seguintes e deixa `pnpm typecheck`, `pnpm test` e `pnpm build` verdes ao final.
 
-### Passo 1 — Pré-requisito de conteúdo 3D: gerador `quest-lucky-charm`
+### Passo 1 — Pré-requisito de conteúdo 3D: gerador `quest-lucky-charm` (concluído)
 
-- **Alvo:** `apps/client/src/scene/gen/quest-items.ts`, `apps/client/src/scene/gen/catalog.ts`,
-  `content/proposals/quests-v1/objects.csv`.
-- **Edição:** implementar a função pura `luckyCharm(seed: Seed): GenModel` conforme o contrato de
-  [`object-prompts/02-lucky-charm.md`](object-prompts/02-lucky-charm.md): `Rng(seed, "quest-lucky-charm")`, montagem por
-  partes de `apps/client/src/scene/gen/parts.ts`, voxels inteiros, base em `y = 0` via `dedupe(ground(v))`, `size: 0.18`,
-  apenas material `solid`, no máximo 80 voxels e 200 faces, no mínimo 6 variantes distintas em 12 sementes.
-- **Registro:** adicionar `{ id: "quest-lucky-charm", category: "props", name: "Patuá da sorte", generate: luckyCharm }` a
-  `QUEST_ITEMS`, que já é espalhado em `GENERATORS` (`apps/client/src/scene/gen/catalog.ts:10-17`).
-- **Documento:** mudar a linha `lucky-charm` de `objects.csv` de `pending` para `done`.
-- **Reuso:** `box`, `disc`, `dedupe`, `ground`, `rotate`, `snowCap` e as cores `PALETTE`/`V`, como `reindeerBell` no mesmo
-  arquivo (`apps/client/src/scene/gen/quest-items.ts:20-96`). Nenhum gerador novo fora deste arquivo.
+- **Estado:** `luckyCharm(seed: Seed): GenModel` já está implementado em
+  `apps/client/src/scene/gen/quest-items.ts`, registrado em `QUEST_ITEMS` e em `GENERATORS`
+  (`apps/client/src/scene/gen/catalog.ts`) e marcado `done` em `objects.csv`/`objects.md`.
+- **Contrato cumprido:** `Rng(seed, "quest-lucky-charm")`, montagem por partes de
+  `apps/client/src/scene/gen/parts.ts`, voxels inteiros, base em `y = 0` via `dedupe(ground(v))`,
+  `size: 0.18`, apenas material `solid`, máximo medido de 50 voxels e 108 faces (teto 80/200) e 11 variantes
+  distintas em 12 sementes, sem `Math.random`.
+- **Visual:** saquinho bojudo com bochechas laterais, gargalo franzido por cordão duplo dourado, selo frontal,
+  boca arrepiada sobre abertura escura, raminho de pinheiro e toque de neve. Receita em
+  [`object-references.md`](object-references.md); contrato em
+  [`object-prompts/02-lucky-charm.md`](object-prompts/02-lucky-charm.md).
+- **O que falta para o piloto:** nada no modelo 3D; a integração à missão depende dos passos 2 a 7.
 
 ### Passo 2 — Modelo de dados da quest e máquina de estados pura, sem quebrar as 4 missões atuais
 
@@ -368,7 +375,7 @@ pnpm --filter @vila/client dev:worker                     # :8799
 
 | Dimensão | Risco | Tratamento neste desenho |
 |---|---|---|
-| **UX — orientação norte/sul** | A câmera fica em `avatar + (0, 24, 21)` e `KeyW` anda para `-z` (topo da tela), mas `SLEIGH`/Baltazar estão em `+z` (base) e os diálogos dizem "ao norte" ([`review.md`](review.md), risco do trenó). | Marcador `!`/`?`/`…` sobre cada NPC e referências visuais nas falas e toasts ("junto ao trenó do Noel", "ao lado da caixa de correio", "perto da grande árvore"); mover o trenó fica para PEN-017. |
+| **UX — orientação norte/sul** | A câmera fica em `avatar + (0, 24, 21)` e `KeyW` anda para `-z` (topo da tela), mas `SLEIGH`/Baltazar estão em `+z` (base) e os diálogos diziam "ao norte" ([`review.md`](review.md), risco do trenó). | **Corrigido na copy:** as falas e `npcs.csv`/`story-bible.md`/`objects.md` dizem "ao sul" e `validate-quests.mjs` barra "ao norte"; marcadores `!`/`?`/`...` sobre cada NPC e referências visuais nas falas e toasts continuam. Mover o trenó segue em PEN-017/PEN-023. |
 | **UX — Jogo da Memória reutilizado** | `play-memory` usa `eventId` fixo `"win"` e a quest não pode concluir sem entregar ao carteiro. | Evento separado `route-memory-game:memory-win`, emitido só com a quest `active`, e XP apenas no `turn-in` em Seu Nivaldo. |
 | **UX — entregas cruzadas** | Ativação em Baltazar e entrega em outro morador confunde quem volta ao ativador. | Toast, linha do Caderno e marcador nomeiam o destinatário (`➜ Entregar a Seu Nivaldo` / `Dona Guida`); `?` só aparece no NPC de entrega. |
 | **Persistência — navegador compartilhado e replay** | Herdar quests/itens de outra pessoa e, no servidor, reordenar eventos do mesmo lote. | Estado só em `Progress` (`vila.progress.v2` para visitante; `clearGuest()`/`restoreGuest()` no login/logout, IMPL-0011); `applyEvent` recalcula os objetivos a partir de `seen` (comutativo) e o XP depende do `turn-in` gravado. |
@@ -391,5 +398,11 @@ pnpm --filter @vila/client dev:worker                     # :8799
 4. **Posição do trenó (PEN-017/PEN-023):** na definição do layout, `SLEIGH`/`kids-sled`/Baltazar vão para `-z` (norte da
    tela) ou permanecem em `+z` com a fala "ao norte" corrigida? O piloto mantém Baltazar junto ao trenó atual
    (`-2.5, 28.5`) e guia por marcadores.
-5. **Gerador do patuá:** confirma que `quest-lucky-charm` (hoje `pending`) deve ser construído antes de ligar a flag, sem
-   fallback visual genérico para o Patuá da sorte? É o Passo 1 deste plano.
+5. **Modelo do patuá:** `quest-lucky-charm` já está `done` (máximo de 50 voxels e 108 faces, 11 variantes em
+   12 sementes) e não precisa de fallback genérico. O responsável aprova este visual como definitivo do piloto
+   ou quer ajuste antes de ligar a flag?
+
+**Aprovação do piloto (PEN-025):** o piloto da cadeia `flight-night` continua sendo PROPOSTA e só pode ser
+ligado depois que o responsável aprovar o catálogo de missões, a curva de XP, os NPCs fictícios e os visuais
+dos cinco objetos. Nenhum código de missão, migration ou deploy acompanha este documento; a arte 3D dos
+objetos é a única parte já implementada.

@@ -1,7 +1,9 @@
 # quests-v1 — proposta de missões da Vila
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
-> Conteúdo narrativo para avaliação; nenhum código de jogo acompanha esta proposta.
+> Conteúdo narrativo para avaliação. O runtime das 15 missões está implementado para
+> avaliação local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` no cliente e
+> `QUESTS_V1_ENABLED` na API), desligado em produção e staging; nada aqui é decisão aprovada.
 
 ## Contagens
 
@@ -61,13 +63,21 @@
 | donation-panel | Painel de doação global | world_prop | donation-promise-reading |
 | story-page | Página da história | quest_item | story-page-delivery |
 
-## Lacunas de mecânica (o que "new" e "partial" precisam)
+## Lacunas de mecânica (implementadas em local/dev atrás de flags)
 
-- Diálogo com NPC e entrega entre NPCs (turn-in) não existem hoje.
-- Coleta limita-se aos 3 presentes escondidos (`GIFTS`); pontos novos precisam de implementação.
-- Adereços (caixa de correio, trenó pequeno) são decoração; interação é nova.
-- Rastreio de leitura (painel de doação global) e de visita a pontos fora dos terrenos é novo.
-- `newest-house-visit` exige ONG publicada no ambiente (local tem; produção depende de DEC-037).
+- Diálogo com NPC e entrega entre NPCs: `apps/client/src/ui/NpcDialog.tsx`, com aceitar, concluir e a oferta
+  seguinte no mesmo painel.
+- Coleta além dos 3 presentes: `QUEST_SPAWNS` (dois sinos, duas caixas, duas lanternas) em
+  `packages/shared/src/game/world.ts`, com coleta por proximidade.
+- Adereços interativos: `QUEST_INTERACTIONS` para a caixa de correio e o trenó pequeno.
+- Rastreio de leitura (painel de doação global) e de visita (árvore e casa publicada): eventos
+  `read-confirm` e do id do terreno, com o botão explícito "Entendi, li a promessa" para a leitura.
+- `newest-house-visit` exige ONG publicada no ambiente: sem casa publicada, o Caderno mostra
+  "Aguardando uma casa publicada" e o aceite fica desabilitado (`needsPublishedLot`).
+
+O motor de estados é `packages/shared/src/game/quests.ts` (uma missão ativa por vez) e o XP no servidor
+reusa `applyEvent`, sem migration. Tudo continua **PROPOSTA** e pendente de aprovação em PEN-025; as
+flags ficam desligadas em produção.
 
 ## Validação
 
