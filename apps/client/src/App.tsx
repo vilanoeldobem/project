@@ -1,7 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 
 import { useVila } from "./game/store";
+import { initAccount } from "./lib/account";
 import { fetchLots, type LotInfo } from "./lib/api";
+import { Account } from "./ui/Account";
+import { AdminPanel } from "./ui/Admin";
 import { Donation } from "./ui/Donation";
 import { EnvironmentDebug, EnvironmentPanel, GameSound, Presence } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
@@ -9,6 +12,7 @@ import { Hud } from "./ui/Hud";
 import { Indicators } from "./ui/Indicators";
 import { Lot } from "./ui/Lot";
 import { MemoryGame } from "./ui/MemoryGame";
+import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { Welcome } from "./ui/Welcome";
 
@@ -18,6 +22,7 @@ export function App() {
   const panel = useVila((s) => s.panel);
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
+  useEffect(() => void initAccount(), []);
   useEffect(() => {
     fetchLots().then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l]))));
   }, []);
@@ -38,6 +43,9 @@ export function App() {
       {panel.kind === "missions" && <Missions />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
+      {panel.kind === "account" && <Account then={panel.then} />}
+      {panel.kind === "ngo" && <NgoApplicationPanel lotId={panel.lotId} />}
+      {panel.kind === "admin" && <AdminPanel />}
       <GameSound />
       <Presence />
       <EnvironmentDebug />

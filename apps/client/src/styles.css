@@ -207,3 +207,35 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .look__options { display: flex; flex-wrap: wrap; gap: 6px; }
 .look__item.is-on { outline: 2px solid var(--gold, #e6b765); }
 .look__item:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Forms (accounts, NGO application, admin) */
+.form { display: grid; gap: 12px; margin-top: 12px; }
+.field { display: grid; gap: 4px; }
+.field__label { font-weight: 800; }
+.field input, .field textarea, .field select, .project input, .project textarea {
+  font: inherit; padding: 10px 12px; border: 2px solid var(--pine); border-radius: 10px; background: #fff; color: var(--pine); width: 100%; box-sizing: border-box;
+}
+.field--error input, .field--error textarea, .field--error select { border-color: var(--red); }
+.field__hint { font-size: 0.85rem; opacity: 0.8; }
+.field__error, .form__error { color: var(--red); font-weight: 700; font-size: 0.9rem; }
+.checks { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; }
+.checks legend { font-weight: 800; margin-bottom: 4px; }
+.project { display: grid; gap: 6px; padding: 8px; border: 1px dashed var(--pine); border-radius: 10px; }
+.tabs { display: flex; gap: 6px; margin-top: 8px; }
+.tabs .is-on, .look__options .is-on { outline: 2px solid var(--gold); }
+.preview { padding: 8px 12px; border-radius: 10px; background: rgba(23, 61, 53, 0.08); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; }
+.facts dt { font-weight: 800; }
+.facts dd { margin: 0; overflow-wrap: anywhere; }
+.steps, .flow { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 4px 0 8px; list-style: none; font-size: 0.85rem; }
+.steps li, .flow li { padding: 4px 8px; border-radius: 999px; border: 1px solid var(--pine); opacity: 0.6; }
+.steps .is-on { opacity: 1; background: var(--pine); color: var(--cream); }
+.steps .is-done, .flow .is-done { opacity: 1; }
+.callout { padding: 10px 12px; border-left: 4px solid var(--gold); background: rgba(230, 183, 101, 0.15); border-radius: 6px; margin: 8px 0; }
+.callout p { margin: 4px 0 0; }
+.danger { margin-top: 12px; }
+.danger summary { cursor: pointer; font-weight: 700; color: var(--red); }
+.admin-list { list-style: none; padding: 0; display: grid; gap: 6px; }
+.admin-list__item { width: 100%; text-align: left; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; border: 2px solid var(--pine); border-radius: 10px; background: var(--cream); cursor: pointer; font: inherit; color: var(--pine); }
+.history { padding-left: 18px; font-size: 0.9rem; }

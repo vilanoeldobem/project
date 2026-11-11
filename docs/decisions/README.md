@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 10 ADRs · **Atualizado em:** 2026-11-10
+> **Status:** 11 ADRs · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -29,5 +29,6 @@
 | [IMPL-0008](0008-multiplayer-presence-durable-objects.md) | Multiplayer de presença com Durable Objects e WebSocket | Aceita (2026-11-10, em produção) |
 | [IMPL-0009](0009-split-client-api-server-shared.md) | Separar cliente, API e servidor em apps e subdomínios | Aceita (2026-11-10, em produção) |
 | [IMPL-0010](0010-seeded-procedural-voxel-content.md) | Conteúdo voxel procedural por semente (geradores, orçamentos, galeria) | Proposta — fases 0–5 implementadas |
+| [IMPL-0011](0011-accounts-magic-link-ngo-review.md) | Contas, link mágico, candidatura e análise de ONGs | Proposta — implementada, desligada em produção (`ACCOUNTS_ENABLED`) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

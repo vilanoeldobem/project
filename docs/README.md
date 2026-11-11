@@ -1,7 +1,7 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
 
@@ -40,17 +40,18 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 **Registro**
 - [implementation/slice-01-report.md](implementation/slice-01-report.md) — entrega da 0.1.0.
 
-## Status por área (2026-11-10)
+## Status por área (2026-11-11)
 
 | Área | Status | Referência |
 |---|---|---|
 | Apps separados (client, api, server, site) e subdomínios | Implementado no código; deploy pendente (IMPL-0009) | [architecture](reference/architecture.md) |
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
 | Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
-| Terrenos e casas de ONG | Parcial (leitura; sem cadastro) | [storage](reference/storage.md) |
-| Missões e XP | Parcial (local, sem servidor) | [domain-model](explanation/domain-model.md) |
+| Terrenos e casas de ONG | Parcial — candidatura e análise implementadas, desligadas em produção (IMPL-0011) | [api](reference/api.md#candidatura-de-ong-p12-dec-015-dec-037) |
+| Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
+| Missões e XP | Parcial (local; no servidor só com conta) | [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |
-| Contas, admin, chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
+| Chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
 
 ## Convenções desta documentação
 

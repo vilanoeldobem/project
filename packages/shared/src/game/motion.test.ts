@@ -99,6 +99,16 @@ describe("world helpers", () => {
     expect(Math.hypot(b.x - to.x, b.z - to.z)).toBeLessThan(1.4);
   });
 
+  it("keeps placed props off lots (house up to 5 u), the pond and the sleigh", async () => {
+    const { LOTS, PLACED_PROPS, POND, SLEIGH } = await import("./world");
+    for (const p of PLACED_PROPS)
+      for (const { x, z } of p.at) {
+        for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${p.seed} vs ${l.id}`).toBeGreaterThan(5.5);
+        expect(Math.hypot(x - POND.x, z - POND.z)).toBeGreaterThan(POND.radius + 1);
+        expect(Math.hypot(x - SLEIGH.x, z - SLEIGH.z)).toBeGreaterThan(5);
+      }
+  });
+
   it("classifies ground surfaces", () => {
     expect(surfaceAt(0, 6)).toBe("stone");
     expect(surfaceAt(0, 15)).toBe("packed");

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { useVila } from "../game/store";
+import { useAccount } from "../lib/account";
 import type { LotInfo } from "../lib/api";
 import { Panel, Status } from "./Panel";
 
@@ -10,6 +11,7 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
   const n = Number(lotId.split("-")[1]);
+  const accounts = useAccount((s) => s.enabled);
 
   if (info?.state === "published" && info.ngo_name) {
     return (
@@ -50,10 +52,18 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
         <li>Meio confiável de confirmar os valores destinados à organização.</li>
       </ol>
       <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      <button className="btn" disabled>
-        Conheça o cadastro
-      </button>
-      <p className="note">O cadastro de ONGs abre em breve.</p>
+      {accounts ? (
+        <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
+          Candidatar minha ONG
+        </button>
+      ) : (
+        <>
+          <button className="btn" disabled>
+            Conheça o cadastro
+          </button>
+          <p className="note">O cadastro de ONGs abre em breve.</p>
+        </>
+      )}
     </Panel>
   );
 }

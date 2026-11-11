@@ -1,7 +1,7 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 
 Para quem vai mudar código da Vila (pessoas e agentes). Assume o ambiente de [getting-started](../getting-started.md).
@@ -19,19 +19,24 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
     game/                   store.ts (zustand), sim.ts, events.ts, devtools.ts
     environment/            runtime.ts, settings.ts, audio.ts, labels.ts (lado do navegador)
     scene/                  Three.js via react-three-fiber: World, Ground, Props, Player, Voxels, models.ts
-    ui/                     painéis HTML sobre o canvas (P01, P02, P03/P04, P09, P14) e HUD
-    lib/                    api.ts (cliente da API), endpoints.ts (hosts por modo de build), services.ts
+    ui/                     painéis HTML sobre o canvas (P01, P02, P03/P04, P09, P12, P13, P14) e HUD
+    lib/                    api.ts (cliente da API), account.ts (conta, sessão, sincronização do progresso),
+                            endpoints.ts (hosts por modo de build), services.ts
     net/multiplayer.ts      conexão de presença com o servidor
   worker/                   index.ts (entrada) + handle.ts (redireciona app.* → play.*)
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
+  scripts/verify-accounts.mjs  fluxo de contas, candidatura e análise em Chrome real (só local)
 apps/api/src/               index.ts (entrada) + api.ts (rotas, CORS, testável) — api.vilanoeldobem.com.br
+                            auth, session, mail, progress, ngo, admin, http, crypto (contas, IMPL-0011)
+apps/api/test/d1.mjs        D1 de teste sobre node:sqlite com as migrations reais
 apps/server/src/            index.ts, handler.ts, room.ts (lógica pura), room-do.ts (VillageRoom) — server.*
 apps/site/                  site público — www.vilanoeldobem.com.br
 packages/shared/src/        lógica pura (@vila/shared/…), sem DOM, three.js ou runtime da Cloudflare
   game/                     world.ts (layout), motion.ts (movimento), progress.ts (missões/XP)
   environment/              config, time, random, weather, events, keyframes, network-clock, frame
   net/protocol.ts           mensagens de presença
+  accounts/validate.ts      validação do cadastro (P13) e da candidatura de ONG (P12)
 migrations/                 SQL do D1
 ```
 
@@ -62,11 +67,20 @@ Relate a saída de verdade. "Passou" sem ter rodado não existe.
 
 ### 4.1 Adicionar uma rota de API
 
-1. Implemente em `apps/api/src/api.ts` (`route`), com caminho sem prefixo (`/nova-rota`). Somente leitura até existir
-   autenticação.
+1. Implemente em `apps/api/src/api.ts` (`route`), com caminho sem prefixo (`/nova-rota`). Rotas públicas são somente
+   leitura; escrita só nas rotas de conta (§4.1.1).
 2. Teste em `apps/api/src/api.test.ts` com um D1 falso (ver testes existentes).
 3. Documente em [reference/api.md](../reference/api.md) e chame do jogo por `apps/client/src/lib/api.ts`.
 4. Nunca exporte nada além do handler em `apps/api/src/index.ts` (o runtime rejeita exports que não são handlers).
+
+### 4.1.1 Rotas de conta (IMPL-0011)
+
+Rotas que exigem conta passam por `accountRoute` em `api.ts` (bandeira, `Origin`, limite) e vivem no módulo do
+assunto (`auth.ts`, `progress.ts`, `ngo.ts`, `admin.ts`). Use `requireUser` / `requireAdmin` (`session.ts`),
+`readJson` e `HttpError` (`http.ts`); toda mutação de admin grava `audit_events`. Teste em
+`apps/api/src/accounts.test.ts`, que roda a API inteira sobre SQLite real (`node:sqlite`) com as migrations reais
+(`apps/api/test/d1.mjs`). Regras de formulário ficam em `packages/shared/src/accounts/validate.ts`, para o cliente e
+a API usarem as mesmas.
 
 ### 4.2 Adicionar uma migration
 
@@ -90,7 +104,37 @@ Relate a saída de verdade. "Passou" sem ter rodado não existe.
 2. Dispare `useVila.getState().record(missionId, eventId)` com um `eventId` estável e único por ocorrência.
 3. Missões não podem premiar tempo online nem número de indicações enviadas (doc 22).
 
-### 4.5 Adicionar um painel
+### 4.5 Testar contas localmente
+
+O script `pnpm --filter @vila/api dev` já liga `ACCOUNTS_ENABLED=true` e `ENVIRONMENT=development`. Fora de
+produção — e só com `ENVIRONMENT=development` ou `test` — a API devolve o link de acesso na resposta (`devLink`) e o painel mostra "Abrir link (só em
+desenvolvimento)": não é preciso e-mail de verdade.
+
+1. `pnpm db:migrate:local` (aplica a 0004) e suba os três Workers
+   ([getting-started §4](../getting-started.md#4-rodar-api-servidor-e-jogo)).
+2. No jogo: chip "Entrar" → "Criar conta" → "Abrir link (só em desenvolvimento)". O chip vira `@nickname`.
+3. Para virar admin localmente (nunca `--remote` sem autorização):
+
+   ```bash
+   cd apps/api
+   pnpm exec wrangler d1 execute vilanoeldobem --local --command "UPDATE users SET role='admin' WHERE nickname='seu_nick'"
+   ```
+
+   Recarregue o jogo: o painel da conta ganha "Análise de ONGs".
+4. Fluxo completo automatizado (cadastro, migração do progresso, candidatura, pedido de ajustes, reenvio, aprovação
+   e casa publicada), só contra `localhost`:
+
+   ```bash
+   node apps/client/scripts/verify-accounts.mjs    # padrão: jogo :8799, API :8787
+   ```
+
+   Ele cria contas e concede `admin` com `wrangler d1 execute --local`; capturas em `apps/client/verify-output/`.
+
+Se `wrangler dev` falhar com "Address already in use", um `workerd` antigo pode estar segurando a porta do
+inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o comando do script `dev` com outra
+`--inspector-port`.
+
+### 4.6 Adicionar um painel
 
 1. Componente em `apps/client/src/ui/` usando `<Panel>`; novo `kind` em `Panel` (`game/store.ts`) e no `App.tsx`.
 2. Texto em pt-BR, botões com nome acessível (`aria-label` quando o rótulo some no celular).
@@ -100,7 +144,9 @@ Relate a saída de verdade. "Passou" sem ter rodado não existe.
 - Sem pagamento simulado; sem números inventados; sem dados fictícios em produção.
 - XP idempotente; doação não dá XP.
 - Só admin publica ONG; mutações de admin vão para `audit_events`.
-- Nada de dados pessoais em logs.
+- Nada de dados pessoais em logs (nem corpo de requisição, e-mail, token ou CNPJ).
+- Contas ficam atrás de `ACCOUNTS_ENABLED` (`"false"` em produção) até a revisão LGPD / ECA Digital; não ligar a
+  bandeira, conceder `admin` no remoto nem aplicar migration remota sem autorização.
 
 ## 6. Convenções de código
 
@@ -123,7 +169,7 @@ Toda mudança de comportamento atualiza: `CHANGELOG.md` (`[Unreleased]`), `docs/
 O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 - [ ] Três gates verdes, com saída real.
-- [ ] `verify.mjs` rodado se a interface mudou (desktop e celular).
+- [ ] `verify.mjs` rodado se a interface mudou (desktop e celular); `verify-accounts.mjs` se mexeu em conta, ONG ou admin.
 - [ ] Nenhuma migration existente alterada.
 - [ ] Nenhum log novo com dados pessoais ou segredos.
 - [ ] `CHANGELOG.md` e docs atualizados; ADR se a decisão for estrutural.

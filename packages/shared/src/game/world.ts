@@ -118,6 +118,35 @@ export const CRITTERS: Critter[] = [
   { kind: "owl", seed: "owl-1", x: 26, z: 18, y: 11, rot: -2.5 },
 ];
 
+/**
+ * Generated props placed as decor (IMPL-0010, PROPOSTA; final layout is PEN-017). Copies of one entry share
+ * the seed, so they are drawn as one instanced model. Faces the plaza unless `rot` says otherwise.
+ * Kept clear of lots (ring 22), the street (13–17), gifts, the pond and the sleigh.
+ */
+export interface PropPlacement {
+  kind: "market-stall" | "panettone-stand" | "lantern" | "fence" | "mailbox" | "signpost" | "sled";
+  seed: string;
+  /** Collision radius (0 = walk-through). */
+  r: number;
+  at: Array<{ x: number; z: number; rot?: number }>;
+}
+
+const facePlaza = (x: number, z: number) => ({ x, z, rot: Math.atan2(-x, -z) });
+
+export const PLACED_PROPS: PropPlacement[] = [
+  // Christmas market at the west edge, between two lots.
+  { kind: "market-stall", seed: "market-west", r: 1, at: [facePlaza(-20.5, -2.4)] },
+  { kind: "panettone-stand", seed: "panettone-west", r: 1, at: [facePlaza(-20.5, 2.4)] },
+  { kind: "fence", seed: "market-fence", r: 0, at: [{ x: -23, z: -2.4, rot: Math.PI / 2 }, { x: -23, z: 2.4, rot: Math.PI / 2 }] },
+  { kind: "market-stall", seed: "market-east", r: 1, at: [facePlaza(20.5, 0)] },
+  // Lanterns between the street and the lots.
+  { kind: "lantern", seed: "ring-lantern", r: 0.3, at: [45, 135, 225, 315].map((d) => facePlaza(18.6 * Math.cos((d * Math.PI) / 180), 18.6 * Math.sin((d * Math.PI) / 180))) },
+  // Welcome corner by the spawn.
+  { kind: "signpost", seed: "welcome-sign", r: 0.3, at: [{ x: -2.4, z: 12.6, rot: 0 }] },
+  { kind: "mailbox", seed: "village-mail", r: 0.35, at: [{ x: 2.4, z: 12.6, rot: Math.PI }] },
+  { kind: "sled", seed: "kids-sled", r: 0.7, at: [{ x: 2.5, z: 27, rot: 0.4 }] },
+];
+
 export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
   const a = (2 * Math.PI * i) / 8;
   return [Math.round(12.2 * Math.cos(a) * 100) / 100, Math.round(12.2 * Math.sin(a) * 100) / 100];
@@ -165,6 +194,7 @@ export const OBSTACLES: Obstacle[] = [
   { x: SLEIGH.x + 1.2, z: SLEIGH.z, r: 1.1 },
   { x: SLEIGH.x + 4.8, z: SLEIGH.z - 0.9, r: 0.8 },
   { x: SLEIGH.x + 7.8, z: SLEIGH.z + 0.9, r: 0.8 },
+  ...PLACED_PROPS.filter((p) => p.r > 0).flatMap((p) => p.at.map(({ x, z }) => ({ x, z, r: p.r }))),
   ...CRITTERS.filter((c) => !c.y && (c.kind === "villager" || c.kind === "dog")).map((c) => ({ x: c.x, z: c.z, r: c.kind === "villager" ? 0.5 : 0.4 })),
 ];
 

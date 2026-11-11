@@ -48,6 +48,7 @@ export class VillageRoom extends DurableObject<Env> {
     server.serializeAttachment({ id, room } satisfies Attachment);
     server.send(encodeServer({ t: "w", id, room }));
     server.send(encodeServer({ t: "s", tick: Date.now(), poses: this.state.flush(Date.now(), true) }));
+    for (const { id: who, look } of this.state.flushLooks(true)) server.send(encodeServer({ t: "k", id: who, look }));
     this.startTicking();
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -91,6 +92,7 @@ export class VillageRoom extends DurableObject<Env> {
     const now = Date.now();
     const poses = this.state.flush(now);
     if (poses.length) this.broadcast(encodeServer({ t: "s", tick: now, poses }));
+    for (const { id, look } of this.state.flushLooks()) this.broadcast(encodeServer({ t: "k", id, look }));
   }
 
   private broadcast(msg: string, except?: WebSocket) {

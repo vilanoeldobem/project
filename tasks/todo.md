@@ -395,3 +395,75 @@ Owner choice: 4 apps + shared package, hosts `play.*` (client), `api.*` (api), `
 ## Lessons
 - The edge speaks HTTP/2 to curl and drops `Upgrade`, and rejects an incomplete handshake with 400 before the
   Worker runs: WebSocket smoke checks need `--http1.1` and a full handshake (`Sec-WebSocket-Key/Version`).
+
+---
+
+# Task 11: 0.4.0 accounts + NGOs + admin + server XP; presence looks; load test; props in the village — 2026-11-11
+
+Owner (2026-11-11): go ahead with 0.4.0, LGPD/ECA review excluded for now, e-mail via Cloudflare (OQ-08 →
+Cloudflare Email Service `send_email`); also the smaller items. Product rules researched in `vilanoeldobem/docs`:
+CONFIRMADO = 4 P13 fields (DEC-038), admin approval before publishing (DEC-037), DEC-015 criteria, mission XP once
+(DEC-040/042). Everything else PENDENTE → implemented as PROPOSTA and labelled so.
+
+Safety: `ACCOUNTS_ENABLED` flag (production `false` until the owner flips it after the LGPD/ECA review);
+AGENTS.md data rules still apply (4 fields, only nickname public, no logs of e-mails/tokens).
+
+## Plan
+### Smaller items
+- [x] Presence carries the avatar look (`["k", …]`, catalogue ids validated by the room); remotes grouped per look
+- [x] Load test (`apps/server/scripts/load.mjs`, local only): 41 bots → 40 connected, 1 refused as full (4001),
+      0 failures; per visitor 9.7 msg/s, 10.1 kB/s down; tick→receive p50 4 ms / p95 9 ms (local, no network).
+      Browser with 39 bot visitors: 77 calls (66 empty), 140k tris, no errors
+- [x] Place generated props in the village (PROPOSTA decor; PEN-017 still open): west market (stall, panettone
+      stand, fences), east stall, 4 lanterns, signpost, mailbox, sled; all baked into one geometry per role
+      (`mergeVoxelModels`): 66 → 69 calls (16 if drawn separately), +8.5k tris
+
+### 0.4.0 (PROPOSTA where docs are PENDENTE)
+- [x] Migration 0004: users, login_tokens (hashed, 15 min, single use), sessions (hashed, 30 d), progress_events,
+      ngo application columns; roles (admin set by hand in D1, documented)
+- [x] API auth: register (Nome, Nickname, Cidade, E-mail), link (generic answer, no enumeration), verify → HttpOnly
+      Secure SameSite=Lax cookie on api.*; me; logout; delete account. CORS with credentials; Origin check on
+      mutations; per-e-mail and per-IP rate limits (IP never stored). E-mail via `send_email` binding; dev returns
+      the link instead of sending.
+- [x] Server XP: events idempotent per (user, mission, event); replay with shared `applyEvent`; local progress
+      migrated once on login
+- [x] P12 application (4 steps): org data + CNPJ check digits + opening date ≥ 1 year (DEC-015), declarations +
+      how funds are confirmed (no uploads yet), presentation/projects/tags, review + preferred lot; states and lot
+      states; resubmit after changes requested
+- [x] Admin (DEC-037): list/detail/decision (start review, approve, request changes, reject; note required for
+      the last two); every mutation writes `audit_events` (actor id, no personal data)
+- [x] Client: account chip + P13 panel + login link handling; progress sync; P12 wizard from the lot panel; admin
+      panel for admins; all copy pt-BR
+- [x] Tests (api pure handlers with in-memory D1 fake or sqlite), verify.mjs flows, docs (api, storage, ADR
+      IMPL-0011, open-questions OQ-08 resolved), CHANGELOG, deploy guide (Email Service onboarding)
+
+## Review (2026-11-11)
+- Gates: see commit. API: 26 tests (19 end-to-end on real SQLite with the real migrations via node:sqlite);
+  shared validation 7; browser `verify-accounts.mjs`: sign-up via dev link (Email Service simulator wrote the
+  pt-BR e-mail), local progress migrated, 4-step form (declarations enforced), admin start → changes requested →
+  applicant sees note → resubmit (v2) → approve gated by the 3 checks → `/lots` published → chalet in the village.
+- Production: `ACCOUNTS_ENABLED=false`; migration 0004 not applied remotely; nothing deployed yet.
+
+## Lessons
+- `wrangler dev` `--var` overrides work; `ENVIRONMENT` must be overridden too or the dev API behaves as production.
+- Stale `workerd` processes keep inspector ports (9230/9231) after `wrangler` dies: pass another `--inspector-port`.
+- From Node child processes `pnpm` may resolve to a wrapper; call `node_modules/.bin/wrangler` directly.
+- Playwright `getByLabel` matches hints inside the label: anchor with a regex (`/^CNPJ \*/`).
+
+## Security review (2026-11-11, before the first commit)
+Independent review: 5 critical, 13 risks, 4 questions. Fixed, each with a test: link returned only when
+ENVIRONMENT is exactly development/test (was: anything but "production" → account takeover); no e-mail
+enumeration (nickname checked first; /auth/link 202 even on send failure; register race answers 202); atomic
+3/15 min + 10/day link caps; `__Host-vila_session`; account routes and credentialed CORS only for the game
+(ACCOUNT_ORIGINS), links always to GAME_ORIGIN; NGO submit/resubmit and admin decisions as guarded single
+transactions (deferred FKs; a lost race writes nothing); migration 0005 (one active application per person);
+self-review refused; hasOwn for actions and tags; POST /me correction; token purge; Content-Length precheck;
+500-event cap; `GET /me` → `{user: null}` for visitors (no console 401).
+Answered: audit_events.actor has no FK (deletion works, tested); lot ids are plaza-NN since 0003.
+
+## Follow-ups (before flipping ACCOUNTS_ENABLED)
+- [ ] LGPD / ECA Digital review (age, consent, retention) — owner
+- [ ] Email Service: onboard vilanoeldobem.com.br, check plan, decide replies to acesso@ (Email Routing)
+- [ ] Turnstile (CAPTCHA) on register and link (abusive e-mails to third parties)
+- [ ] Nickname moderation; e-mail on review decisions (rules PENDENTE); document upload (PEN-019)
+- [ ] Remote migrations 0004 + 0005 with the API deploy (needs authorisation)

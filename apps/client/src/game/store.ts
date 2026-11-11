@@ -13,7 +13,10 @@ export type Panel =
   | { kind: "memory" }
   | { kind: "missions" }
   | { kind: "indicators" }
-  | { kind: "environment" };
+  | { kind: "environment" }
+  | { kind: "account"; then?: Panel }
+  | { kind: "ngo"; lotId?: string }
+  | { kind: "admin" };
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby = { kind: "tree" } | { kind: "lot"; lotId: string } | null;
@@ -67,6 +70,8 @@ interface VilaState {
   setNearby: (n: Nearby) => void;
   setTarget: (t: { x: number; z: number } | null) => void;
   record: (missionId: string, eventId: string) => void;
+  /** Replaces local progress with the server's (after sign-in); the look is re-checked against it. */
+  adoptProgress: (p: Progress) => void;
   notify: (text: string) => void;
 }
 
@@ -113,6 +118,10 @@ export const useVila = create<VilaState>((set, get) => ({
       get().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${fresh.map((c) => c.name).join(", ")}` : ""));
       events.emit({ type: "mission", missionId: completed.id });
     }
+  },
+  adoptProgress: (p) => {
+    saveProgress(p);
+    set({ progress: p, look: sanitizeLook(get().look, p) });
   },
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),
 }));
