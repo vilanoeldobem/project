@@ -88,6 +88,19 @@ for (const [name, time, weather, sky, quality] of scenes) {
   if (!ev.includes("gift") || !ev.includes("mission")) errors.push(`gifts: expected gift + mission events, got "${ev}"`);
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${out}gameplay-gifts.png` });
+  // Cosmetics (PROPOSTA): the gifts mission unlocks the knit beanie; equip it from the Missions panel.
+  const toast = (await page.locator(".toast").textContent().catch(() => "")) ?? "";
+  if (!toast.includes("Novo visual")) errors.push(`cosmetics: mission toast without unlock: "${toast}"`);
+  await page.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
+  const beanie = page.getByRole("button", { name: "Gorro de tricô" });
+  if (await beanie.isDisabled()) errors.push("cosmetics: beanie still locked after the gifts mission");
+  await beanie.dispatchEvent("click");
+  if ((await beanie.getAttribute("aria-pressed")) !== "true") errors.push("cosmetics: beanie not selected");
+  if (!(await page.getByRole("button", { name: /Coroa de azevinho/ }).isDisabled())) errors.push("cosmetics: level-2 item unlocked too early");
+  await page.screenshot({ path: `${out}gameplay-look-panel.png` });
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${out}gameplay-look-avatar.png` });
   await page.close();
 }
 

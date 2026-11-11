@@ -277,7 +277,7 @@ Context: owner asked for a full engine/graphics/gameplay/audio quality pass. Aud
 
 ---
 
-# Task 8: seeded procedural voxel content (PLAN — approved 2026-11-10, starts after Task 9) — 2026-11-10
+# Task 8: seeded procedural voxel content (approved 2026-11-10; phases 0–5 done) — 2026-11-10
 
 Goal: deterministic generators for houses, characters, animals, props and avatar cosmetics that match the existing
 models and stay inside a measured budget. Product rules: cosmetics only from missions/levels (PROPOSTA), no purchases,
@@ -333,15 +333,22 @@ loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules
 - One verify run timed out on `networkidle` under load; the rerun passed (flake, not a regression).
 
 ## Phase 5 — avatar cosmetics (PROPOSTA; budget per layer ≤ 40 voxels)
-- [ ] Layers that fit `avatarParts()`: hats, scarves, sweater patterns, colour palettes
-- [ ] Unlock table keyed on mission completion / level (`progress.ts` read-only; XP rules untouched; reachable
-      without donating); local selection stored as seed + layer ids; travels over presence as layer ids (no PII)
-- [ ] Docs: catalogue and unlocks marked PROPOSTA
+- [x] Layers that fit `avatarParts()`: hats, scarves, sweater patterns, colour palettes
+- [x] Unlock table keyed on mission completion / level (`progress.ts` read-only; XP rules untouched; reachable
+      without donating); local selection stored as layer ids (`vila.look.v1`)
+- [ ] Presence sync of the look (layer ids over IMPL-0008): deferred — remote avatars show the default look
+- [x] Docs: catalogue and unlocks marked PROPOSTA
+
+### Phase 5 review (2026-11-10)
+- Layers max vs budget 40/140: hat 14/42, scarf 19/76, sweater 12/38. Avatar parts unchanged in draw calls.
+- Browser: gifts mission → toast "Novo visual", beanie unlocked and equipped; level-2 items stay locked.
+- Tests: shared cosmetics (unique ids, one default per slot, mission/level only, all reachable without donating,
+  not tied to the donation mission, sanitising stored looks) + contract for 3 layer generators.
 
 ## Every phase
-- [ ] `pnpm typecheck && pnpm test && pnpm build`, `verify.mjs` real browser, gallery screenshots
-- [ ] Report: budgets vs actual voxel/face counts, calls/tris/p95 before → after
-- [ ] Docs pt-BR (`docs/reference/content.md`), CHANGELOG, ADR IMPL-0010 (generator architecture), Conventional Commits
+- [x] `pnpm typecheck && pnpm test && pnpm build`, `verify.mjs` real browser, gallery screenshots
+- [x] Report: budgets vs actual voxel/face counts, calls/tris/p95 before → after
+- [x] Docs pt-BR (`docs/reference/content.md`), CHANGELOG, ADR IMPL-0010 (generator architecture), Conventional Commits
 
 Ideas deferred unless approved: Advent progression (1–25 Dec, SP time), snow build-up on roofs, NPC routines,
 lot decoration kit (admin colours via audit flow), avatar creator UI, gift-wrapping minigame.

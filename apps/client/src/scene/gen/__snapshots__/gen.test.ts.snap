@@ -48,6 +48,14 @@ exports[`generator snapshots > gift keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > hat keeps the output of fixed seeds stable 1`] = `
+[
+  "2e5bc3a",
+  "17c1e5a",
+  "f2f9b655",
+]
+`;
+
 exports[`generator snapshots > house keeps the output of fixed seeds stable 1`] = `
 [
   "a86785d6",
@@ -112,6 +120,14 @@ exports[`generator snapshots > reindeer keeps the output of fixed seeds stable 1
 ]
 `;
 
+exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] = `
+[
+  "b6400131",
+  "b6400131",
+  "ca568aaf",
+]
+`;
+
 exports[`generator snapshots > signpost keeps the output of fixed seeds stable 1`] = `
 [
   "42b3f731",
@@ -125,6 +141,14 @@ exports[`generator snapshots > sled keeps the output of fixed seeds stable 1`] =
   "30b095e7",
   "c11c2da",
   "bccd9138",
+]
+`;
+
+exports[`generator snapshots > sweater keeps the output of fixed seeds stable 1`] = `
+[
+  "5423be7",
+  "9e70b488",
+  "a2b16383",
 ]
 `;
 

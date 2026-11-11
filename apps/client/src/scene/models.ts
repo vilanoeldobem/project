@@ -1,5 +1,8 @@
 /** Code-generated voxel models: [x, y, z, colour]. Origin on the ground, model centred. */
+import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
 import { PALETTE as P } from "@vila/shared/game/world";
+
+import { applyLayer, ITEMS, PALETTES } from "./gen/cosmetics";
 
 export type Voxel = [number, number, number, string];
 
@@ -167,19 +170,19 @@ export interface AvatarParts {
 }
 
 /**
- * Default avatar wearing a Santa hat, split into body and four limbs so it can walk (draw with
- * AVATAR_SIZE). Front = +z. The avatar editor is P07 (DEC-032).
+ * Avatar split into body and four limbs so it can walk (draw with AVATAR_SIZE). Front = +z. The look
+ * (palette, sweater, scarf, hat) is a set of cosmetic layers painted onto the base body (IMPL-0010;
+ * catalogue PROPOSTA). The default look is the original red coat and Santa hat. Avatar editor: P07 (DEC-032).
  */
-export function avatarParts(): AvatarParts {
-  const body: Voxel[] = [];
-  box(body, -1, 1, 3, 5, 0, 0, P.red); // torso
-  box(body, -1, 1, 3, 3, 0, 0, P.cream); // belt trim
+export function avatarParts(look: Look = DEFAULT_LOOK): AvatarParts {
+  const pal = PALETTES[look.palette] ?? PALETTES["palette-classic"];
+  let body: Voxel[] = [];
+  box(body, -1, 1, 3, 5, 0, 0, pal.coat); // torso
+  box(body, -1, 1, 3, 3, 0, 0, pal.trim); // belt trim
   box(body, -1, 1, 6, 8, -1, 1, P.skin); // head
   body.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes
-  box(body, -1, 1, 9, 9, -1, 1, P.cream); // hat brim
-  box(body, -1, 0, 10, 10, -1, 0, P.red);
-  body.push([0, 11, 0, P.cream]);
-  const leg = (): Voxel[] => [[0, -3, 0, "#2E3A4A"], [0, -2, 0, "#2E3A4A"], [0, -1, 0, "#2E3A4A"]];
-  const arm = (): Voxel[] => [[0, -3, 0, P.skin], [0, -2, 0, P.red], [0, -1, 0, P.red]];
+  for (const slot of ["sweater", "scarf", "hat"] as const) body = applyLayer(body, ITEMS[look[slot]]?.() ?? null);
+  const leg = (): Voxel[] => [[0, -3, 0, pal.pants], [0, -2, 0, pal.pants], [0, -1, 0, pal.pants]];
+  const arm = (): Voxel[] => [[0, -3, 0, P.skin], [0, -2, 0, pal.coat], [0, -1, 0, pal.coat]];
   return { body, legL: leg(), legR: leg(), armL: arm(), armR: arm() };
 }

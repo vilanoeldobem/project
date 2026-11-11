@@ -25,7 +25,9 @@ Cada versão indica o schema D1 que entrega.
   snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,
   barraca, barraca de panetone) e de chalés (planta, andares, três telhados, varanda, guirlanda, chaminé), moradores (corpo, casaco, cachecol, chapéu,
   tons de pele) e animais (rena, cachorro, gato, passarinho, coelho, coruja noturna) com respiração em shader;
-  decoração com 3 moradores e 6 animais na Vila (PROPOSTA). Presentes
+  decoração com 3 moradores e 6 animais na Vila (PROPOSTA).
+- Visual do avatar (PROPOSTA): chapéus, cachecóis, suéteres e paletas como camadas sobre o avatar, liberados só por
+  missões e nível (tudo alcançável sem doar; nada se compra ou sorteia). Escolha em "Caderno de Missões". Presentes
   escondidos gerados pelo id; terrenos com ONG publicada ganham um chalé gerado pelo id do terreno. Galeria `?gallery` (só desenvolvimento)
   e `scripts/gallery.mjs`. Ver [content.md](docs/reference/content.md).
 

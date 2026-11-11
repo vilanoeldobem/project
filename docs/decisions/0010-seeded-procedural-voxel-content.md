@@ -1,7 +1,7 @@
 # IMPL-0010: Conteúdo voxel procedural por semente (geradores por partes, orçamento por categoria)
 
-**Status:** Proposta — fases 0–1 implementadas; fases 2–5 em andamento (plano aprovado pelo responsável técnico em
-2026-11-10)
+**Status:** Proposta — fases 0–5 implementadas (plano aprovado pelo responsável técnico em 2026-11-10); catálogo de
+cosméticos e posições na Vila são PROPOSTA
 **Data:** 2026-11-10
 **Fontes:** pedido do responsável técnico (2026-11-10) "seeded, procedural content system"; plano em
 `tasks/todo.md` (Tarefa 8); código: `apps/client/src/scene/gen/`, `apps/client/src/gallery/`
@@ -43,6 +43,10 @@ controlado.
 - Medido (verify.mjs, Média, "dia-neve"): presentes gerados trocam 3 modelos de 2 voxels por modelos de até 130
   voxels; a cena foi de 56 → 55 chamadas e 108,1 mil → 109,0 mil triângulos (+0,8%).
 - Galeria de adereços (9 geradores × 8 sementes): 100 chamadas, ~27,6 mil triângulos (renderização por software).
+- Fases 2–5 (mesma cena): chalés só aparecem em terrenos publicados (nenhum no D1 local); 9 moradores/animais
+  levam a cena a 66 chamadas e 112,6 mil triângulos (+11 chamadas, +3%); animais pequenos sem sombra. Cosméticos
+  não mudam o número de chamadas do avatar.
+- Outros visitantes ainda veem o visual padrão (sincronizar o visual pela presença fica para depois).
 - Mudar a arte de um gerador muda o snapshot: revisar na galeria e atualizar com `vitest -u`.
 
 ## Relacionados

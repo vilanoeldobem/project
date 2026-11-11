@@ -61,7 +61,8 @@ export function Player({ houses }: { houses: Collider[] }) {
   const camera = useThree((s) => s.camera);
   // Portrait (phones): pull the camera back so the same plaza width fits.
   const zoom = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
-  const parts = useMemo(avatarParts, []);
+  const avatarLook = useVila((s) => s.look);
+  const parts = useMemo(() => avatarParts(avatarLook), [avatarLook]);
   const { shadows } = usePreset();
   const colliders = useMemo(() => [...OBSTACLES, ...houses], [houses]);
   const blobMaterial = useMemo(

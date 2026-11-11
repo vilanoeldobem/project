@@ -36,7 +36,7 @@ function fit(m: GenModel) {
     for (const v of m.voxels) (lo = Math.min(lo, v[axis])), (hi = Math.max(hi, v[axis]));
     span = Math.max(span, (hi - lo + 1) * m.size);
   }
-  return Math.min(4, 2.8 / Math.max(span, 1e-3));
+  return Math.min(2.5, 2.8 / Math.max(span, 1e-3));
 }
 
 function Row({ g, row }: { g: Generator; row: number }) {

@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–4 implementadas (núcleo, galeria, adereços, casas, moradores, animais) · **Atualizado em:** 2026-11-10
+> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos) · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -47,6 +47,9 @@
 | `bird` | Passarinho | animals | plumagem (6 pares), cauda, topete | 30 / 78 |
 | `rabbit` | Coelho | animals | pelagem, orelhas (em pé/caídas) | 62 / 140 |
 | `owl` | Coruja (noite) | animals | penas (nevada ou marrom), olhos que brilham, tufos | 58 / 106 |
+| `hat` | Chapéu (camada) | cosmetics | estilo (Noel, tricô, protetor de orelha, azevinho, cartola), cores | 14 / 42 |
+| `scarf` | Cachecol (camada) | cosmetics | listras, ponta | 19 / 76 |
+| `sweater` | Suéter (camada) | cosmetics | padrão (floco de neve, listras, zigue-zague, bolinhas), cores | 12 / 38 |
 
 Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gift-palm`, `gift-bench`,
 `gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
@@ -59,13 +62,35 @@ fixa. Respiram e olham em volta pelo material `idle` (shader de vértice; "Menos
 aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores e cachorro bloqueiam o avatar;
 animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
 
-## 4. Testes (contrato de todo gerador)
+## 4. Cosméticos do avatar (PROPOSTA)
+
+Catálogo e regras em `packages/shared/src/game/cosmetics.ts`; camadas de voxels em
+`apps/client/src/scene/gen/cosmetics.ts`. Cada item é uma camada (chapéu, cachecol, suéter) ou uma paleta de cores
+pintada sobre `avatarParts()`; o visual escolhido fica salvo neste navegador (`vila.look.v1`) e é sempre conferido
+contra o que o progresso já liberou.
+
+| Item | Encaixe | Como libera |
+|---|---|---|
+| Gorro de Noel · Sem cachecol · Casaco liso · Clássico | — | Padrão |
+| Gorro de tricô · Cachecol listrado | chapéu · cachecol | Missão "Encontre 2 presentes escondidos na praça" |
+| Protetor de orelha · Suéter floco de neve | chapéu · suéter | Missão "Complete o Jogo da Memória" |
+| Cachecol verde · Paleta Floresta | cachecol · cores | Missão "Visite um terreno e conheça o cadastro de ONGs" |
+| Coroa de azevinho · Suéter listrado · Paleta Noite estrelada | chapéu · suéter · cores | Nível 2 |
+
+Regras: libera só por missão ou nível (derivado do progresso; regras de XP inalteradas); tudo alcançável sem doar
+(nenhum item ligado à missão sobre doação, mesmo sendo só leitura); sem compra, sorteio, recompensa por tempo online
+ou contagem regressiva. Ao concluir uma missão que libera algo, o aviso diz "Novo visual: …". O painel "Caderno de
+Missões" mostra "Visual do avatar", com cadeado e o requisito exato nos itens ainda fechados.
+
+Limitação: outros visitantes ainda veem o visual padrão (a presença IMPL-0008 não transmite o visual).
+
+## 5. Testes (contrato de todo gerador)
 
 Determinismo por semente · orçamento · ≥ 6 variantes distintas em 12 sementes · coordenadas inteiras · base em
 y = 0 · hash de saída para sementes fixas em snapshot (`__snapshots__/gen.test.ts.snap`): mudar a arte aparece
 como diff a revisar (`vitest -u` depois de revisar na galeria).
 
-## 5. Galeria (só desenvolvimento)
+## 6. Galeria (só desenvolvimento)
 
 `?gallery` (localhost ou build de desenvolvimento) mostra cada categoria em 8 sementes girando, com voxels/faces
 máximos contra o orçamento e custo de renderização. `?gallery&cat=props` abre uma categoria.
