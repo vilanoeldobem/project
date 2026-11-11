@@ -2,7 +2,7 @@
  * HTTP API of Vila Noel do Bem (api.vilanoeldobem.com.br, IMPL-0009; pure logic, testable without workerd).
  *
  * Public, read-only:
- *   GET /health      → { ok, version, environment, db }
+ *   GET /health      → { ok, version, environment, db, mail }
  *   GET /config      → { accounts }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
@@ -22,6 +22,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
+import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 
@@ -39,8 +40,9 @@ export interface Env {
   GAME_ORIGIN?: string;
   /** "true" turns on accounts, server XP, NGO applications and admin (IMPL-0011). */
   ACCOUNTS_ENABLED?: string;
-  /** Cloudflare Email Service binding (`send_email`), see mail.ts. */
-  EMAIL?: unknown;
+  /** Resend API key (Worker secret, never a `var`), see mail.ts. Without it sign-in e-mails fail closed. */
+  RESEND_API_KEY?: string;
+  /** Sender address of the sign-in e-mail; its domain must be verified in Resend. */
   MAIL_FROM?: string;
   /** Workers rate limiting binding for sign-in requests, keyed by client IP (never stored). */
   AUTH_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
@@ -134,7 +136,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
     switch (pathname) {
       case "/health":
-        return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB) }, { headers: NO_STORE });
+        return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env) }, { headers: NO_STORE });
       case "/config":
         return json({ accounts: env.ACCOUNTS_ENABLED === "true" }, { headers: NO_STORE });
       case "/indicators":

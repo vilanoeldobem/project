@@ -13,7 +13,7 @@ navegador.
 
 A configuração `env.staging` em `apps/api/wrangler.jsonc` tem nome de Worker próprio (`vilanoeldobem-api-staging`),
 `routes: []`, `workers_dev: false`, nenhuma origem autorizada e `ACCOUNTS_ENABLED = "false"`. Ambientes do Wrangler
-não herdam bindings: em homologação não há `EMAIL` (envio falha fechado com `503 mail_unavailable`, sem link na
+não herdam bindings nem segredos: em homologação não há `RESEND_API_KEY` (envio falha fechado com `503 mail_unavailable`, sem link na
 resposta) nem `AUTH_LIMITER`.
 
 ## Histórico

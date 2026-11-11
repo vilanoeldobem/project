@@ -72,8 +72,8 @@ curl -s localhost:8788/health
 Localmente as contas vêm ligadas (`ACCOUNTS_ENABLED=true`, `ENVIRONMENT=development`); em produção ainda estão
 desligadas ([IMPL-0011](decisions/0011-accounts-magic-link-ngo-review.md)).
 
-1. Chip **"Entrar"** no HUD → "Criar conta": Nome, Nickname, Cidade e E-mail (qualquer e-mail; nada é enviado sem o
-   Email Service).
+1. Chip **"Entrar"** no HUD → "Criar conta": Nome, Nickname, Cidade e E-mail (qualquer e-mail; nada é enviado sem a
+   chave do Resend).
 2. Em vez do e-mail, o painel mostra **"Abrir link (só em desenvolvimento)"** (`devLink`). Abra: o chip vira
    `@nickname` e o progresso local passa para a conta.
 3. Perto de um terreno disponível, "Ver terreno" → **"Candidatar minha ONG"**: quatro etapas, terreno reservado ao

@@ -129,3 +129,9 @@ Uma comparação com a implementação paralela da equipe apontou lacunas reais,
   controle viram espaço; ids de evento precisam existir para a missão (presentes, terrenos).
 - **Outros:** `no-store` imposto em toda rota de conta; entrar encerra a sessão anterior do navegador; erros de
   banco na candidatura não viram mais "terreno indisponível"; corpo sem `Content-Length` lido só até o limite.
+
+## Adendo (2026-11-11): e-mail pelo Resend
+
+O item 4 da decisão (Cloudflare Email Service) e a alternativa descartada "provedor de e-mail externo" foram
+substituídos por [IMPL-0012](0012-resend-transactional-email.md): o link de acesso passa a sair pelo Resend. O
+restante desta decisão continua valendo.

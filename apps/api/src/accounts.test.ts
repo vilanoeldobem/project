@@ -2,7 +2,7 @@
  * End-to-end API tests for accounts, magic-link sign-in, server XP, NGO applications and admin review
  * (IMPL-0011), on real SQLite with the real migrations (test/d1.mjs).
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
@@ -63,6 +63,19 @@ beforeEach(() => {
   db = createD1();
   env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
 });
+
+afterEach(() => vi.unstubAllGlobals());
+
+type ResendCall = { url: string; headers: Headers; body: { from: string; to: string[]; subject: string; text: string; html: string } };
+/** Replaces the global `fetch` with a fake Resend API; returns the requests it received. */
+function stubResend(respond: () => Response | Promise<Response> = () => Response.json({ id: "email_1" })) {
+  const calls: ResendCall[] = [];
+  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
+    calls.push({ url: String(url), headers: new Headers(init.headers), body: JSON.parse(String(init.body)) });
+    return respond();
+  });
+  return calls;
+}
 
 describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {
@@ -141,17 +154,32 @@ describe("registration and magic link (P13, OQ-03)", () => {
     expect(links.filter(Boolean).length).toBe(2);
   });
 
-  it("e-mails the link through the Email Service binding in production, never returning it", async () => {
-    const sent: Array<{ to: string; subject: string; text: string }> = [];
+  it("e-mails the link through Resend in production, never returning it", async () => {
+    const sent = stubResend();
     env.ENVIRONMENT = "production";
-    env.EMAIL = { send: async (m: { to: string; subject: string; text: string }) => (sent.push(m), { messageId: "m1" }) };
+    env.RESEND_API_KEY = "re_test_key";
+    env.MAIL_FROM = "acesso@vila.example";
     const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
     expect(r.status).toBe(202);
     expect(r.body.devLink).toBeUndefined();
-    expect(sent[0].to).toBe("ana@example.com");
-    expect(sent[0].text).toContain(`${ORIGIN}/#login=`);
-    expect(sent[0].text).not.toContain("?login=");
-    expect(sent[0].subject).toBe(loginEmail("x", "y").subject);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].url).toBe("https://api.resend.com/emails");
+    expect(sent[0].headers.get("Authorization")).toBe("Bearer re_test_key");
+    // Resend answers 403 to requests without a User-Agent, and Workers do not send one by default.
+    expect(sent[0].headers.get("User-Agent")).toBeTruthy();
+    expect(sent[0].body.from).toBe("Vila Noel do Bem <acesso@vila.example>");
+    expect(sent[0].body.to).toEqual(["ana@example.com"]);
+    expect(sent[0].body.text).toContain(`${ORIGIN}/#login=`);
+    expect(sent[0].body.text).not.toContain("?login=");
+    expect(sent[0].body.html).toContain("Entrar na Vila");
+    expect(sent[0].body.subject).toBe(loginEmail("x", "y").subject);
+  });
+
+  it("does not call Resend without a key, and returns the link only in development/test", async () => {
+    const sent = stubResend();
+    const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
+    expect(r.body.devLink).toContain(`${ORIGIN}/#login=`);
+    expect(sent).toHaveLength(0);
   });
 
   it("never returns the link outside development/test, whatever the environment name", async () => {
@@ -160,17 +188,27 @@ describe("registration and magic link (P13, OQ-03)", () => {
       env = { DB: db, ENVIRONMENT: name, ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
       const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
       expect([String(name), r.status, r.body.devLink]).toEqual([String(name), 503, undefined]);
-      env.EMAIL = { send: async () => ({ messageId: "m" }) };
+      stubResend();
+      env.RESEND_API_KEY = "re_test_key";
       const l = await call("POST", "/auth/link", { email: "ana@example.com" });
       expect(l.body.devLink).toBeUndefined();
     }
   });
 
-  it("fails closed when production has no mail binding or the send fails", async () => {
+  it("fails closed when production has no Resend key, Resend refuses the send or the network fails", async () => {
+    const logged: unknown[][] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => void logged.push(args));
     env.ENVIRONMENT = "production";
     expect((await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" })).status).toBe(503);
-    env.EMAIL = { send: async () => Promise.reject(Object.assign(new Error("x"), { code: "E_RATE_LIMIT_EXCEEDED" })) };
+    env.RESEND_API_KEY = "re_test_key";
+    stubResend(() => Response.json({ statusCode: 403, name: "validation_error", message: "The vila.example domain is not verified. bia@example.com" }, { status: 403 }));
     expect((await call("POST", "/auth/register", { name: "Bia", nickname: "bia_b", city: "Natal", email: "bia@example.com" })).body.error).toBe("mail_unavailable");
+    stubResend(() => Promise.reject(new TypeError("fetch failed")));
+    expect((await call("POST", "/auth/register", { name: "Caio", nickname: "caio_c", city: "Natal", email: "caio@example.com" })).body.error).toBe("mail_unavailable");
+    // Logs carry the status and Resend's error name only: never the address, the link, the key or the message.
+    expect(logged).toEqual([["mail_error", 403, "validation_error"], ["mail_error", "network", "TypeError"]]);
+    vi.restoreAllMocks();
+    stubResend(() => Response.json({ name: "rate_limit_exceeded" }, { status: 429 }));
     // /auth/link answers 202 even when the send fails: a 503 there would reveal that the account exists.
     expect((await call("POST", "/auth/link", { email: "bia@example.com" })).status).toBe(202);
   });

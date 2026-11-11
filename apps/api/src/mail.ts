@@ -1,15 +1,16 @@
 /**
- * Transactional e-mail through Cloudflare Email Service (`send_email` binding, OQ-08 → IMPL-0011).
+ * Transactional e-mail through Resend's HTTPS API (IMPL-0012, replaces the Cloudflare Email Service binding).
  * Only one message exists: the sign-in link. pt-BR, plain and HTML, no tracking, no marketing.
- * Addresses and links are never logged.
+ * Addresses, links and the API key are never logged.
  */
 import { HttpError } from "./http";
 import type { Env } from "./api";
 
-/** Shape of the Email Service binding (`env.EMAIL.send`). */
-export interface EmailBinding {
-  send(message: { from: string | { email: string; name?: string }; to: string; subject: string; text: string; html: string }): Promise<{ messageId: string }>;
-}
+const RESEND_URL = "https://api.resend.com/emails";
+/** Resend rejects requests without a User-Agent (403), and Workers' fetch does not send one by default. */
+const USER_AGENT = "vilanoeldobem-api";
+const SEND_TIMEOUT_MS = 8000;
+const DEFAULT_FROM = "acesso@vilanoeldobem.com.br";
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
@@ -33,6 +34,9 @@ export function loginEmail(link: string, nickname: string) {
   return { subject, text, html };
 }
 
+/** True when the Worker has a Resend API key (secret `RESEND_API_KEY`); reported by `GET /health` as `mail`. */
+export const mailConfigured = (env: Env) => Boolean(env.RESEND_API_KEY);
+
 /**
  * Fail closed: the link is handed back to the caller (instead of only by e-mail) solely when the deployment
  * explicitly says it is local development or a test. A missing, misspelled or new environment name
@@ -40,19 +44,34 @@ export function loginEmail(link: string, nickname: string) {
  */
 const linkVisibleToCaller = (env: Env) => env.ENVIRONMENT === "development" || env.ENVIRONMENT === "test";
 
+/** Resend's machine-readable error name (`validation_error`, `rate_limit_exceeded`, …); never the message. */
+async function errorName(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { name?: unknown } | null;
+  return typeof body?.name === "string" && /^[a-z_]{1,64}$/.test(body.name) ? body.name : "unknown";
+}
+
 /** Sends the sign-in link; returns it only in development/test (see `linkVisibleToCaller`). */
 export async function sendLoginLink(env: Env, to: string, nickname: string, link: string): Promise<string | undefined> {
-  const mailer = env.EMAIL as EmailBinding | undefined;
-  if (!mailer) {
+  if (!mailConfigured(env)) {
     if (!linkVisibleToCaller(env)) throw new HttpError(503, "mail_unavailable");
     return link;
   }
   const { subject, text, html } = loginEmail(link, nickname);
+  let res: Response;
   try {
-    await mailer.send({ from: { email: env.MAIL_FROM ?? "acesso@vilanoeldobem.com.br", name: "Vila Noel do Bem" }, to, subject, text, html });
+    res = await fetch(RESEND_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json", "User-Agent": USER_AGENT },
+      body: JSON.stringify({ from: `Vila Noel do Bem <${env.MAIL_FROM || DEFAULT_FROM}>`, to: [to], subject, text, html }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    });
   } catch (e) {
-    // Log the error code only (never the address or the link).
-    console.error("mail_error", (e as { code?: string }).code ?? (e instanceof Error ? e.name : "unknown"));
+    // Network failure or timeout: log the error class only (never the address or the link).
+    console.error("mail_error", "network", e instanceof Error ? e.name : "unknown");
+    throw new HttpError(503, "mail_unavailable");
+  }
+  if (!res.ok) {
+    console.error("mail_error", res.status, await errorName(res));
     throw new HttpError(503, "mail_unavailable");
   }
   return linkVisibleToCaller(env) ? link : undefined;
