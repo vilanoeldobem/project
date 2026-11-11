@@ -9,6 +9,12 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — medição
+
+- Google Tag Manager (`GTM-MQP2RVMB`) no site e no jogo. A inicialização do `dataLayer` fica em `/gtag-init.js`
+  (a CSP não aceita script inline) e a CSP dos dois apps libera `*.googletagmanager.com` (script, imagem, conexão),
+  `*.google-analytics.com` e `*.analytics.google.com`. Tags HTML personalizadas do GTM continuam bloqueadas pela CSP.
+
 ### Changed — controles
 
 - Andar é só por clique/toque no chão: WASD e setas foram removidos. O clique mostra um anel dourado que se expande,

@@ -107,7 +107,10 @@ A zona `vilanoeldobem.com.br` está ativa na conta do projeto. Os hosts são **W
 responder 522 por alguns minutos até a borda propagar.
 
 A zona injeta o **Cloudflare Web Analytics**; a CSP do jogo (gerada no build por `apps/client/security-headers.ts`) e
-a do site (`apps/site/public/_headers`) liberam `static.cloudflareinsights.com` e `cloudflareinsights.com`. O
+a do site (`apps/site/public/_headers`) liberam `static.cloudflareinsights.com` e `cloudflareinsights.com`. Os dois apps também carregam o **Google Tag
+Manager** (`GTM-MQP2RVMB`, iniciado por `public/gtag-init.js`), e a CSP libera `*.googletagmanager.com`,
+`*.google-analytics.com` e `*.analytics.google.com`; tags HTML personalizadas do GTM ficam bloqueadas (sem
+`unsafe-inline`). O
 `connect-src` do jogo lista exatamente `api.*` e `server.*` da build. Ao mudar a CSP, rode `verify.mjs` — erros de
 CSP aparecem como erro de console. Trocar um host exige mudar três lugares
 ([architecture.md §7](../reference/architecture.md#7-limites-entre-apps)).

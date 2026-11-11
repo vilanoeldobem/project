@@ -161,8 +161,8 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 ## 9. Segurança
 
 `_headers` do jogo, gerado a cada build por `apps/client/security-headers.ts` (via `vite.config.ts`): CSP
-`default-src 'self'`, `connect-src` com exatamente a API e o servidor da build (fontes do Google e Cloudflare Web
-Analytics liberados), `X-Frame-Options: DENY`, `Permissions-Policy` negando câmera, microfone, localização e
+`default-src 'self'`, `connect-src` com exatamente a API e o servidor da build (fontes do Google, Cloudflare Web
+Analytics e Google Tag Manager / GA4 liberados), `X-Frame-Options: DENY`, `Permissions-Policy` negando câmera, microfone, localização e
 pagamento; `/assets/*` com cache imutável de 1 ano. O HTML faz `preconnect` para a API. A API manda CORS só para
 origens exatas; o servidor recusa WebSocket de outra origem (`403`), o que bloqueia sequestro de WebSocket.
 
