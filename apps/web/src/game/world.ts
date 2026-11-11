@@ -128,6 +128,8 @@ export interface Obstacle {
  * avatar may brush into the outer needles but never walks through a trunk.
  */
 export const OBSTACLES: Obstacle[] = [
+  // The tree: same keep-out as clampToWorld (avatar radius 0.45), but with sliding.
+  { x: 0, z: 0, r: TREE_RADIUS - 0.45 },
   ...PINES.filter(([x, z]) => Math.hypot(x, z) < WORLD_RADIUS + 1).map(([x, z]) => ({ x: Math.round(x), z: Math.round(z), r: 1.6 })),
   ...LAMPS.map(([x, z]) => ({ x, z, r: 0.3 })),
   ...LAMPS.filter((_, i) => i % 2 === 1).map(([x, z]) => ({ x: x * 0.92, z: z * 0.92, r: 0.6 })),

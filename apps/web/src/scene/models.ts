@@ -185,6 +185,10 @@ export const AVATAR_SIZE = 0.3;
 export const HIP_Y = 3 * AVATAR_SIZE;
 export const SHOULDER_Y = 6 * AVATAR_SIZE;
 
+/** Walk cycle shared by the local and remote avatars: limb swing (rad) and body lift (units). */
+export const walkSwing = (phase: number, run: number) => Math.sin(phase) * 0.75 * run;
+export const walkLift = (phase: number, run: number) => Math.abs(Math.sin(phase)) * 0.09 * run;
+
 export interface AvatarParts {
   body: Voxel[];
   /** Limbs hang below their pivot (y < 0); the pivot sits at x = ±1 (legs) or ±2 (arms) voxels. */

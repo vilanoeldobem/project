@@ -90,6 +90,15 @@ describe("world helpers", () => {
       for (const o of OBSTACLES) expect(Math.hypot(p.x - o.x, p.z - o.z)).toBeGreaterThan(o.r + MOTION.radius);
   });
 
+  it("walks around the tree to a gift on the other side (click across the plaza)", async () => {
+    const { GIFTS } = await import("./world");
+    const from = GIFTS.find((g) => g.id === "gift-bench")!, to = GIFTS.find((g) => g.id === "gift-palm")!;
+    const b = createBody(from.x, from.z);
+    const { done } = run(b, { ...idle, target: { x: to.x, z: to.z } }, 6);
+    expect(done).toBe(true);
+    expect(Math.hypot(b.x - to.x, b.z - to.z)).toBeLessThan(1.4);
+  });
+
   it("classifies ground surfaces", () => {
     expect(surfaceAt(0, 6)).toBe("stone");
     expect(surfaceAt(0, 15)).toBe("packed");

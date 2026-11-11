@@ -85,7 +85,8 @@ de quadro passa de 22 ms e volta a subir quando sobra folga.
 
 "Automática" escolhe pela quantidade de núcleos, memória e tipo de ponteiro (toque → Baixa ou Média). Conforto:
 neve e brilhos (liga/desliga), luzes fixas sem piscar, menos movimento (padrão segue `prefers-reduced-motion`),
-som (vento, sininhos, passos e efeitos; sempre começa desligado; nunca fica salvo como ligado).
+som (vento, sininhos, passos e efeitos; sempre começa desligado; nunca fica salvo como ligado). Em "Outros
+visitantes": ver quem está na praça e aparecer para eles (ligado por padrão; desligar desconecta, IMPL-0008).
 
 ## 7. Cena
 

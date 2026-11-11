@@ -4,6 +4,9 @@
  */
 import { handleApi, type Env } from "./api";
 
+// Durable Object classes must be exported from the main module (classes are allowed; constants are not).
+export { VillageRoom } from "./room-do";
+
 export default {
   async fetch(request, env): Promise<Response> {
     const { pathname } = new URL(request.url);

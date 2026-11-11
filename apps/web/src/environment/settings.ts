@@ -17,6 +17,8 @@ export interface EnvironmentSettings {
   particles: boolean;
   /** Procedural ambience; off until the person turns it on. */
   sound: boolean;
+  /** See other visitors (anonymous avatars, no names, no chat) and be seen (IMPL-0008). */
+  multiplayer: boolean;
 }
 
 export interface QualityPreset {
@@ -60,6 +62,7 @@ function load(): EnvironmentSettings {
     reduceFlicker: prefersReducedMotion(),
     particles: true,
     sound: false,
+    multiplayer: true,
   };
   try {
     const raw = localStorage.getItem(KEY);
@@ -73,6 +76,7 @@ function load(): EnvironmentSettings {
         reduceFlicker: bool(saved.reduceFlicker, defaults.reduceFlicker),
         particles: bool(saved.particles, defaults.particles),
         sound: false,
+        multiplayer: bool(saved.multiplayer, defaults.multiplayer),
       };
     }
   } catch {
@@ -91,10 +95,10 @@ export const useEnvSettings = create<SettingsState>((set, get) => ({
   detected: detectQuality(),
   set: (patch) => {
     set(patch);
-    const { quality, reduceMotion, reduceFlicker, particles } = get();
+    const { quality, reduceMotion, reduceFlicker, particles, multiplayer } = get();
     try {
       // Sound is never persisted on: audio must start from a fresh, explicit gesture.
-      localStorage.setItem(KEY, JSON.stringify({ quality, reduceMotion, reduceFlicker, particles }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, reduceMotion, reduceFlicker, particles, multiplayer }));
     } catch {
       /* same as above */
     }

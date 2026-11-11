@@ -12,6 +12,7 @@ import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { Ground } from "./Ground";
 import { Player } from "./Player";
+import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
 import { ChristmasTree, Gifts, Lamps, Lots } from "./Props";
 import { LightStrings, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
@@ -58,6 +59,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Gifts />
         <Footprints />
         <Player houses={houses} />
+        <RemotePlayers />
         <Snow />
         <Sparkles />
         <GameplayBursts />

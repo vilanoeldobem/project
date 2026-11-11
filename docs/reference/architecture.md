@@ -10,6 +10,7 @@
 www.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-site" (apps/site: Static Assets; raiz → 301 www)
 app.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem"
                       ├─ /api/*  → worker/api.ts ──▶ D1 "vilanoeldobem" (binding DB)
+                      │    └─ /api/room (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
                       └─ resto   → Static Assets (dist/, SPA fallback, public/_headers)
 ```
 
@@ -31,6 +32,7 @@ servidos direto pela borda.
 | Desempenho | `scene/RenderStats.tsx`, `scene/perf.ts` | Chamadas, triângulos, p50/p95 do quadro; resolução adaptativa |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | API | `lib/api.ts` | `fetch` com degradação silenciosa (retorna `null`) |
+| Rede | `net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)): pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
 
@@ -51,6 +53,9 @@ servidos direto pela borda.
 ## 3. Worker (`apps/web/worker`)
 
 - `index.ts`: só o handler `fetch` (o runtime não aceita outros exports nomeados).
+- `room.ts` (lógica pura, testada) e `room-do.ts` (Durable Object `VillageRoom`, API de hibernação de WebSocket):
+  presença efêmera em memória, autoritativa para o que os outros veem (pose saneada, sem teletransporte, limite de
+  mensagens), transmissão em lote a 10 Hz só enquanto há alguém; sala vazia hiberna.
 - `api.ts`: `handleApi` — ver [api.md](api.md). `/api/environment` é a autoridade da hora (sem estado; sem Durable
   Object, IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo.
 
@@ -61,6 +66,7 @@ servidos direto pela borda.
 | `account_id` | `9119b7496767fec497f6627c5ca56f32` | Conta do projeto |
 | `assets.not_found_handling` | `single-page-application` | Rotas do cliente caem no `index.html` |
 | `assets.run_worker_first` | `["/api/*"]` | Worker só para API |
+| `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | `d1_databases[0]` | binding `DB`, `migrations_dir: ../../migrations` | Migrations na raiz do repo |
 | `observability.enabled` | `true` | Logs de erro (requisito do doc 06) |
 
@@ -91,7 +97,8 @@ chamadas e triângulos independem da GPU.
 
 - Sem autenticação nem rotas de escrita.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
-- Sem multiplayer em tempo real: a simulação pura em passo fixo é o ponto de partida (IMPL-0007).
+- Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo
+  compartilhado (IMPL-0008).
 
 ## Ver também
 

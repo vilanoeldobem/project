@@ -50,7 +50,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 
 - `apps/web/worker/index.ts` only exports the handler; logic is in `worker/api.ts` (unit-tested).
   Only `/api/*` runs Worker code; everything else is Static Assets (SPA fallback).
-- D1 is the only server-side store. Migrations in `migrations/NNNN_name.sql` are immutable once
+- D1 is the only persistent server-side store. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
+  presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`apps/web/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
   in sync (a test checks it).

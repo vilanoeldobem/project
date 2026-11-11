@@ -8,6 +8,7 @@ import { saoPauloCivil } from "../environment/time";
 import { perf } from "../scene/perf";
 import { events } from "../game/events";
 import { MOTION } from "../game/motion";
+import { connectPresence, type NetStatus, useNet } from "../net/multiplayer";
 import { useVila } from "../game/store";
 import { Panel } from "./Panel";
 
@@ -29,6 +30,7 @@ export function EnvironmentChip() {
   const open = useVila((s) => s.open);
   const skyView = useVila((s) => s.skyView);
   const setSkyView = useVila((s) => s.setSkyView);
+  const net = useNet();
   const c = saoPauloCivil(f.timestampMs);
   const w = WEATHER_LABEL[f.weather.kind];
   const event = f.events[f.events.length - 1];
@@ -42,6 +44,11 @@ export function EnvironmentChip() {
         🕰️ {pad(c.hour)}:{pad(c.minute)} <span aria-hidden="true">{w.icon}</span>
         <span className="env-chip__label">{event ? EVENT_LABEL[event.kind] : w.label}</span>
       </button>
+      {net.status === "online" && (
+        <span className="btn btn--chip env-chip__people" role="status" aria-label={`${net.others + 1} ${net.others ? "visitantes" : "visitante"} nesta praça agora`}>
+          👥 {net.others + 1}
+        </span>
+      )}
       <button
         className="btn btn--chip"
         aria-pressed={skyView}
@@ -62,6 +69,14 @@ const QUALITY: Array<{ value: QualitySetting; label: string }> = [
   { value: "ultra", label: "Ultra" },
 ];
 
+const NET_NOTE: Record<NetStatus, string> = {
+  off: "",
+  connecting: "Conectando…",
+  online: "Conectado.",
+  full: "Todas as praças estão cheias agora; tentamos de novo em instantes.",
+  offline: "Sem conexão com a Vila; tentando de novo.",
+};
+
 const QUALITY_NAME = { low: "Baixa", medium: "Média", high: "Alta", ultra: "Ultra" } as const;
 
 /** "Ambiente" panel: honest explanation of time/weather + per-device comfort and quality options. */
@@ -69,6 +84,7 @@ export function EnvironmentPanel() {
   const f = useFrameSample(1000);
   const s = useEnvSettings();
   const source = useEnvUi((u) => u.source);
+  const net = useNet();
   const c = saoPauloCivil(f.timestampMs);
   const w = WEATHER_LABEL[f.weather.kind];
   return (
@@ -125,9 +141,27 @@ export function EnvironmentPanel() {
           Som (vento, sininhos, passos e efeitos)
         </label>
       </fieldset>
+
+      <fieldset className="env-fieldset">
+        <legend>Outros visitantes</legend>
+        <label className="env-check">
+          <input type="checkbox" checked={s.multiplayer} onChange={(e) => s.set({ multiplayer: e.target.checked })} />
+          Ver quem está na praça agora (e aparecer para eles)
+        </label>
+        <p className="note">
+          Sem nomes e sem conversa: só bonecos anônimos andando. {NET_NOTE[net.status]}
+        </p>
+      </fieldset>
       <p className="note">Essas opções mudam só a aparência e o som neste aparelho, nunca o jogo.</p>
     </Panel>
   );
+}
+
+/** Keeps the presence connection open while "Outros visitantes" is on (IMPL-0008). */
+export function Presence() {
+  const on = useEnvSettings((s) => s.multiplayer);
+  useEffect(() => (on && typeof WebSocket !== "undefined" ? connectPresence() : undefined), [on]);
+  return null;
 }
 
 /** Plays the procedural ambience and gameplay sounds while "Som" is on. */

@@ -21,6 +21,9 @@
       "migrations_dir": "../../migrations"
     }
   ],
+  // Presence rooms (IMPL-0008): ephemeral, in-memory only; SQLite-backed class (works on the free plan).
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "VillageRoom" }] },
+  "migrations": [{ "tag": "v1-village-room", "new_sqlite_classes": ["VillageRoom"] }],
   "vars": { "ENVIRONMENT": "production" },
   // Game hostname (Workers custom domain on the vilanoeldobem.com.br zone). The public
   // website lives in apps/site on www.vilanoeldobem.com.br.

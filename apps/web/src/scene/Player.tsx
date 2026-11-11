@@ -9,7 +9,7 @@ import { sim } from "../game/sim";
 import { useVila } from "../game/store";
 import { GIFTS, INTERACT_DISTANCE, LOTS, OBSTACLES, surfaceAt, TREE_RADIUS } from "../game/world";
 import { usePreset } from "../environment/settings";
-import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y } from "./models";
+import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
 import { Voxels } from "./Voxels";
 
 /** Top-down diagonal camera (study; final angle is card G12). */
@@ -152,7 +152,7 @@ export function Player({ houses }: { houses: Collider[] }) {
     const accel = (pose.speed - c.speed) / Math.max(dt, 1e-3);
     c.speed = pose.speed;
     c.lean += (Math.max(-0.12, Math.min(0.2, 0.1 * run + accel * 0.006)) - c.lean) * (1 - Math.exp(-10 * dt));
-    const swing = Math.sin(c.walk) * 0.75 * run;
+    const swing = walkSwing(c.walk, run);
     const [legL, legR, armL, armR] = limbs.current;
     if (legL && legR && armL && armR) {
       legL.rotation.x = swing;
@@ -161,7 +161,7 @@ export function Player({ houses }: { houses: Collider[] }) {
       armR.rotation.x = swing * 0.8;
     }
     // The whole figure bobs (feet leave the ground at mid-stride) and leans like a toy about its feet.
-    const lift = Math.abs(Math.sin(c.walk)) * 0.09 * run;
+    const lift = walkLift(c.walk, run);
     if (rig.current) {
       rig.current.position.y = lift;
       rig.current.rotation.x = c.lean;

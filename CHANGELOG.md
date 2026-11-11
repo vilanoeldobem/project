@@ -11,6 +11,11 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Multiplayer de presença ([IMPL-0008](docs/decisions/0008-multiplayer-presence-durable-objects.md)): quem está na
+  mesma praça vê os outros andando em tempo real (Durable Object `VillageRoom` + WebSocket `GET /api/room`, até 40
+  por sala, 8 salas). Bonecos anônimos, sem nomes, sem chat, nada gravado. Chip "👥 N" no HUD; opção "Outros
+  visitantes" no painel "Ambiente". `verify.mjs` testa dois navegadores se vendo e a coleta dos presentes.
+
 - Motor e jogabilidade ([IMPL-0007](docs/decisions/0007-voxel-mesher-fixed-step-simulation.md), PROPOSTA): malha de
   voxels com remoção de faces escondidas e oclusão de ambiente por vértice; adereços repetidos instanciados.
   Medido no `verify.mjs` (preset Média): 96 → 56 chamadas de desenho e 362 mil → 108 mil triângulos por quadro.
@@ -52,6 +57,9 @@ Cada versão indica o schema D1 que entrega.
   antecipadas para a 0.4.0.
 
 ### Fixed
+
+- Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
+  deslizamento.
 
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).

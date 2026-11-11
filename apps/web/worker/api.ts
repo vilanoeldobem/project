@@ -8,17 +8,21 @@
  *   GET /api/indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /api/lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /api/environment → world clock authority + procedural weather contract (IMPL-0006); no-store
+ *   GET /api/room?i=N    → WebSocket upgrade to presence room N (IMPL-0008); same-origin only
  *
  * Nothing here writes, takes payments or records personal data (IMPL-0002, LGPD).
  * `label` and `note` are user-facing copy and stay in pt-BR.
  */
 
 import { localSnapshot } from "../src/environment/config";
+import { MAX_ROOMS } from "../src/net/protocol";
 
 export interface Env {
   ASSETS: Fetcher;
   DB?: D1Database;
   ENVIRONMENT?: string;
+  /** Presence rooms (IMPL-0008). Optional so tests and older deployments degrade to "offline". */
+  ROOMS?: DurableObjectNamespace;
 }
 
 export const VERSION = "0.3.0";
@@ -81,6 +85,21 @@ async function lots(env: Env): Promise<LotRow[] | null> {
   return results;
 }
 
+/**
+ * Presence room upgrade (IMPL-0008). Same-origin only (blocks cross-site WebSocket hijacking from other
+ * pages); the room index is bounded; without the Durable Object binding the game simply stays solo.
+ */
+function room(request: Request, url: URL, env: Env): Response | Promise<Response> {
+  if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return json({ error: "upgrade_required" }, { status: 426 });
+  const origin = request.headers.get("Origin");
+  if (!origin || new URL(origin).host !== url.host) return json({ error: "forbidden_origin" }, { status: 403 });
+  const i = Number(url.searchParams.get("i") ?? "0");
+  if (!Number.isInteger(i) || i < 0 || i >= MAX_ROOMS) return json({ error: "bad_room" }, { status: 400 });
+  if (!env.ROOMS) return json({ error: "multiplayer_unavailable" }, { status: 503 });
+  const stub = env.ROOMS.get(env.ROOMS.idFromName(`plaza-${i}`));
+  return stub.fetch(`https://room.internal/?i=${i}`, request);
+}
+
 export async function handleApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -98,6 +117,8 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
       case "/api/environment":
         // The server time is the clock authority; the rest is the deterministic weather contract.
         return json({ ...localSnapshot(Date.now()) }, { headers: { "Cache-Control": "no-store" } });
+      case "/api/room":
+        return room(request, url, env);
       case "/api/lots": {
         const rows = await lots(env);
         if (rows === null) return json({ error: "db_unavailable" }, { status: 503 });

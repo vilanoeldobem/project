@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 7 ADRs · **Atualizado em:** 2026-11-10
+> **Status:** 8 ADRs · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem_docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -26,5 +26,6 @@
 | [IMPL-0005](0005-public-site-and-domains.md) | Site público em `apps/site` e domínios `www` / `app` | Aceita (0.3.0, 2026-11-08) |
 | [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md) | Ambiente natalino: hora real de SP, clima procedural, vila nevada | Proposta — a validar (arte confirmada, OQ-07) |
 | [IMPL-0007](0007-voxel-mesher-fixed-step-simulation.md) | Malha de voxels com AO, simulação em passo fixo, eventos de jogo | Proposta — a validar (G12) |
+| [IMPL-0008](0008-multiplayer-presence-durable-objects.md) | Multiplayer de presença com Durable Objects e WebSocket | Aceita pelo responsável técnico (2026-11-10); deploy pendente |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

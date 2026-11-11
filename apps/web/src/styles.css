@@ -177,6 +177,7 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .env-chip { display: flex; gap: 6px; }
 .env-chip .btn--chip { font-variant-numeric: tabular-nums; }
 .env-chip__label { margin-left: 2px; }
+.env-chip__people { cursor: default; }
 .env-now { font-size: 1.05rem; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .env-fieldset { border: 2px solid var(--leaf); border-radius: 12px; padding: 10px 14px 12px; margin: 14px 0 0; }
 .env-fieldset legend { font-weight: 800; color: var(--pine); padding: 0 6px; }

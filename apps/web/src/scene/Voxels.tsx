@@ -47,36 +47,49 @@ const toLinear = (css: string): [number, number, number] => {
 const dummy = new Object3D();
 
 /**
+ * Meshes a voxel model into one geometry per material role (`ROLES` order; null = role unused).
+ * The caller owns (and disposes) the geometries.
+ */
+export function voxelGeometries(
+  voxels: Voxel[],
+  size: number,
+  roles: { emissive?: string[]; glow?: string[]; sway?: string[] } = {}
+): Array<BufferGeometry | null> {
+  const lower = (a: string[] = []) => new Set(a.map((c) => c.toLowerCase()));
+  const sets: Array<[number, Set<string>]> = [[1, lower(roles.emissive)], [2, lower(roles.glow)], [3, lower(roles.sway)]];
+  const meshes = meshVoxels(voxels, {
+    size,
+    groups: ROLES.length,
+    groupOf: (v) => {
+      const c = v[3].toLowerCase();
+      return sets.find(([, s]) => s.has(c))?.[0] ?? 0;
+    },
+    noAo: NO_AO,
+    toLinear,
+  });
+  return meshes.map((m) => {
+    if (m.faces === 0) return null;
+    const g = new BufferGeometry();
+    g.setAttribute("position", new BufferAttribute(m.positions, 3));
+    g.setAttribute("normal", new BufferAttribute(m.normals, 3));
+    g.setAttribute("color", new BufferAttribute(m.colors, 3));
+    g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
+    g.setIndex(new BufferAttribute(m.indices, 1));
+    g.computeBoundingSphere();
+    return g;
+  });
+}
+
+/**
  * Draws a voxel model as merged, face-culled, ambient-occluded meshes (see `mesher.ts`): one draw call
  * per material role, and per role for all `placements` together.
  */
 export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements }: Props) {
-  const geometries = useMemo(() => {
-    const lower = (a: string[]) => new Set(a.map((c) => c.toLowerCase()));
-    const sets: Array<[number, Set<string>]> = [[1, lower(emissive)], [2, lower(glow)], [3, lower(sway)]];
-    const meshes = meshVoxels(voxels, {
-      size,
-      groups: ROLES.length,
-      groupOf: (v) => {
-        const c = v[3].toLowerCase();
-        return sets.find(([, s]) => s.has(c))?.[0] ?? 0;
-      },
-      noAo: NO_AO,
-      toLinear,
-    });
-    return meshes.map((m) => {
-      if (m.faces === 0) return null;
-      const g = new BufferGeometry();
-      g.setAttribute("position", new BufferAttribute(m.positions, 3));
-      g.setAttribute("normal", new BufferAttribute(m.normals, 3));
-      g.setAttribute("color", new BufferAttribute(m.colors, 3));
-      g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
-      g.setIndex(new BufferAttribute(m.indices, 1));
-      g.computeBoundingSphere();
-      return g;
-    });
+  const geometries = useMemo(
+    () => voxelGeometries(voxels, size, { emissive, glow, sway }),
     // Colour lists are literals at call sites; their content, not identity, defines the grouping.
-  }, [voxels, size, emissive.join(), glow.join(), sway.join()]);
+    [voxels, size, emissive.join(), glow.join(), sway.join()]
+  );
 
   useEffect(() => () => geometries.forEach((g) => g?.dispose()), [geometries]);
 

@@ -53,6 +53,12 @@ pnpm run deploy                     # build (typecheck + vite) + wrangler deploy
 node scripts/verify.mjs https://app.vilanoeldobem.com.br
 ```
 
+O primeiro deploy com multiplayer ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) cria a
+classe de Durable Object `VillageRoom` pela migration `v1-village-room` do `wrangler.jsonc` (classe com SQLite,
+disponível no plano gratuito). Nenhum comando extra; nada é gravado nela. Depois do deploy, abra o jogo em dois
+aparelhos e confira o chip "👥 2". Se `/api/room` falhar, o cliente segue em jogo solo
+(e quem desligar "Outros visitantes" no painel "Ambiente" nem conecta).
+
 ### 4.1 Integração contínua (GitHub Actions)
 
 - `ci.yml`: todo PR e todo push na `main` rodam `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test` e
