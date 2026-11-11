@@ -19,7 +19,7 @@ for (const cat of categories) {
   page.on("pageerror", (e) => errors.push(`${cat}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`${cat}: ${m.text()}`));
   const sep = url.includes("?") ? "&" : "?";
-  await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "networkidle" });
+  await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(5000);
   await page.screenshot({ path: `${out}gallery-${cat}.png` });

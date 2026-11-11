@@ -20,6 +20,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
+  fundidos numa só geometria por material (+3 chamadas de desenho para todos).
+
 - Multiplayer mostra o visual de cada visitante (chapéu, cachecol, suéter, cores) e `apps/server/scripts/load.mjs`
   testa uma sala cheia (40 visitantes: ~10 kB/s por visitante, p95 9 ms local).
 

@@ -191,7 +191,7 @@ function stall(seed: Seed, goods: "mixed" | "panetone"): GenModel {
   }
   // A strip of snow along the high back edge of the awning; the stripes stay readable.
   const out = snowCap(v, P.snow, (_x, z) => z === -depth - 1);
-  return { voxels: done(out), size: 0.25 };
+  return { voxels: done(out), size: 0.42 }; // people-sized: the counter reaches the avatar's waist
 }
 
 export const marketStall = (seed: Seed) => stall(seed, "mixed");

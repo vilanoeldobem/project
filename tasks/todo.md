@@ -414,7 +414,9 @@ AGENTS.md data rules still apply (4 fields, only nickname public, no logs of e-m
 - [x] Load test (`apps/server/scripts/load.mjs`, local only): 41 bots → 40 connected, 1 refused as full (4001),
       0 failures; per visitor 9.7 msg/s, 10.1 kB/s down; tick→receive p50 4 ms / p95 9 ms (local, no network).
       Browser with 39 bot visitors: 77 calls (66 empty), 140k tris, no errors
-- [ ] Place generated props in the village (PROPOSTA decor; PEN-017 still open)
+- [x] Place generated props in the village (PROPOSTA decor; PEN-017 still open): west market (stall, panettone
+      stand, fences), east stall, 4 lanterns, signpost, mailbox, sled; all baked into one geometry per role
+      (`mergeVoxelModels`): 66 → 69 calls (16 if drawn separately), +8.5k tris
 
 ### 0.4.0 (PROPOSTA where docs are PENDENTE)
 - [ ] Migration 0004: users, login_tokens (hashed, 15 min, single use), sessions (hashed, 30 d), progress_events,

@@ -19,7 +19,7 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${out}${name}-1-welcome.png` });
@@ -59,7 +59,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
   page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
   await page.addInitScript((q) => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: q })), quality);
   const sep = url.includes("?") ? "&" : "?";
-  await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "networkidle" });
+  await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.getByRole("button", { name: "Entrar na Vila" }).click();
   if (sky) await page.getByRole("button", { name: "Olhar o céu" }).click();
@@ -76,7 +76,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
   page.on("pageerror", (e) => errors.push(`gifts: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`gifts: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
-  await page.goto(url, { waitUntil: "networkidle" });
+  await page.goto(url, { waitUntil: "load" });
   await page.getByRole("button", { name: "Entrar na Vila" }).click();
   for (const [id, x, z] of [["gift-bench", -10, 6], ["gift-palm", 9.5, -9.5]]) {
     await page.evaluate(([x, z]) => window.__vila.walkTo(x, z), [x, z]);
@@ -113,7 +113,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
     p.on("pageerror", (e) => errors.push(`${n}: ${e.message}`));
     p.on("console", (m) => m.type() === "error" && errors.push(`${n}: ${m.text()}`));
     await p.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low" })));
-    await p.goto(url, { waitUntil: "networkidle" });
+    await p.goto(url, { waitUntil: "load" });
     // Two software-GL pages starve Playwright's "stable element" check; dispatch the click directly.
     await p.getByRole("button", { name: "Entrar na Vila" }).dispatchEvent("click");
   }
@@ -141,7 +141,7 @@ for (const cat of ["props", "houses", "characters", "animals", "cosmetics"]) {
   page.on("pageerror", (e) => errors.push(`gallery-${cat}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`gallery-${cat}: ${m.text()}`));
   const sep = url.includes("?") ? "&" : "?";
-  await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "networkidle" });
+  await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(4000);
   await page.screenshot({ path: `${out}gallery-${cat}.png` });

@@ -6,6 +6,7 @@ import { mulberry32 } from "@vila/shared/environment/random";
 import { env } from "../environment/runtime";
 import {
   CRITTERS,
+  PLACED_PROPS,
   FOREST_INNER,
   FOREST_OUTER,
   LAMPS,
@@ -18,8 +19,9 @@ import {
 import { linear, U } from "./environment/materials";
 import { bird, cat, dog, NIGHT_ONLY, owl, rabbit } from "./gen/animals";
 import { villager } from "./gen/characters";
+import { fence, lantern, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
-import { type Placement, Voxels } from "./Voxels";
+import { MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
 
 /** Rotates a voxel model by quarter turns and moves it (merging many props into one instanced draw). */
 function place(model: Voxel[], dx: number, dz: number, quarter: number, scale = 1): Voxel[] {
@@ -243,4 +245,32 @@ export function Critters() {
       ))}
     </>
   );
+}
+
+const PROP_GEN = {
+  "market-stall": marketStall,
+  "panettone-stand": panettoneStand,
+  lantern,
+  fence,
+  mailbox,
+  signpost,
+  sled,
+} as const;
+
+/**
+ * Generated props placed as decor (IMPL-0010, PROPOSTA). All static, so they are baked into one geometry per
+ * material role (one draw call per role for the whole set).
+ */
+export function PlacedProps() {
+  const geometries = useMemo(
+    () =>
+      mergeVoxelModels(
+        PLACED_PROPS.map((p) => {
+          const m = PROP_GEN[p.kind](p.seed);
+          return { ...m, placements: p.at.map((a): Placement => ({ x: a.x, z: a.z, rot: a.rot ?? 0 })) };
+        })
+      ),
+    []
+  );
+  return <MergedVoxels geometries={geometries} />;
 }
