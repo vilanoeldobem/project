@@ -9,119 +9,36 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Added — 0.4.0 "Contas e ONGs" (desligado em produção)
-
-- Contas ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)): cadastro com Nome, Nickname, Cidade e
-  E-mail (DEC-038; só o nickname é público), entrada por link mágico enviado pelo Cloudflare Email Service (15 min,
-  uso único), sessão em cookie HttpOnly, sair e excluir conta. Atrás da bandeira `ACCOUNTS_ENABLED`, **desligada em
-  produção** até a revisão LGPD / ECA Digital e o cadastro do domínio de e-mail.
-- Missões e XP no servidor: eventos idempotentes, progresso local migrado ao entrar (DEC-042).
-- Candidatura de ONG em 4 etapas (P12, campos PROPOSTA; sem upload de documentos), reserva do terreno, reenvio após
-  pedido de ajustes ou rejeição.
-- Análise administrativa (DEC-037): iniciar análise, aprovar, pedir ajustes, rejeitar; histórico auditado; a
-  aprovação publica a casa gerada no terreno.
-- Migration `0004_accounts_ngo_applications.sql` (schema D1 v4). Rotas `/config`, `/auth/*`, `/me`, `/progress`,
-  `/ngo/application`, `/admin/applications`. `apps/client/scripts/verify-accounts.mjs` (navegador, só local).
-
-### Security — endurecimento das contas (trazido da linha paralela #9–#12)
-
-- Link de acesso com o token no fragmento (`/#login=`), fora dos logs do Worker do jogo.
-- Progresso de cada conta separado do progresso de visitante: num navegador compartilhado, a próxima pessoa não herda
-  eventos da anterior; eventos não enviados ficam numa fila e são reenviados quando a conexão volta.
-- Escritas com `accountId` (`409 account_changed` se outra aba trocou de conta); decisões da análise presas à versão
-  vista (`409 stale_revision`); aprovação exige e registra as três verificações do DEC-015.
-- Datas impossíveis recusadas, caracteres de controle removidos, ids de evento conferidos por missão, `no-store`
-  imposto nas rotas de conta, sessão anterior encerrada ao entrar, leitura de corpo limitada sem `Content-Length`.
-
-### Added — infraestrutura
-
-- Ambiente `staging` da API (`apps/api/wrangler.jsonc`) com banco D1 próprio (`vilanoeldobem-staging`), sem rotas,
-  sem origens e com contas desligadas; guia [staging-database.md](docs/guides/staging-database.md). Preparado pela
-  equipe no PR #10 e trazido para o `main` sem as migrations divergentes; banco recriado com as migrations 0001-0005
-  do `main` (ensaio da aplicação em produção).
-
-### Changed
-
-- **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
-  `apps/client` (jogo, `play.vilanoeldobem.com.br`; `app.*` redireciona com 301), `apps/api` (API + D1,
-  `api.vilanoeldobem.com.br`), `apps/server` (presença em tempo real, `server.vilanoeldobem.com.br`), `apps/site`
-  (sem mudança, links para `play.*`) e `packages/shared` (lógica pura comum). **Incompatível:** rotas da API perdem
-  o prefixo `/api` (`/health`, `/indicators`, `/lots`, `/environment`); presença em `wss://server.…/room`. CORS e
-  WebSocket só para origens exatas; CSP do jogo gerada por build. `smoke-api.sh` confere os três serviços.
-
 ### Added
-
 - Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
-  fundidos numa só geometria por material (+3 chamadas de desenho para todos).
-
 - Multiplayer mostra o visual de cada visitante (chapéu, cachecol, suéter, cores) e `apps/server/scripts/load.mjs`
-  testa uma sala cheia (40 visitantes: ~10 kB/s por visitante, p95 9 ms local).
-
 - Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
-  núcleo de geradores determinísticos (PRNG por semente, partes, paleta nomeada, orçamento por categoria testado,
-  snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,
-  barraca, barraca de panetone) e de chalés (planta, andares, três telhados, varanda, guirlanda, chaminé), moradores (corpo, casaco, cachecol, chapéu,
-  tons de pele) e animais (rena, cachorro, gato, passarinho, coelho, coruja noturna) com respiração em shader;
-  decoração com 3 moradores e 6 animais na Vila (PROPOSTA).
 - Visual do avatar (PROPOSTA): chapéus, cachecóis, suéteres e paletas como camadas sobre o avatar, liberados só por
-  missões e nível (tudo alcançável sem doar; nada se compra ou sorteia). Escolha em "Caderno de Missões". Presentes
-  escondidos gerados pelo id; terrenos com ONG publicada ganham um chalé gerado pelo id do terreno. Galeria `?gallery` (só desenvolvimento)
-  e `scripts/gallery.mjs`. Ver [content.md](docs/reference/content.md).
-
 - Multiplayer de presença ([IMPL-0008](docs/decisions/0008-multiplayer-presence-durable-objects.md)): quem está na
-  mesma praça vê os outros andando em tempo real (Durable Object `VillageRoom` + WebSocket `GET /api/room`, até 40
-  por sala, 8 salas). Bonecos anônimos, sem nomes, sem chat, nada gravado. Chip "👥 N" no HUD; opção "Outros
-  visitantes" no painel "Ambiente". `verify.mjs` testa dois navegadores se vendo e a coleta dos presentes.
-
 - Motor e jogabilidade ([IMPL-0007](docs/decisions/0007-voxel-mesher-fixed-step-simulation.md), PROPOSTA): malha de
-  voxels com remoção de faces escondidas e oclusão de ambiente por vértice; adereços repetidos instanciados.
-  Medido no `verify.mjs` (preset Média): 96 → 56 chamadas de desenho e 362 mil → 108 mil triângulos por quadro.
 - Avatar com simulação em passo fixo (aceleração, chegada suave, giro suave), colisão com pinheiros, postes, bancos,
-  bonecos de neve, trenó e chalés, caminhada articulada, sombra de contato e câmera com antecipação.
 - Efeitos: neve levantada pelos passos, brilho dourado ao achar presente; pegadas por passo (não na pedra nem no gelo).
 - Som: passos por superfície (neve, neve batida, pedra, gelo), carrilhão do presente e vinheta de missão, além do
-  vento e dos sininhos; continua desligado por padrão.
 - Resolução adaptativa pelo p95 do tempo de quadro; `?envDebug` mostra chamadas, triângulos, p50/p95 e DPR;
-  `verify.mjs` grava `verify-output/stats.json`.
-
 - CI no GitHub Actions: `ci.yml` (typecheck, testes e build em todo PR e push na `main`) e `smoke.yml` (smoke de
-  produção diário e manual). `scripts/smoke-api.sh` passa a conferir `/api/environment`.
-
 - Decisões: OQ-02 (visitante livre, conta opcional) e OQ-03 (login por link mágico no e-mail) resolvidas; nova
-  pergunta OQ-08 (provedor de envio de e-mail).
-
 - Ambiente natalino ([IMPL-0006](docs/decisions/0006-christmas-environment-real-time-procedural-weather.md),
-  PROPOSTA): a Vila segue a hora real de São Paulo (1:1, via fuso IANA) com amanhecer, dia, entardecer e noite;
-  clima fictício e determinístico, igual para todos (neve leve a nevasca, névoa, vento), com eventos de Natal e
-  Virada do Ano. Rota `GET /api/environment` (autoridade da hora, `no-store`). Sem Durable Object nem recurso novo.
 - Vila nevada: chão com neve, pinheiros que balançam com o vento, chalés com janelas acesas e chaminé com fumaça,
-  cordões de lâmpadas, bonecos de neve, trenó com renas, lago congelado, floresta e montanhas; céu com estrelas, lua,
-  nuvens, aurora e estrelas cadentes; neve por GPU; pegadas; bloom moderado nos presets Alta/Ultra.
 - HUD: hora de SP e clima; botão "Olhar o céu"; painel "Ambiente" com qualidade gráfica e conforto (sem partículas,
-  luzes fixas, menos movimento, som ambiente procedural desligado por padrão).
 - Depuração local: `?envDebug`, `?envTime=`, `?envWeather=` (só localhost/dev); `verify.mjs` fotografa as fases.
+- `content/proposals/quests-v1/` reúne uma proposta de 15 missões para avaliação, com 5 cadeias de NPC, diálogos, bíblia de história e validador estrutural sem dependências; não inclui código de jogo
 
 ### Changed
-
+- **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
 - Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
-  zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
-  (`PostFx`, 5 kB gzip) só é baixado nos presets Alta/Ultra.
 - Direção de arte: o estudo "Natal brasileiro de verão" (palmeiras, terracota) deu lugar à vila nevada, confirmada
-  pelo responsável em 2026-11-09 (OQ-07 resolvida; DEC no repositório de documentação pendente).
-  O id de missão `gift-palm` foi mantido.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
-  marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
-  antecipadas para a 0.4.0.
 
 ### Fixed
-
 - Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
-  deslizamento.
-
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
-
 ## [0.3.0] - 2026-11-08
 
 **Site público e domínio oficial** ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)). Schema D1 **v3**
