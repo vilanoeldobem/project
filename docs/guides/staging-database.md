@@ -9,29 +9,23 @@ navegador.
 | Ambiente | Banco | Identificador | Migrations |
 |---|---|---|---|
 | Produção | `vilanoeldobem` | `7c65d21d-0431-4ec5-bdd0-691dacb81f92` | 0001-0003 (0004-0005 do `main` ainda não aplicadas) |
-| Homologação | `vilanoeldobem-staging` | `32ebb383-e765-4ed0-aa25-d8871be3e414` | 0001-0003 + **migrations divergentes** (ver abaixo) |
+| Homologação | `vilanoeldobem-staging` | `cda0275f-6ffc-4813-8dee-efd5ae98baf4` | 0001-0005 do `main` |
 
 A configuração `env.staging` em `apps/api/wrangler.jsonc` tem nome de Worker próprio (`vilanoeldobem-api-staging`),
 `routes: []`, `workers_dev: false`, nenhuma origem autorizada e `ACCOUNTS_ENABLED = "false"`. Ambientes do Wrangler
 não herdam bindings: em homologação não há `EMAIL` (envio falha fechado com `503 mail_unavailable`, sem link na
 resposta) nem `AUTH_LIMITER`.
 
-## Situação atual: esquema divergente
+## Histórico
 
-O banco de homologação recebeu migrations de uma linha de trabalho paralela que **não** entrou no `main`
-(`0004_accounts.sql`, `0005_player_progress.sql`, `0006_ngo_applications.sql`, com tabelas `auth_*`,
-`player_progress` e `ngo_applications`). O `main` adotou outro esquema
-([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md): `0004_accounts_ngo_applications.sql`,
-`0005_one_active_application.sql`).
-
-Os nomes de tabela não colidem, então aplicar as migrations do `main` funcionaria, mas deixaria tabelas órfãs. Como os
-dados de homologação são sintéticos e as tabelas estão vazias, o caminho recomendado é **recriar o banco**:
-
-1. Exportar (opcional, para registro) e apagar `vilanoeldobem-staging`.
-2. Criar de novo com o mesmo nome e atualizar `database_id` em `env.staging`.
-3. Aplicar as migrations do `main` (abaixo).
-
-Apagar e criar recursos na Cloudflare exige **autorização explícita** do responsável (AGENTS.md).
+- **11/11/2026, manhã:** banco criado pela equipe (PR #10, id `32ebb383…`) e migrations de uma linha de trabalho
+  paralela aplicadas (`0004_accounts.sql`, `0005_player_progress.sql`, `0006_ngo_applications.sql`). Essa linha foi
+  substituída pelo PR #13 ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)), com outro esquema.
+- **11/11/2026, tarde (autorizado pelo responsável):** conferido que o banco estava vazio (só os 8 terrenos da 0002),
+  export guardado fora do Git, banco apagado e recriado em ENAM (id `cda0275f…`), migrations 0001-0005 do `main`
+  aplicadas. Conferido no remoto: histórico 0001-0005, tabelas e índices de contas/candidaturas (incluindo o índice
+  único parcial da 0005), 8 terrenos, `PRAGMA foreign_key_check` sem violações. Serve de ensaio para a aplicação de
+  0004-0005 em produção.
 
 ## Acesso
 

@@ -27,7 +27,8 @@ Cada versão indica o schema D1 que entrega.
 
 - Ambiente `staging` da API (`apps/api/wrangler.jsonc`) com banco D1 próprio (`vilanoeldobem-staging`), sem rotas,
   sem origens e com contas desligadas; guia [staging-database.md](docs/guides/staging-database.md). Preparado pela
-  equipe no PR #10 e trazido para o `main` sem as migrations divergentes.
+  equipe no PR #10 e trazido para o `main` sem as migrations divergentes; banco recriado com as migrations 0001-0005
+  do `main` (ensaio da aplicação em produção).
 
 ### Changed
 
