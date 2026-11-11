@@ -56,7 +56,7 @@ aparelho e o painel "Ambiente" avisa.
 | `SNOW` | Nevando | 0,48 | 0,26 | 32% |
 | `HEAVY_SNOW` | Neve forte | 0,78 | 0,48 | 18% |
 | `BLIZZARD` | Nevasca mágica | 1,00 | 0,76 | 5% |
-| `MISTY_FROST` | Névoa gelada | 0,12 | 0,82 | 3% |
+| `MISTY_FROST` | Névoa gelada | 0,12 | 0,60 | 3% |
 
 Janela de 45 min, transição de 5 min a partir do início da janela. Valores são coordenadas de direção de arte (0..1),
 não unidades físicas. Aurora: 35% das janelas `CLEAR_FROST` e nos eventos; só aparece com o céu escuro. Névoa
