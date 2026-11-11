@@ -5,9 +5,12 @@
  *
  *   GET  /admin/applications?status=…        → {applications}
  *   GET  /admin/applications/:id             → {application, applicant: {nickname}, history}
- *   POST /admin/applications/:id/decision {action, note} → {application}
+ *   POST /admin/applications/:id/decision {action, revision, note?, checks?} → {application}
  *
- * Actions: start_review, approve, request_changes (note required), reject (note required).
+ * Actions: start_review, approve, request_changes (note required), reject (note required). `revision` is the
+ * version the admin was looking at: if the applicant resubmitted meanwhile, the decision is refused (409
+ * stale_revision) instead of applying to content nobody reviewed. Approving also requires the three DEC-015
+ * checks (`checks: {activeCnpj, oneYear, fundsConfirmable}`, all true), recorded in the audit detail.
  */
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
@@ -64,9 +67,15 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   const note = typeof body.note === "string" ? body.note.trim().slice(0, 1000) : "";
   if ((action === "request_changes" || action === "reject") && note.length < 10)
     throw new HttpError(400, "note_required", { note: "Explique o motivo para a organização (mínimo de 10 caracteres)." });
+  const revision = body.revision;
+  if (typeof revision !== "number" || !Number.isInteger(revision)) throw new HttpError(400, "revision_required");
+  const raw = (body.checks ?? {}) as Record<string, unknown>;
+  const checks = { activeCnpj: raw.activeCnpj === true, oneYear: raw.oneYear === true, fundsConfirmable: raw.fundsConfirmable === true };
+  if (action === "approve" && !(checks.activeCnpj && checks.oneYear && checks.fundsConfirmable)) throw new HttpError(400, "checks_required");
   const db = env.DB!;
   const row = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
   if (!row) throw new HttpError(404, "not_found");
+  if (row.revision !== revision) throw new HttpError(409, "stale_revision");
   if (!rule.from.includes(row.status)) throw new HttpError(409, "bad_transition");
   // Nobody reviews their own organisation (conflict of interest).
   if (row.applicant_id === admin.id) throw new HttpError(403, "self_review");
@@ -77,18 +86,21 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   // a concurrent decision that loses the race writes nothing.
   const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND status = ? AND updated_at = ?)";
   const statements = [
-    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ? WHERE id = ? AND status = ?").bind(
-      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, id, row.status
+    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ? WHERE id = ? AND status = ? AND revision = ?").bind(
+      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, id, row.status, revision
     ),
     rule.lot
       ? db.prepare(`UPDATE lots SET state = ?, ngo_id = ? WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(rule.lot, id, lot, id, id, rule.to, now)
       : db.prepare(`UPDATE lots SET state = 'available', ngo_id = NULL WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(lot, id, id, rule.to, now),
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE ${MINE}`).bind(
-      newId(), admin.id, `ngo.${action}`, `ngo:${id}`, JSON.stringify({ from: row.status, to: rule.to, lot, revision: row.revision, hasNote: Boolean(note) }), id, rule.to, now
+      newId(), admin.id, `ngo.${action}`, `ngo:${id}`, JSON.stringify({ from: row.status, to: rule.to, lot, revision, hasNote: Boolean(note), ...(action === "approve" ? { checks } : {}) }), id, rule.to, now
     ),
   ];
   const [updated] = await db.batch(statements);
-  if (!updated.meta.changes) throw new HttpError(409, "bad_transition");
+  if (!updated.meta.changes) {
+    const latest = await db.prepare("SELECT revision FROM ngos WHERE id = ?").bind(id).first<{ revision: number }>();
+    throw new HttpError(409, latest && latest.revision !== revision ? "stale_revision" : "bad_transition");
+  }
   const after = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
   return json({ application: applicationView(after!) }, { headers: NO_STORE });
 }

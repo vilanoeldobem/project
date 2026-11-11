@@ -2,7 +2,7 @@
  * NGO application (P12; DEC-015, DEC-037; IMPL-0011). A signed-in, verified account applies for one lot.
  *
  *   GET  /ngo/application  → {application | null}   (the caller's own)
- *   POST /ngo/application  → 201/200 {application}   (submit, or resubmit after "changes requested" / rejection)
+ *   POST /ngo/application {accountId, …} → 201/200 {application}   (submit, or resubmit after "changes requested" / rejection)
  *
  * States (PROPOSTA names from the plan): submitted → under_review → published | changes_requested | rejected.
  * The lot is reserved on submission (`application_sent`), follows the review (`under_review`), is published
@@ -12,7 +12,7 @@ import { validateApplication, type NgoApplication } from "@vila/shared/accounts/
 
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { requireUser } from "./session";
+import { assertAccount, requireUser } from "./session";
 import type { Env } from "./api";
 
 export interface NgoRow {
@@ -71,7 +71,9 @@ export async function getApplication(request: Request, env: Env): Promise<Respon
 export async function submitApplication(request: Request, env: Env, today = new Date()): Promise<Response> {
   const user = await requireUser(request, env);
   if (!user.verified_at) throw new HttpError(403, "not_verified");
-  const { value, errors } = validateApplication(await readJson(request, 32_000), today);
+  const body = await readJson(request, 32_000);
+  assertAccount(body, user);
+  const { value, errors } = validateApplication(body, today);
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
   const current = await myApplication(env, user.id);
@@ -139,8 +141,11 @@ export async function submitApplication(request: Request, env: Env, today = new 
   let written = 0;
   try {
     written = (await db.batch(statements))[2].meta.changes;
-  } catch {
-    written = 0; // constraint at commit (CNPJ taken, second active application): nothing was written
+  } catch (err) {
+    // A constraint at commit (CNPJ taken, second active application) means nothing was written; any other
+    // database failure is a real error, not "lot unavailable".
+    if (!/constraint/i.test(err instanceof Error ? err.message : String(err))) throw err;
+    written = 0;
   }
   if (!written) {
     const active = await myApplication(env, user.id);

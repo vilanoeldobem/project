@@ -9,7 +9,8 @@
  *   POST /me            {name, nickname, city}        → {user}  (correction; the e-mail is not editable)
  *   DELETE /me                                        → 204 (account, sessions and mission events deleted)
  *
- * Links: 256-bit random token, stored hashed, valid 15 minutes, single use (OQ-03; durations PROPOSTA).
+ * Links: 256-bit random token, stored hashed, valid 15 minutes, single use (OQ-03; durations PROPOSTA). The token
+ * travels in the URL fragment (`/#login=…`), which browsers never send to a server, so it reaches no access log.
  * At most 3 links per account per 15 minutes and 10 per day; unverified registrations expire after 24 hours.
  */
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
@@ -51,7 +52,7 @@ async function issueLink(env: Env, user: Pick<User, "id" | "email" | "nickname">
     .run();
   if (!inserted.meta.changes) return undefined;
   const base = env.GAME_ORIGIN ?? origin;
-  return sendLoginLink(env, user.email, user.nickname, `${base}/?login=${encodeURIComponent(token)}`);
+  return sendLoginLink(env, user.email, user.nickname, `${base}/#login=${encodeURIComponent(token)}`);
 }
 
 export async function register(request: Request, env: Env, origin: string): Promise<Response> {
@@ -104,7 +105,10 @@ export async function verify(request: Request, env: Env): Promise<Response> {
   const row = await db.prepare("SELECT user_id FROM login_tokens WHERE token_hash = ?").bind(hash).first<{ user_id: string }>();
   if (!row) throw new HttpError(400, "invalid_token"); // account deleted meanwhile
   const session = randomToken();
+  // A session this browser already had (maybe another account's) ends here: one browser, one account.
+  const previous = readSessionToken(request);
   await db.batch([
+    db.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(previous ? await sha256Hex(previous) : ""),
     db.prepare("UPDATE users SET verified_at = COALESCE(verified_at, ?) WHERE id = ?").bind(now, row.user_id),
     db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)").bind(
       await sha256Hex(session), row.user_id, isoIn(SESSION_TTL_MS), row.user_id

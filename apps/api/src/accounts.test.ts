@@ -22,7 +22,8 @@ const call = async (method: string, path: string, body?: unknown, cookie?: strin
   return { status: res.status, body: text ? JSON.parse(text) : null, headers: res.headers };
 };
 
-const tokenOf = (devLink: string) => decodeURIComponent(new URL(devLink).searchParams.get("login")!);
+/** Links carry the token in the fragment (`/#login=…`), never in the query string. */
+const tokenOf = (devLink: string) => decodeURIComponent(new URLSearchParams(new URL(devLink).hash.slice(1)).get("login")!);
 
 async function signUp(nickname = "ana_lima", email = "ana@example.com") {
   const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname, city: "Recife", email });
@@ -32,6 +33,17 @@ async function signUp(nickname = "ana_lima", email = "ana@example.com") {
   const cookie = v.headers.get("Set-Cookie")!.split(";")[0];
   return { cookie, user: v.body.user };
 }
+
+type Signed = { cookie: string; user: { id: string } };
+/** Writes name the account the page believes is signed in. */
+const events = (s: Signed, list: Array<{ missionId: string; eventId: string }>) => call("POST", "/progress/events", { accountId: s.user.id, events: list }, s.cookie);
+const apply = (s: Signed, body: object) => call("POST", "/ngo/application", { accountId: s.user.id, ...body }, s.cookie);
+const ALL_CHECKS = { activeCnpj: true, oneYear: true, fundsConfirmable: true };
+/** An admin decision on the version currently stored (what the admin is looking at); approve ticks the checks. */
+const decide = (id: string, body: { action: unknown; note?: string; checks?: object }, cookie: string) => {
+  const revision = db.sql("SELECT revision FROM ngos WHERE id = ?", id)[0]?.revision;
+  return call("POST", `/admin/applications/${id}/decision`, { revision, ...(body.action === "approve" ? { checks: ALL_CHECKS } : {}), ...body }, cookie);
+};
 
 const APP = {
   name: "Associação Exemplo",
@@ -137,7 +149,8 @@ describe("registration and magic link (P13, OQ-03)", () => {
     expect(r.status).toBe(202);
     expect(r.body.devLink).toBeUndefined();
     expect(sent[0].to).toBe("ana@example.com");
-    expect(sent[0].text).toContain(`${ORIGIN}/?login=`);
+    expect(sent[0].text).toContain(`${ORIGIN}/#login=`);
+    expect(sent[0].text).not.toContain("?login=");
     expect(sent[0].subject).toBe(loginEmail("x", "y").subject);
   });
 
@@ -163,8 +176,10 @@ describe("registration and magic link (P13, OQ-03)", () => {
   });
 
   it("logs out and deletes the account with its sessions and mission events", async () => {
-    const { cookie, user } = await signUp();
-    await call("POST", "/progress/events", { events: [{ missionId: "play-memory", eventId: "game-1" }] }, cookie);
+    const a = await signUp();
+    const { cookie, user } = a;
+    await events(a, [{ missionId: "play-memory", eventId: "win" }]);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(1);
     expect((await call("POST", "/auth/logout", {}, cookie)).status).toBe(204);
     expect((await call("GET", "/me", undefined, cookie)).body.user).toBeNull();
     // Sign in again with a fresh link, then delete the account.
@@ -181,24 +196,36 @@ describe("registration and magic link (P13, OQ-03)", () => {
 
 describe("server XP (P14, DEC-042)", () => {
   it("is idempotent per event and grants a mission's XP once", async () => {
-    const { cookie } = await signUp();
+    const a = await signUp();
     const ev = (eventId: string) => ({ missionId: "explore-gifts", eventId });
-    let r = await call("POST", "/progress/events", { events: [ev("gift-bench"), ev("gift-bench")] }, cookie);
+    let r = await events(a, [ev("gift-bench"), ev("gift-bench")]);
     expect(r.body.progress.xp).toBe(0);
-    r = await call("POST", "/progress/events", { events: [ev("gift-palm"), ev("gift-street")] }, cookie);
+    r = await events(a, [ev("gift-palm"), ev("gift-street")]);
     expect(r.body.progress.xp).toBe(30);
     expect(r.body.progress.completed["explore-gifts"]).toBe(true);
-    r = await call("POST", "/progress/events", { events: [ev("gift-palm")] }, cookie);
+    r = await events(a, [ev("gift-palm")]);
     expect(r.body.progress.xp).toBe(30);
-    expect((await call("GET", "/progress", undefined, cookie)).body.progress.xp).toBe(30);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(30);
   });
 
-  it("rejects unknown missions and malformed event ids", async () => {
-    const { cookie } = await signUp();
-    expect((await call("POST", "/progress/events", { events: [{ missionId: "donate-1000", eventId: "x" }] }, cookie)).status).toBe(400);
-    expect((await call("POST", "/progress/events", { events: [{ missionId: "play-memory", eventId: "<script>" }] }, cookie)).status).toBe(400);
-    expect((await call("POST", "/progress/events", { events: [] }, cookie)).status).toBe(400);
+  it("rejects unknown missions and event ids the game cannot produce", async () => {
+    const a = await signUp();
+    expect((await events(a, [{ missionId: "donate-1000", eventId: "x" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "play-memory", eventId: "<script>" }])).status).toBe(400);
+    // Made-up gift ids would complete the gift mission without finding anything.
+    expect((await events(a, [{ missionId: "explore-gifts", eventId: "fake-1" }, { missionId: "explore-gifts", eventId: "fake-2" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "causes-visit-lot", eventId: "plaza-99" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "toString", eventId: "x" }])).status).toBe(400);
+    expect((await events(a, [])).status).toBe(400);
     expect((await call("GET", "/progress")).status).toBe(401);
+    for (const [missionId, eventId] of [["explore-gifts", "gift-bench"], ["play-memory", "win"], ["causes-visit-lot", "plaza-01"], ["causes-global-donation", "panel"]])
+      expect((await events(a, [{ missionId, eventId }])).status).toBe(200);
+  });
+
+  it("knows the event ids of every mission", async () => {
+    const { MISSIONS } = await import("@vila/shared/game/progress");
+    const { KNOWN_EVENTS } = await import("./progress");
+    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual(MISSIONS.map((m) => m.id).sort());
   });
 });
 
@@ -211,15 +238,15 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
   const lot = (id: string) => db.sql("SELECT state, ngo_id FROM lots WHERE id = ?", id)[0];
 
   it("validates, reserves the lot and refuses a second active application", async () => {
-    const { cookie } = await signUp();
-    const bad = await call("POST", "/ngo/application", { ...APP, cnpj: "11222333000180" }, cookie);
+    const a = await signUp();
+    const bad = await apply(a, { ...APP, cnpj: "11222333000180" });
     expect(bad.status).toBe(400);
     expect(bad.body.fields.cnpj).toBeDefined();
-    const ok = await call("POST", "/ngo/application", APP, cookie);
+    const ok = await apply(a, APP);
     expect(ok.status).toBe(201);
     expect(ok.body.application).toMatchObject({ status: "submitted", revision: 1, lotId: "plaza-03" });
     expect(lot("plaza-03").state).toBe("application_sent");
-    expect((await call("POST", "/ngo/application", APP, cookie)).body.error).toBe("application_active");
+    expect((await apply(a, APP)).body.error).toBe("application_active");
     // Nothing public before approval.
     const pub = (await call("GET", "/lots")).body.lots.find((l: { id: string }) => l.id === "plaza-03");
     expect(pub).toMatchObject({ state: "application_sent", ngo_name: null });
@@ -227,36 +254,36 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
 
   it("keeps lots and CNPJs exclusive between applicants", async () => {
     const a = await signUp();
-    await call("POST", "/ngo/application", APP, a.cookie);
+    await apply(a, APP);
     const b = await signUp("bia", "bia@example.com");
-    expect((await call("POST", "/ngo/application", { ...APP, cnpj: "11444777000161" }, b.cookie)).body.error).toBe("lot_unavailable");
-    expect((await call("POST", "/ngo/application", { ...APP, lotId: "plaza-04" }, b.cookie)).body.error).toBe("cnpj_in_use");
+    expect((await apply(b, { ...APP, cnpj: "11444777000161" })).body.error).toBe("lot_unavailable");
+    expect((await apply(b, { ...APP, lotId: "plaza-04" })).body.error).toBe("cnpj_in_use");
   });
 
   it("runs the review: start → changes requested → resubmit → approve, all audited", async () => {
     const applicant = await signUp();
     const admin = await asAdmin();
-    const id = (await call("POST", "/ngo/application", APP, applicant.cookie)).body.application.id;
+    const id = (await apply(applicant, APP)).body.application.id;
     expect((await call("GET", "/admin/applications", undefined, applicant.cookie)).status).toBe(403);
 
     expect((await call("GET", "/admin/applications", undefined, admin)).body.applications.map((a: { id: string }) => a.id)).toEqual([id]);
-    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "start_review" }, admin)).body.application.status).toBe("under_review");
+    expect((await decide(id, { action: "start_review" }, admin)).body.application.status).toBe("under_review");
     expect(lot("plaza-03").state).toBe("under_review");
-    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "request_changes", note: "curto" }, admin)).body.error).toBe("note_required");
-    const changes = await call("POST", `/admin/applications/${id}/decision`, { action: "request_changes", note: "Envie o relatório de recursos de 2025." }, admin);
+    expect((await decide(id, { action: "request_changes", note: "curto" }, admin)).body.error).toBe("note_required");
+    const changes = await decide(id, { action: "request_changes", note: "Envie o relatório de recursos de 2025." }, admin);
     expect(changes.body.application).toMatchObject({ status: "changes_requested", reviewNote: "Envie o relatório de recursos de 2025." });
     expect((await call("GET", "/ngo/application", undefined, applicant.cookie)).body.application.reviewNote).toMatch(/relatório/);
 
-    const re = await call("POST", "/ngo/application", { ...APP, lotId: "plaza-05" }, applicant.cookie);
+    const re = await apply(applicant, { ...APP, lotId: "plaza-05" });
     expect(re.body.application).toMatchObject({ status: "submitted", revision: 2, lotId: "plaza-05", reviewNote: null });
     expect(lot("plaza-03").state).toBe("available");
     expect(lot("plaza-05").state).toBe("application_sent");
 
-    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "approve" }, admin)).body.application.status).toBe("published");
+    expect((await decide(id, { action: "approve" }, admin)).body.application.status).toBe("published");
     expect(lot("plaza-05")).toEqual({ state: "published", ngo_id: id });
     const pub = (await call("GET", "/lots")).body.lots.find((l: { id: string }) => l.id === "plaza-05");
     expect(pub).toMatchObject({ state: "published", ngo_name: "Associação Exemplo" });
-    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "reject", note: "Motivo qualquer aqui." }, admin)).body.error).toBe("bad_transition");
+    expect((await decide(id, { action: "reject", note: "Motivo qualquer aqui." }, admin)).body.error).toBe("bad_transition");
 
     const history = (await call("GET", `/admin/applications/${id}`, undefined, admin)).body.history.map((h: { action: string }) => h.action);
     expect(history).toEqual(["ngo.submit", "ngo.start_review", "ngo.request_changes", "ngo.resubmit", "ngo.approve"]);
@@ -270,15 +297,15 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
   it("releases the lot on rejection and lets the applicant try again", async () => {
     const applicant = await signUp();
     const admin = await asAdmin();
-    const id = (await call("POST", "/ngo/application", APP, applicant.cookie)).body.application.id;
-    await call("POST", `/admin/applications/${id}/decision`, { action: "reject", note: "CNPJ inativo na Receita Federal." }, admin);
+    const id = (await apply(applicant, APP)).body.application.id;
+    await decide(id, { action: "reject", note: "CNPJ inativo na Receita Federal." }, admin);
     expect(lot("plaza-03")).toEqual({ state: "available", ngo_id: null });
-    expect((await call("POST", "/ngo/application", APP, applicant.cookie)).body.application).toMatchObject({ status: "submitted", revision: 2 });
+    expect((await apply(applicant, APP)).body.application).toMatchObject({ status: "submitted", revision: 2 });
   });
 
   it("keeps the application (without the applicant link) when the account is deleted", async () => {
     const applicant = await signUp();
-    await call("POST", "/ngo/application", APP, applicant.cookie);
+    await apply(applicant, APP);
     await call("DELETE", "/me", undefined, applicant.cookie);
     expect(db.sql("SELECT applicant_id, status FROM ngos")).toEqual([{ applicant_id: null, status: "submitted" }]);
   });
@@ -331,15 +358,16 @@ describe("security review fixes (2026-11-11)", () => {
   it("refuses self-review and unknown actions (no prototype keys)", async () => {
     const admin = await signUp("admin_vila", "admin@example.com");
     db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
-    const id = (await call("POST", "/ngo/application", APP, admin.cookie)).body.application.id;
-    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "approve" }, admin.cookie)).body.error).toBe("self_review");
+    const id = (await apply(admin, APP)).body.application.id;
+    expect((await decide(id, { action: "approve" }, admin.cookie)).body.error).toBe("self_review");
     for (const action of ["toString", "constructor", "__proto__", 1])
-      expect((await call("POST", `/admin/applications/${id}/decision`, { action }, admin.cookie)).status).toBe(400);
+      expect((await decide(id, { action }, admin.cookie)).status).toBe(400);
   });
 
   it("enforces one active application per person in the database", async () => {
-    const { cookie, user } = await signUp();
-    await call("POST", "/ngo/application", APP, cookie);
+    const a = await signUp();
+    const { user } = a;
+    await apply(a, APP);
     expect(() =>
       db.sql("INSERT INTO ngos (id, name, cnpj, status, applicant_id) VALUES ('x', 'Outra', '11444777000161', 'submitted', ?)", user.id)
     ).toThrow(/UNIQUE/);
@@ -349,11 +377,11 @@ describe("security review fixes (2026-11-11)", () => {
     const applicant = await signUp();
     const admin = await signUp("admin_vila", "admin@example.com");
     db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
-    const id = (await call("POST", "/ngo/application", APP, applicant.cookie)).body.application.id;
-    await call("POST", `/admin/applications/${id}/decision`, { action: "request_changes", note: "Envie o relatório anual." }, admin.cookie);
+    const id = (await apply(applicant, APP)).body.application.id;
+    await decide(id, { action: "request_changes", note: "Envie o relatório anual." }, admin.cookie);
     const other = await signUp("bia", "bia@example.com");
-    await call("POST", "/ngo/application", { ...APP, cnpj: "11444777000161", lotId: "plaza-06" }, other.cookie);
-    const r = await call("POST", "/ngo/application", { ...APP, name: "Nome Novo", lotId: "plaza-06" }, applicant.cookie);
+    await apply(other, { ...APP, cnpj: "11444777000161", lotId: "plaza-06" });
+    const r = await apply(applicant, { ...APP, name: "Nome Novo", lotId: "plaza-06" });
     expect(r.body.error).toBe("lot_unavailable");
     expect(db.sql("SELECT name, status, revision, requested_lot_id FROM ngos WHERE id = ?", id)).toEqual([
       { name: APP.name, status: "changes_requested", revision: 1, requested_lot_id: "plaza-03" },
@@ -364,7 +392,7 @@ describe("security review fixes (2026-11-11)", () => {
   it("caps stored mission events per account", async () => {
     const { cookie, user } = await signUp();
     for (let i = 0; i < 500; i++) db.sql("INSERT INTO progress_events (user_id, mission_id, event_id) VALUES (?, 'play-memory', ?)", user.id, `e${i}`);
-    expect((await call("POST", "/progress/events", { events: [{ missionId: "play-memory", eventId: "one-more" }] }, cookie)).status).toBe(429);
+    expect((await events({ cookie, user }, [{ missionId: "play-memory", eventId: "win" }])).status).toBe(429);
   });
 
   it("refuses an oversized body before reading it", async () => {
@@ -373,5 +401,145 @@ describe("security review fixes (2026-11-11)", () => {
       env
     );
     expect(res.status).toBe(413);
+  });
+});
+
+describe("hardening ported from the parallel accounts work (#9–#12)", () => {
+  it("puts the sign-in token in the URL fragment, which never reaches a server log", async () => {
+    const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
+    const link = new URL(r.body.devLink);
+    expect(link.search).toBe("");
+    expect(link.hash).toMatch(/^#login=[A-Za-z0-9_-]{40,}$/);
+  });
+
+  it("consumes a link once even when two verifications race", async () => {
+    const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
+    const token = tokenOf(r.body.devLink);
+    const both = await Promise.all([call("POST", "/auth/verify", { token }), call("POST", "/auth/verify", { token })]);
+    expect(both.map((x) => x.status).sort()).toEqual([200, 400]);
+    expect(db.sql("SELECT COUNT(*) AS n FROM sessions")[0].n).toBe(1);
+  });
+
+  it("sets the session cookie with every attribute and clears it on logout", async () => {
+    const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
+    const v = await call("POST", "/auth/verify", { token: tokenOf(r.body.devLink) });
+    const set = v.headers.get("Set-Cookie")!;
+    for (const attr of ["HttpOnly", "Secure", "SameSite=Lax", "Path=/", "Max-Age=2592000"]) expect(set).toContain(attr);
+    expect(set).not.toMatch(/Domain=/i);
+    const out = await call("POST", "/auth/logout", {}, set.split(";")[0]);
+    expect(out.headers.get("Set-Cookie")).toContain("Max-Age=0");
+  });
+
+  it("ends the session the browser already had when it signs in again (one browser, one account)", async () => {
+    const a = await signUp();
+    await signUp("bia", "bia@example.com");
+    const l = await call("POST", "/auth/link", { email: "bia@example.com" });
+    const v = await call("POST", "/auth/verify", { token: tokenOf(l.body.devLink) }, a.cookie);
+    expect(v.status).toBe(200);
+    expect((await call("GET", "/me", undefined, a.cookie)).body.user).toBeNull();
+  });
+
+  it("treats an expired session as signed out", async () => {
+    const a = await signUp();
+    db.sql("UPDATE sessions SET expires_at = '2000-01-01T00:00:00.000Z'");
+    expect((await call("GET", "/me", undefined, a.cookie)).body.user).toBeNull();
+    expect((await call("GET", "/progress", undefined, a.cookie)).status).toBe(401);
+  });
+
+  it("never lets account responses be cached, errors included", async () => {
+    const a = await signUp();
+    for (const path of ["/me", "/progress", "/ngo/application", "/admin/applications"]) {
+      const r = await call("GET", path, undefined, a.cookie);
+      expect([path, r.headers.get("Cache-Control")]).toEqual([path, "no-store"]);
+    }
+    expect((await call("GET", "/progress")).headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("keeps progress apart between accounts", async () => {
+    const a = await signUp();
+    const b = await signUp("bia", "bia@example.com");
+    await events(a, [{ missionId: "play-memory", eventId: "win" }]);
+    expect((await call("GET", "/progress", undefined, b.cookie)).body.progress.xp).toBe(0);
+  });
+
+  it("refuses writes meant for another account (a tab that switched accounts)", async () => {
+    const a = await signUp();
+    const b = await signUp("bia", "bia@example.com");
+    // A page still showing Ana sends with Bia's cookie: refused, nothing written.
+    const r = await call("POST", "/progress/events", { accountId: a.user.id, events: [{ missionId: "play-memory", eventId: "win" }] }, b.cookie);
+    expect([r.status, r.body.error]).toEqual([409, "account_changed"]);
+    expect((await call("POST", "/progress/events", { events: [{ missionId: "play-memory", eventId: "win" }] }, b.cookie)).status).toBe(409);
+    expect((await call("POST", "/ngo/application", { ...APP, accountId: a.user.id }, b.cookie)).body.error).toBe("account_changed");
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(0);
+    expect(db.sql("SELECT COUNT(*) AS n FROM ngos WHERE applicant_id IS NOT NULL")[0].n).toBe(0);
+  });
+
+  it("refuses a decision on a version the admin did not review", async () => {
+    const applicant = await signUp();
+    const admin = (await signUp("admin_vila", "admin@example.com")).cookie;
+    db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
+    const id = (await apply(applicant, APP)).body.application.id;
+    // Admin A opens revision 1; admin B asks for changes; the applicant resubmits revision 2 with another lot.
+    await decide(id, { action: "request_changes", note: "Envie o relatório anual." }, admin);
+    await apply(applicant, { ...APP, lotId: "plaza-07", summary: "Texto novo que ninguém revisou ainda." });
+    const audits = db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n;
+    const stale = await call("POST", `/admin/applications/${id}/decision`, { action: "approve", revision: 1, checks: ALL_CHECKS }, admin);
+    expect([stale.status, stale.body.error]).toEqual([409, "stale_revision"]);
+    expect(db.sql("SELECT status FROM ngos WHERE id = ?", id)[0].status).toBe("submitted");
+    expect(db.sql("SELECT state FROM lots WHERE id = 'plaza-07'")[0].state).toBe("application_sent");
+    expect(db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n).toBe(audits);
+    expect((await call("POST", `/admin/applications/${id}/decision`, { action: "start_review" }, admin)).body.error).toBe("revision_required");
+  });
+
+  it("approves only with the three DEC-015 checks, and records them", async () => {
+    const applicant = await signUp();
+    const admin = (await signUp("admin_vila", "admin@example.com")).cookie;
+    db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
+    const id = (await apply(applicant, APP)).body.application.id;
+    for (const checks of [undefined, {}, { ...ALL_CHECKS, oneYear: false }, { ...ALL_CHECKS, fundsConfirmable: "true" }])
+      expect((await call("POST", `/admin/applications/${id}/decision`, { action: "approve", revision: 1, checks }, admin)).body.error).toBe("checks_required");
+    expect((await decide(id, { action: "approve" }, admin)).body.application.status).toBe("published");
+    const detail = JSON.parse(db.sql("SELECT detail FROM audit_events WHERE action = 'ngo.approve'")[0].detail as string);
+    expect(detail.checks).toEqual(ALL_CHECKS);
+  });
+
+  it("lets exactly one of two racing decisions win, with one audit row", async () => {
+    const applicant = await signUp();
+    const admin = (await signUp("admin_vila", "admin@example.com")).cookie;
+    db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
+    const id = (await apply(applicant, APP)).body.application.id;
+    const [ok, lost] = await Promise.all([decide(id, { action: "approve" }, admin), decide(id, { action: "reject", note: "Documentação incompleta." }, admin)]);
+    expect([ok.status, lost.status].sort()).toEqual([200, 409]);
+    const status = db.sql("SELECT status FROM ngos WHERE id = ?", id)[0].status;
+    const decisions = db.sql("SELECT action FROM audit_events WHERE action IN ('ngo.approve', 'ngo.reject')");
+    expect(decisions.length).toBe(1);
+    expect(db.sql("SELECT state FROM lots WHERE id = 'plaza-03'")[0].state).toBe(status === "published" ? "published" : "available");
+    // Replaying the winning decision changes nothing.
+    expect((await decide(id, { action: "approve" }, admin)).status).toBe(409);
+    expect(db.sql("SELECT COUNT(*) AS n FROM audit_events WHERE action IN ('ngo.approve', 'ngo.reject')")[0].n).toBe(1);
+  });
+
+  it("reads bodies without a length only up to the limit", async () => {
+    let pulled = 0;
+    const chunk = new TextEncoder().encode(" ".repeat(8_000));
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        pulled++;
+        if (pulled > 100) c.close();
+        else c.enqueue(chunk);
+      },
+    });
+    const res = await handleApi(
+      new Request("https://api.example/auth/link", { method: "POST", headers: { Origin: ORIGIN, "Content-Type": "application/json" }, body, duplex: "half" } as RequestInit),
+      env
+    );
+    expect(res.status).toBe(413);
+    expect(pulled).toBeLessThan(10);
+  });
+
+  it("rejects impossible opening dates instead of rolling them over", async () => {
+    const a = await signUp();
+    const r = await apply(a, { ...APP, openedOn: "2021-02-29" });
+    expect(r.body.fields.openedOn).toBeDefined();
   });
 });

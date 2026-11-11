@@ -1,6 +1,7 @@
 import { COSMETICS, isUnlocked, requirement, SLOTS, type Slot } from "@vila/shared/game/cosmetics";
 
 import { useVila } from "../game/store";
+import { useAccount } from "../lib/account";
 import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Track } from "@vila/shared/game/progress";
 import { Panel } from "./Panel";
 
@@ -33,8 +34,25 @@ export function Missions() {
         </section>
       ))}
       <LookPicker />
-      <p className="note">Seu progresso fica salvo neste navegador.</p>
+      <SavedWhere />
     </Panel>
+  );
+}
+
+/** Where progress is kept: this browser (guest), the account, or waiting for the connection. */
+function SavedWhere() {
+  const signedIn = useAccount((s) => !!s.user);
+  const pending = useAccount((s) => s.sync === "pending");
+  const onAccount = useVila((s) => s.progressOwner !== null);
+  const text = !signedIn
+    ? "Seu progresso fica salvo neste navegador."
+    : pending || !onAccount
+      ? "Sem conexão com a Vila: seu progresso será enviado para a sua conta quando a conexão voltar."
+      : "Seu progresso fica salvo na sua conta.";
+  return (
+    <p className="note" role="status">
+      {text}
+    </p>
   );
 }
 

@@ -7,7 +7,7 @@ import { useState, type ReactNode } from "react";
 import { validateRegistration, type Registration } from "@vila/shared/accounts/validate";
 
 import { useVila, type Panel as PanelState } from "../game/store";
-import { api, ApiError, signOut, useAccount } from "../lib/account";
+import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/account";
 import { Panel } from "./Panel";
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
@@ -29,6 +29,9 @@ const ERROR_TEXT: Record<string, string> = {
   network: "Sem conexão com a Vila. Tente de novo em instantes.",
   too_many_requests: "Muitas tentativas seguidas. Espere um minuto e tente de novo.",
   mail_unavailable: "Não conseguimos enviar o e-mail agora. Tente de novo mais tarde.",
+  account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
+  stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
+  checks_required: "Marque as três verificações antes de aprovar.",
 };
 export const errorText = (e: unknown) =>
   e instanceof ApiError ? (ERROR_TEXT[e.code] ?? (Object.keys(e.fields).length ? "Confira os campos destacados." : "Algo deu errado. Tente de novo.")) : "Algo deu errado.";
@@ -175,8 +178,7 @@ function SignedIn({ then }: { then?: PanelState }) {
   const [error, setError] = useState("");
   const remove = async () => {
     try {
-      await api.deleteMe();
-      await signOut();
+      await deleteAccount();
       useVila.getState().notify("Sua conta foi excluída. Seu progresso continua só neste navegador.");
       close();
     } catch (err) {

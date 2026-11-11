@@ -23,6 +23,16 @@ Cada versão indica o schema D1 que entrega.
 - Migration `0004_accounts_ngo_applications.sql` (schema D1 v4). Rotas `/config`, `/auth/*`, `/me`, `/progress`,
   `/ngo/application`, `/admin/applications`. `apps/client/scripts/verify-accounts.mjs` (navegador, só local).
 
+### Security — endurecimento das contas (trazido da linha paralela #9–#12)
+
+- Link de acesso com o token no fragmento (`/#login=`), fora dos logs do Worker do jogo.
+- Progresso de cada conta separado do progresso de visitante: num navegador compartilhado, a próxima pessoa não herda
+  eventos da anterior; eventos não enviados ficam numa fila e são reenviados quando a conexão volta.
+- Escritas com `accountId` (`409 account_changed` se outra aba trocou de conta); decisões da análise presas à versão
+  vista (`409 stale_revision`); aprovação exige e registra as três verificações do DEC-015.
+- Datas impossíveis recusadas, caracteres de controle removidos, ids de evento conferidos por missão, `no-store`
+  imposto nas rotas de conta, sessão anterior encerrada ao entrar, leitura de corpo limitada sem `Content-Length`.
+
 ### Added — infraestrutura
 
 - Ambiente `staging` da API (`apps/api/wrangler.jsonc`) com banco D1 próprio (`vilanoeldobem-staging`), sem rotas,
