@@ -1,7 +1,7 @@
 # AGENTS.md — rules for coding agents working in this repository
 
 This file governs *this* repository only. Never rewrite other projects' `AGENTS.md`/`CLAUDE.md`
-(including `vilanoeldobem_docs`).
+(including `vilanoeldobem/docs`).
 
 ## What this is
 
@@ -9,7 +9,7 @@ This file governs *this* repository only. Never rewrite other projects' `AGENTS.
 minigames, meet approved NGOs and donate voluntarily. Monorepo (IMPL-0009), one Cloudflare Worker per app:
 `apps/client` (React 19 + Three.js game, Static Assets, play.vilanoeldobem.com.br), `apps/api` (HTTP API + D1,
 api.vilanoeldobem.com.br), `apps/server` (realtime presence, Durable Object, server.vilanoeldobem.com.br),
-`apps/site` (public website, www.vilanoeldobem.com.br) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem_docs`
+`apps/site` (public website, www.vilanoeldobem.com.br) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 

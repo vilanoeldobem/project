@@ -6,7 +6,7 @@
 
 ## Referências
 
-- Decisões/pendências do produto: <!-- DEC-NNN, PEN-NNN (vilanoeldobem_docs: docs/decisions/registro-de-decisoes.md) -->
+- Decisões/pendências do produto: <!-- DEC-NNN, PEN-NNN (vilanoeldobem/docs: docs/decisions/registro-de-decisoes.md) -->
 - Cartão do acompanhamento: <!-- ex.: D03 -->
 - ADR: <!-- IMPL-NNNN, se houver -->
 

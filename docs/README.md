@@ -3,7 +3,7 @@
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
 > **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`), `packages/shared/` e `migrations/`;
-> produto em `vilanoeldobem_docs`
+> produto em `vilanoeldobem/docs`
 
 Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a um tipo de pergunta.
 

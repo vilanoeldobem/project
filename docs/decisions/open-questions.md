@@ -1,7 +1,7 @@
 # Perguntas abertas ao dono do produto
 
 > **Status:** 4 abertas · **Atualizado em:** 2026-11-09
-> **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem_docs/docs/decisions/registro-de-decisoes.md`
+> **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
 (se técnica) ou DEC no repositório de documentação, e desce para "Resolvidas".
@@ -29,4 +29,5 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
   repositório de documentação, onde o guia visual ainda traz o verão como PROPOSTA.
 - **OQ-06** (2026-11-08, Augusto): o código fica no repositório `vilanoeldobem`, separado da documentação; o
   repositório Git `vilanoeldobem_docs` substitui a pasta `D:\VILA NOEL DO BEM` — registrado como DEC-045 no
-  repositório de documentação (PR #1, aguardando revisão).
+  repositório de documentação (PR #1, aguardando revisão). **Atualização 10/11/2026:** os repositórios atuais são
+  `vilanoeldobem/project` (código) e `vilanoeldobem/docs` (documentação); os nomes acima registram o contexto original.

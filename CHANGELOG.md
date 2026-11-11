@@ -66,6 +66,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
   zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
   (`PostFx`, 5 kB gzip) só é baixado nos presets Alta/Ultra.

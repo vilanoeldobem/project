@@ -1,11 +1,11 @@
 # Especificações do produto
 
-> **Status:** referência externa · **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** repositório [`vilanoeldobem_docs`](https://github.com/vilanoeldobem/vilanoeldobem_docs)
+> **Status:** referência externa · **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** repositório [`vilanoeldobem/docs`](https://github.com/vilanoeldobem/docs)
 
 As especificações **não** são copiadas para cá, para não divergirem. A equipe discute e registra regras de negócio
 no repositório de documentação; o código implementa as regras CONFIRMADAS e cita o `DEC-` (fluxo em
-`vilanoeldobem_docs/docs/guides/fluxo-negocio-para-codigo.md`). Caminhos abaixo são daquele repositório:
+`vilanoeldobem/docs/docs/guides/fluxo-negocio-para-codigo.md`). Caminhos abaixo são daquele repositório:
 
 | Documento | Para quê |
 |---|---|

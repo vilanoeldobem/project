@@ -2,7 +2,7 @@
 
 > **Atualizado em:** 2026-11-10 · **Versão atual:** 0.3.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
-> **Fonte:** `vilanoeldobem_docs/management/plano-de-desenvolvimento.md`,
+> **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
 
 Este roadmap traduz o plano de desenvolvimento (proposta) em versões do código. Cada marco entrega uma versão

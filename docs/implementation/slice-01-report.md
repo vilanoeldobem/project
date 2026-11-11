@@ -5,7 +5,7 @@
 
 ## 1. Ponto de partida e achados
 
-- Repositório só com `LICENSE`. Produto definido em `vilanoeldobem_docs` (DEC-001..044); nenhuma stack decidida.
+- Repositório só com `LICENSE`. Produto definido no então `vilanoeldobem_docs` (atual `vilanoeldobem/docs`, DEC-001..044); nenhuma stack decidida.
 - O nome do produto é **Vila Noel do Bem** (DEC-001).
 - Doação bloqueada por falta de parceira (G13, PEN-004) e provedor (PEN-006).
 

@@ -1,7 +1,7 @@
 # Decisões técnicas (ADRs)
 
 > **Status:** 10 ADRs · **Atualizado em:** 2026-11-10
-> **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem_docs/docs/decisions/registro-de-decisoes.md`
+> **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
 
