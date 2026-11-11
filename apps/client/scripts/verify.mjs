@@ -24,11 +24,18 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${out}${name}-1-welcome.png` });
   await page.getByRole("button", { name: "Entrar na Vila" }).click();
-  // Walk towards the tree (W key) so the contextual action shows up.
-  await page.keyboard.down("KeyW");
-  await page.waitForTimeout(500);
-  await page.keyboard.up("KeyW");
+  // Movement is click/tap only (WASD removed): click the ground ahead, towards the tree.
+  await page.mouse.click(viewport.width / 2, viewport.height * 0.4);
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `${out}${name}-2a-clique.png` });
   await page.waitForTimeout(800);
+  // Zoom: wheel in, then the HUD buttons back out.
+  await page.mouse.move(viewport.width / 2, viewport.height / 2);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${out}${name}-2b-zoom.png` });
+  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Afastar" }).click();
+  await page.waitForTimeout(700);
   await page.screenshot({ path: `${out}${name}-2-praca.png` });
   await page.getByRole("button", { name: /Indicadores/ }).click();
   await page.waitForTimeout(600);

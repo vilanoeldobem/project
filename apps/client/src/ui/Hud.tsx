@@ -1,30 +1,37 @@
 import { useEffect } from "react";
 
 import { MISSIONS } from "@vila/shared/game/progress";
-import { useVila } from "../game/store";
+import { useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
 import { AccountChip } from "./Account";
 import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
 import { Wordmark } from "./Wordmark";
 
-/** Fixed HUD: brand, missions, indicators, contextual action and toasts. */
+/** One zoom button/key press: 15% closer or farther. */
+const ZOOM_STEP = 1.15;
+
+/** Fixed HUD: brand, missions, indicators, contextual action, zoom and toasts. */
 export function Hud() {
   const open = useVila((s) => s.open);
   const nearby = useVila((s) => s.nearby);
   const panel = useVila((s) => s.panel);
   const done = useVila((s) => Object.keys(s.progress.completed).length);
   const toast = useVila((s) => s.toast);
+  const zoom = useVila((s) => s.zoom);
+  const zoomBy = useVila((s) => s.zoomBy);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (useVila.getState().panel.kind !== "none") return;
+      if (e.key === "+" || e.key === "=") return zoomBy(1 / ZOOM_STEP);
+      if (e.key === "-") return zoomBy(ZOOM_STEP);
       if ((e.key === "e" || e.key === "Enter") && nearby) {
         open(nearby.kind === "tree" ? { kind: "donation" } : { kind: "lot", lotId: nearby.lotId });
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [nearby, open]);
+  }, [nearby, open, zoomBy]);
 
   return (
     <div className="hud">
@@ -64,6 +71,17 @@ export function Hud() {
         >
           {nearby.kind === "tree" ? "🎄 Doação global" : "🏡 Ver terreno"} <kbd>E</kbd>
         </button>
+      )}
+
+      {panel.kind === "none" && (
+        <div className="hud__zoom" role="group" aria-label="Zoom da câmera">
+          <button className="btn btn--chip" onClick={() => zoomBy(1 / ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Aproximar" title="Aproximar (+)">
+            ＋
+          </button>
+          <button className="btn btn--chip" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Afastar" title="Afastar (−)">
+            －
+          </button>
+        </div>
       )}
 
       {toast && <Toast key={toast.id} text={toast.text} />}

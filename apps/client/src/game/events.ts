@@ -8,6 +8,8 @@ import type { Surface } from "@vila/shared/game/world";
 export type GameEvent =
   | { type: "step"; x: number; z: number; yaw: number; left: boolean; surface: Surface; speed: number }
   | { type: "gift"; x: number; z: number }
+  /** The player clicked/tapped the ground to walk there. */
+  | { type: "tap"; x: number; z: number }
   | { type: "mission"; missionId: string };
 
 type Listener = (e: GameEvent) => void;

@@ -20,10 +20,8 @@ const SKY_LOOK = new Vector3(0, 30, -40);
 /** The camera leads the avatar slightly in the walking direction (seconds of velocity). */
 const LOOK_AHEAD = 0.22;
 const GIFT_RADIUS = 1.4;
-const KEYS: Record<string, [number, number]> = {
-  KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
-  KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
-};
+/** Mouse wheel and pinch sensitivity (zoom factor per pixel of wheel delta). */
+const WHEEL_ZOOM = 0.0015;
 
 const blobVertex = /* glsl */ `
 varying vec2 vUv;
@@ -43,7 +41,7 @@ void main() {
 `;
 
 /**
- * The avatar: input → fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk
+ * The avatar: click/tap target → fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk
  * animation, contact shadow and camera. Gameplay facts (footsteps, gifts) go out on the event bus.
  */
 export function Player({ houses }: { houses: Collider[] }) {
@@ -52,15 +50,15 @@ export function Player({ houses }: { houses: Collider[] }) {
   const torso = useRef<Group>(null);
   const limbs = useRef<Array<Group | null>>([]);
   const blob = useRef<Mesh>(null);
-  const pressed = useRef(new Set<string>());
   const clock = useRef({ acc: 0, px: sim.body.x, pz: sim.body.z, pyaw: sim.body.yaw, walk: 0, lean: 0, speed: 0 });
   const look = useMemo(() => new Vector3(), []);
   const aim = useMemo(() => new Vector3(sim.pose.x, 1, sim.pose.z), []);
   const goal = useMemo(() => new Vector3(), []);
   const ahead = useMemo(() => new Vector3(), []);
   const camera = useThree((s) => s.camera);
+  const canvas = useThree((s) => s.gl.domElement);
   // Portrait (phones): pull the camera back so the same plaza width fits.
-  const zoom = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
+  const fit = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
   const avatarLook = useVila((s) => s.look);
   const parts = useMemo(() => avatarParts(avatarLook), [avatarLook]);
   const { shadows } = usePreset();
@@ -72,27 +70,52 @@ export function Player({ houses }: { houses: Collider[] }) {
   const blobGeometry = useMemo(() => new CircleGeometry(0.55, 20).rotateX(-Math.PI / 2), []);
   useEffect(() => () => (blobMaterial.dispose(), blobGeometry.dispose()), [blobMaterial, blobGeometry]);
 
+  // Zoom: mouse wheel and two-finger pinch on the canvas (movement is click/tap only).
   useEffect(() => {
-    const typing = (e: KeyboardEvent) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
-    const down = (e: KeyboardEvent) => {
-      if (typing(e) || !(e.code in KEYS)) return;
-      if (useVila.getState().panel.kind !== "none") return;
+    const idle = () => useVila.getState().panel.kind === "none";
+    const wheel = (e: WheelEvent) => {
       e.preventDefault();
-      pressed.current.add(e.code);
-      useVila.getState().setTarget(null);
-      useVila.getState().setSkyView(false);
+      if (idle()) useVila.getState().zoomBy(Math.exp(e.deltaY * WHEEL_ZOOM));
     };
-    const up = (e: KeyboardEvent) => pressed.current.delete(e.code);
-    const blur = () => pressed.current.clear();
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    window.addEventListener("blur", blur);
+    const touches = new Map<number, { x: number; y: number }>();
+    let span = 0;
+    const spread = () => {
+      const [a, b] = [...touches.values()];
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    };
+    const down = (e: PointerEvent) => {
+      if (e.pointerType !== "touch") return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) {
+        span = spread();
+        useVila.getState().setTarget(null);
+      }
+    };
+    const move = (e: PointerEvent) => {
+      if (!touches.has(e.pointerId)) return;
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size !== 2 || span <= 0 || !idle()) return;
+      const d = spread();
+      if (d > 0) useVila.getState().zoomBy(span / d);
+      span = d;
+    };
+    const up = (e: PointerEvent) => {
+      touches.delete(e.pointerId);
+      span = 0;
+    };
+    canvas.addEventListener("wheel", wheel, { passive: false });
+    canvas.addEventListener("pointerdown", down);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
     return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      window.removeEventListener("blur", blur);
+      canvas.removeEventListener("wheel", wheel);
+      canvas.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
     };
-  }, []);
+  }, [canvas]);
 
   useFrame(({ clock: three }, frameDt) => {
     const g = root.current;
@@ -102,14 +125,7 @@ export function Player({ houses }: { houses: Collider[] }) {
     const b = sim.body;
 
     // ---- simulation: fixed steps, independent of the display refresh rate.
-    const intent: Intent = { moveX: 0, moveZ: 0, target: null };
-    if (s.panel.kind === "none") {
-      for (const k of pressed.current) {
-        intent.moveX += KEYS[k][0];
-        intent.moveZ += KEYS[k][1];
-      }
-      intent.target = s.target;
-    }
+    const intent: Intent = { moveX: 0, moveZ: 0, target: s.panel.kind === "none" ? s.target : null };
     c.acc += Math.min(frameDt, 0.1);
     while (c.acc >= STEP) {
       c.acc -= STEP;
@@ -188,7 +204,7 @@ export function Player({ houses }: { houses: Collider[] }) {
     look.set(pose.x, 1, pose.z).add(ahead);
     const k = 1 - Math.exp(-(s.skyView ? 2 : 4) * dt);
     if (s.skyView) goal.copy(look).add(SKY_OFFSET);
-    else goal.copy(look).addScaledVector(CAMERA_OFFSET, zoom);
+    else goal.copy(look).addScaledVector(CAMERA_OFFSET, fit * s.zoom);
     camera.position.lerp(goal, k);
     // The aim point eases too, so switching views pans smoothly instead of snapping.
     aim.lerp(s.skyView ? goal.copy(look).add(SKY_LOOK) : look, k);

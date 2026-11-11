@@ -55,10 +55,24 @@ function loadLook(p: Progress): Look {
   }
 }
 
+// Camera zoom (OQ-05 study): a per-browser convenience, never progress.
+const ZOOM_KEY = "vila.zoom.v1";
+export const ZOOM_MIN = 0.55;
+export const ZOOM_MAX = 1.6;
+const clampZoom = (z: number) => (Number.isFinite(z) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) : 1);
+
+function loadZoom(): number {
+  try {
+    return clampZoom(Number(localStorage.getItem(ZOOM_KEY) ?? 1));
+  } catch {
+    return 1;
+  }
+}
+
 interface VilaState {
   panel: Panel;
   nearby: Nearby;
-  /** Click/tap destination; null when idle or moving with the keyboard. */
+  /** Click/tap destination (the only way to walk); null when idle. */
   target: { x: number; z: number } | null;
   progress: Progress;
   /** Whose progress is on screen: null = guest (saved in this browser), else the signed-in account id. */
@@ -73,6 +87,10 @@ interface VilaState {
   close: () => void;
   setNearby: (n: Nearby) => void;
   setTarget: (t: { x: number; z: number } | null) => void;
+  /** Camera distance multiplier (1 = default; smaller = closer). Saved in this browser. */
+  zoom: number;
+  /** Multiplies the zoom by `factor`, clamped to [ZOOM_MIN, ZOOM_MAX]. */
+  zoomBy: (factor: number) => void;
   record: (missionId: string, eventId: string) => void;
   /** Shows an account's progress (from the server); the look is re-checked against it. */
   adoptProgress: (p: Progress, owner: string) => void;
@@ -114,6 +132,17 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ nearby });
   },
   setTarget: (target) => set(target ? { target, skyView: false } : { target }),
+  zoom: loadZoom(),
+  zoomBy: (factor) => {
+    const zoom = clampZoom(get().zoom * factor);
+    if (zoom === get().zoom) return;
+    try {
+      localStorage.setItem(ZOOM_KEY, String(zoom));
+    } catch {
+      /* storage unavailable: the zoom lasts for this session */
+    }
+    set({ zoom, skyView: false });
+  },
   record: (missionId, eventId) => {
     const previous = get().progress;
     const { progress, completed } = applyEvent(previous, missionId, eventId);
