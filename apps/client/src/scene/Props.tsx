@@ -8,7 +8,8 @@ import { useVila } from "../game/store";
 import type { LotInfo } from "../lib/api";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
-import { bench, BULBS, gift, house, HOUSE_CHIMNEY, lamp, lotMarker, tree } from "./models";
+import { gift as generateGift } from "./gen/props";
+import { bench, BULBS, house, HOUSE_CHIMNEY, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
 const WINDOWS = [P.window];
@@ -114,22 +115,21 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
   );
 }
 
-const GIFT_COLORS = [P.red, P.pine, "#3E6FA8"];
-
 export function Gifts() {
   const progress = useVila((s) => s.progress);
   return (
     <>
-      {GIFTS.map((g, i) =>
-        progress.seen[`explore-gifts:${g.id}`] || progress.completed["explore-gifts"] ? null : <Gift key={g.id} x={g.x} z={g.z} color={GIFT_COLORS[i % 3]} />
+      {GIFTS.map((g) =>
+        progress.seen[`explore-gifts:${g.id}`] || progress.completed["explore-gifts"] ? null : <Gift key={g.id} id={g.id} x={g.x} z={g.z} />
       )}
     </>
   );
 }
 
-function Gift({ x, z, color }: { x: number; z: number; color: string }) {
+/** Hidden gift: wrapping generated from its id (IMPL-0010), so every visitor sees the same one. */
+function Gift({ id, x, z }: { id: string; x: number; z: number }) {
   const ref = useRef<Group>(null);
-  const v = useMemo(() => gift(color), [color]);
+  const m = useMemo(() => generateGift(id), [id]);
   useFrame(({ clock }) => {
     if (!ref.current) return;
     ref.current.rotation.y = clock.elapsedTime;
@@ -137,7 +137,7 @@ function Gift({ x, z, color }: { x: number; z: number; color: string }) {
   });
   return (
     <group ref={ref} position={[x, 0, z]}>
-      <Voxels voxels={v} size={0.6} emissive={GLOW} />
+      <Voxels voxels={m.voxels} size={m.size} emissive={GLOW} />
     </group>
   );
 }

@@ -121,6 +121,24 @@ for (const [name, time, weather, sky, quality] of scenes) {
   await ctxB.close();
 }
 
+// Content gallery (IMPL-0010, dev-only ?gallery): screenshot per category + render cost + budgets table.
+stats.gallery = {};
+for (const cat of ["props", "houses", "characters", "animals", "cosmetics"]) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  page.on("pageerror", (e) => errors.push(`gallery-${cat}: ${e.message}`));
+  page.on("console", (m) => m.type() === "error" && errors.push(`gallery-${cat}: ${m.text()}`));
+  const sep = url.includes("?") ? "&" : "?";
+  await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "networkidle" });
+  await page.waitForSelector("canvas", { timeout: 15000 });
+  await page.waitForTimeout(4000);
+  await page.screenshot({ path: `${out}gallery-${cat}.png` });
+  stats.gallery[cat] = {
+    perf: await page.locator(".gallery__perf").textContent(),
+    models: await page.locator(".gallery__stats tbody tr").allTextContents(),
+  };
+  await page.close();
+}
+
 await browser.close();
 writeFileSync(`${out}stats.json`, JSON.stringify(stats, null, 2));
 console.log(stats);

@@ -76,10 +76,6 @@ export function lamp(): Voxel[] {
   return v;
 }
 
-export function gift(color: string): Voxel[] {
-  return [[0, 0, 0, color], [0, 1, 0, P.gold]];
-}
-
 export function bench(): Voxel[] {
   return [[-1, 0, 0, P.trunk], [1, 0, 0, P.trunk], [-1, 1, 0, P.wood], [0, 1, 0, P.snowShade], [1, 1, 0, P.wood]];
 }

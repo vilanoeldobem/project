@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generator snapshots > keeps the output of fixed seeds stable 1`] = `
+{
+  "fence": [
+    "a03bc3b0",
+    "975009ec",
+    "736878e0",
+  ],
+  "garland": [
+    "3925907f",
+    "aefe1b63",
+    "fbe6ff4f",
+  ],
+  "gift": [
+    "fca16e2d",
+    "ca253e2f",
+    "bb28c431",
+  ],
+  "lantern": [
+    "d7848d99",
+    "1def36b5",
+    "879dc65c",
+  ],
+  "mailbox": [
+    "698c216e",
+    "4caf8580",
+    "b55e41f1",
+  ],
+  "market-stall": [
+    "ba33e23f",
+    "e79308d5",
+    "620536dd",
+  ],
+  "panettone-stand": [
+    "ec241412",
+    "156cc35f",
+    "797fe134",
+  ],
+  "signpost": [
+    "42b3f731",
+    "50b3e32c",
+    "7d06da62",
+  ],
+  "sled": [
+    "30b095e7",
+    "c11c2da",
+    "bccd9138",
+  ],
+}
+`;

@@ -284,20 +284,27 @@ models and stay inside a measured budget. Product rules: cosmetics only from mis
 loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules unchanged.
 
 ## Phase 0 — shared generator core
-- [ ] `scene/gen/rng.ts`: seeded PRNG (`seedOf(string|number)` FNV-1a → mulberry32), `pick`, `range`, `chance`
-- [ ] `scene/gen/parts.ts`: `box`, `shell`, `disc`, `mirrorX`, `place` (quarter turns), snow-cap pass, palette
+- [x] `scene/gen/rng.ts`: seeded PRNG (`seedOf` FNV-1a → mulberry32), `int`, `float`, `pick`, `chance`
+- [x] `scene/gen/parts.ts`: `box`, `shell`, `disc`, `mirrorX`, `place` (quarter turns), snow-cap pass, palette
       variants as named derivations of `PALETTE` (no free colours)
-- [ ] `scene/gen/budget.ts`: per-category max voxels + max faces (counted with `meshVoxels`)
-- [ ] Generic test harness: deterministic per seed, budget, ≥ N distinct variants (hash), integer coords, base y=0,
+- [x] `scene/gen/budget.ts`: per-category max voxels + max faces (counted with `meshVoxels`)
+- [x] Generic test harness: deterministic per seed, budget, ≥ N distinct variants (hash), integer coords, base y=0,
       snapshot hashes for fixed seeds (art changes show up as failing tests)
-- [ ] Lint guard test: no `Math.random` under `scene/gen/`
-- [ ] Dev gallery `?gallery` (localhost only): grid per category × 8 seeds, orbit camera, voxel/face counts per model
-- [ ] `verify.mjs`: gallery screenshots + calls/tris/p95 per category
+- [x] Lint guard test: no `Math.random` under `scene/gen/`
+- [x] Dev gallery `?gallery` (localhost only): grid per category × 8 seeds, orbit camera, voxel/face counts per model
+- [x] `verify.mjs`: gallery screenshots + calls/tris/p95 per category
 
 ## Phase 1 — props and items (budget: ≤ 220 voxels, ≤ 600 faces)
-- [ ] Gifts (pattern stripes/dots/checks, ribbon cross/bow), lanterns (emissive), fences, sleds, mailboxes,
+- [x] Gifts (pattern stripes/dots/checks, ribbon cross/bow), lanterns (emissive), fences, sleds, mailboxes,
       signposts (no text), garlands (emissive bulbs), market stalls; Brazilian touches: panetone stand
-- [ ] Replace the hand-made `gift()` with the generator (gift ids/positions unchanged)
+- [x] Replace the hand-made `gift()` with the generator (gift ids/positions unchanged)
+
+### Phases 0–1 review (2026-11-10)
+- 9 prop generators; max voxels/faces over 8 gallery seeds vs budget 220/600: gift 130/166, lantern 85/216,
+  fence 49/166, sled 80/250, mailbox 64/146, signpost 25/102, garland 44/154, stall 111/318, panettone 110/322.
+- Village ("dia-neve", medium): 56 → 55 calls, 108.1k → 109.0k tris (generated gifts). Gallery props: 100 calls,
+  27.6k tris. Tests +38 (contract × 9 generators, snapshot, Math.random guard).
+- Placement of new props in the village waits for the layout decision (PEN-017/PEN-023).
 
 ## Phase 2 — houses (budget: ≤ 900 voxels, ≤ 1 800 faces)
 - [ ] Footprint 5–7, 1–2 floors, roof (gable / hip / A-frame), porch, wreath, snow on roof, chimney at a

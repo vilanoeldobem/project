@@ -20,6 +20,12 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
+  núcleo de geradores determinísticos (PRNG por semente, partes, paleta nomeada, orçamento por categoria testado,
+  snapshots) e 9 geradores de adereços (presente, lanterna, cerca, trenó, caixa de correio, placa, guirlanda,
+  barraca, barraca de panetone). Presentes escondidos agora gerados pelo id. Galeria `?gallery` (só desenvolvimento)
+  e `scripts/gallery.mjs`. Ver [content.md](docs/reference/content.md).
+
 - Multiplayer de presença ([IMPL-0008](docs/decisions/0008-multiplayer-presence-durable-objects.md)): quem está na
   mesma praça vê os outros andando em tempo real (Durable Object `VillageRoom` + WebSocket `GET /api/room`, até 40
   por sala, 8 salas). Bonecos anônimos, sem nomes, sem chat, nada gravado. Chip "👥 N" no HUD; opção "Outros
