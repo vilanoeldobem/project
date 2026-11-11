@@ -1,6 +1,6 @@
 # IMPL-0008: Multiplayer de presença com Durable Objects e WebSocket
 
-**Status:** Aceita pelo responsável técnico (2026-11-10) — deploy em produção pendente de autorização
+**Status:** Aceita pelo responsável técnico (2026-11-10) — em produção desde 2026-11-10 (`vilanoeldobem-server` 9c92585f)
 **Data:** 2026-11-10
 **Fontes:** pedido do responsável técnico em 2026-11-10 ("go ahead with multiplayer, make it work using Cloudflare");
 IMPL-0006 (alternativa adiada: Durable Object + WebSocket), IMPL-0007 (simulação pura em passo fixo);

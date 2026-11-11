@@ -1,6 +1,7 @@
 # IMPL-0009: Separar cliente, API e servidor de tempo real em apps e subdomínios próprios
 
-**Status:** Aceita pelo responsável técnico (2026-11-10) — deploy em produção pendente de autorização
+**Status:** Aceita pelo responsável técnico (2026-11-10) — em produção desde 2026-11-10 (api cf8a3c8a, server 9c92585f,
+client 41bca2ec, site 958763b3)
 **Data:** 2026-11-10
 **Fontes:** pedido do responsável técnico em 2026-11-10 ("em apps/ separar site, client, server, api"; escolha:
 4 apps + pacote compartilhado, com `play.*`, `api.*` e `server.*`); substitui a parte de topologia de

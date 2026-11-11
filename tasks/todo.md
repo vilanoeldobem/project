@@ -377,3 +377,21 @@ Owner choice: 4 apps + shared package, hosts `play.*` (client), `api.*` (api), `
 - Several `wrangler dev` at once collide on the inspector port (9229): give each `--inspector-port`.
 - `wrangler dev` rewrites `Host`: test host-based logic with unit tests, not curl.
 - `.env*` is gitignored here: per-mode endpoints live in code (`endpoints.ts`), not env files.
+
+---
+
+# Task 10: production deploy (owner: "deploy to close this session") — 2026-11-10
+
+- [x] `pnpm deploy:api` → vilanoeldobem-api cf8a3c8a (api.vilanoeldobem.com.br, D1; no new migrations)
+- [x] `pnpm deploy:server` → vilanoeldobem-server 9c92585f (server.vilanoeldobem.com.br, DO VillageRoom created)
+- [x] `pnpm deploy:client` → vilanoeldobem 41bca2ec (play.* + app.* 301)
+- [x] `pnpm deploy:site` → vilanoeldobem-site 958763b3 (links to play.*)
+
+## Review
+- `smoke-api.sh` (production defaults) 14/14; foreign Origin → 403, game origin → 101; app.* → 301 play.* (path and
+  query kept); API CORS for play.*; two real browsers on play.* see each other ("👥 2"), no console errors.
+- Deployed from branch `feat/engine-polish` (not merged, not pushed).
+
+## Lessons
+- The edge speaks HTTP/2 to curl and drops `Upgrade`, and rejects an incomplete handshake with 400 before the
+  Worker runs: WebSocket smoke checks need `--http1.1` and a full handshake (`Sec-WebSocket-Key/Version`).

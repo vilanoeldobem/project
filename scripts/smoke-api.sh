@@ -26,7 +26,7 @@ check "GET api /nope" 404 "$(code "$API/nope")"
 # server
 check "GET server /health" 200 "$(code "$SERVER/health")"
 curl -s "$SERVER/health" | grep -q '"rooms":true' && echo "ok   rooms bound" || { echo "FAIL rooms binding missing"; fail=1; }
-check "GET server /room without Origin" 403 "$(code -H 'Upgrade: websocket' "$SERVER/room")"
+check "GET server /room without Origin" 403 "$(code --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "$SERVER/room")"
 # client
 check "GET client / (SPA)" 200 "$(code "$CLIENT/")"
 check "GET client /client/route (SPA fallback)" 200 "$(code "$CLIENT/client/route")"
