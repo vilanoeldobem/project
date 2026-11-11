@@ -9,6 +9,20 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — 0.4.0 "Contas e ONGs" (desligado em produção)
+
+- Contas ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)): cadastro com Nome, Nickname, Cidade e
+  E-mail (DEC-038; só o nickname é público), entrada por link mágico enviado pelo Cloudflare Email Service (15 min,
+  uso único), sessão em cookie HttpOnly, sair e excluir conta. Atrás da bandeira `ACCOUNTS_ENABLED`, **desligada em
+  produção** até a revisão LGPD / ECA Digital e o cadastro do domínio de e-mail.
+- Missões e XP no servidor: eventos idempotentes, progresso local migrado ao entrar (DEC-042).
+- Candidatura de ONG em 4 etapas (P12, campos PROPOSTA; sem upload de documentos), reserva do terreno, reenvio após
+  pedido de ajustes ou rejeição.
+- Análise administrativa (DEC-037): iniciar análise, aprovar, pedir ajustes, rejeitar; histórico auditado; a
+  aprovação publica a casa gerada no terreno.
+- Migration `0004_accounts_ngo_applications.sql` (schema D1 v4). Rotas `/config`, `/auth/*`, `/me`, `/progress`,
+  `/ngo/application`, `/admin/applications`. `apps/client/scripts/verify-accounts.mjs` (navegador, só local).
+
 ### Changed
 
 - **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):

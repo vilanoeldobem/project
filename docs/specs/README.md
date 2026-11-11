@@ -1,6 +1,6 @@
 # Especificações do produto
 
-> **Status:** referência externa · **Atualizado em:** 2026-11-10
+> **Status:** referência externa · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** repositório [`vilanoeldobem/docs`](https://github.com/vilanoeldobem/docs)
 
 As especificações **não** são copiadas para cá, para não divergirem. A equipe discute e registra regras de negócio
@@ -24,7 +24,7 @@ no repositório de documentação; o código implementa as regras CONFIRMADAS e 
 
 Estados: **CONFIRMADO** (decisão), **PROPOSTA**, **HIPÓTESE**, **PENDENTE**. Só CONFIRMADO é decisão.
 
-## Mapa telas → código (0.2.0)
+## Mapa telas → código (0.4.0)
 
 Caminhos relativos a `apps/client/src/`, salvo indicação.
 
@@ -32,7 +32,9 @@ Caminhos relativos a `apps/client/src/`, salvo indicação.
 |---|---|---|
 | P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx` | Parcial |
 | P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
-| P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx`, `ui/Explore.tsx` | Parcial |
+| P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx` ("Candidatar minha ONG" em terreno disponível), `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |
-| P14 | `packages/shared/src/game/progress.ts`, `ui/Missions.tsx` | Parcial |
+| P12 | `ui/NgoApplication.tsx` (4 etapas, situação), `ui/Admin.tsx` ("Análise de ONGs"), `apps/api/src/{ngo,admin}.ts`, `packages/shared/src/accounts/validate.ts` | Implementado, desligado em produção (IMPL-0011); campos PROPOSTA, sem upload de documentos |
+| P13 | `ui/Account.tsx` (chip "Entrar"/"@nickname", painel da conta), `lib/account.ts`, `apps/api/src/{auth,session,mail}.ts` | Implementado, desligado em produção (IMPL-0011); campos CONFIRMADOS (DEC-038), regras de formato PROPOSTA |
+| P14 | `packages/shared/src/game/progress.ts`, `ui/Missions.tsx`, `apps/api/src/progress.ts` (XP no servidor) | Parcial — XP no servidor só com conta (desligado em produção) |
 | demais | — | Planejado |

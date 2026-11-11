@@ -1,7 +1,7 @@
 # Arquitetura
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `packages/shared/`, `migrations/`
 
 ## 1. Visão geral
@@ -16,7 +16,9 @@ api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) �
 server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server)
                                  └─ /room?i=N (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
 
-navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /indicators, /lots, /environment
+navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment
+                     ── fetch (CORS + cookie __Host-vila_session) ──▶ api.*  /auth/*, /me, /progress*, /ngo/*, /admin/*
+                                                              (só com ACCOUNTS_ENABLED, IMPL-0011)
                      ── WebSocket    ──▶ server.*   /room?i=N
 packages/shared (@vila/shared/…) ── importado por client, api e server (lógica pura, sem build)
 ```
@@ -42,6 +44,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Desempenho | `scene/RenderStats.tsx`, `scene/perf.ts` | Chamadas, triângulos, p50/p95 do quadro; resolução adaptativa |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
+| Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `ui/Admin.tsx`, `shared/accounts/validate.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso, candidatura de ONG em 4 etapas e painel "Análise de ONGs" ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada |
 | Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho |
 | Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar `app.*` → `play.*` (301, mesmo caminho e query); o resto vai para os Static Assets |
 
@@ -63,11 +66,39 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 
 ## 3. API (`apps/api/src`)
 
-- `index.ts`: só o handler `fetch` (o runtime não aceita outros exports nomeados).
-- `api.ts`: `handleApi` — rotas `/health`, `/indicators`, `/lots`, `/environment` (ver [api.md](api.md)). CORS só
-  para origens exatas de `ALLOWED_ORIGINS`. `/environment` é a autoridade da hora (sem estado; sem Durable Object,
-  IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo.
-- Único app com acesso ao D1.
+| Módulo | Responsabilidade |
+|---|---|
+| `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
+| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment` e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
+| `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
+| `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
+| `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me` |
+| `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
+| `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pelo Cloudflare Email Service (binding `EMAIL`); `devLink` fora de produção |
+| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado |
+| `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
+| `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico, decisões auditadas |
+
+Único app com acesso ao D1. Detalhes em [api.md](api.md).
+
+### 3.1 Fluxo de entrada (link mágico)
+
+```
+jogo (play.*)                     API (api.*)                          D1 / Email Service
+ │ POST /auth/register ou /link ─▶ valida, limita (IP e 3 links/15 min)
+ │                                 token aleatório ──────────────────▶ login_tokens (SHA-256, 15 min)
+ │                                 envia e-mail ─────────────────────▶ EMAIL.send (só o link)
+ │ ◀── 202 {ok} (+ devLink fora de produção)
+ │ pessoa abre <origin>/?login=<token>
+ │ POST /auth/verify {token} ────▶ marca used_at (uso único), verified_at
+ │                                 cria sessão ──────────────────────▶ sessions (SHA-256, 30 dias)
+ │ ◀── 200 {user} + Set-Cookie __Host-vila_session (HttpOnly, Secure, SameSite=Lax)
+ │ GET /progress, POST /progress/events (progresso local, em lotes de 50) ─▶ progress_events
+ │ adota o progresso do servidor; cada evento novo é espelhado enquanto houver sessão
+```
+
+O token sai da barra de endereço logo ao ser lido. O link aponta para o jogo, não para a API, para que scanners de
+e-mail que "clicam" links não consumam o token.
 
 ## 4. Servidor de tempo real (`apps/server/src`)
 
@@ -86,7 +117,8 @@ Cloudflare.
 
 | Pasta | Módulos | Usado por |
 |---|---|---|
-| `game/` | `world.ts`, `motion.ts`, `progress.ts` | client, server (limites do mundo e velocidade na sala) |
+| `game/` | `world.ts`, `motion.ts`, `progress.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor) |
+| `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura) |
 | `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`) |
 | `net/` | `protocol.ts` | client, server |
 
@@ -119,6 +151,10 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 | client | `assets.run_worker_first` | `true` | Worker só redireciona `app.*`; o resto vai para `ASSETS` |
 | api | `d1_databases[0]` | binding `DB`, `migrations_dir: ../../migrations` | Migrations na raiz do repo |
 | api | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br` | CORS por origem exata |
+| api | `vars.ACCOUNTS_ENABLED` | `"false"` | Contas desligadas até a revisão LGPD / ECA Digital (IMPL-0011) |
+| api | `vars.MAIL_FROM` | `acesso@vilanoeldobem.com.br` | Remetente do link de acesso |
+| api | `send_email` | binding `EMAIL` | Cloudflare Email Service (só o link de acesso) |
+| api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
 
@@ -129,6 +165,10 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 Analytics liberados), `X-Frame-Options: DENY`, `Permissions-Policy` negando câmera, microfone, localização e
 pagamento; `/assets/*` com cache imutável de 1 ano. O HTML faz `preconnect` para a API. A API manda CORS só para
 origens exatas; o servidor recusa WebSocket de outra origem (`403`), o que bloqueia sequestro de WebSocket.
+
+Rotas de conta: só respondem a `Origin` permitida (`403 forbidden_origin`); mutações exigem
+`Content-Type: application/json` (`415`), o que força o preflight de CORS; sessão e links guardados só como hash;
+cookie `HttpOnly`, `Secure`, `SameSite=Lax`; nenhum dado pessoal em log.
 
 ## 10. Desempenho
 
@@ -150,7 +190,9 @@ chamadas e triângulos independem da GPU.
 
 ## Limitações conhecidas
 
-- Sem autenticação nem rotas de escrita.
+- Contas, XP no servidor e candidatura de ONG implementados, mas desligados em produção (`ACCOUNTS_ENABLED`) até a
+  revisão LGPD / ECA Digital e o cadastro do domínio no Email Service.
+- Candidatura sem upload de documentos; nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo
   compartilhado (IMPL-0008).
@@ -159,4 +201,4 @@ chamadas e triângulos independem da GPU.
 ## Ver também
 
 [api.md](api.md) · [storage.md](storage.md) · [IMPL-0001](../decisions/0001-stack-react-threejs-cloudflare.md) ·
-[IMPL-0009](../decisions/0009-split-client-api-server-shared.md)
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)

@@ -26,6 +26,7 @@ pnpm --filter @vila/server dev                                  # server → :87
 pnpm --filter @vila/client dev:worker                           # client → :8799 (build --mode workers)
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
+node apps/client/scripts/verify-accounts.mjs   # accounts / NGO / admin flow (local only)
 # website changes
 pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other terminal
 node apps/site/scripts/verify.mjs http://localhost:4173
@@ -47,6 +48,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   `packages/shared/src/game/progress.ts` and is covered by tests.
 - Only an authorised admin publishes/removes NGOs or applies sanctions (DEC-037); every admin
   mutation writes `audit_events`.
+- Accounts (IMPL-0011) stay behind `ACCOUNTS_ENABLED` ("false" in production) until the owner records the LGPD /
+  ECA Digital review. Never flip it, grant `admin` remotely or apply remote migrations without explicit approval.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 

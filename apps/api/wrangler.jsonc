@@ -14,10 +14,21 @@
       "migrations_dir": "../../migrations"
     }
   ],
+  // Cloudflare Email Service (IMPL-0011): sends only the sign-in link. The sending domain must be onboarded
+  // (docs/guides/deploy.md); until then sends fail closed with 503 "mail_unavailable".
+  "send_email": [{ "name": "EMAIL" }],
+  // Sign-in requests per client IP (the IP is only a rate-limit key, never stored).
+  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }],
   "vars": {
     "ENVIRONMENT": "production",
+    // Accounts, server XP, NGO applications and admin (IMPL-0011). Off until the LGPD / ECA Digital review.
+    "ACCOUNTS_ENABLED": "false",
+    "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
-    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br"
+    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br",
+    // Only the game may use account routes and send the session cookie; sign-in links always open the game.
+    "ACCOUNT_ORIGINS": "https://play.vilanoeldobem.com.br",
+    "GAME_ORIGIN": "https://play.vilanoeldobem.com.br"
   },
   "routes": [{ "pattern": "api.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },

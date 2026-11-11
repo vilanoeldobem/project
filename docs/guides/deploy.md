@@ -1,7 +1,7 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site}/wrangler.jsonc`,
 > `apps/*/package.json`
 
@@ -49,6 +49,9 @@ região na América do Sul; `enam` é a mais próxima).
 ```bash
 pnpm --filter @vila/api db:migrate:remote
 ```
+
+Exige autorização humana explícita. Aplique **junto** com o deploy da API que usa o schema novo (na 0.4.0, a
+migration `0004_accounts_ngo_applications.sql`; ver [§7](#7-contas-e-ongs-040)).
 
 ## 4. Publicar
 
@@ -126,11 +129,87 @@ banco para um instante (`wrangler d1 time-travel restore vilanoeldobem --timesta
 > Atenção: use `pnpm deploy:<app>` na raiz ou `pnpm run deploy` dentro do app. `pnpm deploy` (sem `run`) é um
 > comando nativo do pnpm e não publica nada.
 
+## 7. Contas e ONGs (0.4.0)
+
+Contas, link mágico, XP no servidor, candidatura e análise de ONGs
+([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) vão para produção **desligados**
+(`ACCOUNTS_ENABLED = "false"` em `apps/api/wrangler.jsonc`). Com a bandeira desligada, `/config` responde
+`{"accounts":false}`, toda rota de conta responde `404 accounts_disabled` e o jogo não mostra nada de conta.
+
+### 7.1 Ordem do deploy da 0.4.0
+
+1. **Migration remota 0004 + API, juntas** (ambas exigem autorização):
+
+   ```bash
+   pnpm --filter @vila/api db:migrate:remote     # aplica 0004_accounts_ngo_applications.sql
+   pnpm deploy:api
+   curl -s https://api.vilanoeldobem.com.br/health    # "db":true
+   curl -s https://api.vilanoeldobem.com.br/config    # {"accounts":false}
+   ```
+
+   A 0004 só cria tabelas e acrescenta colunas em `ngos`: a API anterior continua funcionando com ela, então a
+   migration pode ir um pouco antes do deploy, nunca depois.
+2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
+3. Smoke e `verify.mjs` como em [§4](#4-publicar).
+
+### 7.2 Cloudflare Email Service (OQ-08)
+
+O link de acesso sai pelo Cloudflare Email Service (binding `send_email` `EMAIL`, remetente
+`acesso@vilanoeldobem.com.br`, `MAIL_FROM`). Antes de ligar as contas, o domínio precisa estar cadastrado no
+serviço. A documentação da comunidade cita:
+
+```bash
+cd apps/api
+pnpm exec wrangler email sending enable vilanoeldobem.com.br
+```
+
+Confirmar no painel / documentação da Cloudflare (o comando e os registros DNS exigidos podem mudar). Criar ou
+alterar recursos da Cloudflare exige autorização (AGENTS.md).
+
+- O Email Service está em **beta**; enviar para qualquer destinatário pode exigir o plano Workers Paid — **verificar
+  plano** antes de ligar.
+- Sem o domínio cadastrado, o envio falha e a API responde `503 mail_unavailable` (falha fechada; o log traz só o
+  código do erro, nunca endereço nem link).
+- Conferir se `acesso@` deve receber respostas (senão, configurar o Email Routing ou deixar claro no texto).
+
+### 7.3 Ligar as contas
+
+Só depois de **(a)** a revisão LGPD / ECA Digital registrada pelo dono do produto e **(b)** o domínio cadastrado no
+Email Service com um envio de teste recebido. Então, com autorização:
+
+1. Mude `"ACCOUNTS_ENABLED": "true"` em `apps/api/wrangler.jsonc` (commit) e rode `pnpm deploy:api`.
+2. Confira `curl -s https://api.vilanoeldobem.com.br/config` → `{"accounts":true}` e crie uma conta de teste em
+   `play.*` (o link chega por e-mail; em produção a resposta nunca traz `devLink`).
+
+Para desligar de novo, volte a bandeira para `"false"` e publique a API: os dados ficam no D1, a interface some.
+
+### 7.4 Conceder o papel de administrador
+
+Não há tela para isso (DEC-037). A pessoa cria a conta normalmente e confirma o link; depois, alguém com acesso à
+conta Cloudflare roda, em `apps/api`:
+
+```bash
+pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET role='admin' WHERE nickname='...'"
+```
+
+É uma escrita remota no D1: **proibida para agentes sem autorização humana explícita** (AGENTS.md). O painel
+"Análise de ONGs" aparece no painel da conta depois de recarregar o jogo. Para retirar, `role='player'`.
+
+### 7.5 Reverter
+
+- Reverter a API ou o cliente da 0.4.0 com `wrangler rollback` ([§6](#6-reverter)) é seguro: a versão anterior
+  ignora as tabelas novas. Com a bandeira desligada, normalmente nem é preciso reverter: basta mantê-la em `"false"`.
+- A migration 0004 não é revertida: as tabelas ficam (vazias, se as contas nunca foram ligadas). Se for preciso
+  corrigir o schema, escreva uma nova migration.
+- Se as contas já tiverem sido ligadas, desligar a bandeira esconde tudo sem apagar contas, candidaturas nem
+  `audit_events`; terrenos reservados continuam reservados.
+
 ## Limitações conhecidas
 
 - Ainda não há ambiente de homologação separado (ROADMAP, tarefas de base).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
+- Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital e o cadastro do domínio no Email Service.
 
 ## Ver também
 

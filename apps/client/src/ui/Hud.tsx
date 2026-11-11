@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { MISSIONS } from "@vila/shared/game/progress";
 import { useVila } from "../game/store";
+import { AccountChip } from "./Account";
 import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
 import { Wordmark } from "./Wordmark";
@@ -35,6 +36,7 @@ export function Hud() {
           <EnvironmentChip />
         </div>
         <nav className="hud__nav">
+          <AccountChip />
           <button className="btn btn--chip" onClick={() => open({ kind: "explore" })} aria-label="Explorar ONGs">
             🏡 <span>Explorar ONGs</span>
           </button>

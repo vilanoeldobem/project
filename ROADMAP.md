@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-10 · **Versão atual:** 0.3.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-11 · **Versão atual:** 0.4.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -28,7 +28,7 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Ambiente natalino (IMPL-0006) | Unreleased | — | — | **Entregue** 2026-11-09 (em produção) | 09/11 |
 | Decisões e publicação de teste | 0.3.x | — | G11, G12, M01 | **Em andamento** | 09–10/11 |
 | Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Em andamento** (CI entregue) | 09–10/11 |
-| Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | Planejado — aguarda OQ-08 e revisão LGPD | 11–17/11 |
+| Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | **Implementado** (desligado em produção até revisão LGPD/ECA) | 11–17/11 |
 | HUD da ONG e segundo jogo | 0.5.0 | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
 | Doação e badges | 0.6.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
 | Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
@@ -63,21 +63,23 @@ passa a https://play.vilanoeldobem.com.br (`app.*` redireciona), a API a `api.*`
 | 3 | **Backup e restauração do D1** | Procedimento documentado com D1 Time Travel e export periódico; restauração ensaiada uma vez no staging. |
 | 4 | **Redução do chunk Three.js** — entregue 2026-11-10: 317 → 245 kB gzip (React em chunk próprio, bloom sob demanda) | Meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
 
-### Contas e ONGs (0.4.0)
+### Contas e ONGs (0.4.0) — implementado, desligado em produção
 
 **Objetivo:** fechar a jornada "ONG se candidata → admin aprova → casa aparece no terreno" e guardar o progresso
-do jogador no servidor.
+do jogador no servidor. **Implementado em 2026-11-11** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md))
+atrás da bandeira `ACCOUNTS_ENABLED`, que fica `"false"` em produção até a revisão LGPD / ECA Digital.
 
-| # | Entrega | Tela / decisão | Pronto quando |
-|---|---|---|---|
-| 1 | **Cadastro leve de usuário** | P13, DEC-038 | Exatamente Nome, Nickname, Cidade e E-mail; só o nickname é público; nickname único; e-mail verificado; nada além disso coletado (LGPD/ECA Digital). |
-| 2 | **Candidatura de ONG em 4 etapas** | P12, DEC-015, DEC-037 | "Dados da organização / Documentos e comprovações / Apresentação e projetos / Revisão e envio"; terreno passa a `application_sent`; documentos privados fora do repositório e dos logs. |
-| 3 | **Painel admin** | P12, DEC-037, DEC-028 | "Aprovar / Pedir ajustes / Rejeitar" com histórico em `audit_events`; só a aprovação publica a casa no terreno; acesso restrito a admins. |
-| 4 | **Missões e XP no servidor** | P14, DEC-039/040/042 | Eventos idempotentes por id único no D1; progresso local migrado ao entrar na conta; mesmas regras de `progress.ts` (doação sozinha não dá XP). |
+| # | Entrega | Tela / decisão | Entregue | Falta |
+|---|---|---|---|---|
+| 1 | **Cadastro leve de usuário** | P13, DEC-038 | Exatamente Nome, Nickname, Cidade e E-mail; só o nickname é público; nickname único (sem diferenciar maiúsculas); e-mail verificado por link mágico (15 min, uso único, sem senha); sessão em cookie `HttpOnly`; exclusão da conta pelo próprio usuário. | Revisão LGPD / ECA Digital (idade mínima, consentimentos, retenção); moderação de nicknames; cadastro do domínio no Email Service; regras de formato ainda PROPOSTA. |
+| 2 | **Candidatura de ONG em 4 etapas** | P12, DEC-015, DEC-037 | "Dados da organização / Documentos e comprovações / Apresentação e projetos / Revisão e envio"; CNPJ com dígitos verificadores, abertura ≥ 1 ano, três declarações; terreno passa a `application_sent`; reenvio após ajustes ou rejeição. | Upload de documentos (lista PENDENTE, PEN-019); campos da candidatura ainda PROPOSTA; medida de 1 ano (PEN-013). |
+| 3 | **Painel admin** | P12, DEC-037, DEC-028 | "Análise de ONGs": iniciar análise, aprovar, pedir ajustes, rejeitar (mensagem obrigatória); histórico em `audit_events`; só a aprovação publica a casa; papel `admin` concedido à mão no D1; "Aprovar" só com os três critérios marcados. | Avisos por e-mail das decisões (a organização vê a situação no jogo); tela de concessão de papéis. |
+| 4 | **Missões e XP no servidor** | P14, DEC-039/040/042 | Eventos idempotentes `(conta, missão, evento)` no D1; progresso local migrado ao entrar; mesmo `applyEvent` de `progress.ts` no cliente e na API. | Ligar em produção (depende da revisão LGPD / ECA Digital). |
 
-**Decidido (2026-11-09):** visitante livre, conta opcional (OQ-02); login por link mágico no e-mail (OQ-03).
-**Depende de:** provedor de envio de e-mail (OQ-08) e revisão LGPD / ECA Digital antes do cadastro.
-revisão LGPD / ECA Digital antes do cadastro.
+**Decidido:** visitante livre, conta opcional (OQ-02, 2026-11-09); login por link mágico no e-mail (OQ-03,
+2026-11-09); envio pelo Cloudflare Email Service (OQ-08, 2026-11-11).
+**Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio cadastrado no
+Email Service ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
 
 ### HUD da ONG e segundo jogo (0.5.0)
 
@@ -99,7 +101,7 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 | Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
 | Redução do chunk Three.js | **Entregue** (245 kB gzip) | Marco "Infraestrutura de entrega", item 4 |
 | Logs de erro | Parcial | `observability.enabled` em cada Worker |
-| Revisão LGPD / ECA Digital | Não iniciado | antes do cadastro (0.4.0) |
+| Revisão LGPD / ECA Digital | Não iniciado | bloqueia ligar as contas da 0.4.0 em produção |
 
 ## Riscos que podem reordenar o roadmap
 
@@ -117,5 +119,5 @@ plano mudar, o plano vence e este arquivo é corrigido.
 | Item | Onde | Efeito | Sugestão |
 |---|---|---|---|
 | Chunk `three` ainda com 245 kB gzip (three inteiro, r3f importa `* as THREE`) | `apps/client` | Cena demora em 3G (a interface já aparece antes) | Medir em celular (G12) antes de otimizar mais |
-| Progresso só em `localStorage` | `apps/client/src/game/store.ts` | Perde-se ao trocar de aparelho | Persistir no D1 com a conta (0.4.0, item 4) |
+| Progresso só em `localStorage` para quem não tem conta | `apps/client/src/game/store.ts` | Perde-se ao trocar de aparelho | Com conta, já persiste no D1 (0.4.0, item 4); depende de ligar as contas |
 | Posições dos terrenos duplicadas (TS e SQL) | `packages/shared/src/game/world.ts`, `0002_seed_lots.sql` | Divergência possível | Coberto por teste; gerar SQL a partir do TS |
