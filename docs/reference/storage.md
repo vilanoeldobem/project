@@ -82,3 +82,17 @@ requisições concorrentes releem o estado antes de tentar novamente. Não há t
 
 Aplicação v5 e integridade foram conferidas no D1 de homologação; produção continua em v3, sem autenticação pública. O visitante continua no localStorage; a conta usa D1,
 com cache/fila local isolados por ID para retomada offline. Cookies não são persistidos nesse cache.
+
+## Candidatura de ONG - v6 disponível para teste
+
+`0006_ngo_applications.sql` adiciona `ngo_applications`: id, ngo_id único/FK de ngos, owner_id/FK da conta,
+requested_lot_id/FK do terreno, feedback privado e mutation_id. Status/revisão/dados permanecem em ngos.
+Índice por proprietário permite listar somente suas candidaturas. O terreno solicitado não é reservado
+antes da aprovação, uma PROPOSTA local que precisa de ratificação.
+
+O marcador exclusivo da mutação só é escrito se estado/revisão e, ao aprovar, terreno livre coincidirem.
+Todas as escritas dependentes de terreno, publicação e auditoria exigem o marcador daquela tentativa.
+Isso evita efeitos parciais por comandos D1 que atualizam zero linhas sem lançar exceção. Erros SQL reais
+revertem o batch inteiro. Ator e atestações podem entrar na auditoria, mas feedback/CNPJ/apresentação não.
+Nenhuma tabela de documentos, upload ou storage externo faz parte desta migration.
+A presença de v6 no repositório não comprova aplicação remota; migrations anteriores foram preservadas.

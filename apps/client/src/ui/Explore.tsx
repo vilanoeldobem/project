@@ -12,7 +12,7 @@ const STATE_LABEL: Record<LotState, string> = {
 
 /** Lots around the plaza; "Ir até lá" walks the avatar there. */
 export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
-  const { setTarget, close } = useVila.getState();
+  const { setTarget, close, open } = useVila.getState();
   const published = LOTS.filter((l) => lots[l.id]?.state === "published").length;
   return (
     <Panel kicker="Explorar" title="ONGs da Vila">
@@ -30,6 +30,8 @@ export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
                 <strong>{info?.state === "published" && info.ngo_name ? info.ngo_name : `Terreno ${l.slot}`}</strong>
                 <small>{STATE_LABEL[info?.state ?? "available"]}</small>
               </span>
+              <div className="lot-list__actions">
+              <button className="btn btn--small" onClick={() => open({ kind: "lot", lotId: l.id })}>Ver terreno</button>
               <button
                 className="btn btn--small"
                 onClick={() => {
@@ -39,6 +41,7 @@ export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
               >
                 Ir até lá
               </button>
+              </div>
             </li>
           );
         })}

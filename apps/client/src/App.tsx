@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 
 import { useVila } from "./game/store";
 import { fetchLots, type LotInfo } from "./lib/api";
@@ -11,6 +11,7 @@ import { Indicators } from "./ui/Indicators";
 import { Lot } from "./ui/Lot";
 import { MemoryGame } from "./ui/MemoryGame";
 import { Missions } from "./ui/Missions";
+import { NgoApplications } from "./ui/NgoApplications";
 import { Welcome } from "./ui/Welcome";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -19,9 +20,10 @@ export function App() {
   const panel = useVila((s) => s.panel);
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
-  useEffect(() => {
-    fetchLots().then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l]))));
+  const refreshLots = useCallback((fresh = false) => {
+    void fetchLots(fresh).then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l]))));
   }, []);
+  useEffect(refreshLots, [refreshLots]);
 
   return (
     <>
@@ -41,6 +43,7 @@ export function App() {
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
       {panel.kind === "account" && <AccountPanel />}
+      {panel.kind === "ngo-applications" && <NgoApplications lotId={panel.lotId} review={panel.review} lots={lots} onPublished={() => refreshLots(true)} />}
       <GameSound />
       <Presence />
       <EnvironmentDebug />

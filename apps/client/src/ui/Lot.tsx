@@ -2,12 +2,14 @@ import { useEffect } from "react";
 
 import { useVila } from "../game/store";
 import type { LotInfo } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { Panel, Status } from "./Panel";
 
 /** Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). */
 export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
+  const available = useAuth((s) => s.available);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
   const n = Number(lotId.split("-")[1]);
 
@@ -50,10 +52,10 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
         <li>Meio confiável de confirmar os valores destinados à organização.</li>
       </ol>
       <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      <button className="btn" disabled>
-        Conheça o cadastro
-      </button>
-      <p className="note">O cadastro de ONGs abre em breve.</p>
+      {available && !inReview ? <>
+        <button className="btn" onClick={() => open({ kind: "ngo-applications", lotId })}>Candidatar minha ONG</button>
+        <p className="note">Teste local: o envio não reserva o terreno. Documentos e responsáveis ainda serão definidos.</p>
+      </> : <p className="note">O cadastro público de ONGs abre em breve.</p>}
     </Panel>
   );
 }

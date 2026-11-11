@@ -19,9 +19,9 @@ export interface LotInfo {
   ngo_summary: string | null;
 }
 
-async function getJson<T>(path: string): Promise<T | null> {
+async function getJson<T>(path: string, cache?: RequestCache): Promise<T | null> {
   try {
-    const res = await fetch(`${SERVICES.api}${path}`, { headers: { Accept: "application/json" } });
+    const res = await fetch(`${SERVICES.api}${path}`, { cache, headers: { Accept: "application/json" } });
     if (!res.ok || !res.headers.get("content-type")?.includes("json")) return null;
     return (await res.json()) as T;
   } catch {
@@ -30,4 +30,4 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 export const fetchIndicators = () => getJson<{ updatedAt: string; indicators: Indicator[] }>("/indicators");
-export const fetchLots = () => getJson<{ lots: LotInfo[] }>("/lots");
+export const fetchLots = (fresh = false) => getJson<{ lots: LotInfo[] }>("/lots", fresh ? "no-store" : undefined);

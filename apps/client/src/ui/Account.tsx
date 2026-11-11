@@ -86,6 +86,7 @@ export function AccountPanel() {
           <p className="note">Só seu nickname poderá ser público. Nome, cidade e e-mail ficam na sua conta.</p>
           <p className="note" role="status">{progressStatus === "saved" ? "Missões e XP salvos na sua conta." : progressStatus === "offline" ? "Há progresso pendente neste navegador. Reconecte para salvar na conta." : "Sincronizando missões e XP…"}</p>
           {progressStatus === "offline" && <button className="btn" onClick={retryProgress}>Tentar sincronizar</button>}
+          <button className="btn" onClick={() => useVila.getState().open({ kind: "ngo-applications" })}>Minhas candidaturas</button>
           <button className="btn" disabled={busy} onClick={() => void perform(async () => {
             await authRequest("logout", {});
             useAuth.getState().signedOut();

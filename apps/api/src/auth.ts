@@ -57,7 +57,7 @@ async function hash(value: string): Promise<string> {
   return Array.from(new Uint8Array(bytes), (n) => n.toString(16).padStart(2, "0")).join("");
 }
 
-export async function readBody(request: Request): Promise<Record<string, unknown> | null> {
+export async function readBody(request: Request, maxBytes = 4096): Promise<Record<string, unknown> | null> {
   if (request.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase() !== "application/json") return null;
   const reader = request.body?.getReader();
   if (!reader) return null;
@@ -67,7 +67,7 @@ export async function readBody(request: Request): Promise<Record<string, unknown
     const { done, value } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > 4096) { await reader.cancel(); return null; }
+    if (length > maxBytes) { await reader.cancel(); return null; }
     chunks.push(value);
   }
   const bytes = new Uint8Array(length);

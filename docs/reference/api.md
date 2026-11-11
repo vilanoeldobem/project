@@ -185,3 +185,40 @@ Todas as respostas são no-store. Revisão usa compare-and-swap com cinco tentat
 
 Provas e limites: [IMPL-0012](../decisions/0012-account-progress.md). Ações continuam relatadas pelo cliente;
 validação/idempotência limitam recompensas, sem atestar uma execução real da ação.
+
+## Candidaturas de ONG (PROPOSTA local, IMPL-0013)
+
+Mesmas condições locais da autenticação e asserção `X-Account-ID` da sessão, com CORS credenciado exato.
+Fora do modo local: 503 auth_unavailable; sem sessão: 401 unauthorized; conta divergente: 409 account_changed.
+Respostas no-store. Listas retornam até 100 candidaturas; paginação e operação pública estão fora deste protótipo.
+
+`Application` contém: id, ngoId, lotId, name, cnpj, openedOn, summary, status, revision, feedback, createdAt, updatedAt.
+Proprietário não é aceito nem enviado ao cliente. Feedback só aparece ao dono e aos administradores autorizados.
+
+| Rota | Contrato |
+|---|---|
+| GET /ngo-applications | `{ applications, canReview }` somente do proprietário |
+| POST /ngo-applications | `{ name, cnpj, openedOn, summary, lotId }`; 201 `{ application, canReview }` |
+| GET /ngo-applications/:id | `{ application, canReview }` do dono; outra conta recebe404 |
+| PUT /ngo-applications/:id | Mesmos campos + expectedRevision, somente changes_requested; reenvio→submitted |
+| GET /admin/ngo-applications | `{ applications, canReview }`, exige allowlist administrativa |
+| POST /admin/ngo-applications/:id/review | `{ expectedRevision, action, feedback?, eligibility? }`; retorna `{ application, canReview }` |
+
+Revisão exige inteiro positivo exato. Ações: start_review (submitted→under_review), request_changes/reject/approve
+(somente under_review). Feedback obrigatório em request_changes/reject, até 2000 caracteres; summary tem 10-2000,
+ambos aceitam parágrafos e tabs mas rejeitam controles inseguros. Nome tem 2-120 caracteres, sem quebras de linha.
+CNPJ tem 14 dígitos e checksum válido; openedOn é data ISO real com pelo menos um ano; lotId indica terreno disponível.
+Essas verificações não provam CNPJ ativo. Para approve, eligibility deve ser exatamente as três booleanas true:
+`{ activeCnpj: true, minimumAge: true, fundsVerification: true }`, atestadas manualmente por administrador autorizado.
+
+Permissão administrativa: `ADMIN_USER_IDS` de UUIDs exatos no ambiente do servidor, padrão vazio. Nenhum administrador
+real é configurado pelo protótipo. CORS adiciona PUT apenas à família de rotas de candidaturas e mantém X-Account-ID
+restrito às rotas privadas que exigem a asserção. POST/PUT exigem Origin exata, JSON até 8 KiB (para comportar parágrafos acentuados) e recusam campos extras. As rotas de autenticação e progresso preservam o limite de 4 KiB.
+
+Erros de domínio: 400 invalid_fields/invalid_body/invalid_eligibility; 403 forbidden/origin_forbidden;
+404 not_found; 409 revision_conflict/invalid_transition/cnpj_exists/lot_unavailable. Mutação concorrente perdedora
+retorna conflito e não publica casa nem gera auditoria. Envio de candidatura não publica ou reserva o terreno
+(política provisória para teste). A aprovação faz associação+publicação+auditoria transacionalmente.
+
+Sem upload de documentos, consulta cadastral automática, integração financeira ou configuração de administradores reais.
+[Decisão e pendências](../decisions/0013-local-ngo-applications.md).

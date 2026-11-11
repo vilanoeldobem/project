@@ -16,8 +16,9 @@
 import { localSnapshot } from "@vila/shared/environment/config";
 import { handleAuth, type AuthEnv } from "./auth";
 import { handleProgress } from "./progress";
+import { handleNgoApplications, type NgoEnv } from "./ngo-applications";
 
-export interface Env extends AuthEnv {
+export interface Env extends AuthEnv, NgoEnv {
   DB?: D1Database;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
@@ -95,31 +96,33 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
   const auth = privateRoute(new URL(request.url).pathname);
   const res = await route(request, env);
   const headers = new Headers(res.headers);
-  for (const [k, v] of Object.entries(auth ? authCorsHeaders(request.headers.get("Origin"), env, new URL(request.url).pathname.startsWith("/progress")) : corsHeaders(request.headers.get("Origin"), env))) headers.set(k, v);
+  for (const [k, v] of Object.entries(auth ? authCorsHeaders(request.headers.get("Origin"), env, new URL(request.url).pathname) : corsHeaders(request.headers.get("Origin"), env))) headers.set(k, v);
   return new Response(res.body, { status: res.status, headers });
 }
 
-function authCorsHeaders(origin: string | null, env: Env, progress = false): Record<string, string> {
+function authCorsHeaders(origin: string | null, env: Env, path = ""): Record<string, string> {
   const headers: Record<string, string> = { Vary: "Origin" };
   if (origin !== env.AUTH_PAGE_ORIGIN || !corsHeaders(origin, env)["Access-Control-Allow-Origin"]) return headers;
   return { ...headers, "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": progress ? "Content-Type, X-Account-ID" : "Content-Type",
+    "Access-Control-Allow-Methods": ngoRoute(path) ? "GET, POST, PUT, OPTIONS" : "GET, POST, OPTIONS", "Access-Control-Allow-Headers": assertedRoute(path) ? "Content-Type, X-Account-ID" : "Content-Type",
     "Access-Control-Max-Age": "600" };
 }
 
-function privateRoute(path: string) { return path.startsWith("/auth/") || path === "/progress" || path.startsWith("/progress/"); }
+function ngoRoute(path: string) { return path === "/ngo-applications" || path.startsWith("/ngo-applications/") || path === "/admin/ngo-applications" || path.startsWith("/admin/ngo-applications/"); }
+function assertedRoute(path: string) { return path === "/progress" || path.startsWith("/progress/") || ngoRoute(path); }
+function privateRoute(path: string) { return path.startsWith("/auth/") || assertedRoute(path); }
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   if (privateRoute(url.pathname)) {
     if (request.method === "OPTIONS") {
-      const allowed = authCorsHeaders(request.headers.get("Origin"), env, url.pathname.startsWith("/progress"))["Access-Control-Allow-Origin"];
+      const allowed = authCorsHeaders(request.headers.get("Origin"), env, url.pathname)["Access-Control-Allow-Origin"];
       const method = request.headers.get("Access-Control-Request-Method");
       const headers = (request.headers.get("Access-Control-Request-Headers") ?? "").toLowerCase().split(",").map((h) => h.trim()).filter(Boolean);
-      const valid = allowed && (method === "GET" || method === "POST") && headers.every((h) => h === "content-type" || (url.pathname.startsWith("/progress") && h === "x-account-id"));
+      const valid = allowed && (method === "GET" || method === "POST" || (ngoRoute(url.pathname) && method === "PUT")) && headers.every((h) => h === "content-type" || (assertedRoute(url.pathname) && h === "x-account-id"));
       return new Response(null, { status: valid ? 204 : 403, headers: { "Cache-Control": "no-store" } });
     }
-    try { return url.pathname.startsWith("/auth/") ? await handleAuth(request, env) : await handleProgress(request, env); }
+    try { return url.pathname.startsWith("/auth/") ? await handleAuth(request, env) : ngoRoute(url.pathname) ? await handleNgoApplications(request, env) : await handleProgress(request, env); }
     catch {
       console.error("auth_error");
       return json({ error: "internal" }, { status: 500, headers: { "Cache-Control": "no-store" } });

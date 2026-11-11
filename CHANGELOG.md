@@ -11,6 +11,14 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Núcleo de candidatura de ONG e revisão autorizada para teste local: envio privado, ajustes/reenvio, rejeição,
+  aprovação com atestações e associação de terreno+publicação+auditoria atômicas. Migration v6 aditiva.
+- Propriedade por sessão, asserção de conta e allowlist administrativa no servidor vazia por padrão. Formulário,
+  documentos e política definitiva de terrenos continuam pendentes. [IMPL-0013](docs/decisions/0013-local-ngo-applications.md).
+
+
+### Added
+
 - Progresso de conta no D1: eventos idempotentes, recompensas calculadas pelo catálogo compartilhado e importação
   de visitante uma vez, preservando IDs reais dos presentes. Migration aditiva v5, revisão concorrente e isolamento por sessão.
 - Fila de sincronização por conta com retomada offline, estado visível de pendência, restauração do visitante no logout

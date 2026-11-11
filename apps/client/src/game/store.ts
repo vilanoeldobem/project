@@ -8,6 +8,7 @@ import { createProgressSync, type ProgressStatus } from "./account-progress";
 
 export type Panel =
   | { kind: "account" }
+  | { kind: "ngo-applications"; lotId?: string; review?: boolean }
   | { kind: "none" }
   | { kind: "welcome" }
   | { kind: "donation" }

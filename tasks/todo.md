@@ -1,3 +1,18 @@
+# NGO application/review local proposal - 2026-11-11
+
+- [x] Additive migration0006 links private applications to existing NGO, owner and requested lot.
+- [x] Session/account assertion, server-only admin allowlist, owner isolation and strict form/review contracts.
+- [x] Revision-checked review with mutation-marker guard for every dependent publication/audit write.
+- [x] Numeric CNPJ/date checks and required manual eligibility attestations, without claiming registry verification.
+- [x] SQL regressions: two applicants/one lot, approval replay, isolation, changes/resubmit, rejection and malformed input.
+- [x] Coordinator gates on 2026-11-11: all package typechecks, 216 tests and builds passed.
+- [x] Migration0006 applied locally; actual UI browser proof passed: owner signup/submission, admin-only access, requested adjustments, owner resubmission, manual approval, four audit records and same-page fresh public lot/NGO view.
+- [x] AIOX QA static review passed; paragraph/UTF-8 payload and publication-cache findings corrected.
+- [ ] Final expanded general browser regression (coordinator running).
+
+Production remains disabled; no real administrators or document requirements were invented.
+No remote schema or deployment changes were made by this backend implementer.
+
 # Account progress - 2026-11-11
 
 - [x] Additive migration0005; session-owned progress API with bounded CAS retries and shared rewards.
