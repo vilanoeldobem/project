@@ -26,11 +26,13 @@ Estados: **CONFIRMADO** (decisão), **PROPOSTA**, **HIPÓTESE**, **PENDENTE**. S
 
 ## Mapa telas → código (0.2.0)
 
+Caminhos relativos a `apps/client/src/`, salvo indicação.
+
 | Tela | Código | Status |
 |---|---|---|
 | P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx` | Parcial |
-| P02 | `ui/Indicators.tsx`, `worker/api.ts` | Parcial |
+| P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
 | P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx`, `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |
-| P14 | `game/progress.ts`, `ui/Missions.tsx` | Parcial |
+| P14 | `packages/shared/src/game/progress.ts`, `ui/Missions.tsx` | Parcial |
 | demais | — | Planejado |

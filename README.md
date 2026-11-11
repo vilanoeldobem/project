@@ -12,7 +12,7 @@ Este repositório contém o código; a definição do produto vive no repositór
 **Versão atual: 0.3.0** (2026-11-08) · schema D1 v3 · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
 prazo oficial **30/11/2026** (DEC-043)
 
-**Site:** <https://www.vilanoeldobem.com.br> · **Jogo:** <https://app.vilanoeldobem.com.br>
+**Site:** <https://www.vilanoeldobem.com.br> · **Jogo:** <https://play.vilanoeldobem.com.br>
 
 ## O que já existe
 
@@ -31,7 +31,7 @@ prazo oficial **30/11/2026** (DEC-043)
 | Camada | Tecnologia |
 |---|---|
 | Cliente | React 19, Three.js 0.187 via `@react-three/fiber` 9 + `@react-three/drei`, zustand, Vite 8 |
-| Servidor | Cloudflare Worker (Static Assets + `/api/*`), D1 (SQLite) |
+| Servidor | Cloudflare Workers, um por app ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)): Static Assets (jogo e site), API HTTP + D1 (SQLite), presença em tempo real (Durable Object) |
 | Testes | Vitest (lógica e API), `playwright-core` com Chrome do sistema (verificação visual) |
 
 Escolha registrada como **proposta a validar** em [IMPL-0001](docs/decisions/0001-stack-react-threejs-cloudflare.md)
@@ -40,8 +40,11 @@ Escolha registrada como **proposta a validar** em [IMPL-0001](docs/decisions/000
 ## Layout do repositório
 
 ```
-apps/web/        jogo: cliente 3D (src/) + Worker (worker/) + config Cloudflare — app.vilanoeldobem.com.br
+apps/client/     jogo: cliente 3D (React + Three.js, Static Assets) — play.vilanoeldobem.com.br
+apps/api/        API HTTP somente leitura + D1 — api.vilanoeldobem.com.br
+apps/server/     presença em tempo real (Durable Object VillageRoom) — server.vilanoeldobem.com.br
 apps/site/       site público (React + Vite) — www.vilanoeldobem.com.br
+packages/shared/ lógica pura usada por mais de um app (@vila/shared/…): mundo, movimento, missões, ambiente, protocolo
 migrations/      migrations D1 NNNN_nome.sql (imutáveis depois de aplicadas)
 docs/            documentação técnica (Diátaxis) — índice em docs/README.md
 scripts/         utilitários de desenvolvimento/operação
@@ -53,10 +56,12 @@ tasks/           registro de trabalho dos agentes (todo.md)
 
 ```bash
 pnpm install
-pnpm --filter @vila/web db:migrate:local   # D1 local com os terrenos
-pnpm dev:worker                             # http://localhost:8787 (Worker + D1 + SPA)
-# ou só o cliente, sem API:
-pnpm dev                                    # http://localhost:5173
+pnpm db:migrate:local                       # D1 local com os terrenos
+pnpm dev                                    # http://localhost:5173 (Vite) + API :8787 + servidor :8788
+# ou o jogo servido pelo Worker, como em produção (três terminais):
+pnpm --filter @vila/api dev                 # API      → http://localhost:8787
+pnpm --filter @vila/server dev              # servidor → http://localhost:8788
+pnpm --filter @vila/client dev:worker       # jogo     → http://localhost:8799
 pnpm dev:site                               # site público
 pnpm check                                  # typecheck + testes + build
 ```

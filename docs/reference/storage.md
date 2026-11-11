@@ -1,10 +1,13 @@
 # Armazenamento (D1)
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** `migrations/`
+> **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`
 
-Banco D1 `vilanoeldobem`, binding `DB`. Versão do schema = número da última migration (**v3**).
+Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
+(**v3**). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(com autorização).
 
 ## 1. Migrations
 
@@ -37,7 +40,7 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 |---|---|---|
 | `id` | TEXT PK | `<street>-<NN>`, ex.: `plaza-01` |
 | `street`, `slot` | TEXT, INTEGER | únicos juntos |
-| `x`, `z` | REAL | posição no mundo; espelha `LOTS` em `world.ts` |
+| `x`, `z` | REAL | posição no mundo; espelha `LOTS` em `packages/shared/src/game/world.ts` |
 | `state` | TEXT | `available`, `application_sent`, `under_review`, `published` (DEC-028) |
 | `ngo_id` | TEXT FK → ngos | |
 

@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Vila Noel do Bem public HTTP API (IMPL-0009): read-only routes over D1. See docs/reference/api.md.
+  "name": "vilanoeldobem-api",
+  "account_id": "9119b7496767fec497f6627c5ca56f32",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vilanoeldobem",
+      // Created 2026-11-08 (location enam), account 9119b749… (docs/guides/deploy.md).
+      "database_id": "7c65d21d-0431-4ec5-bdd0-691dacb81f92",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
+    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br"
+  },
+  "routes": [{ "pattern": "api.vilanoeldobem.com.br", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false
+}

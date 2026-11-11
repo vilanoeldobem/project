@@ -59,3 +59,8 @@ mínimo e não abrir canal de contato.
 [api.md](../reference/api.md) · [architecture.md](../reference/architecture.md) ·
 [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md) ·
 [IMPL-0007](0007-voxel-mesher-fixed-step-simulation.md) · DEC-037 · P13
+
+**Adendo (2026-11-10):** a parte de topologia (`/api/room` no mesmo Worker do jogo) foi substituída por
+[IMPL-0009](0009-split-client-api-server-shared.md): as salas ficam no Worker `vilanoeldobem-server`
+(`server.vilanoeldobem.com.br/room?i=N`), que aceita só origens exatas de `ALLOWED_ORIGINS`. Protocolo, limites e
+Durable Object `VillageRoom` não mudaram.

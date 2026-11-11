@@ -254,3 +254,100 @@ Context: owner asked for a full engine/graphics/gameplay/audio quality pass. Aud
 - Adaptive resolution must check that stepping down actually bought frame time; CPU-bound devices otherwise lose
   resolution for nothing.
 - Moving a per-frame value out of zustand removed 60 Hz selector churn for the whole HUD.
+
+---
+
+# Task 7: real-time multiplayer presence (IMPL-0008) — 2026-11-10
+
+- [x] Shared protocol (`src/net/protocol.ts`), pure room logic (`worker/room.ts`), `VillageRoom` DO (hibernation)
+- [x] `/api/room` same-origin upgrade, bounded room index, 503 without binding; `wrangler.jsonc` DO binding + migration
+- [x] Client: connection manager (room fallback, backoff), snapshot interpolation, instanced remote avatars
+- [x] Opt-out toggle, visitor chip; CSP `wss://`
+- [x] Gift pickup verified in a real browser (dev hook `window.__vila`, localhost only); tree is a sliding collider
+- [x] Docs: IMPL-0008, api, architecture, deploy guide, AGENTS.md storage rule, CHANGELOG
+
+## Review (2026-11-10)
+- Gates: typecheck ok; tests 69 web (+15: protocol, room capacity/teleport/batching/rate limit, `/api/room` guards,
+  interpolation) + 2 site; build ok. `verify.mjs` on local `wrangler dev`: gifts + mission in browser; two browser
+  contexts see each other, walking shows up, leaving removes the avatar; no console errors.
+- Not deployed (needs owner authorisation: creates the DO class). Not measured: cross-region latency, 40-person room.
+
+## Lessons
+- Two software-GL pages starve Playwright's "stable" actionability check: use `dispatchEvent("click")` there.
+
+---
+
+# Task 8: seeded procedural voxel content (PLAN — approved 2026-11-10, starts after Task 9) — 2026-11-10
+
+Goal: deterministic generators for houses, characters, animals, props and avatar cosmetics that match the existing
+models and stay inside a measured budget. Product rules: cosmetics only from missions/levels (PROPOSTA), no purchases,
+loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules unchanged.
+
+## Phase 0 — shared generator core
+- [ ] `scene/gen/rng.ts`: seeded PRNG (`seedOf(string|number)` FNV-1a → mulberry32), `pick`, `range`, `chance`
+- [ ] `scene/gen/parts.ts`: `box`, `shell`, `disc`, `mirrorX`, `place` (quarter turns), snow-cap pass, palette
+      variants as named derivations of `PALETTE` (no free colours)
+- [ ] `scene/gen/budget.ts`: per-category max voxels + max faces (counted with `meshVoxels`)
+- [ ] Generic test harness: deterministic per seed, budget, ≥ N distinct variants (hash), integer coords, base y=0,
+      snapshot hashes for fixed seeds (art changes show up as failing tests)
+- [ ] Lint guard test: no `Math.random` under `scene/gen/`
+- [ ] Dev gallery `?gallery` (localhost only): grid per category × 8 seeds, orbit camera, voxel/face counts per model
+- [ ] `verify.mjs`: gallery screenshots + calls/tris/p95 per category
+
+## Phase 1 — props and items (budget: ≤ 220 voxels, ≤ 600 faces)
+- [ ] Gifts (pattern stripes/dots/checks, ribbon cross/bow), lanterns (emissive), fences, sleds, mailboxes,
+      signposts (no text), garlands (emissive bulbs), market stalls; Brazilian touches: panetone stand
+- [ ] Replace the hand-made `gift()` with the generator (gift ids/positions unchanged)
+
+## Phase 2 — houses (budget: ≤ 900 voxels, ≤ 1 800 faces)
+- [ ] Footprint 5–7, 1–2 floors, roof (gable / hip / A-frame), porch, wreath, snow on roof, chimney at a
+      generator-reported chimney point (smoke uses it), windows on the `glow` role (lit by real SP time already)
+- [ ] NGO lots: seed = lot id; neutral palette; never logos or text
+- [ ] Far LOD: simplified house for distant use (optional, if measured worthwhile)
+
+## Phase 3 — characters (budget: ≤ 160 voxels, ≤ 420 faces)
+- [ ] Neutral villagers: body height, coat, scarf, hat from palette variants; no names, short or no labels
+- [ ] Placed as instanced variants (one draw per variant per role); idle sway in shader via `aCenter`
+
+## Phase 4 — animals (budget: ≤ 140 voxels, ≤ 380 faces)
+- [ ] Reindeer variants, dogs, cats, birds, rabbits, owls (night only, from SP time)
+- [ ] `idle` material role: vertex-shader breathing / head bob keyed on `aCenter` + instance phase
+
+## Phase 5 — avatar cosmetics (PROPOSTA; budget per layer ≤ 40 voxels)
+- [ ] Layers that fit `avatarParts()`: hats, scarves, sweater patterns, colour palettes
+- [ ] Unlock table keyed on mission completion / level (`progress.ts` read-only; XP rules untouched; reachable
+      without donating); local selection stored as seed + layer ids; travels over presence as layer ids (no PII)
+- [ ] Docs: catalogue and unlocks marked PROPOSTA
+
+## Every phase
+- [ ] `pnpm typecheck && pnpm test && pnpm build`, `verify.mjs` real browser, gallery screenshots
+- [ ] Report: budgets vs actual voxel/face counts, calls/tris/p95 before → after
+- [ ] Docs pt-BR (`docs/reference/content.md`), CHANGELOG, ADR IMPL-0010 (generator architecture), Conventional Commits
+
+Ideas deferred unless approved: Advent progression (1–25 Dec, SP time), snow build-up on roofs, NPC routines,
+lot decoration kit (admin colours via audit flow), avatar creator UI, gift-wrapping minigame.
+
+---
+
+# Task 9: split apps into client / api / server + packages/shared (IMPL-0009) — 2026-11-10
+
+Owner choice: 4 apps + shared package, hosts `play.*` (client), `api.*` (api), `server.*` (realtime).
+
+- [x] `git mv apps/web apps/client`; pure modules → `packages/shared` (`@vila/shared/*`, TS source exports)
+- [x] `apps/api`: HTTP routes without `/api`, exact-origin CORS, OPTIONS 204, D1; `wrangler deploy --dry-run` in build
+- [x] `apps/server`: `/health`, `/room` (exact-origin WebSocket), `VillageRoom` DO + migration
+- [x] `apps/client`: endpoints per build mode, CSP generated per build, API preconnect, `app.*` → `play.*` 301 worker
+- [x] Site links → `play.*`; root scripts (`dev`, `deploy:*`, `db:migrate:local`); smoke script for 3 services; smoke workflow
+- [x] AGENTS.md, ADR IMPL-0009, CHANGELOG; pt-BR docs (subagent)
+
+## Review (2026-11-10)
+- Gates: typecheck 5 packages; tests 2 site + 44 shared + 7 api + 15 client + 7 server; build 5 packages
+  (api/server bundles via `wrangler deploy --dry-run`). Local: three `wrangler dev` (8787/8788/8799):
+  `smoke-api.sh` 14/14; `verify.mjs` clean (cross-origin data, CSP, two browsers see each other, gifts + mission).
+- Not deployed. First deploy order: api → server → client → site; daily prod smoke fails until then.
+
+## Lessons
+- Vite reserves the mode name `local` (`.env.local` suffix): use another name (`workers`).
+- Several `wrangler dev` at once collide on the inspector port (9229): give each `--inspector-port`.
+- `wrangler dev` rewrites `Host`: test host-based logic with unit tests, not curl.
+- `.env*` is gitignored here: per-mode endpoints live in code (`endpoints.ts`), not env files.

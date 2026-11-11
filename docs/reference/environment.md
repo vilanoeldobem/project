@@ -2,18 +2,21 @@
 
 > **Status:** Implementado (Unreleased) — **PROPOSTA** ([IMPL-0006](../decisions/0006-christmas-environment-real-time-procedural-weather.md))
 > · **Atualizado em:** 2026-11-10
-> **Fonte de verdade:** `apps/web/src/environment/` (lógica pura, testada), `apps/web/src/scene/environment/`
-> (renderização), `apps/web/worker/api.ts`
+> **Fonte de verdade:** `packages/shared/src/environment/` (lógica pura, testada), `apps/client/src/environment/`
+> (navegador), `apps/client/src/scene/environment/` (renderização), `apps/api/src/api.ts`
 
 ## 1. Princípios
 
 - **Hora real de São Paulo, 1:1.** Mesma hora e fase para qualquer pessoa, em qualquer país.
 - **Clima de faz de conta.** Procedural e determinístico; não consulta clima real, localização nem astronomia.
-- **Servidor decide o contrato, cliente desenha.** O Worker informa a hora e os parâmetros; flocos, luz e sombras
+- **Servidor decide o contrato, cliente desenha.** A API (`api.*`) informa a hora e os parâmetros; flocos, luz e sombras
   são calculados em cada aparelho. Nenhum floco ou quadro trafega pela rede.
 - **Qualidade ≠ estado.** Presets e opções de conforto mudam só a aparência, nunca hora, clima ou jogo.
 
 ## 2. Módulos
+
+Os módulos puros ficam em `packages/shared/src/environment/` (usados pelo jogo e pela API); `runtime.ts`,
+`settings.ts` e `audio.ts` ficam em `apps/client/src/environment/`.
 
 | Arquivo | Responsabilidade |
 |---|---|
@@ -39,7 +42,7 @@ Fases (convenção artística, editáveis em `CYCLE`): **amanhecer** 05:00–06:
 **entardecer** 17:00–18:30 · **noite** 18:30–05:00. Visual contínuo por keyframes às 00:00, 04:30, 05:00, 06:00,
 09:00, 12:00, 16:30, 17:00, 18:30, 21:00 e 24:00 (= 00:00), interpolados com `smoothstep` (sem overshoot).
 
-Relógio: amostra `t0`/`t1` com `performance.now()` em volta de `GET /api/environment`; estimativa
+Relógio: amostra `t0`/`t1` com `performance.now()` em volta de `GET https://api.vilanoeldobem.com.br/environment` ([api.md](api.md)); estimativa
 `serverTimeMs + RTT/2`. Janela das 8 últimas amostras; vale a de menor RTT. Erro ≤ 2 s → slew (no máximo 10% mais
 rápido/lento); erro maior → salto. Ressincroniza a cada 3 min e ao voltar à aba; sem servidor, usa o relógio do
 aparelho e o painel "Ambiente" avisa.
@@ -107,7 +110,7 @@ vista normal. A câmera de jogo segue OQ-05.
 
 `?envDebug` mostra o painel técnico. `?envTime=2026-12-24T23:00` fixa a hora inicial (hora de SP; o relógio continua
 correndo 1:1). `?envWeather=BLIZZARD` força o clima. Em produção esses parâmetros são ignorados.
-`node apps/web/scripts/verify.mjs <url>` fotografa amanhecer, dia, entardecer e noite, nevasca e a vista do céu.
+`node apps/client/scripts/verify.mjs <url>` fotografa amanhecer, dia, entardecer e noite, nevasca e a vista do céu.
 
 ## Ver também
 

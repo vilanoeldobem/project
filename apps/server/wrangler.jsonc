@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Vila Noel do Bem realtime Worker (IMPL-0008, IMPL-0009): WebSocket presence rooms on Durable Objects.
+  // Holds no persistent data. See docs/reference/architecture.md.
+  "name": "vilanoeldobem-server",
+  "account_id": "9119b7496767fec497f6627c5ca56f32",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // SQLite-backed class (free plan); presence stays in memory, storage is never written.
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "VillageRoom" }] },
+  "migrations": [{ "tag": "v1-village-room", "new_sqlite_classes": ["VillageRoom"] }],
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Exact page origins allowed to join a room (local dev overrides it in package.json "dev").
+    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br"
+  },
+  "routes": [{ "pattern": "server.vilanoeldobem.com.br", "custom_domain": true }],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false
+}

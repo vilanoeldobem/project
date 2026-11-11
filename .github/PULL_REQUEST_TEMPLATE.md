@@ -21,7 +21,9 @@
 - [ ] `pnpm typecheck`
 - [ ] `pnpm test`
 - [ ] `pnpm build`
-- [ ] `node apps/web/scripts/verify.mjs` (se a interface mudou) — capturas desktop e celular anexadas
+- [ ] `node apps/client/scripts/verify.mjs http://localhost:8799` (se o jogo mudou) — capturas desktop e celular anexadas
+- [ ] `node apps/site/scripts/verify.mjs` (se o site mudou)
+- [ ] `sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799` (se API, servidor ou hosts mudaram)
 - [ ] Migrations aplicadas no D1 local (se houver)
 
 ## Checklist
@@ -30,6 +32,8 @@
 - [ ] Nenhum número público sem fonte verificável (exibir "—")
 - [ ] Nenhum dado pessoal, segredo ou dado fictício de produção
 - [ ] Nenhuma migration existente foi alterada
+- [ ] Nenhum app importa outro; código comum em `packages/shared` (puro)
+- [ ] Host trocado? `endpoints.ts` e `ALLOWED_ORIGINS` da API e do servidor mudaram juntos
 - [ ] Código e comentários em inglês; documentação e textos de interface em pt-BR
 - [ ] `docs/reference/` atualizado no mesmo PR
 - [ ] `CHANGELOG.md` → `[Unreleased]` atualizado

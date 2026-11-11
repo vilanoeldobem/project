@@ -1,8 +1,9 @@
 # Documentação técnica — Vila Noel do Bem
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** código em `apps/web/` e `migrations/`; produto em `vilanoeldobem_docs`
+> **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`), `packages/shared/` e `migrations/`;
+> produto em `vilanoeldobem_docs`
 
 Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a um tipo de pergunta.
 
@@ -18,15 +19,15 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 ## Índice
 
 **Tutorial**
-- [getting-started.md](getting-started.md) — instalar, rodar a Vila localmente com Worker e D1, verificar.
+- [getting-started.md](getting-started.md) — instalar, rodar a Vila localmente (jogo, API com D1 e servidor), verificar.
 
 **Guias**
 - [guides/development.md](guides/development.md) — ciclo de desenvolvimento, gates, receitas, checklist de PR.
-- [guides/deploy.md](guides/deploy.md) — publicar na Cloudflare (conta do projeto), D1 remoto, rollback.
+- [guides/deploy.md](guides/deploy.md) — publicar os quatro Workers na Cloudflare (conta do projeto), D1 remoto, rollback.
 
 **Referência**
-- [reference/architecture.md](reference/architecture.md) — componentes, fluxo de dados, estrutura de pastas.
-- [reference/api.md](reference/api.md) — rotas `/api/*`, respostas e erros.
+- [reference/architecture.md](reference/architecture.md) — apps, subdomínios, componentes, limites entre apps.
+- [reference/api.md](reference/api.md) — rotas da API (`api.*`) e do servidor de tempo real (`server.*`), CORS e erros.
 - [reference/environment.md](reference/environment.md) — hora real de São Paulo, clima procedural, efeitos e presets.
 - [reference/storage.md](reference/storage.md) — schema D1, migrations, estados.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
@@ -39,10 +40,11 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 **Registro**
 - [implementation/slice-01-report.md](implementation/slice-01-report.md) — entrega da 0.1.0.
 
-## Status por área (2026-11-08)
+## Status por área (2026-11-10)
 
 | Área | Status | Referência |
 |---|---|---|
+| Apps separados (client, api, server, site) e subdomínios | Implementado no código; deploy pendente (IMPL-0009) | [architecture](reference/architecture.md) |
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
 | Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial (leitura; sem cadastro) | [storage](reference/storage.md) |

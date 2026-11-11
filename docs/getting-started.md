@@ -1,11 +1,12 @@
 # Começando — rodar a Vila localmente
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-08
-> **Fonte de verdade:** `package.json`, `apps/web/package.json`, `apps/web/wrangler.jsonc`
+> **Atualizado em:** 2026-11-10
+> **Fonte de verdade:** `package.json`, `apps/{client,api,server}/package.json`, `apps/{client,api,server}/wrangler.jsonc`
 
-Ao final você terá a praça 3D rodando em `http://localhost:8787`, servida pelo mesmo Worker que vai para produção,
-com D1 local.
+Ao final você terá a praça 3D rodando em `http://localhost:8799`, servida pelo mesmo Worker do jogo que vai para
+produção, falando com a API (D1 local) em `:8787` e com o servidor de presença em `:8788`
+([IMPL-0009](decisions/0009-split-client-api-server-shared.md)).
 
 ## 1. Pré-requisitos
 
@@ -23,26 +24,34 @@ pnpm install
 ## 3. Criar o banco local
 
 ```bash
-pnpm --filter @vila/web db:migrate:local
+pnpm db:migrate:local
 ```
 
-Saída esperada: `0001_initial.sql ✅` e `0002_seed_lots.sql ✅`. O banco fica em `apps/web/.wrangler/` (ignorado pelo Git).
+Saída esperada: `0001_initial.sql ✅`, `0002_seed_lots.sql ✅` e `0003_english_schema.sql ✅`. O banco fica em
+`apps/api/.wrangler/` (ignorado pelo Git).
 
-## 4. Rodar Worker + cliente
+## 4. Rodar API, servidor e jogo
+
+Três terminais:
 
 ```bash
-pnpm dev:worker
+pnpm --filter @vila/api dev            # API      → http://localhost:8787 (D1 local)
+pnpm --filter @vila/server dev         # servidor → http://localhost:8788 (salas de presença)
+pnpm --filter @vila/client dev:worker  # jogo     → http://localhost:8799 (vite build --mode workers + wrangler dev)
 ```
 
-Abra `http://localhost:8787`. Confira a API:
+Abra `http://localhost:8799`. Confira a API e o servidor:
 
 ```bash
-curl -s localhost:8787/api/health
-# {"ok":true,"version":"0.2.0","environment":"production","db":true}
+curl -s localhost:8787/health
+# {"ok":true,"version":"0.3.0","environment":"production","db":true}
+curl -s localhost:8788/health
+# {"ok":true,"service":"server","rooms":true}
 ```
 
-> Para iterar só na interface com recarga instantânea use `pnpm dev` (`http://localhost:5173`). Sem Worker, as
-> chamadas `/api/*` falham e a interface mostra terrenos disponíveis e "Indicadores indisponíveis".
+> Para iterar só na interface com recarga instantânea use `pnpm dev`: sobe o Vite em `http://localhost:5173` junto
+> com a API e o servidor. Se a API não estiver de pé, a interface mostra terrenos disponíveis e "Indicadores
+> indisponíveis"; sem o servidor, o jogo segue solo.
 
 ## 5. Passear
 
@@ -55,10 +64,11 @@ curl -s localhost:8787/api/health
 
 ```bash
 pnpm check                                         # typecheck + testes + build
-node apps/web/scripts/verify.mjs http://localhost:8787
+node apps/client/scripts/verify.mjs http://localhost:8799
+sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 ```
 
-As capturas ficam em `apps/web/verify-output/`.
+As capturas ficam em `apps/client/verify-output/`. Sem argumentos, `smoke-api.sh` confere a produção.
 
 ## 7. Próximos passos
 
@@ -67,7 +77,8 @@ As capturas ficam em `apps/web/verify-output/`.
 
 ## Limitações conhecidas
 
-- `wrangler dev` serve o `dist/` gerado no momento do build: rode `pnpm dev:worker` de novo após mudar o cliente.
+- `wrangler dev` do jogo serve o `dist/` gerado no momento do build: rode `pnpm --filter @vila/client dev:worker` de
+  novo após mudar o cliente (ou use `pnpm dev`).
 
 ## Ver também
 

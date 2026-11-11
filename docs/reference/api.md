@@ -1,22 +1,47 @@
-# API HTTP
+# API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
 > **Atualizado em:** 2026-11-10
-> **Fonte de verdade:** `apps/web/worker/api.ts`, `apps/web/worker/api.test.ts`, `apps/web/worker/room.ts`,
-> `apps/web/src/net/protocol.ts`
+> **Fonte de verdade:** `apps/api/src/api.ts`, `apps/api/src/api.test.ts`, `apps/server/src/handler.ts`,
+> `apps/server/src/room.ts`, `packages/shared/src/net/protocol.ts`
 
-Base: mesma origem da página. Chaves, valores de estado e códigos de erro em inglês; `label` e `note` são textos
-de interface em pt-BR. Todas as respostas são JSON UTF-8. Só `GET`/`HEAD`; outros métodos → `405`.
+Dois Workers ([IMPL-0009](../decisions/0009-split-client-api-server-shared.md)):
 
-## GET /api/health
+| Serviço | Base em produção | Base local |
+|---|---|---|
+| API HTTP (`apps/api`) | `https://api.vilanoeldobem.com.br` | `http://localhost:8787` |
+| Tempo real (`apps/server`) | `https://server.vilanoeldobem.com.br` (WebSocket `wss://`) | `http://localhost:8788` |
+
+Rotas sem prefixo (o host já diz qual é o serviço; até a IMPL-0009 eram `/api/*` no mesmo host do jogo). Chaves,
+valores de estado e códigos de erro em inglês; `label` e `note` são textos de interface em pt-BR. Todas as respostas
+são JSON UTF-8.
+
+## API (`api.vilanoeldobem.com.br`)
+
+Só `GET`/`HEAD`/`OPTIONS`; outros métodos → `405` com `Allow: GET, HEAD, OPTIONS`.
+
+### CORS
+
+A página do jogo e a do site estão em outra origem, então a API responde com CORS **só** para origens exatas da lista
+`ALLOWED_ORIGINS` (`apps/api/wrangler.jsonc`): `https://play.vilanoeldobem.com.br` e
+`https://www.vilanoeldobem.com.br`. Sem curingas: um host parecido nunca passa. Em desenvolvimento local a lista vem
+do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
+
+| Requisição | Resposta |
+|---|---|
+| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Methods: GET, HEAD, OPTIONS`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
+| `Origin` ausente ou fora da lista | só `Vary: Origin` (o navegador bloqueia a leitura; `curl` e servidores continuam lendo) |
+| `OPTIONS` (preflight) | `204` sem corpo, com os cabeçalhos acima quando a origem é permitida |
+
+### GET /health
 
 `Cache-Control: no-store`.
 
 ```json
-{ "ok": true, "version": "0.2.0", "environment": "production", "db": true }
+{ "ok": true, "version": "0.3.0", "environment": "production", "db": true }
 ```
 
-## GET /api/indicators
+### GET /indicators
 
 Indicadores públicos (P02, DEC-027). `value: null` quando não há fonte verificável; a interface mostra "—" e `note`.
 Cache 30 s.
@@ -33,7 +58,7 @@ Cache 30 s.
 { "updatedAt": "2026-11-08T21:00:00.000Z", "indicators": [ { "key": "approved_ngos", "label": "ONGs aprovadas", "value": 0 } ] }
 ```
 
-## GET /api/lots
+### GET /lots
 
 Terrenos e, só quando a ONG está `published`, nome e resumo dela. Cache 30 s.
 
@@ -42,7 +67,7 @@ Terrenos e, só quando a ONG está `published`, nome e resumo dela. Cache 30 s.
               "state": "available", "ngo_name": null, "ngo_summary": null } ] }
 ```
 
-## GET /api/environment
+### GET /environment
 
 Autoridade da hora e contrato do clima procedural ([environment.md](environment.md), IMPL-0006).
 `Cache-Control: no-store` (o cliente mede o RTT para ancorar o relógio). Sem dados pessoais.
@@ -58,10 +83,24 @@ Autoridade da hora e contrato do clima procedural ([environment.md](environment.
 O cliente rejeita snapshots com `schemaVersion`, `timezone`, `timeScale` ou `weatherAlgorithmVersion` diferentes
 dos que conhece e ignora `configVersion` menor que a atual.
 
-## GET /api/room?i=N (WebSocket)
+## Servidor de tempo real (`server.vilanoeldobem.com.br`)
+
+Só `GET`; outros métodos → `405`. Respostas HTTP com `Cache-Control: no-store`.
+
+### GET /health
+
+```json
+{ "ok": true, "service": "server", "rooms": true }
+```
+
+`rooms` diz se o binding `ROOMS` (Durable Object `VillageRoom`) existe.
+
+### GET /room?i=N (WebSocket)
 
 Presença em tempo real numa praça ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)).
-Exige `Upgrade: websocket` e `Origin` igual ao host da página (bloqueia sequestro de WebSocket por outros sites).
+URL do cliente: `wss://server.vilanoeldobem.com.br/room?i=N`. Exige `Upgrade: websocket` e `Origin` exatamente numa
+origem de `ALLOWED_ORIGINS` (`apps/server/wrangler.jsonc`: `https://play.vilanoeldobem.com.br`), o que bloqueia
+sequestro de WebSocket por outros sites.
 `N` = sala `0`…`7` (`MAX_ROOMS`); cada sala comporta 40 visitantes (`ROOM_CAPACITY`). Sem nome, conta, chat ou
 texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada é gravado.
 
@@ -80,17 +119,19 @@ a próxima.
 
 ## Erros
 
-| Status | Corpo | Quando |
-|---|---|---|
-| 404 | `{"error":"not_found"}` | rota `/api/*` desconhecida |
-| 405 | `{"error":"method_not_allowed"}` | método diferente de GET/HEAD |
-| 503 | `{"error":"db_unavailable"}` | `/api/lots` sem binding D1 |
-| 426 | `{"error":"upgrade_required"}` | `/api/room` sem `Upgrade: websocket` |
-| 403 | `{"error":"forbidden_origin"}` | `/api/room` com `Origin` ausente ou de outro host |
-| 400 | `{"error":"bad_room"}` | `/api/room` com `i` fora de `0…7` |
-| 503 | `{"error":"multiplayer_unavailable"}` | `/api/room` sem o binding `ROOMS` |
-| 500 | `{"error":"internal"}` | exceção; log `api_error <rota> <tipo>` |
+| Serviço | Status | Corpo | Quando |
+|---|---|---|---|
+| ambos | 404 | `{"error":"not_found"}` | rota desconhecida |
+| API | 405 | `{"error":"method_not_allowed"}` | método diferente de GET/HEAD/OPTIONS |
+| servidor | 405 | `{"error":"method_not_allowed"}` | método diferente de GET |
+| API | 503 | `{"error":"db_unavailable"}` | `/lots` sem binding D1 |
+| servidor | 426 | `{"error":"upgrade_required"}` | `/room` sem `Upgrade: websocket` |
+| servidor | 403 | `{"error":"forbidden_origin"}` | `/room` com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
+| servidor | 400 | `{"error":"bad_room"}` | `/room` com `i` fora de `0…7` |
+| servidor | 503 | `{"error":"multiplayer_unavailable"}` | `/room` sem o binding `ROOMS` |
+| API | 500 | `{"error":"internal"}` | exceção; log `api_error <rota> <tipo>` |
 
 ## Ver também
 
-[architecture.md](architecture.md) · [storage.md](storage.md)
+[architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md)

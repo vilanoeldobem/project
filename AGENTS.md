@@ -6,9 +6,10 @@ This file governs *this* repository only. Never rewrite other projects' `AGENTS.
 ## What this is
 
 **Vila Noel do Bem** — a 3D voxel Christmas village on the web where people explore, play
-minigames, meet approved NGOs and donate voluntarily. Stack: React 19 + Three.js
-(react-three-fiber) game and a Cloudflare Worker (Static Assets + D1) in `apps/web`
-(app.vilanoeldobem.com.br), plus the public website in `apps/site` (www.vilanoeldobem.com.br). Product source of truth is the docs repository `vilanoeldobem_docs`
+minigames, meet approved NGOs and donate voluntarily. Monorepo (IMPL-0009), one Cloudflare Worker per app:
+`apps/client` (React 19 + Three.js game, Static Assets, play.vilanoeldobem.com.br), `apps/api` (HTTP API + D1,
+api.vilanoeldobem.com.br), `apps/server` (realtime presence, Durable Object, server.vilanoeldobem.com.br),
+`apps/site` (public website, www.vilanoeldobem.com.br) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem_docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 
@@ -19,9 +20,12 @@ pnpm install
 pnpm typecheck
 pnpm test
 pnpm build
-# UI changes: real browser check
-pnpm --filter @vila/web db:migrate:local && pnpm dev:worker   # other terminal
-node apps/web/scripts/verify.mjs http://localhost:8787
+# UI changes: real browser check (three terminals, then verify)
+pnpm db:migrate:local && pnpm --filter @vila/api dev            # api    → :8787
+pnpm --filter @vila/server dev                                  # server → :8788
+pnpm --filter @vila/client dev:worker                           # client → :8799 (build --mode workers)
+node apps/client/scripts/verify.mjs http://localhost:8799
+sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 # website changes
 pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other terminal
 node apps/site/scripts/verify.mjs http://localhost:4173
@@ -40,7 +44,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   shown as "—" (DEC-027). No fake NGOs, donors or partners in production data.
 - Progression (DEC-042): events are idempotent by unique id; a mission grants its XP once; a donation
   alone grants no XP; levels must be reachable without donating. Logic lives in
-  `apps/web/src/game/progress.ts` and is covered by tests.
+  `packages/shared/src/game/progress.ts` and is covered by tests.
 - Only an authorised admin publishes/removes NGOs or applies sanctions (DEC-037); every admin
   mutation writes `audit_events`.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
@@ -48,12 +52,17 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 
 ## Architecture rules
 
-- `apps/web/worker/index.ts` only exports the handler; logic is in `worker/api.ts` (unit-tested).
-  Only `/api/*` runs Worker code; everything else is Static Assets (SPA fallback).
+- Worker main modules (`apps/*/src/index.ts`, `apps/client/worker/index.ts`) export only the handler (and, in
+  `apps/server`, the `VillageRoom` class); logic lives in tested modules beside them.
+- Code shared by more than one app lives in `packages/shared` (pure: no DOM, three.js or Workers runtime) and is
+  imported as `@vila/shared/<dir>/<module>`. Never import across apps.
+- Cross-origin rules: the API sends CORS only to exact origins in `ALLOWED_ORIGINS`; the realtime server accepts
+  WebSockets only from exact origins in its `ALLOWED_ORIGINS`; the client CSP `connect-src` is generated per build
+  from `apps/client/src/lib/endpoints.ts`. Changing a hostname means changing all three.
 - D1 is the only persistent server-side store. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
-- World layout constants (`apps/web/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
+- World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
   in sync (a test checks it).
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short.
 - Never log request bodies, e-mails, tokens, CNPJ documents or any personal data.
@@ -89,5 +98,5 @@ repository.
 - New or reversed technical decision → ADR `docs/decisions/NNNN-*.md` (`IMPL-NNNN`, MADR-lite).
   Product questions only the owner can answer → `docs/decisions/open-questions.md`; do not decide
   for them. Cite DEC/PEN ids from the docs repository.
-- Commit messages and PR titles: Conventional Commits (`feat(web): …`, `fix(worker): …`).
+- Commit messages and PR titles: Conventional Commits (`feat(client): …`, `fix(api): …`, `feat(server): …`, `refactor(shared): …`).
   SemVer per [`docs/reference/versioning.md`](docs/reference/versioning.md). Index: `docs/README.md`.
