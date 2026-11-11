@@ -56,6 +56,8 @@ Logs de pagamento ficarão separados dos dados de gamificação (dossiê §13).
 
 ## Ver também
 
+[Banco de homologação](../guides/staging-database.md) - D1 isolado com migrations 0001-0004 verificadas; produção continua em v3 nesta entrega.
+
 [api.md](api.md) · [guides/deploy.md](../guides/deploy.md)
 
 ## Contas - migration v4 para revisão

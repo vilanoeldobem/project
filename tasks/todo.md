@@ -1,3 +1,15 @@
+# Isolated staging database - 2026-11-11
+
+- [x] Created `vilanoeldobem-staging` in the confirmed project account; production binding unchanged.
+- [x] Exported the empty staging database before migrations; restored that export in disposable local SQLite.
+- [x] Applied and read back migrations 0001-0004 only in staging; foreign key check returned no violations.
+- [x] Seven remote SQL smoke cases passed: case-insensitive email/nickname uniqueness, missing-user FK rejection, duplicate link key rejection, single consumption, session cascade and fixture cleanup.
+- [x] Scoped staging Worker dry-run passed with the isolated D1 binding, staging environment, empty browser origins and no public routes.
+- [x] Production readback still shows migrations 0001-0003 and no account tables; all production queries had zero writes.
+- [x] Config, storage reference, backup/migration guide and changelog updated.
+
+No Worker was deployed. Public account delivery remains disabled. Remote Time Travel recovery was documented, not executed; D1 does not accept `PRAGMA integrity_check` through the query interface used.
+
 # Account integration after the application split - 2026-11-11
 
 - [x] Preserve main engine, multiplayer, procedural content and cosmetics; relocate account UI to client and auth to API.

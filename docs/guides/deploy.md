@@ -128,7 +128,7 @@ banco para um instante (`wrangler d1 time-travel restore vilanoeldobem --timesta
 
 ## Limitações conhecidas
 
-- Ainda não há ambiente de homologação separado (ROADMAP, tarefas de base).
+- D1 de homologação separado preparado e verificado; a API de homologação ainda não foi publicada. Ver [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
 

@@ -25,5 +25,28 @@
   "routes": [{ "pattern": "api.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "env": {
+    "staging": {
+      "name": "vilanoeldobem-api-staging",
+      "routes": [],
+      "workers_dev": false,
+      "preview_urls": false,
+      // Database preparation only. No public Worker or account delivery is activated.
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "AUTH_API_ORIGIN": "",
+        "AUTH_PAGE_ORIGIN": "",
+        "ALLOWED_ORIGINS": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vilanoeldobem-staging",
+          "database_id": "32ebb383-e765-4ed0-aa25-d8871be3e414",
+          "migrations_dir": "../../migrations"
+        }
+      ]
+    }
+  }
 }

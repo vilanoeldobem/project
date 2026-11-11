@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Banco D1 de homologação isolado, configuração `env.staging` da API e guia de backup/migrations; schema v4 validado sem alteração de produção. Nenhum Worker ou login público de homologação ativado.
+
 - Conta opcional: quatro campos, link mágico com confirmação explícita, sessão HttpOnly e saída; visitante livre.
   Integração com `apps/client` e `apps/api`, callback para o jogo, CORS credenciado restrito e testes entre origens.
 - Migration v4 aditiva para contas, links, sessões e limites; entrega exclusivamente local, produção desabilitada
