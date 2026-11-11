@@ -23,6 +23,12 @@ Cada versão indica o schema D1 que entrega.
 - Migration `0004_accounts_ngo_applications.sql` (schema D1 v4). Rotas `/config`, `/auth/*`, `/me`, `/progress`,
   `/ngo/application`, `/admin/applications`. `apps/client/scripts/verify-accounts.mjs` (navegador, só local).
 
+### Added — infraestrutura
+
+- Ambiente `staging` da API (`apps/api/wrangler.jsonc`) com banco D1 próprio (`vilanoeldobem-staging`), sem rotas,
+  sem origens e com contas desligadas; guia [staging-database.md](docs/guides/staging-database.md). Preparado pela
+  equipe no PR #10 e trazido para o `main` sem as migrations divergentes.
+
 ### Changed
 
 - **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
