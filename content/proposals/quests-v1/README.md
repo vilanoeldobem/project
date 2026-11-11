@@ -74,3 +74,9 @@
 `node validate-quests.mjs` confere as regras estruturais (contagens, trilhas, tipos,
 pré-requisitos, entregas cruzadas, XP, objetos, limites de texto e ausência de marcadores
 de preenchimento).
+
+`node validate-objects.mjs` confere a normalização de [`objects.csv`](objects.csv) e a fila de
+[`object-prompts/`](object-prompts/README.md): as 9 missões com objeto cobertas por 8 objetos
+únicos, uso de 1 a 4 missões por objeto, orçamentos de voxels e faces, coerência de status
+(`reuse` sem prompt, `new` com prompt) e ausência de marcadores de preenchimento. O relatório
+desta revisão está em [`review.md`](review.md).

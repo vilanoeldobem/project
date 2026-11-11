@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos) · **Atualizado em:** 2026-11-10
+> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 1 de 5 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -39,6 +39,7 @@
 | `garland` | Guirlanda | props | comprimento, curvatura, lâmpadas, laços | 44 / 154 |
 | `market-stall` | Barraca | props | toldo listrado, madeira, largura, mercadorias | 111 / 318 |
 | `panettone-stand` | Barraca de panetone | props | toldo, madeira, largura (toque brasileiro) | 110 / 322 |
+| `quest-reindeer-bell` | Sino do arreio | props | ouro/bronze, largura da boca, altura da cúpula, alça de couro, laço (vermelho/pinheiro), orientação | 45 / 116 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |

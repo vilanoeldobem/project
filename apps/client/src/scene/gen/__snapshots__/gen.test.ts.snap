@@ -104,6 +104,14 @@ exports[`generator snapshots > panettone-stand keeps the output of fixed seeds s
 ]
 `;
 
+exports[`generator snapshots > quest-reindeer-bell keeps the output of fixed seeds stable 1`] = `
+[
+  "6d391bca",
+  "2133aff2",
+  "1658b425",
+]
+`;
+
 exports[`generator snapshots > rabbit keeps the output of fixed seeds stable 1`] = `
 [
   "8b908db7",

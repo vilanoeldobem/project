@@ -2,7 +2,7 @@
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
 > Derivado de [`quests.csv`](quests.csv) e de [`story-bible.md`](story-bible.md); nada aqui é decisão
-> aprovada. Nenhum gerador foi implementado e nenhum código de jogo acompanha esta proposta.
+> aprovada. O primeiro objeto da fila já tem gerador (`reindeer-bell`, `done`); os demais `new` seguem sem código.
 
 ## 1. Regras da normalização
 
@@ -13,8 +13,9 @@
 - Tetos de orçamento: **80 voxels / 200 faces** para `quest_item` e **220 voxels / 600 faces** para
   `world_prop` (categoria `props` de IMPL-0010).
 - Classificação: `reuse` quando um gerador existente de `apps/client/src/scene/gen/props.ts` cobre a
-  silhueta por variação de semente; `new` (`status_build: pending`) quando a silhueta exige gerador
-  próprio em `apps/client/src/scene/gen/quest-items.ts`. Troca apenas de cor não conta como reuso.
+  silhueta por variação de semente; `new` (`status_build: pending` até o gerador ser implementado) quando a
+  silhueta exige gerador próprio em `apps/client/src/scene/gen/quest-items.ts`. Troca apenas de cor não conta
+  como reuso.
 - Tabela completa em [`objects.csv`](objects.csv); prompts em [`object-prompts/`](object-prompts/README.md).
 
 ## 2. Índice por cadeia e missão
@@ -23,7 +24,7 @@
 
 | missão | objetivo | objeto_id | nome_objeto | tipo_objeto | qtd | gerador | status_build | orçamento (voxels / faces) | prompt |
 |---|---|---|---|---:|---|---|---|---|---|
-| harness-bells | collect | reindeer-bell | Sino do arreio | quest_item | 2 | quest-reindeer-bell | pending | 80 / 200 | [01-reindeer-bell.md](object-prompts/01-reindeer-bell.md) |
+| harness-bells | collect | reindeer-bell | Sino do arreio | quest_item | 2 | quest-reindeer-bell | done | 80 / 200 | [01-reindeer-bell.md](object-prompts/01-reindeer-bell.md) |
 | charm-for-the-flight | deliver | lucky-charm | Patuá da sorte | quest_item | 1 | quest-lucky-charm | pending | 80 / 200 | [02-lucky-charm.md](object-prompts/02-lucky-charm.md) |
 
 `route-memory-game` não tem objeto (`tipo_objeto` `none`).
@@ -67,7 +68,7 @@ grande árvore, e é inspecionado, não coletado.
 
 | objeto_id | nome_objeto | tipo_objeto | status_build | classificação | gerador | cadeia | usado_em | qtd_total | semente | orçamento (voxels / faces) | tamanho | interação | colisão | materiais |
 |---|---|---|---|---|---|---|---|---:|---|---|---|---|---|---|
-| reindeer-bell | Sino do arreio | quest_item | pending | new | quest-reindeer-bell | flight-night | harness-bells | 2 | reindeer-bell | 80 / 200 | 0.18 | pickup | none | solid |
+| reindeer-bell | Sino do arreio | quest_item | done | new | quest-reindeer-bell | flight-night | harness-bells | 2 | reindeer-bell | 80 / 200 | 0.18 | pickup | none | solid |
 | lucky-charm | Patuá da sorte | quest_item | pending | new | quest-lucky-charm | flight-night | charm-for-the-flight | 1 | lucky-charm | 80 / 200 | 0.18 | carry | none | solid |
 | ornament-crate | Caixa de enfeites | quest_item | pending | new | quest-ornament-crate | market-opening | ornament-crates | 2 | ornament-crate | 80 / 200 | 0.2 | pickup | none | solid;emissive |
 | village-mailbox | Caixa de correio | world_prop | reuse | reuse | mailbox | undelivered-letters | frozen-mailbox | 1 | village-mail | 220 / 600 | 0.2 | interact | small | solid |
@@ -88,7 +89,7 @@ grande árvore, e é inspecionado, não coletado.
 - `kids-sled` → `sled` com semente `kids-sled`: patins curvos, assento ripado e encosto/carga opcional
   já são o trenó pequeno guardado ao norte (47 voxels e 170 faces, medidos).
 
-**`new` (5, `status_build: pending`)** — nenhum gerador atual cobre a silhueta:
+**`new` (5, `pending` exceto `reindeer-bell` em `done`)** — nenhum gerador de `props.ts` cobre a silhueta:
 
 - `reindeer-bell`: sino de arreio com cúpula metálica, badalo e alça de couro; `gift` é caixa fechada e
   `lantern` é lanterna de quadro e chama.

@@ -1,8 +1,9 @@
 # object-prompts — fila de construção dos objetos de quest
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
-> Fila derivada de [`../objects.csv`](../objects.csv) e de [`../objects.md`](../objects.md). Nenhum
-> gerador foi implementado: `status_build` começa em `pending` para todos os objetos `new`.
+> Fila derivada de [`../objects.csv`](../objects.csv) e de [`../objects.md`](../objects.md). Os geradores são
+> implementados um a um em `apps/client/src/scene/gen/quest-items.ts`: o primeiro objeto, `reindeer-bell`, está
+> `done` e os demais `new` seguem em `pending`.
 
 ## Ordem de construção
 
@@ -12,7 +13,7 @@ porcentagem, cerquilha, igual ou mais, para poder ser colado direto no `ompy` en
 
 | ordem | objeto_id | nome_objeto | cadeia | usado_em | status_build | prompt |
 |---:|---|---|---|---|---|---|
-| 01 | reindeer-bell | Sino do arreio | flight-night | harness-bells | pending | [01-reindeer-bell.md](01-reindeer-bell.md) |
+| 01 | reindeer-bell | Sino do arreio | flight-night | harness-bells | done | [01-reindeer-bell.md](01-reindeer-bell.md) |
 | 02 | lucky-charm | Patuá da sorte | flight-night | charm-for-the-flight | pending | [02-lucky-charm.md](02-lucky-charm.md) |
 | 03 | ornament-crate | Caixa de enfeites | market-opening | ornament-crates | pending | [03-ornament-crate.md](03-ornament-crate.md) |
 | 04 | donation-panel | Painel de doação global | village-story | donation-promise-reading | pending | [04-donation-panel.md](04-donation-panel.md) |

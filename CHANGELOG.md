@@ -10,6 +10,7 @@ Cada versão indica o schema D1 que entrega.
 ## [Unreleased]
 
 ### Added
+- `content/proposals/quests-v1/pilot-plan.md` planeja o piloto da cadeia `flight-night` (`harness-bells` → `route-memory-game` → `charm-for-the-flight`, 100 XP): modelo de dados e máquina de estados sem quebrar as 4 missões atuais, persistência local e XP idempotente no servidor sem migration, NPCs com o gerador `villager` e folgas medidas em `world.ts`, diálogos de aceitar/entregar, marcadores, bolsa de missão, spawn e pickup dos sinos, feature flag, testes puros e no navegador, riscos (UX, persistência, acessibilidade, público jovem, LGPD) e perguntas ao responsável; sem código de jogo, migration ou deploy
 - Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
 - Multiplayer mostra o visual de cada visitante (chapéu, cachecol, suéter, cores) e `apps/server/scripts/load.mjs`
 - Conteúdo procedural por semente ([IMPL-0010](docs/decisions/0010-seeded-procedural-voxel-content.md), PROPOSTA):
@@ -27,7 +28,9 @@ Cada versão indica o schema D1 que entrega.
 - HUD: hora de SP e clima; botão "Olhar o céu"; painel "Ambiente" com qualidade gráfica e conforto (sem partículas,
 - Depuração local: `?envDebug`, `?envTime=`, `?envWeather=` (só localhost/dev); `verify.mjs` fotografa as fases.
 - `content/proposals/quests-v1/` reúne uma proposta de 15 missões para avaliação, com 5 cadeias de NPC, diálogos, bíblia de história e validador estrutural sem dependências; não inclui código de jogo
+- `content/proposals/quests-v1/review.md` audita a proposta (15 missões, 5 NPCs, 8 objetos, 5 prompts): veredito com ressalvas, sem violação de regra de produto; `validate-objects.mjs` passa a contar as 9 missões com objeto e a posição sugerida de `pond-keeper` foi afastada dos terrenos
 - `content/proposals/quests-v1/objects.csv` e `objects.md` normalizam os 8 objetos únicos das missões (5 itens de quest e 3 adereços de mundo; 3 reutilizam geradores existentes e 5 pedem silhueta própria), com fila de prompts em `object-prompts/` e o validador `validate-objects.mjs`; nenhum gerador foi implementado
+- Itens de quest (PROPOSTA, `quests-v1`): gerador `quest-reindeer-bell` (Sino do arreio) em `apps/client/src/scene/gen/quest-items.ts`, com sino de ouro/bronze, badalo, alça de couro, laço e neve, dentro de 80 voxels e 200 faces; primeiro dos 5 objetos novos da fila, sem ligar missões, XP ou o mundo
 
 ### Changed
 - **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):

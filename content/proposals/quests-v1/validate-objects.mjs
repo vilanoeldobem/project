@@ -211,4 +211,4 @@ if (problems.length > 0) {
 const reuse = objects.filter((o) => o.status_build === "reuse").length;
 console.log("OK: quests-v1 objects pass all checks");
 console.log(`objects=${objects.length} reuse=${reuse} new=${newObjects.length} prompts=${named.length}`);
-console.log(`quests_with_object=${questObjects.size} missions=${quests.rows.length}`);
+console.log(`quests_with_object=${objectIdOfQuest.size} missions=${quests.rows.length}`);
