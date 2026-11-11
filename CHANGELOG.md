@@ -27,6 +27,7 @@ Cada versão indica o schema D1 que entrega.
 - HUD: hora de SP e clima; botão "Olhar o céu"; painel "Ambiente" com qualidade gráfica e conforto (sem partículas,
 - Depuração local: `?envDebug`, `?envTime=`, `?envWeather=` (só localhost/dev); `verify.mjs` fotografa as fases.
 - `content/proposals/quests-v1/` reúne uma proposta de 15 missões para avaliação, com 5 cadeias de NPC, diálogos, bíblia de história e validador estrutural sem dependências; não inclui código de jogo
+- `content/proposals/quests-v1/objects.csv` e `objects.md` normalizam os 8 objetos únicos das missões (5 itens de quest e 3 adereços de mundo; 3 reutilizam geradores existentes e 5 pedem silhueta própria), com fila de prompts em `object-prompts/` e o validador `validate-objects.mjs`; nenhum gerador foi implementado
 
 ### Changed
 - **Monorepo separado em apps e subdomínios** ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)):
