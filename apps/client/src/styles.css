@@ -78,6 +78,8 @@ kbd {
   padding: 8px 12px; font-weight: 800; color: var(--pine); cursor: pointer; box-shadow: var(--shadow); min-width: 200px;
 }
 .hud__missions .star { color: var(--gold); font-size: 1.4rem; -webkit-text-stroke: 1px var(--pine); grid-row: span 2; }
+.hud__zoom { position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; }
+.hud__zoom .btn--chip { min-width: 44px; min-height: 44px; padding: 0; font-size: 1.2rem; font-weight: 800; }
 .hud__action { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)); font-size: 1.05rem; }
 .hud__action:active:not(:disabled) { transform: translateX(-50%) translateY(2px); }
 
@@ -162,6 +164,7 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   .btn--path { flex-direction: row; min-height: 56px; }
   .ngo-hud { grid-template-columns: 1fr; }
   .hud__missions { right: 16px; }
+  .hud__zoom { bottom: max(104px, calc(env(safe-area-inset-bottom) + 88px)); }
 }
 
 @media (prefers-reduced-motion: reduce) {

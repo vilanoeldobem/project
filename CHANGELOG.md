@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — controles
+
+- Andar é só por clique/toque no chão: WASD e setas foram removidos. O clique mostra um anel dourado que se expande,
+  um brilho de gelo e um marcador no destino até o avatar chegar (sem expansão com movimento reduzido).
+- Zoom da câmera: roda do mouse, gesto de pinça, botões ＋/－ no canto e teclas `+`/`-`; fica salvo neste navegador
+  (`vila.zoom.v1`). Névoa gelada mais leve (0,82 → 0,60).
+
 ### Added — 0.4.0 "Contas e ONGs" (desligado em produção)
 
 - Contas ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)): cadastro com Nome, Nickname, Cidade e

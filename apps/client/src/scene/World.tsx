@@ -10,6 +10,7 @@ import { Lighting } from "./environment/Lighting";
 import { Footprints, GameplayBursts, Sparkles } from "./environment/Particles";
 import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
+import { ClickMarker } from "./ClickMarker";
 import { Ground } from "./Ground";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
@@ -60,6 +61,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Lots info={lots} />
         <Gifts />
         <Footprints />
+        <ClickMarker />
         <Player houses={houses} />
         <RemotePlayers />
         <Snow />

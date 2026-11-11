@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { PALETTE as P, PLAZA_RADIUS, STREET_INNER, STREET_OUTER, WORLD_RADIUS } from "@vila/shared/game/world";
+import { events } from "../game/events";
 import { useVila } from "../game/store";
 import { Voxels } from "./Voxels";
 import type { Voxel } from "./models";
@@ -34,9 +35,11 @@ export function Ground() {
         rotation-x={-Math.PI / 2}
         position-y={0.01}
         onPointerDown={(e) => {
-          if (e.button !== 0) return;
+          // Only the first finger walks: a second one starts a pinch zoom (Player).
+          if (e.button !== 0 || !e.nativeEvent.isPrimary) return;
           e.stopPropagation();
           setTarget({ x: e.point.x, z: e.point.z });
+          events.emit({ type: "tap", x: e.point.x, z: e.point.z });
         }}
       >
         <circleGeometry args={[WORLD_RADIUS + 3, 48]} />

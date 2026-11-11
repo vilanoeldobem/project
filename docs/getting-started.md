@@ -63,7 +63,7 @@ curl -s localhost:8788/health
 ## 5. Passear
 
 1. "Entrar na Vila".
-2. Ande com WASD/setas ou toque no chão. Encontre os presentes que flutuam (missão *Explorar*).
+2. Clique ou toque no chão para andar; aproxime ou afaste com a roda do mouse, o gesto de pinça, os botões ＋/－ ou as teclas +/-. Encontre os presentes que flutuam (missão *Explorar*).
 3. Perto da árvore aparece "Doação global"; perto de um terreno, "Ver terreno" (tecla **E**).
 4. Abra "Jogar" e complete o Jogo da Memória; veja o ★ Missões no canto inferior.
 
