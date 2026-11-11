@@ -11,7 +11,7 @@ import { RenderStats } from "../scene/RenderStats";
 import { perf } from "../scene/perf";
 import { BUDGETS, measure } from "../scene/gen/budget";
 import { byCategory } from "../scene/gen/catalog";
-import type { Category, Generator } from "../scene/gen/types";
+import type { Category, GenModel, Generator } from "../scene/gen/types";
 import { Voxels } from "../scene/Voxels";
 
 const CATEGORIES: Category[] = ["props", "houses", "characters", "animals", "cosmetics"];
@@ -28,13 +28,24 @@ function Turntable({ children, x, z }: { children: React.ReactNode; x: number; z
   );
 }
 
+/** Scale that fits a model's largest extent into a gallery cell (small props are capped, not blown up). */
+function fit(m: GenModel) {
+  let span = 0;
+  for (const axis of [0, 1, 2] as const) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of m.voxels) (lo = Math.min(lo, v[axis])), (hi = Math.max(hi, v[axis]));
+    span = Math.max(span, (hi - lo + 1) * m.size);
+  }
+  return Math.min(1.25, 2.8 / Math.max(span, 1e-3));
+}
+
 function Row({ g, row }: { g: Generator; row: number }) {
   const models = useMemo(() => SEEDS.map((s) => g.generate(s)), [g]);
   return (
     <>
       {models.map((m, i) => (
         <Turntable key={i} x={(i - (SEEDS.length - 1) / 2) * SPACING} z={row * SPACING}>
-          <group scale={1.25}>
+          <group scale={fit(m)}>
             <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} glow={m.glow} sway={m.sway} />
           </group>
         </Turntable>
@@ -61,12 +72,14 @@ export function Gallery() {
     return () => clearInterval(id);
   }, []);
   const depth = Math.max(1, gens.length) * SPACING;
+  // Frame the whole grid: distance follows the larger of its depth and its width.
+  const reach = Math.max(depth, SEEDS.length * SPACING * 0.85);
   const budget = BUDGETS[cat];
   return (
     <div className="gallery">
       <Canvas
         shadows
-        camera={{ position: [3, depth * 0.75 + 5, depth + 12], fov: 40 }}
+        camera={{ position: [3, reach * 0.75 + 5, depth / 2 + reach + 6], fov: 40 }}
         onCreated={({ camera }) => camera.lookAt(3, 0, depth / 2 - SPACING / 2)}
       >
         <RenderStats maxDpr={1.5} />

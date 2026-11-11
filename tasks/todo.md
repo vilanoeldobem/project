@@ -307,10 +307,15 @@ loot boxes, random drops or time-online rewards; no fake NGOs/branding; XP rules
 - Placement of new props in the village waits for the layout decision (PEN-017/PEN-023).
 
 ## Phase 2 — houses (budget: ≤ 900 voxels, ≤ 1 800 faces)
-- [ ] Footprint 5–7, 1–2 floors, roof (gable / hip / A-frame), porch, wreath, snow on roof, chimney at a
+- [x] Footprint 5–7, 1–2 floors, roof (gable / hip / A-frame), porch, wreath, snow on roof, chimney at a
       generator-reported chimney point (smoke uses it), windows on the `glow` role (lit by real SP time already)
-- [ ] NGO lots: seed = lot id; neutral palette; never logos or text
-- [ ] Far LOD: simplified house for distant use (optional, if measured worthwhile)
+- [x] NGO lots: seed = lot id; neutral palette; never logos or text
+- [x] Far LOD: deferred (houses only on 8 lots, ≤ 950 faces each; not worth it until measured)
+
+### Phase 2 review (2026-11-10)
+- House max over gallery seeds: 367/900 voxels, 950/1800 faces. Gallery houses: 16 calls, 13.3k tris.
+- Village unchanged locally (no published NGO in local D1; no fake NGOs added). Tests: chimney anchor, lit windows,
+  footprint ≤ 5 voxels from lot centre, contract + snapshot.
 
 ## Phase 3 — characters (budget: ≤ 160 voxels, ≤ 420 faces)
 - [ ] Neutral villagers: body height, coat, scarf, hat from palette variants; no names, short or no labels

@@ -41,9 +41,8 @@ describe.each(GENERATORS.map((g) => [g.id, g] as const))("generator %s", (_, g) 
 });
 
 describe("generator snapshots", () => {
-  it("keeps the output of fixed seeds stable", () => {
-    const hashes = Object.fromEntries(GENERATORS.map((g) => [g.id, ["a", "b", 7].map((s) => fingerprint(g.generate(s).voxels))]));
-    expect(hashes).toMatchSnapshot();
+  it.each(GENERATORS.map((g) => [g.id, g] as const))("%s keeps the output of fixed seeds stable", (_, g) => {
+    expect(["a", "b", 7].map((s) => fingerprint(g.generate(s).voxels))).toMatchSnapshot();
   });
 });
 

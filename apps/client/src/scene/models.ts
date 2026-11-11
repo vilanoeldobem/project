@@ -90,34 +90,6 @@ export function lotMarker(): Voxel[] {
   return v;
 }
 
-/** Chimney top in house-local voxel units (smoke origin). */
-export const HOUSE_CHIMNEY: [number, number, number] = [2, 7.5, -1];
-
-/** Chalet (published lot): wood walls, lit windows, gold door, snow-laden roof, chimney. */
-export function house(): Voxel[] {
-  const v: Voxel[] = [];
-  for (let x = -2; x <= 2; x++)
-    for (let z = -2; z <= 2; z++)
-      for (let y = 0; y < 3; y++) {
-        if (Math.abs(x) < 2 && Math.abs(z) < 2) continue;
-        const door = z === 2 && x === 0 && y < 2;
-        const window = y === 1 && ((Math.abs(x) === 2 && z === 0) || (z === 2 && Math.abs(x) === 1) || (z === -2 && x === 0));
-        v.push([x, y, z, door ? P.gold : window ? P.window : y === 2 ? P.cream : P.wood]);
-      }
-  for (let y = 0; y < 3; y++)
-    for (let x = -3 + y; x <= 3 - y; x++)
-      for (let z = -3; z <= 3; z++) {
-        const top = y === 2 || Math.abs(x) === 3 - y;
-        v.push([x, 3 + y, z, top && (y === 2 || (x + z) % 3 !== 0) ? P.snow : P.terracotta]);
-      }
-  // Icicle eaves.
-  for (let z = -3; z <= 3; z += 2) v.push([-3, 2, z, P.ice], [3, 2, z, P.ice]);
-  // Chimney.
-  for (let y = 4; y < 7; y++) v.push([2, y, -1, P.stoneDark]);
-  v.push([2, 7, -1, P.snow]);
-  return v;
-}
-
 /** Snowman (draw with size 0.4). Front = +z. */
 export function snowman(): Voxel[] {
   const v: Voxel[] = [];

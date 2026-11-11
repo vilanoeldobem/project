@@ -9,10 +9,10 @@ import type { LotInfo } from "../lib/api";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
 import { gift as generateGift } from "./gen/props";
-import { bench, BULBS, house, HOUSE_CHIMNEY, lamp, lotMarker, tree } from "./models";
+import { house } from "./gen/houses";
+import { bench, BULBS, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
-const WINDOWS = [P.window];
 
 export function ChristmasTree() {
   const v = useMemo(tree, []);
@@ -48,25 +48,26 @@ const PAD_COLOR = { published: new Color(P.snowShade), available: new Color(P.sn
 const padDummy = new Object3D();
 
 /**
- * Lots: chalets for published NGOs, "available" markers otherwise. Each kind is one instanced draw;
- * a click resolves the lot from the instance id.
+ * Lots: a generated chalet per published NGO (seed = lot id), "available" markers otherwise (one
+ * instanced draw for all markers; a click resolves the lot from the instance id).
  */
 export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const marker = useMemo(lotMarker, []);
-  const home = useMemo(house, []);
   const open = useVila((s) => s.open);
   const isPublished = (id: string) => info[id]?.state === "published" && !!info[id]?.ngo_name;
   const published = useMemo(() => LOTS.filter((l) => isPublished(l.id)), [info]);
   const available = useMemo(() => LOTS.filter((l) => !isPublished(l.id)), [info]);
+  // Each published NGO gets its own chalet, seeded by the lot id: same house for every visitor, no branding.
+  const homes = useMemo(() => published.map((lot) => ({ lot, model: house(lot.id) })), [published]);
   const chimneys = useMemo(
     () =>
-      published.map((lot): [number, number, number] => {
-        // Chimney local (x, z) rotated by the lot facing, then moved to the lot.
-        const [cx, cy, cz] = HOUSE_CHIMNEY;
+      homes.map(({ lot, model }): [number, number, number] => {
+        // Chimney anchor (house-local) rotated by the lot facing, then moved to the lot.
+        const [cx, cy, cz] = model.anchors?.chimney ?? [0, 6, 0];
         const c = Math.cos(lot.facing), s = Math.sin(lot.facing);
         return [lot.x + cx * c + cz * s, cy, lot.z - cx * s + cz * c];
       }),
-    [published]
+    [homes]
   );
   const place = (list: LotDef[]) => list.map((l): Placement => ({ x: l.x, z: l.z, rot: l.facing }));
   const pads = useRef<InstancedMesh>(null);
@@ -93,11 +94,16 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
     <>
       <Smoke origins={chimneys} />
       <instancedMesh ref={pads} args={[PAD, PAD_MATERIAL, LOTS.length]} receiveShadow onClick={click(LOTS)} />
-      {published.length > 0 && (
-        <group onClick={click(published)}>
-          <Voxels voxels={home} glow={WINDOWS} placements={place(published)} />
+      {homes.map(({ lot, model }) => (
+        <group
+          key={lot.id}
+          position={[lot.x, 0, lot.z]}
+          rotation-y={lot.facing}
+          onClick={(e) => (e.stopPropagation(), open({ kind: "lot", lotId: lot.id }))}
+        >
+          <Voxels voxels={model.voxels} size={model.size} glow={model.glow} />
         </group>
-      )}
+      ))}
       {available.length > 0 && (
         <group onClick={click(available)}>
           <Voxels voxels={marker} placements={place(available)} />

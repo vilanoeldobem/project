@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–1 implementadas (núcleo, galeria, adereços) · **Atualizado em:** 2026-11-10
+> **Status:** Fases 0–2 implementadas (núcleo, galeria, adereços, casas) · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -39,9 +39,12 @@
 | `garland` | Guirlanda | props | comprimento, curvatura, lâmpadas, laços | 44 / 154 |
 | `market-stall` | Barraca | props | toldo listrado, madeira, largura, mercadorias | 111 / 318 |
 | `panettone-stand` | Barraca de panetone | props | toldo, madeira, largura (toque brasileiro) | 110 / 322 |
+| `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
 
 Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gift-palm`, `gift-bench`,
-`gift-street`). Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
+`gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
+casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
+fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua). Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
 
 ## 4. Testes (contrato de todo gerador)
 
