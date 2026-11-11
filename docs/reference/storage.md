@@ -51,7 +51,7 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 
 ## 3. Dados que **não** ficam no D1 nesta versão
 
-Progresso de missões/XP (só `localStorage` do navegador, chave `vila.progress.v2`), dados de usuários, pagamentos.
+Progresso de visitante (`localStorage`, chave `vila.progress.v2`) e pagamentos. Contas e progresso de conta possuem migrations aditivas em revisão, descritas abaixo.
 Logs de pagamento ficarão separados dos dados de gamificação (dossiê §13).
 
 ## Ver também
@@ -71,3 +71,13 @@ Tempos em segundos Unix. Novos pedidos/confirmações limpam links/sessões/limi
 não são anonimização. Não há listagem pública de usuários; dados pessoais saem somente na própria sessão.
 Aplicação de migration não significa autenticação pública habilitada. Retenção/exclusão e envio real devem ser
 revistos antes da produção. O banco continua pertencendo exclusivamente à API, não ao cliente ou presença.
+
+## Progresso por conta - v5 disponível para teste
+
+`0005_player_progress.sql` adiciona `player_progress`: `user_id` PK/FK de auth_users com exclusão em cascata,
+`state_json` JSON válido, `revision` não negativa, `guest_imported_at` e created_at/updated_at em segundos Unix.
+Progresso é calculado pelo servidor. Importação e atualização de revisão ocorrem na mesma escrita condicional;
+requisições concorrentes releem o estado antes de tentar novamente. Não há tabelas de progresso em Durable Objects.
+
+A existência do arquivo não comprova aplicação no remoto. O visitante continua no localStorage; a conta usa D1,
+com cache/fila local isolados por ID para retomada offline. Cookies não são persistidos nesse cache.

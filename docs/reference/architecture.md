@@ -68,6 +68,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
   para origens exatas de `ALLOWED_ORIGINS`. `/environment` é a autoridade da hora (sem estado; sem Durable Object,
   IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo.
 - `auth.ts`: contas opcionais (IMPL-0011), separando origem da API da origem de callback do jogo; CORS credenciado exato, cookies host-only e entrega de teste só em loopback.
+- `progress.ts`: progresso privado por sessão, eventos idempotentes, importação limitada e controle de concorrência (IMPL-0012).
 - Único app com acesso ao D1.
 
 ## 4. Servidor de tempo real (`apps/server/src`)
@@ -161,3 +162,9 @@ chamadas e triângulos independem da GPU.
 
 [api.md](api.md) · [storage.md](storage.md) · [IMPL-0001](../decisions/0001-stack-react-threejs-cloudflare.md) ·
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)
+
+## Sincronização do progresso
+
+`apps/client/src/game/account-progress.ts` mantém fila serial e cache por conta, gera a asserção X-Account-ID e
+aplica respostas só à geração de conta que as pediu. `game/store.ts` preserva o visitante separadamente e restaura-o
+no logout. `applyEvent` em shared continua sendo a única lógica de recompensa usada pela API e pelo cliente.

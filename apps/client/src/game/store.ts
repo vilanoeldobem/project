@@ -3,6 +3,8 @@ import { create } from "zustand";
 import { COSMETICS, type Look, sanitizeLook, unlockedIds } from "@vila/shared/game/cosmetics";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
 import { events } from "./events";
+import { useAuth } from "../lib/auth";
+import { createProgressSync, type ProgressStatus } from "./account-progress";
 
 export type Panel =
   | { kind: "account" }
@@ -57,6 +59,8 @@ interface VilaState {
   /** Click/tap destination; null when idle or moving with the keyboard. */
   target: { x: number; z: number } | null;
   progress: Progress;
+  progressStatus: ProgressStatus;
+  retryProgress: () => void;
   look: Look;
   setLook: (patch: Partial<Look>) => void;
   toast: { id: number; text: string } | null;
@@ -74,12 +78,15 @@ interface VilaState {
 let toastSeq = 0;
 
 const initialProgress = loadProgress();
+let guestProgress = initialProgress;
 
 export const useVila = create<VilaState>((set, get) => ({
   panel: { kind: "welcome" },
   nearby: null,
   target: null,
   progress: initialProgress,
+  progressStatus: "guest",
+  retryProgress: () => progressSync.retry(),
   look: loadLook(initialProgress),
   setLook: (patch) => {
     const look = sanitizeLook({ ...get().look, ...patch }, get().progress);
@@ -105,7 +112,7 @@ export const useVila = create<VilaState>((set, get) => ({
     const previous = get().progress;
     const { progress, completed } = applyEvent(previous, missionId, eventId);
     if (progress === get().progress) return;
-    saveProgress(progress);
+    if (!progressSync.record(missionId, eventId)) { guestProgress = progress; saveProgress(progress); }
     set({ progress });
     if (completed) {
       // New cosmetics are a consequence of the mission, never a separate reward roll (PROPOSTA).
@@ -119,3 +126,13 @@ export const useVila = create<VilaState>((set, get) => ({
 }));
 
 const missionDoneMessage = (m: Mission) => `Missão concluída: ${m.title} · +${m.xp} XP`;
+
+const progressSync = createProgressSync({
+  guest: () => guestProgress,
+  progress: (progress) => useVila.setState((state) => ({ progress, look: sanitizeLook(state.look, progress) })),
+  status: (progressStatus) => useVila.setState({ progressStatus }),
+  accountChanged: () => { void useAuth.getState().refresh(); },
+  unauthorized: () => { useAuth.getState().signedOut(); useVila.getState().notify("Sua sessão expirou. Entre novamente para sincronizar o progresso."); },
+});
+useAuth.subscribe((state) => { if (state.ready && !state.failed) progressSync.switchUser(state.user?.id ?? null); });
+window.addEventListener("online", () => progressSync.retry());

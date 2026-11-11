@@ -1,3 +1,16 @@
+# Account progress - 2026-11-11
+
+- [x] Additive migration0005; session-owned progress API with bounded CAS retries and shared rewards.
+- [x] Once-only validated guest import; preserve known gift identities and prevent replay rewards.
+- [x] Expected-account assertion prevents old tabs writing to a different cookie account.
+- [x] Separate per-account offline queues/caches; restore guest on logout and reject stale responses.
+- [x] Meaningful SQL and client regressions; docs and IMPL-0012.
+- [x] Coordinator validation on 2026-11-11: typecheck, all 209 tests and all package builds passed.
+- [x] Local migration 0005 and real-browser UI proof passed: guest import, reload, duplicate reward rejection, independent-browser recovery, guest restoration and account isolation.
+- [x] AIOX QA re-review closed both findings (gift identity and cross-tab account mismatch); no unresolved P1/P2.
+
+No public authentication activation, deployment or remote migration performed by this implementer.
+
 # Isolated staging database - 2026-11-11
 
 - [x] Created `vilanoeldobem-staging` in the confirmed project account; production binding unchanged.

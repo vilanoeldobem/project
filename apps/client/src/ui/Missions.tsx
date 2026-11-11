@@ -4,9 +4,10 @@ import { useVila } from "../game/store";
 import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Track } from "@vila/shared/game/progress";
 import { Panel } from "./Panel";
 
-/** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
+/** Mission log (P14, DEC-039/040). Guests stay local; account progress is synchronized with the API. */
 export function Missions() {
   const p = useVila((s) => s.progress);
+  const status = useVila((s) => s.progressStatus);
   return (
     <Panel kicker="Missões da Vila" title="Caderno de Missões">
       <XpBar />
@@ -33,7 +34,7 @@ export function Missions() {
         </section>
       ))}
       <LookPicker />
-      <p className="note">Seu progresso fica salvo neste navegador.</p>
+      <p className="note" role="status">{status === "guest" ? "Seu progresso de visitante fica salvo neste navegador." : status === "saved" ? "Missões e XP salvos na conta. A aparência continua neste navegador." : status === "offline" ? "Progresso pendente de sincronização. Abra Minha conta para tentar novamente." : "Sincronizando seu progresso…"}</p>
     </Panel>
   );
 }

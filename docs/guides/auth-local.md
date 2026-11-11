@@ -3,7 +3,7 @@
 > Estado: implementação para revisão (IMPL-0011). Envio real e login público continuam desabilitados (OQ-08).
 
 Use Node 24+, pnpm e somente dados fictícios. A conta pede nome, nickname, cidade e e-mail.
-Missões, XP e aparência continuam neste navegador, sem sincronização com a conta.
+Missões e XP de contas sincronizam com o D1 local da API. A aparência equipada continua neste navegador.
 
 ## Preparar três serviços locais
 
@@ -69,6 +69,15 @@ callbacks para o jogo, origem inválida e os limites do adaptador. Nenhum result
 
 Produção falha fechada: o provedor de e-mail não foi escolhido nem integrado. O adaptador local não habilita
 login de homologação/produção apenas por aplicar a migration. Autenticação multiplayer, pagamentos, admin de ONG
-e progresso no servidor são entregas separadas. Nenhuma migration remota ou deploy faz parte deste guia.
+são entregas separadas. Nenhuma migration remota ou deploy faz parte deste guia.
 
 [ADR IMPL-0011](../decisions/0011-optional-magic-link-accounts.md) · [API](../reference/api.md)
+
+## Conferir o progresso da conta
+
+Aplique também a migration 0005 no D1 local antes de testar. Jogue como visitante, crie/acesse uma conta e abra
+Minha conta: a mensagem informa sincronização pendente ou salva. Concluir uma missão atualiza a conta. Reabra a
+mesma conta em outro navegador/perfil (pedindo um novo link naquele perfil): o progresso canônico deve aparecer.
+Logout restaura o progresso do visitante, sem misturar dados da conta anterior. Uma falha de rede mantém eventos
+pendentes para aquela conta; voltar à rede ou Tentar sincronizar retoma a fila. Não prometa que progresso pendente
+já chegou ao servidor. Cosméticos equipados não acompanham a conta nesta entrega.

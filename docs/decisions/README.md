@@ -33,3 +33,5 @@
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).
 
 - [IMPL-0011 - Conta opcional por link mágico, teste local](0011-optional-magic-link-accounts.md) - proposta implementada para revisão; envio público pendente.
+
+- [IMPL-0012 - Progresso de conta e fila offline](0012-account-progress.md) - proposta implementada para revisão local.

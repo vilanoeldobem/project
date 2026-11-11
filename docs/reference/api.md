@@ -162,3 +162,26 @@ Erros: 400 invalid_fields/invalid_body/invalid_link, 403 origin_forbidden, 409 n
 Nickname indisponível só é revelado após posse de link válido. Logs inesperados de conta usam apenas `auth_error`.
 
 [Guia local](../guides/auth-local.md). Provedor real, homologação pública e sincronização de progresso permanecem pendentes.
+
+## Progresso da conta - `/progress` (Unreleased, teste local)
+
+Rotas privadas usam sessão válida e `X-Account-ID` igual ao usuário da sessão; ausente/divergente retorna
+`409 account_changed` antes de qualquer criação ou alteração. O cabeçalho é uma precondição contra troca de conta
+em outra aba, não uma autorização. Sem sessão, `401 unauthorized`; ambiente público desabilitado, `503 auth_unavailable`.
+
+- `GET /progress`: `{ progress, revision, guestImported }` canônico, somente da própria conta.
+- `POST /progress/events`: `{ missionId, eventId }`. Missão conhecida; ID de 1-128 letras ASCII, números, dois-pontos,
+  hífen ou sublinhado; prefixo interno `guest-import:` reservado. Presentes exigem IDs de `GIFTS` compartilhado.
+- `POST /progress/import`: `{ counters, giftIds? }`. Contadores inteiros entre zero e o alvo de cada missão conhecida.
+  `giftIds` deve conter exatamente a quantidade de presentes declarada, sem duplicatas, todos conhecidos, até o alvo.
+  Na primeira importação, unir presentes por identidade e demais missões pelo maior contador; calcular recompensas
+  pelo código compartilhado. Importações seguintes retornam o estado atual sem reaplicar o visitante.
+
+Não aceita `userId`, `xp`, nível, estado livre ou outros campos. Corpos até 4 KiB. POST exige Origin exata do jogo e
+rejeita Sec-Fetch-Site cross-site. CORS credenciado das rotas de progresso permite somente GET/POST/OPTIONS,
+Content-Type e X-Account-ID, para a origem exata configurada. As rotas públicas não recebem essas permissões.
+Todas as respostas são no-store. Revisão usa compare-and-swap com cinco tentativas; conflito persistente retorna
+`409 progress_conflict`, Retry-After 1. Payload inválido retorna 400 invalid_event/invalid_import/invalid_body.
+
+Provas e limites: [IMPL-0012](../decisions/0012-account-progress.md). Ações continuam relatadas pelo cliente;
+validação/idempotência limitam recompensas, sem atestar uma execução real da ação.

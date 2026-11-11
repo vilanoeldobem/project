@@ -36,6 +36,8 @@ function errorMessage(error: unknown): string {
 export function AccountPanel() {
   const { user, ready, failed, available, token, refresh, clearToken } = useAuth();
   const close = useVila((s) => s.close);
+  const progressStatus = useVila((s) => s.progressStatus);
+  const retryProgress = useVila((s) => s.retryProgress);
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
@@ -82,7 +84,8 @@ export function AccountPanel() {
             <dt>E-mail</dt><dd>{user.email}</dd>
           </dl>
           <p className="note">Só seu nickname poderá ser público. Nome, cidade e e-mail ficam na sua conta.</p>
-          <p className="note">Por enquanto, missões e XP continuam salvos apenas neste navegador.</p>
+          <p className="note" role="status">{progressStatus === "saved" ? "Missões e XP salvos na sua conta." : progressStatus === "offline" ? "Há progresso pendente neste navegador. Reconecte para salvar na conta." : "Sincronizando missões e XP…"}</p>
+          {progressStatus === "offline" && <button className="btn" onClick={retryProgress}>Tentar sincronizar</button>}
           <button className="btn" disabled={busy} onClick={() => void perform(async () => {
             await authRequest("logout", {});
             useAuth.getState().signedOut();

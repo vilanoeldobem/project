@@ -11,6 +11,14 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Progresso de conta no D1: eventos idempotentes, recompensas calculadas pelo catálogo compartilhado e importação
+  de visitante uma vez, preservando IDs reais dos presentes. Migration aditiva v5, revisão concorrente e isolamento por sessão.
+- Fila de sincronização por conta com retomada offline, estado visível de pendência, restauração do visitante no logout
+  e proteção contra respostas antigas/troca de conta em outra aba. [IMPL-0012](docs/decisions/0012-account-progress.md).
+
+
+### Added
+
 - Banco D1 de homologação isolado, configuração `env.staging` da API e guia de backup/migrations; schema v4 validado sem alteração de produção. Nenhum Worker ou login público de homologação ativado.
 
 - Conta opcional: quatro campos, link mágico com confirmação explícita, sessão HttpOnly e saída; visitante livre.
