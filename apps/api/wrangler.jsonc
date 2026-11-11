@@ -56,8 +56,8 @@
         {
           "binding": "DB",
           "database_name": "vilanoeldobem-staging",
-          // Created 2026-11-11 by the team (PR #10); synthetic data only.
-          "database_id": "32ebb383-e765-4ed0-aa25-d8871be3e414",
+          // Recreated 2026-11-11 (ENAM) with main's migrations; synthetic data only (docs/guides/staging-database.md).
+          "database_id": "cda0275f-6ffc-4813-8dee-efd5ae98baf4",
           "migrations_dir": "../../migrations"
         }
       ]
