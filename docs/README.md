@@ -24,6 +24,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 **Guias**
 - [guides/development.md](guides/development.md) — ciclo de desenvolvimento, gates, receitas, checklist de PR.
 - [guides/deploy.md](guides/deploy.md) — publicar os quatro Workers na Cloudflare (conta do projeto), D1 remoto, rollback.
+- [guides/staging-database.md](guides/staging-database.md) — banco D1 de homologação: acesso, migrations, backup e recuperação.
 
 **Referência**
 - [reference/architecture.md](reference/architecture.md) — apps, subdomínios, componentes, limites entre apps.

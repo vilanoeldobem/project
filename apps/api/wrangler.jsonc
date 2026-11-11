@@ -33,5 +33,34 @@
   "routes": [{ "pattern": "api.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  // Staging (docs/guides/staging-database.md): own D1, no routes, no workers.dev, no browser origins, accounts off.
+  // Bindings are not inherited: staging deliberately has no EMAIL (sends fail closed) and no AUTH_LIMITER.
+  "env": {
+    "staging": {
+      "name": "vilanoeldobem-api-staging",
+      "routes": [],
+      "workers_dev": false,
+      "preview_urls": false,
+      "send_email": [],
+      "ratelimits": [],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ACCOUNTS_ENABLED": "false",
+        "MAIL_FROM": "",
+        "ALLOWED_ORIGINS": "",
+        "ACCOUNT_ORIGINS": "",
+        "GAME_ORIGIN": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "vilanoeldobem-staging",
+          // Created 2026-11-11 by the team (PR #10); synthetic data only.
+          "database_id": "32ebb383-e765-4ed0-aa25-d8871be3e414",
+          "migrations_dir": "../../migrations"
+        }
+      ]
+    }
+  }
 }

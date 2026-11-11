@@ -206,7 +206,7 @@ pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET
 
 ## Limitações conhecidas
 
-- Ainda não há ambiente de homologação separado (ROADMAP, tarefas de base).
+- Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
 - Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital e o cadastro do domínio no Email Service.
