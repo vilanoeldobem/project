@@ -7,7 +7,7 @@
   "description": "Vila Noel do Bem — 3D client (React + Three.js) and Cloudflare Worker (Static Assets + D1)",
   "scripts": {
     "dev": "vite",
-    "dev:worker": "vite build && wrangler dev",
+    "dev:worker": "vite build && wrangler dev --local --infer-origin-from-routes=false",
     "build": "tsc --noEmit -p . && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p .",
@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261108.1",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.187.0",

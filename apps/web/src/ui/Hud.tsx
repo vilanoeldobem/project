@@ -35,6 +35,9 @@ export function Hud() {
           <EnvironmentChip />
         </div>
         <nav className="hud__nav">
+          <button className="btn btn--chip" onClick={() => open({ kind: "account" })} aria-label="Minha conta">
+            👤 <span>Minha conta</span>
+          </button>
           <button className="btn btn--chip" onClick={() => open({ kind: "explore" })} aria-label="Explorar ONGs">
             🏡 <span>Explorar ONGs</span>
           </button>

@@ -8,7 +8,9 @@ Para quem vai mudar código da Vila (pessoas e agentes). Assume o ambiente de [g
 
 ## 1. Requisitos
 
-Node.js ≥ 22, pnpm 10, Chrome. Editor com TypeScript (o projeto usa TypeScript 7 `strict`).
+Node.js ≥ 24 (testes de conta usam `node:sqlite`), pnpm 10, Chrome ou Chromium. Editor com TypeScript
+(o projeto usa TypeScript 7 `strict`). `pnpm-workspace.yaml` permite scripts de instalação de `esbuild` e
+`workerd`, necessários para build e Worker local.
 
 ## 2. Layout
 
@@ -45,11 +47,15 @@ pnpm build
 
 Relate a saída de verdade. "Passou" sem ter rodado não existe.
 
+Para Chromium fora do canal padrão Chrome, use `CHROME_EXECUTABLE_PATH=/usr/bin/chromium` antes do comando
+`node apps/web/scripts/verify.mjs http://localhost:8787`. Os testes usam perfil isolado e `TMPDIR=/tmp` no
+processo do navegador. Cadastro/login têm guia próprio: [auth-local.md](auth-local.md).
+
 ## 4. Receitas
 
 ### 4.1 Adicionar uma rota de API
 
-1. Implemente em `apps/web/worker/api.ts` (`handleApi`). Somente leitura até existir autenticação.
+1. Implemente em `apps/web/worker/api.ts` (`handleApi`). Escritas de conta ficam isoladas em `auth.ts` e exigem origem validada.
 2. Teste em `worker/api.test.ts` com um D1 falso (ver testes existentes).
 3. Documente em [reference/api.md](../reference/api.md).
 4. Nunca exporte nada além do handler em `worker/index.ts` (o runtime rejeita exports que não são handlers).
@@ -90,7 +96,7 @@ Relate a saída de verdade. "Passou" sem ter rodado não existe.
 
 ## 6. Convenções de código
 
-- Componentes funcionais; estado global só em `useVila`; lógica pura fora de componentes para ser testável.
+- Componentes funcionais; estado do mundo em `useVila`, sessão opcional em `useAuth`; lógica fora de componentes para ser testável.
 - Textos de interface (UI copy) em pt-BR; todo o resto do código em inglês: identificadores, comentários, valores
   de estado, nomes de tabela/coluna, ids, chaves de API, mensagens de log e testes. Ver [IMPL-0004](../decisions/0004-english-code-portuguese-docs.md).
 - Comentários citam a decisão do produto (`DEC-028`) quando a regra vem dela.

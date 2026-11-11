@@ -24,6 +24,7 @@ export function Welcome() {
         <button className="btn btn--primary" onClick={close} autoFocus>
           Entrar na Vila
         </button>
+        <button className="btn" onClick={() => open({ kind: "account" })}>Criar conta ou entrar</button>
         <p className="hint">Ande com WASD / setas ou toque no chão. Chegue perto da árvore e dos terrenos para interagir.</p>
         <p className="disclaimer">Versão de desenvolvimento · conteúdo e visual em definição.</p>
       </div>

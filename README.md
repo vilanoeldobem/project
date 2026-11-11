@@ -24,7 +24,8 @@ prazo oficial **30/11/2026** (DEC-043)
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
 | P14 Missões / XP / níveis | Caderno de Missões, 4 missões em 3 trilhas, XP local | **Parcial** — progresso só no navegador |
-| P05–P08, P10–P13, P15 | Chat, emotes, avatar, skins, expansão, indicação, cadastro, badges | Planejado ([roadmap](ROADMAP.md)) |
+| Conta opcional | Cadastro, confirmação por link, sessão e saída | **Em revisão / local** — envio real de e-mail e produção desabilitados |
+| P05–P08, P10–P13, P15 | Chat, emotes, avatar, skins, expansão, indicação, badges | Planejado ([roadmap](ROADMAP.md)) |
 
 ## Stack
 
@@ -62,6 +63,9 @@ pnpm check                                  # typecheck + testes + build
 ```
 
 Passo a passo: [`docs/getting-started.md`](docs/getting-started.md). Publicação: [`docs/guides/deploy.md`](docs/guides/deploy.md).
+
+Cadastro/login local (Node 24+): [`docs/guides/auth-local.md`](docs/guides/auth-local.md). A migration v4 está
+disponível para revisão e teste local; esta entrega não aplica migrations remotas nem ativa coleta pública.
 
 ## Documentação
 

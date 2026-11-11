@@ -9,7 +9,7 @@ com D1 local.
 
 ## 1. Pré-requisitos
 
-- Node.js ≥ 22 e pnpm 10 (`corepack enable` ativa a versão de `packageManager`).
+- Node.js ≥ 24 e pnpm 10 (`corepack enable` ativa a versão de `packageManager`). Os testes de conta usam `node:sqlite`.
 - Google Chrome (só para `verify.mjs`).
 - Nenhuma conta Cloudflare é necessária para rodar localmente.
 

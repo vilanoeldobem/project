@@ -14,7 +14,7 @@
 
 ## Ambiente
 
-Node.js ≥ 22, pnpm 10 (`packageManager` na raiz), Chrome instalado (verificação visual) e `wrangler` (vem
+Node.js ≥ 24, pnpm 10 (`packageManager` na raiz), Chrome ou Chromium instalado (verificação visual) e `wrangler` (vem
 como dependência). Passo a passo em [`docs/getting-started.md`](docs/getting-started.md).
 
 ## Gates obrigatórios

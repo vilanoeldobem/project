@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { useVila } from "./game/store";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { Donation } from "./ui/Donation";
+import { AccountPanel, AuthBootstrap } from "./ui/Account";
 import { AmbienceSound, EnvironmentDebug, EnvironmentPanel } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
 import { Hud } from "./ui/Hud";
@@ -24,6 +25,7 @@ export function App() {
 
   return (
     <>
+      <AuthBootstrap />
       <main className="stage">
         <Suspense fallback={<div className="loading">Acendendo as luzes da Vila…</div>}>
           <World lots={lots} />
@@ -38,6 +40,7 @@ export function App() {
       {panel.kind === "missions" && <Missions />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
+      {panel.kind === "account" && <AccountPanel />}
       <AmbienceSound />
       <EnvironmentDebug />
     </>

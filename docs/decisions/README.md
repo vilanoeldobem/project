@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 6 ADRs · **Atualizado em:** 2026-11-09
+> **Status:** 7 ADRs · **Atualizado em:** 2026-11-10
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem_docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -25,5 +25,6 @@
 | [IMPL-0004](0004-english-code-portuguese-docs.md) | Código e conversa com agentes em en-US; documentação em pt-BR | Aceita (0.2.0, 2026-11-08) |
 | [IMPL-0005](0005-public-site-and-domains.md) | Site público em `apps/site` e domínios `www` / `app` | Aceita (0.3.0, 2026-11-08) |
 | [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md) | Ambiente natalino: hora real de SP, clima procedural, vila nevada | Proposta — a validar (arte confirmada, OQ-07) |
+| [IMPL-0007](0007-optional-magic-link-accounts.md) | Conta opcional, link mágico e teste local | Proposta — implementada para revisão; produção desabilitada |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

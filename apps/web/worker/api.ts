@@ -2,20 +2,22 @@
  * Public API of Vila Noel do Bem (pure logic, testable without workerd).
  *
  * Only `/api/*` runs code (wrangler.jsonc → `run_worker_first`); everything else is
- * served by Static Assets (SPA). All routes are read-only and public:
+ * served by Static Assets (SPA). Public read-only routes:
  *
  *   GET /api/health      → { ok, version, environment, db }
  *   GET /api/indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /api/lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /api/environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *
- * Nothing here writes, takes payments or records personal data (IMPL-0002, LGPD).
+ * Optional accounts live in auth.ts (IMPL-0007); their writes require same-origin POST.
+ * Payment processing remains disabled (IMPL-0002).
  * `label` and `note` are user-facing copy and stay in pt-BR.
  */
 
 import { localSnapshot } from "../src/environment/config";
+import { handleAuth, type AuthEnv } from "./auth";
 
-export interface Env {
+export interface Env extends AuthEnv {
   ASSETS: Fetcher;
   DB?: D1Database;
   ENVIRONMENT?: string;
@@ -62,7 +64,7 @@ async function indicators(env: Env): Promise<Indicator[]> {
   }
   return [
     { key: "approved_ngos", label: "ONGs aprovadas", value: approved, note: approved === null ? "Banco indisponível." : undefined },
-    { key: "registered_users", label: "Usuários cadastrados", value: null, note: "Cadastro ainda não implementado." },
+    { key: "registered_users", label: "Usuários cadastrados", value: null, note: "Cadastro público ainda não habilitado." },
     { key: "confirmed_donations", label: "Doações confirmadas", value: null, note: "Depende de parceira e provedor de pagamento (PEN-004, PEN-006)." },
     { key: "confirmed_amount", label: "Valor confirmado", value: null, note: "Depende de verificação." },
     { key: "people_impacted", label: "Pessoas impactadas", value: null, note: "Exige metodologia aprovada (DEC-027)." },
@@ -83,6 +85,14 @@ async function lots(env: Env): Promise<LotRow[] | null> {
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
+  if (url.pathname.startsWith("/api/auth/")) {
+    try { return await handleAuth(request, env); }
+    catch {
+      // Auth failures must never include request data or database error messages in logs.
+      console.error("auth_error");
+      return json({ error: "internal" }, { status: 500, headers: { "Cache-Control": "no-store" } });
+    }
+  }
   if (request.method !== "GET" && request.method !== "HEAD") {
     return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD" } });
   }

@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local wrangler dev only. Never set this on a deployed Worker.
+ENVIRONMENT=development
+AUTH_MODE=local
+AUTH_ORIGIN=http://localhost:8787

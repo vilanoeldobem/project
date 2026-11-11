@@ -1,3 +1,34 @@
+# Optional accounts — signup and magic-link login — 2026-11-10
+
+Branch: `feat/account-magic-link-login`. Local delivery for owner review before publication.
+Scope: account/session/logout; unrestricted visitors; no server progression, payments or NGO administration.
+
+## Implementation
+
+- [x] Reuse existing Worker/D1, panel and HUD; isolate authentication in `worker/auth.ts` and state in `lib/auth.ts`.
+- [x] Additive migration v4, verified accounts only, case-insensitive uniqueness and transactional one-use consumption.
+- [x] Four-field signup, passwordless login, explicit confirmation, session and logout.
+- [x] Browser binding, origin/CSRF protection, bounded bodies, hashed tokens, request limits and no personal data in logs.
+- [x] Loopback-only test delivery adapter; production disabled; no credential retrieval endpoint.
+- [x] Local guide, API/D1 contracts, ADR IMPL-0007, README and changelog.
+- [x] Actual SQL tests (10 cases) and client tests (2 cases), including concurrency/replay and stale responses.
+- [x] Full gates run by coordinator: typecheck, 50 tests and build passed on 2026-11-10.
+- [x] Real-browser desktop/mobile authentication against local Worker/D1 (coordinator, 2026-11-10).
+- [x] General visual verification `verify.mjs`: desktop/mobile flows and five environment scenes passed, with no console/page errors.
+- [x] Final strict request-mode validation rerun: all 10 worker authentication tests passed.
+- [ ] Owner review; publish the PR only after explicit approval.
+
+## Follow-up dependencies that do not block local review
+
+OQ-08: choose and integrate the email provider; sender/domain, secrets and Cloudflare access;
+review privacy/retention and enable staging before collecting real data. Progress/XP stays in the browser.
+Validation used Node 26.13.0, the host's pnpm 11.25.0 fallback, Wrangler 4.158.0 and Chromium with software GL.
+CI targets Node 24/pnpm 10.32.1; remote CI has not run because publication is awaiting owner review.
+Browser evidence covers desktop/mobile viewport sizes, not physical-device performance.
+No push, deployment or remote migration was performed.
+
+---
+
 # Vila Noel do Bem — Task 1: repository foundation and first slice (0.1.0) — 2026-11-08
 
 Context: empty code repository (only `LICENSE`). Product docs live in `vilanoeldobem_docs`

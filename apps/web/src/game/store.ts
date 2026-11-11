@@ -4,6 +4,7 @@ import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "./progr
 import { SPAWN } from "./world";
 
 export type Panel =
+  | { kind: "account" }
   | { kind: "none" }
   | { kind: "welcome" }
   | { kind: "donation" }

@@ -22,6 +22,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 
 **Guias**
 - [guides/development.md](guides/development.md) — ciclo de desenvolvimento, gates, receitas, checklist de PR.
+- [guides/auth-local.md](guides/auth-local.md) — testar cadastro, link mágico, sessão e saída sem enviar e-mails reais.
 - [guides/deploy.md](guides/deploy.md) — publicar na Cloudflare (conta do projeto), D1 remoto, rollback.
 
 **Referência**
@@ -48,7 +49,8 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Terrenos e casas de ONG | Parcial (leitura; sem cadastro) | [storage](reference/storage.md) |
 | Missões e XP | Parcial (local, sem servidor) | [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |
-| Contas, admin, chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
+| Contas | Implementado para revisão local; envio real e ativação pública pendentes | [auth-local](guides/auth-local.md) |
+| Admin, chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
 
 ## Convenções desta documentação
 

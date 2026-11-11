@@ -11,6 +11,17 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Conta opcional: cadastro com nome, nickname, cidade e e-mail; link mágico com confirmação explícita,
+  sessão HttpOnly e saída com revogação. Visitante continua livre; progresso permanece local.
+- Schema D1 **v4** (`0004_accounts.sql`): conta só após verificação, credenciais com hash, consumo atômico,
+  unicidade de e-mail/nickname e limites de pedidos. Migração disponível, sem aplicação remota nesta entrega.
+- Adaptador de e-mail exclusivamente local, com caixa de teste lida pelo CLI; produção falha fechada até
+  escolha e integração do provedor (OQ-08). [Guia de teste](docs/guides/auth-local.md) e [IMPL-0007](docs/decisions/0007-optional-magic-link-accounts.md).
+- Testes de autenticação com SQL real: confirmação, expiração, replay, concorrência, isolamento de perfil,
+  CSRF, limites, sessão e bloqueio em produção; regressões do cliente para fragmento e respostas fora de ordem.
+- Verificação de login em navegador real, desktop/celular (`verify-auth.mjs`); Chrome alternativo configurável
+  por `CHROME_EXECUTABLE_PATH` e temporário curto para os processos de navegador.
+
 - CI no GitHub Actions: `ci.yml` (typecheck, testes e build em todo PR e push na `main`) e `smoke.yml` (smoke de
   produção diário e manual). `scripts/smoke-api.sh` passa a conferir `/api/environment`.
 

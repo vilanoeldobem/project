@@ -28,6 +28,7 @@ servidos direto pela borda.
 | Voxels | `scene/Voxels.tsx`, `scene/models.ts` | Modelos gerados por código; `InstancedMesh` por papel de material (sólido, lâmpadas, janelas, folhagem) |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | API | `lib/api.ts` | `fetch` com degradação silenciosa (retorna `null`) |
+| Conta opcional | `lib/auth.ts`, `ui/Account.tsx` | sessão em memória, captura de link, formulário e confirmação; token nunca no localStorage |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
 
@@ -45,6 +46,8 @@ servidos direto pela borda.
 - `index.ts`: só o handler `fetch` (o runtime não aceita outros exports nomeados).
 - `api.ts`: `handleApi` — ver [api.md](api.md). `/api/environment` é a autoridade da hora (sem estado; sem Durable
   Object, IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo.
+- `auth.ts`: conta opcional, links de uso único, sessões, limites e entrega local via D1. Falha fechada fora de
+  loopback de desenvolvimento. Migração v4 disponível, sem aplicação remota nesta entrega ([IMPL-0007](../decisions/0007-optional-magic-link-accounts.md)).
 
 ## 4. Configuração (`wrangler.jsonc`)
 
@@ -77,7 +80,7 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 
 ## Limitações conhecidas
 
-- Sem autenticação nem rotas de escrita.
+- Autenticação implementada para teste local; entrega real de e-mail e ativação pública pendentes.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 
 ## Ver também

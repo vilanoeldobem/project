@@ -12,7 +12,11 @@ const url = process.argv[2] ?? "http://localhost:8787";
 const out = new URL("../verify-output/", import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({
+  ...(process.env.CHROME_EXECUTABLE_PATH ? { executablePath: process.env.CHROME_EXECUTABLE_PATH } : { channel: "chrome" }),
+  env: { ...process.env, TMPDIR: "/tmp" },
+  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--renderer-process-limit=2"],
+});
 const errors = [];
 for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
