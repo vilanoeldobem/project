@@ -29,7 +29,8 @@ pnpm build
 
 Mudanças visíveis na interface também passam por `node apps/client/scripts/verify.mjs http://localhost:8799`
 (desktop 1440×900 e celular 390×844), com API, servidor e jogo rodando localmente
-([getting-started](docs/getting-started.md)). Resultados são relatados como são: se algo falhou, diga o quê e com que saída.
+([getting-started](docs/getting-started.md)); mudanças no painel administrativo, por `node apps/dash/scripts/verify.mjs`.
+Resultados são relatados como são: se algo falhou, diga o quê e com que saída.
 
 ## Fluxo de mudança
 
@@ -57,7 +58,7 @@ Mudanças visíveis na interface também passam por `node apps/client/scripts/ve
 
 [Conventional Commits 1.0.0](https://www.conventionalcommits.org/pt-br/v1.0.0/):
 `tipo(escopo): descrição no imperativo`. Tipos: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`,
-`ci`, `chore`. Escopos: `client`, `api`, `server`, `shared`, `site`, `scene`, `ui`, `game`, `db`, `docs`, `release`. Quebras de contrato
+`ci`, `chore`. Escopos: `client`, `api`, `server`, `shared`, `site`, `dash`, `scene`, `ui`, `game`, `db`, `docs`, `release`. Quebras de contrato
 (API, schema) levam `!` e rodapé `BREAKING CHANGE:`. O corpo explica o porquê e cita `DEC-`/`PEN-`/`IMPL-`.
 
 ```text

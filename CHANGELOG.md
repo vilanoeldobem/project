@@ -9,6 +9,35 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — painel administrativo (`apps/dash`, não publicado)
+
+- Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em
+  `dash.vilanoeldobem.com.br`, Worker `vilanoeldobem-dash` só com Static Assets (sem script, sem bindings). **Não
+  publicado**: criar o Worker e o domínio exige autorização. Seções: Candidaturas (análise de ONGs, movida do jogo),
+  ONGs e terrenos, Auditoria, Usuários (só leitura, sem ação de sanção), Sistema (`/health` e bandeiras da API) e
+  Pendentes (Doações, Indicadores, Documentos e logos das ONGs — só avisos, sem função).
+- Entrada no painel pelo mesmo link mágico e pelo mesmo cookie de sessão do jogo; o painel não cria contas. Conta sem
+  papel `admin` vê só "Apenas administradores" e "Sair". Com as contas desligadas, o painel mostra "Contas desligadas"
+  e só dados públicos.
+- API: `GET /admin/audit` e `GET /admin/users` (admin, só leitura, paginadas por `before` e `limit`; a lista de contas
+  não traz e-mail nem nome). Nova variável `DASH_ORIGIN`; `https://dash.vilanoeldobem.com.br` entra em
+  `ALLOWED_ORIGINS` e `ACCOUNT_ORIGINS`.
+- Cabeçalhos do painel gerados por build: CSP sem inline e sem terceiros, `connect-src` só com a API da build,
+  `noindex`, `no-referrer`, HTML `no-store`. Sem analytics nem Google Tag Manager.
+- `apps/dash/scripts/verify.mjs` (Chrome real, desktop e celular) e scripts `pnpm dev:dash` / `pnpm deploy:dash`.
+- `packages/shared/src/accounts/{contract,errors}.ts`: formas das respostas de conta e de análise e textos de erro,
+  usados pelo jogo e pelo painel.
+
+### Changed — análise de ONGs fora do jogo
+
+- O painel "Análise de ONGs" saiu do jogo (`ui/Admin.tsx` removido). Admins veem, no painel da conta, o link "Abrir
+  painel administrativo" (nova aba) para `dash.*`.
+- `POST /auth/link`: o link abre o painel administrativo quando o pedido vem exatamente de `DASH_ORIGIN`; nos demais
+  casos continua abrindo o jogo. `POST /auth/register` vindo do painel é recusado (`403 forbidden_origin`).
+- `apps/client/scripts/verify-accounts.mjs`: os passos de admin rodam no painel (terceiro argumento, padrão
+  `http://localhost:8797`); esperas reais no lugar de `isVisible`, 30 s depois de chamadas à API e mensagem clara
+  quando o limite de `/auth/*` é atingido (esperar 60 s entre execuções).
+
 ### Changed — e-mail
 
 - O link de acesso passa a sair pelo Resend ([IMPL-0012](docs/decisions/0012-resend-transactional-email.md)) no

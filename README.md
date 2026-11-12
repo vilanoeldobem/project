@@ -25,7 +25,7 @@ prazo oficial **30/11/2026** (DEC-043)
 | P03 Terrenos | 8 terrenos ao redor da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
-| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas, painel "Análise de ONGs" para admins, decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)) |
+| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel **não publicado** ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |
 | P13 Cadastro de usuário | Nome, Nickname, Cidade e E-mail; entrada por link mágico; só o nickname é público | **Implementado, desligado em produção** (aguarda revisão LGPD / ECA Digital) |
 | P14 Missões / XP / níveis | Caderno de Missões, 4 missões em 3 trilhas, XP local e, com conta, no servidor | **Parcial** — sem conta, progresso só no navegador |
 | P05–P08, P10, P11, P15 | Chat, emotes, avatar, skins, expansão, indicação, badges | Planejado ([roadmap](ROADMAP.md)) |
@@ -35,7 +35,7 @@ prazo oficial **30/11/2026** (DEC-043)
 | Camada | Tecnologia |
 |---|---|
 | Cliente | React 19, Three.js 0.187 via `@react-three/fiber` 9 + `@react-three/drei`, zustand, Vite 8 |
-| Servidor | Cloudflare Workers, um por app ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)): Static Assets (jogo e site), API HTTP + D1 (SQLite), presença em tempo real (Durable Object) |
+| Servidor | Cloudflare Workers, um por app ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)): Static Assets (jogo, site e painel administrativo), API HTTP + D1 (SQLite), presença em tempo real (Durable Object) |
 | Testes | Vitest (lógica e API), `playwright-core` com Chrome do sistema (verificação visual) |
 
 Escolha registrada como **proposta a validar** em [IMPL-0001](docs/decisions/0001-stack-react-threejs-cloudflare.md)
@@ -48,6 +48,7 @@ apps/client/     jogo: cliente 3D (React + Three.js, Static Assets) — play.vil
 apps/api/        API HTTP + D1 (rotas públicas e, atrás de ACCOUNTS_ENABLED, contas e ONGs) — api.vilanoeldobem.com.br
 apps/server/     presença em tempo real (Durable Object VillageRoom) — server.vilanoeldobem.com.br
 apps/site/       site público (React + Vite) — www.vilanoeldobem.com.br
+apps/dash/       painel administrativo (React + Vite, Static Assets) — dash.vilanoeldobem.com.br (não publicado)
 packages/shared/ lógica pura usada por mais de um app (@vila/shared/…): mundo, movimento, missões, ambiente, protocolo
 migrations/      migrations D1 NNNN_nome.sql (imutáveis depois de aplicadas)
 docs/            documentação técnica (Diátaxis) — índice em docs/README.md
@@ -66,9 +67,10 @@ pnpm dev                                    # http://localhost:5173 (Vite) + API
 pnpm --filter @vila/api dev                 # API      → http://localhost:8787 (contas ligadas, devLink)
 pnpm --filter @vila/server dev              # servidor → http://localhost:8788
 pnpm --filter @vila/client dev:worker       # jogo     → http://localhost:8799
+pnpm --filter @vila/dash dev:worker         # painel administrativo → http://localhost:8797 (ou `pnpm dev:dash`, Vite :5175)
 pnpm dev:site                               # site público
 pnpm check                                  # typecheck + testes + build
-node apps/client/scripts/verify-accounts.mjs  # fluxo de contas e ONGs no navegador (só local)
+node apps/client/scripts/verify-accounts.mjs  # contas e ONGs no navegador: jogo + painel (só local; 60 s entre execuções)
 ```
 
 Passo a passo: [`docs/getting-started.md`](docs/getting-started.md). Publicação: [`docs/guides/deploy.md`](docs/guides/deploy.md).

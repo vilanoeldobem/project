@@ -2,7 +2,7 @@
 
 > **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
 > **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`), `packages/shared/` e `migrations/`;
+> **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
 
 Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a um tipo de pergunta.
@@ -23,7 +23,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 
 **Guias**
 - [guides/development.md](guides/development.md) — ciclo de desenvolvimento, gates, receitas, checklist de PR.
-- [guides/deploy.md](guides/deploy.md) — publicar os quatro Workers na Cloudflare (conta do projeto), D1 remoto, rollback.
+- [guides/deploy.md](guides/deploy.md) — publicar os Workers na Cloudflare (conta do projeto), D1 remoto, rollback; passos do painel administrativo (ainda não publicado).
 - [guides/staging-database.md](guides/staging-database.md) — banco D1 de homologação: acesso, migrations, backup e recuperação.
 
 **Referência**
@@ -50,6 +50,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial — candidatura e análise implementadas, desligadas em produção (IMPL-0011) | [api](reference/api.md#candidatura-de-ong-p12-dec-015-dec-037) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
+| Painel administrativo (`apps/dash`, `dash.*`) | Implementado, **não publicado** (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |
 | Missões e XP | Parcial (local; no servidor só com conta) | [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |
 | Chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |

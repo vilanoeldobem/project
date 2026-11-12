@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 3 abertas · **Atualizado em:** 2026-11-11
+> **Status:** 5 abertas · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -13,6 +13,8 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-01 | A stack React + Three.js + Cloudflare está aprovada? | aprovar / trocar | Seguir com IMPL-0001 como proposta | G11, D01 | doc 23 |
 | OQ-04 | Rota de entrega: A (integral) ou B (núcleo)? | A / B | Implementar B primeiro | ROADMAP | doc 23, M01 |
 | OQ-05 | Ângulo, zoom e controles finais da câmera; orçamento de desempenho em celular | — | Diagonal de cima, deslocamento (0,24,21) com zoom do jogador 0,55–1,6×; andar só por clique/toque; vista opcional "Olhar o céu" (IMPL-0006) | G12 | doc 17, G12 |
+| OQ-09 | Colocar o Cloudflare Access (Zero Trust, lista de e-mails dos administradores) na frente de `dash.*`? Quem mantém a lista? | ligar antes de publicar / publicar sem Access | Não publicar o painel antes da resposta; recomendação técnica: ligar. O código não depende do Access (a API já exige sessão e papel `admin`) | deploy do `apps/dash` | [IMPL-0015](0015-dash-backoffice-app.md) |
+| OQ-10 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); só mutações gravam `audit_events`; menu atual como PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), DEC-037 |
 
 ## Resolvidas
 
