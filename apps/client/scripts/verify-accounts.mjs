@@ -517,6 +517,28 @@ if (filesOn) {
   if ((await b.locator(".detail").innerText()).includes(FILE_NAME)) errors.push("admin: a file name is shown in the review");
   await b.screenshot({ path: `${out}accounts-4a-admin-files.png`, fullPage: true });
 } else if (!(await b.locator('[data-state="files-off"]').count())) errors.push("admin: no notice that file uploads are off in this API");
+// Synthetic UI fixture only: no deletion is executed and no bytes are erased in this interval.
+// API race/failure tests cover the irreversible transition; here both real browser surfaces must explain it.
+localSql(`UPDATE users SET files_deleting=1 WHERE nickname='${nick}'`);
+try {
+  await b.reload({ waitUntil: "load" });
+  await b.locator('[data-state="deletion-pending"]').waitFor({ timeout: API_WAIT });
+  for (const name of ["Iniciar análise", "Aprovar", "Pedir ajustes"]) {
+    if (!(await b.getByRole("button", { name, exact: true }).isDisabled())) errors.push(`admin: ${name} enabled during pending erasure`);
+  }
+  if (!(await b.getByRole("button", { name: "Rejeitar", exact: true }).isEnabled())) errors.push("admin: pending erasure prevents rejecting the application");
+  await a.reload({ waitUntil: "load" });
+  await click(a.getByRole("button", { name: "Entrar na Vila" }));
+  await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
+  await a.locator('[data-state="deletion-pending"]').waitFor({ timeout: API_WAIT });
+  if (!(await a.getByRole("button", { name: "Tentar concluir exclusão", exact: true }).isEnabled())) errors.push("applicant: deletion retry unavailable");
+  await a.screenshot({ path: `${out}accounts-erasure-pending.png`, fullPage: true });
+} finally {
+  localSql(`UPDATE users SET files_deleting=0 WHERE nickname='${nick}'`);
+}
+await a.goto("about:blank");
+await b.reload({ waitUntil: "load" });
+await reviewStatus("submitted");
 const approve = b.getByRole("button", { name: "Aprovar", exact: true });
 if (!(await approve.isDisabled({ timeout: API_WAIT }))) errors.push("admin: approve enabled before the checks");
 for (const label of ["CNPJ ativo (consultado na Receita Federal)", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos"]) await b.getByLabel(label).check();

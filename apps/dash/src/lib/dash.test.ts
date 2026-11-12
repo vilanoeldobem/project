@@ -175,6 +175,16 @@ describe("application files (IMPL-0017)", () => {
 describe("decision", () => {
   const checks = { activeCnpj: true, oneYear: true, fundsConfirmable: true };
 
+  it("refreshes the erasure notice when a decision races with account deletion", async () => {
+    const current={...DETAIL,applicant:{nickname:"ong_teste",deletionPending:true}};
+    const {fetcher}=fakeFetch({
+      [`POST /admin/applications/${APP}/decision`]:[409,{error:"account_deleting"}],
+      [`GET /admin/applications/${APP}`]:[200,current],
+    });
+    const result=await sendDecision(createApi(BASE,fetcher),APP,DETAIL,"approve","",checks);
+    expect(result).toMatchObject({ok:false,stale:true,error:{code:"account_deleting"},detail:{applicant:{deletionPending:true}}});
+  });
+
   it("re-reads the application after a stale revision, so the current files are the ones on screen", async () => {
     // The organisation sent a document while the review was open: the revision moved from 2 to 3.
     const current = { ...DETAIL, application: { ...DETAIL.application, revision: 3 }, files: [LOGO, PDF] };

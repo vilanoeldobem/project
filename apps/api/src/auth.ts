@@ -130,7 +130,7 @@ export async function verify(request: Request, env: Env): Promise<Response> {
       row.user_id, now, new Date(Date.now() - 24 * 3600 * 1000).toISOString()
     ),
   ]);
-  const user = await db.prepare("SELECT id, name, nickname, city, email, role, verified_at FROM users WHERE id = ?").bind(row.user_id).first<User>();
+  const user = await db.prepare("SELECT id, name, nickname, city, email, role, verified_at, files_deleting FROM users WHERE id = ?").bind(row.user_id).first<User>();
   if (!user) throw new HttpError(400, "invalid_token");
   return json({ user: meView(user) }, { headers: { ...NO_STORE, "Set-Cookie": sessionCookie(session) } });
 }

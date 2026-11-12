@@ -70,4 +70,4 @@ export function assertAccount(body: Record<string, unknown>, user: User): void {
 }
 
 /** What the person's own client may see about themselves (e-mail included; never sent to anyone else). */
-export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role });
+export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role, deletionPending: Boolean(u.files_deleting) });

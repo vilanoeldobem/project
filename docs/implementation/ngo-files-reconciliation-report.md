@@ -67,7 +67,43 @@ Revisões originais: [#28](https://github.com/vilanoeldobem/project/pull/28#pull
 [#30](https://github.com/vilanoeldobem/project/pull/30#pullrequestreview-5877411763),
 [#31](https://github.com/vilanoeldobem/project/pull/31#pullrequestreview-5877692570).
 
-## Verificação
+## Revisão direta do #35 — segunda rodada
+
+A [revisão do responsável técnico](https://github.com/vilanoeldobem/project/pull/35#pullrequestreview-5879329638)
+foi publicada sobre `0921674` enquanto a primeira rodada de correções já estava em andamento. Conferência
+contra a árvore atual, sem tratar a aprovação técnica ou a OQ-15 como resolvidas por inferência:
+
+| Item | Encaminhamento | Evidência / limite |
+|---|---|---|
+| #35.1 | Perfil compatível com v3, agora exercitado nas 16 combinações de flags/bucket | `public-ngo.test.ts` |
+| #35.2 | Exclusão pendente visível na conta/painel; admin pode rejeitar candidatura aberta e liberar o terreno | contratos de conta/admin, UI e testes; validado localmente nesta rodada |
+| #35.3 | Remoção pelo responsável, rejeição individual, cota, retry, bloqueio de upload após rejeição e exclusão da conta corrigidos | Consentimento e retenção após rejeitar a candidatura continuam abertos na OQ-15; galeria desligada |
+| #35.4 | Sequência 0007/IMPL-0018; regra original de logo público preservada | Exceção da galeria continua PROPOSTA, exige aceite explícito do responsável técnico |
+| #35.5 | Aviso de campos públicos, cidade privada e módulo marcado PROPOSTA | fluxo real de candidatura; `NgoApplication.tsx` e `public-ngo.ts` |
+| #35.6 | Guia avisa indisponibilidade autenticada sem 0007, inclui galeria e sua flag | deploy §3/§7/§9 e arquitetura; sem aplicação remota |
+| #35.7 | Perfil responde `photos: []` sem recursos; bytes públicos respondem `404` em v3/v5/v6 | regressões de perfil/fotos |
+| #35.8 | Logo/fotos públicos usam `no-cache` e ETag; autorização verificada antes de `304` | teste de revalidação sem corpo e `404` após retirada; bytes privados seguem `no-store` |
+| #35.9 | Registro indexado e papéis neutros | plano substituído, fontes e limites separados |
+| #35.10 | Configuração local separada | `-c`, recursos sintéticos, sem conta/rotas de produção |
+| #35.11 | FK de fotos sem cascata | apagar ONG com metadado de foto é recusado; não perde rastreio dos bytes |
+| #35.12 | Casos de schema/limiter/retenção individual ampliados; exclusão pendente coberta nesta rodada | execução e limites descritos abaixo |
+
+### Verificação da segunda rodada
+
+- Checagem de tipos dos seis pacotes passou localmente; o client foi conferido novamente após corrigir o teste SSR.
+- `pnpm --workspace-concurrency=1 -r run test --maxWorkers=1`: **621 testes aprovados** (shared 146, API 207,
+  client 181, dash 55, server 23, site 9), Node 24.22.2 / pnpm 10.32.1, execução serial em dois threads de CPU.
+- Revisão estática e `git diff --check` aprovados. Testes de sessão/admin usam o handler real com D1 SQLite;
+  o teste SSR usa o componente real e adapta apenas o snapshot do hook ao estado atual.
+- O [CI do PR #35](https://github.com/vilanoeldobem/project/pull/35/checks) é a fonte do resultado de build,
+  smoke workerd/D1/R2 e Chromium desta rodada. O navegador cobre também os dois avisos de exclusão pendente
+  e os controles bloqueados, usando estado sintético sem executar exclusão naquele intervalo. Falhas reais de
+  R2 e corrida entre rejeição/exclusão estão nos testes da API.
+
+A ativação segue dependente da OQ-15 (incluindo retenção após rejeição da candidatura) e do aceite técnico da
+exceção proposta para publicação da galeria. Os números abaixo documentam apenas a primeira rodada.
+
+## Verificação da primeira rodada
 
 A árvore anterior `0921674` passou typecheck, 569 testes, build, smoke local e navegador Chromium, com analytics
 substituído por causa da OQ-13. Esse histórico antecede as correções desta revisão, a nova numeração e o novo

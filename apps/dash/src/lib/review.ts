@@ -25,7 +25,7 @@ export async function sendDecision(
     // The decision is recorded: show it even if re-reading the history fails (it is only stale then).
     return { ok: true, status: application.status, detail: await api.adminGet(id).catch(() => ({ ...d, application })) };
   } catch (error) {
-    const stale = (error as { code?: string }).code === "stale_revision";
+    const stale = ["stale_revision", "account_deleting"].includes((error as { code?: string }).code ?? "");
     return { ok: false, error, stale, detail: stale ? await api.adminGet(id).catch(() => d) : d };
   }
 }

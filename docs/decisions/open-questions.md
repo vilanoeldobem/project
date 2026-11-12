@@ -49,3 +49,9 @@ OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo 
   repositório Git `vilanoeldobem_docs` substitui a pasta `D:\VILA NOEL DO BEM` — registrado como DEC-045 no
   repositório de documentação (PR #1, aguardando revisão). **Atualização 10/11/2026:** os repositórios atuais são
   `vilanoeldobem/project` (código) e `vilanoeldobem/docs` (documentação); os nomes acima registram o contexto original.
+
+
+Complemento da OQ-15 — revisão #35: rejeitar a candidatura da ONG bloqueia novos uploads e deixa suas fotos
+privadas, mas não apaga automaticamente os bytes. Definir retenção/prazo e descarte após essa rejeição antes
+de ativar a galeria; isso difere da rejeição individual de uma foto, que já remove bytes. O responsável pode
+remover fotos e excluir a conta; não se presume aprovação da retenção indefinida nem ressubmissão automática.

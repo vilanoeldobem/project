@@ -14,6 +14,8 @@ export interface Me {
   city: string;
   email: string;
   role: "player" | "admin";
+  /** Durable account erasure is pending; absent only when talking to an older API. */
+  deletionPending?: boolean;
 }
 
 export const APPLICATION_STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected"] as const;
@@ -64,7 +66,7 @@ export interface AuditEntry {
 /** `GET /admin/applications/:id`. */
 export interface ApplicationDetail {
   application: Application;
-  applicant: { nickname: string } | null;
+  applicant: { nickname: string; deletionPending?: boolean } | null;
   history: AuditEntry[];
   /** Logo first, then documents in the order they were sent; empty unless uploads are on (IMPL-0017). */
   files: ApplicationFile[];

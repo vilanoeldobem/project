@@ -70,7 +70,7 @@ describe("private NGO photos and public approval", () => {
     expect(await gallery()).toEqual([{ id, url: publicPath(id), caption: "Projeto de leitura", position: 0 }]);
     env.ACCOUNTS_ENABLED = "false";
     const image = await call("GET", publicPath(id), undefined, "", null);
-    expect(image.status).toBe(200); expect(image.headers.get("Cache-Control")).toBe("no-store");
+    expect(image.status).toBe(200); expect(image.headers.get("Cache-Control")).toBe("no-cache");
     expect(image.headers.get("X-Content-Type-Options")).toBe("nosniff"); expect(image.headers.get("Content-Type")).toBe("image/png");
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(Uint8Array.from(atob(PNG), (c) => c.charCodeAt(0)));
     expect(await (await call("HEAD", publicPath(id), undefined, "")).text()).toBe("");
@@ -372,4 +372,40 @@ it("does not let completed rejection history hide active owner photos", async ()
   const id=await photo();
   expect(await (await call("GET",`/ngo/photos?ngoId=${NGO}`)).json()).toMatchObject({photos:[{id,status:"pending"}]});
   expect((await ownerRemove(id)).status).toBe(200);
+});
+
+it("revalidates public photos without opening a body and revokes cached reads after removal", async () => {
+  const id = await photo(); expect((await decision(id)).status).toBe(200);
+  const image = await call("GET", publicPath(id), undefined, "");
+  const etag = image.headers.get("ETag")!;
+  expect(etag).toBe(`"${id}"`); expect(image.headers.get("Cache-Control")).toBe("no-cache");
+  const cached = () => handleApi(new Request(`https://api.example${publicPath(id)}`, {headers:{"If-None-Match":etag}}), env);
+  bucket.get.mockClear(); bucket.head.mockClear();
+  const response = await cached();
+  expect(response.status).toBe(304); expect(await response.text()).toBe("");
+  expect(bucket.get).not.toHaveBeenCalled(); expect(bucket.head).toHaveBeenCalledOnce();
+  expect((await ownerRemove(id)).status).toBe(200);
+  expect((await cached()).status).toBe(404);
+});
+
+it.each([3,5,6])("hides public photo bytes on the pre-gallery schema v%i", async (upTo) => {
+  db = createD1({upTo}); env.DB = db;
+  expect((await call("GET", publicPath(UNKNOWN), undefined, "")).status).toBe(404);
+});
+
+it("refuses deleting an NGO row while gallery storage metadata remains", async () => {
+  const id = await photo();
+  db.sql("UPDATE lots SET ngo_id=NULL,state='available'");
+  expect(() => db.sql(`DELETE FROM ngos WHERE id='${NGO}'`)).toThrow(/FOREIGN KEY/i);
+  expect(db.sql("SELECT id FROM ngo_photos")).toEqual([{id}]);
+  expect(objects.size).toBe(1);
+});
+
+it("rate limits owner removal before changing bytes or metadata", async () => {
+  const id = await photo();
+  env.FILE_LIMITER = {limit:async()=>({success:false})};
+  expect((await ownerRemove(id)).status).toBe(429);
+  expect(db.sql("SELECT status FROM ngo_photos")).toEqual([{status:"pending"}]);
+  expect(objects.size).toBe(1); expect(bucket.delete).not.toHaveBeenCalled();
+  expect(db.sql("SELECT id FROM audit_events WHERE action='ngo.photo.remove'")).toEqual([]);
 });

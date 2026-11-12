@@ -332,7 +332,7 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
   if (!row) throw new HttpError(404, "not_found");
   const etag = `"${row.id}"`;
   // Other sites may show the logo (the game is another origin); it is public by definition.
-  const shared = { ...NO_STORE, ETag: etag, "Cross-Origin-Resource-Policy": "cross-origin" };
+  const shared = { "Cache-Control": "no-cache", ETag: etag, "Cross-Origin-Resource-Policy": "cross-origin" };
   if (request.headers.get("If-None-Match") === etag) return new Response(null, { status: 304, headers: shared });
   return serve(await load(bucket, row), row, shared);
 }

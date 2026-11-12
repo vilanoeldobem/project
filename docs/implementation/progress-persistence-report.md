@@ -55,3 +55,9 @@ remota no CI evitou acrescentar carga ao host local; todos os dados eram sintét
 Contas e quests permanecem desligadas em produção. O servidor valida IDs e transições, sem provar ações na
 cena 3D. Não há sincronização visual instantânea entre abas, abandono automático ou substituição de quest ativa.
 OQ-09/PEN-025 continuam pendentes. Nenhum merge na main, deploy, migration remota ou alteração de recurso Cloudflare foi executado.
+
+
+A segunda rodada da revisão direta do #35 acrescenta visibilidade/recuperação da exclusão pendente e cache de
+mídias, sem mudar o contrato de progresso descrito acima. Foi incorporada neste PR para validar a composição.
+Os resultados anteriores são vinculados aos commits citados; os checks da [revisão atual do #30](https://github.com/vilanoeldobem/project/pull/30/checks)
+são a fonte dos resultados da árvore combinada, incluindo `--progress` e o navegador com os novos avisos.

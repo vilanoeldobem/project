@@ -148,6 +148,7 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
   const [done, setDone] = useState("");
   const [busy, setBusy] = useState(false);
   const a = d.application;
+  const deleting = d.applicant?.deletionPending === true;
   const decide = async (action: ReviewAction) => {
     setBusy(true);
     setError("");
@@ -177,6 +178,12 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
       <p className="detail__meta">
         <Status code={a.status}>{STATUS_LABEL[a.status]}</Status> · Terreno {lotNumber(a.lotId)} · versão {a.revision} · enviada por @{d.applicant?.nickname ?? "conta excluída"}
       </p>
+      {deleting && (
+        <Notice state="deletion-pending" title="Exclusão da conta pendente" tone="warn">
+          <p>O responsável pediu a exclusão da conta e a remoção dos arquivos ainda não terminou. Não aprove nem peça ajustes: parte das evidências já pode ter sido apagada.</p>
+          <p>Em uma candidatura ainda aberta, rejeitar libera o terreno sem cancelar a exclusão. O responsável pode tentar concluir a exclusão pela tela da conta quando o armazenamento voltar.</p>
+        </Notice>
+      )}
       <h2>Evidências</h2>
       <dl className="facts">
         <dt>CNPJ</dt>
@@ -202,7 +209,7 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
       </dl>
       {/* An API older than IMPL-0017 sends no `files`. */}
       <Files applicationId={id} files={d.files ?? []} enabled={filesOn} />
-      <fieldset className="checks">
+      <fieldset className="checks" disabled={deleting}>
         <legend>Verificação dos 3 requisitos (DEC-015)</legend>
         {(
           [
@@ -225,17 +232,17 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
           </Field>
           <div className="actions">
             {a.status === "submitted" && (
-              <button className="btn" disabled={busy} onClick={() => void decide("start_review")}>
+              <button className="btn" disabled={busy || deleting} onClick={() => void decide("start_review")}>
                 Iniciar análise
               </button>
             )}
             {open && (
-              <button className="btn btn--primary" disabled={busy || !verified} title={verified ? "" : "Aprovar após verificar"} onClick={() => void decide("approve")}>
+              <button className="btn btn--primary" disabled={busy || deleting || !verified} title={deleting ? "Exclusão da conta pendente" : verified ? "" : "Aprovar após verificar"} onClick={() => void decide("approve")}>
                 Aprovar
               </button>
             )}
             {open && (
-              <button className="btn" disabled={busy} onClick={() => void decide("request_changes")}>
+              <button className="btn" disabled={busy || deleting} onClick={() => void decide("request_changes")}>
                 Pedir ajustes
               </button>
             )}
@@ -243,7 +250,7 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
               Rejeitar
             </button>
           </div>
-          {!verified && open && <p className="muted">Aprovar após verificar os três requisitos.</p>}
+          {!verified && open && !deleting && <p className="muted">Aprovar após verificar os três requisitos.</p>}
         </>
       )}
       <div aria-live="polite">

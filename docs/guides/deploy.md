@@ -326,10 +326,12 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
    `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
    já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
-2. **Migration 0006 + API**, como no [§7.1](#71-ordem-do-deploy-da-040): `pnpm --filter @vila/api db:migrate:remote`
-   (aplica também a 0004 e a 0005, se ainda faltarem) e `pnpm deploy:api`. A 0006 só cria a tabela `ngo_files`: a
-   API anterior continua funcionando com ela. Com as contas desligadas a API nova não lê essa tabela, mas ela tem
-   de existir **antes** de ligar as contas (`DELETE /me` a consulta sempre que o bucket está ligado).
+2. **Migrations sequenciais até 0007 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
+   explícita. A 0006 contém arquivos canônicos; a 0007 contém galeria e guardas usados em todas as rotas de
+   sessão. **Se contas já estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado**
+   com `503 schema_outdated`, mesmo com fotos desligadas. Cadastro/link/logout não provam que a sessão funciona.
+   Aplicar a sequência antes da API e conferir `/me` com sessão sintética de homologação. O código anterior é
+   compatível com as colunas/tabelas adicionais. Esta orientação não afirma aplicação no banco remoto.
 3. **Conferir:**
 
    ```bash
@@ -355,6 +357,16 @@ logos das ONGs publicadas deixam de aparecer e a exclusão de conta continua apa
 `wrangler rollback` da API ([§6](#6-reverter)) é seguro **enquanto o envio nunca tiver sido ligado**: a versão
 anterior ignora a tabela e o bucket. Depois de ligado, uma versão anterior a esta não apaga os documentos do R2 na
 exclusão de conta: não reverta para antes dela; desligue a bandeira. A migration 0006 não é revertida. Apagar o bucket apaga os arquivos de todas as ONGs e é mudança de recurso: exige autorização.
+
+### 9.4 Galeria institucional — ainda desligada
+
+`NGO_PHOTOS_ENABLED` permanece `"false"` em produção. A galeria usa o mesmo `FILES` privado e exige a
+migration 0007, contas operacionais, aceite explícito do responsável técnico à exceção proposta na regra de
+publicação e as decisões da OQ-15 (direitos de imagem, registro de autorização e retenção após rejeitar a ONG).
+Uma implementação testada não autoriza ligar a bandeira nem criar recursos. Conferir remoção pelo responsável,
+rejeição individual, recuperação de falhas de limpeza e exclusão de conta em homologação antes de pedir ativação.
+A interface de edição/revisão da galeria é outra entrega. Desligar a bandeira interrompe upload/publicação,
+preservando operações autenticadas de remoção e recuperação.
 
 ## Limitações conhecidas
 

@@ -467,7 +467,7 @@ describe("review and publication", () => {
       "content-disposition": "inline",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
-      "cache-control": "no-store",
+      "cache-control": "no-cache",
       "cross-origin-resource-policy": "cross-origin",
       etag: `"${logo.id}"`,
     });

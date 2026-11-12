@@ -20,6 +20,9 @@ Cada versão indica o schema D1 que entrega.
   Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
   duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0019](docs/decisions/0019-progress-concurrency-and-acknowledgment.md)).
 
+### Fixed
+- Revisão de mídias: revalidação de logo/fotos com ETag, leitura pública tolerante a schemas antigos e FK de galeria sem cascata para preservar a referência aos arquivos.
+
 ### Added — conciliação dos arquivos e galeria de ONGs (PR, PROPOSTA)
 
 - Reaproveita o PR #32: `FILES`, `ngo_files`, uploads crus, sanitizador e telas de logo/documentos permanecem
@@ -31,11 +34,13 @@ Cada versão indica o schema D1 que entrega.
   atrasada e auditoria duplicada; preserva o bloqueio em `under_review` do #32 atualizado.
 - Exclusão de conta congela as evidências antes da limpeza R2 e permite retomar em falha. Incrementa a revisão
   final para invalidar decisões antigas; conserva o logo institucional canônico e remove toda a galeria.
-- Logo público passa a exigir terreno publicado e `no-store`, como o perfil e a galeria. Nenhuma alteração de jogo,
+- Logo público passa a exigir terreno publicado; logo/fotos usam `no-cache` com ETag e o perfil usa `no-store`. Nenhuma alteração de jogo,
   deploy, migration remota ou ativação pública faz parte desta entrega.
 
 ### Fixed — revisão de perfil e arquivos
 
+- Exclusão de conta pendente visível no jogo e no painel; repetição explícita e rejeição administrativa de
+  candidatura aberta para liberar terreno, mantendo bloqueio de aprovação e sem cancelar descarte parcial.
 - Perfil público tolerante ao schema v3, sem cidade, com aviso explícito dos campos públicos na candidatura.
 - Configuração de teste local separada da configuração de deploy, com banco e bucket sintéticos novos.
 - Numeração sequencial de migrations/ADRs e registro de entrega indexado, com respostas às revisões.

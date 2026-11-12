@@ -545,6 +545,14 @@ Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote inf
 - [ ] Image rights/consent policy and its approval/version record remain unresolved (review #29.3, OQ-15); production flags stay off.
 - [ ] Augusto review; passing CI does not approve merge or activation.
 
+### Direct PR35 review — second correction round
+
+- [x] Pending erasure exposed in owner/admin contracts and UI; retry retained, admin rejection can release an open application's lot, other decisions blocked explicitly.
+- [x] Public ETag/no-cache revalidation, legacy public-photo404,16 profile flag/bucket combinations and gallery FK without cascade.
+- [x] Types,621 unit/integration/render tests and static review passed locally with bounded resources.
+- Build and real Worker/browser results for this revision are recorded in the [PR checks](https://github.com/vilanoeldobem/project/pull/35/checks).
+- [ ] Technical-owner sign-off for the proposed gallery exception; OQ-15 consent and application-rejection retention; no activation authorised.
+
 ## Reliable saved progress — D12 — 2026-11-12
 
 Scope: preserve missions, XP and levels across sessions and concurrent writes; load authoritative account

@@ -141,3 +141,54 @@ describe("progress sync and quest events", () => {
     expect(posted).toEqual([[{ missionId: "play-memory", eventId: "win" }, { missionId: "harness-bells", eventId: "accept" }]]);
   });
 });
+
+describe("pending account erasure", () => {
+  it("refreshes again when a pre-deletion account read was already in flight", async () => {
+    stubPage({accounts:true,quests:false});
+    const page=await load(false); await page.initAccount();
+    let release!:()=>void, reads=0;
+    const paused=new Promise<void>((resolve)=>{release=resolve;});
+    vi.stubGlobal("fetch",vi.fn(async (_url:string,init?:RequestInit)=>{
+      if(init?.method==="POST") return new Response(JSON.stringify({error:"account_changed"}),{status:409});
+      if(init?.method==="DELETE") return new Response(JSON.stringify({error:"internal"}),{status:500});
+      if(++reads===1) { await paused; return new Response(JSON.stringify({user:{...USER,deletionPending:false}})); }
+      return new Response(JSON.stringify({user:{...USER,deletionPending:true}}));
+    }));
+    await expect(page.api.updateMe(USER)).rejects.toMatchObject({code:"account_changed"});
+    const deletion=page.deleteAccount();
+    const rejected=expect(deletion).rejects.toMatchObject({code:"internal"});
+    release(); await rejected;
+    expect(reads).toBe(2);
+    expect(page.useAccount.getState().user?.deletionPending).toBe(true);
+  });
+
+  it("refreshes the visible deletion state after storage failure and allows a later retry", async () => {
+    stubPage({ accounts:true,quests:false });
+    const page=await load(false);
+    await page.initAccount();
+    let pending=false, deleted=false;
+    vi.stubGlobal("fetch",vi.fn(async (_url:string,init?:RequestInit)=>{
+      if(init?.method==="DELETE") {
+        if(!pending) { pending=true; return new Response(JSON.stringify({error:"internal"}),{status:500}); }
+        deleted=true; return new Response(null,{status:204});
+      }
+      return new Response(JSON.stringify({user:deleted?null:{...USER,deletionPending:pending}}));
+    }));
+    await expect(page.deleteAccount()).rejects.toMatchObject({code:"internal"});
+    expect(page.useAccount.getState().user).toMatchObject({id:USER.id,deletionPending:true});
+    const {createElement}=await import("react");
+    const {renderToStaticMarkup}=await import("react-dom/server");
+    // Zustand's server snapshot is the initial signed-out state. Render the real component with the
+    // current state produced by the failed DELETE, as the subscribed browser hook would observe it.
+    vi.doMock("./account",()=>({...page,useAccount:(select:(state:ReturnType<typeof page.useAccount.getState>)=>unknown)=>select(page.useAccount.getState())}));
+    const {Account}=await import("../ui/Account");
+    const markup=renderToStaticMarkup(createElement(Account));
+    vi.doUnmock("./account");
+    expect(markup).toContain('data-state="deletion-pending"');
+    expect(markup).toContain("Tentar concluir exclusão");
+    expect(markup).toContain("a exclusão não pode ser cancelada");
+    expect(markup).not.toContain("Confirmar exclusão");
+    await page.deleteAccount();
+    expect(page.useAccount.getState().user).toBeNull();
+  });
+});

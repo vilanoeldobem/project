@@ -21,7 +21,7 @@ const ERROR_TEXT: Record<string, string> = {
   account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
   photo_cleanup_pending: "A foto já foi retirada. A remoção do arquivo ainda não terminou; tente remover novamente.",
   photo_review_required: "Abra a foto desta revisão antes de aprovar.",
-  account_deleting: "A exclusão da conta está em andamento. Tente excluir a conta novamente para concluir.",
+  account_deleting: "A exclusão desta conta está pendente. Confira o aviso de exclusão antes de continuar.",
   schema_outdated: "As contas estão temporariamente indisponíveis durante uma atualização. Tente de novo mais tarde.",
   files_unavailable: "O armazenamento dos arquivos está indisponível. Tente concluir a exclusão novamente mais tarde.",
   stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
