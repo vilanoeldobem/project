@@ -9,6 +9,23 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — remoção de visitante da sala por administrador: servidor de tempo real e protocolo (PROPOSTA, desligada)
+
+- **PROPOSTA** ([IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md)), atrás da bandeira
+  `PRESENCE_MODERATION_ENABLED` do servidor (`"false"` em produção; ligada só no script `dev`). Parte do servidor e do
+  protocolo; a API e o jogo vêm em mudanças separadas.
+- Protocolo de presença (`packages/shared/src/net/protocol.ts`): pedido `["m", alvo, tíquete]` (id de conexão e
+  tíquete de 32 caracteres `[A-Za-z0-9_-]`, só na forma exata de `encodeRemove`), resposta `["m", alvo, 0|1]` para
+  quem pediu e código de fechamento `4003` (`CLOSE_REMOVED`).
+- Servidor (`apps/server`): a sala consulta a API pelo service binding `API` (`POST /moderation/consume`, limite de
+  3 s) e só fecha o alvo com `4003` diante de `200 {"ok":true}`; em qualquer outro caso responde `0` e não fecha
+  ninguém. Limites por conexão: um pedido por segundo e 10 por minuto, depois `1008`. A sala não guarda nem registra
+  o tíquete, a resposta ou quem pediu, e não grava no storage.
+- Diferença em relação ao contrato: a sala só atende pedidos depois de 35 s em memória, para que um tíquete emitido
+  antes de um reinício não alcance outra conexão que recebeu o mesmo id.
+- `apps/server/wrangler.jsonc` ganha o binding `services` para `vilanoeldobem-api`: publicar a API antes do servidor
+  ([deploy.md §4.4](docs/guides/deploy.md#44-service-binding-do-servidor-para-a-api-proposta-impl-0021)).
+
 ### Added — apelido `client.*` para o jogo
 
 - `client.vilanoeldobem.com.br` passa a ser um Custom Domain do Worker do jogo e redireciona (302) para

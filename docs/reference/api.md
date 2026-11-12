@@ -703,9 +703,11 @@ texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada 
 | cliente → sala | `["p", x, z, yaw, speed]` | pose, no máximo 10 Hz e só quando muda |
 | cliente → sala | `["a"]` | a pessoa clicou, tocou ou digitou sem que uma pose ou visual tenha saído nos últimos 20 s (`ACTIVE_MS`); conta como atividade ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) |
 | cliente → sala | `"ping"` | mantém a conexão; resposta `"pong"` sem acordar a sala; **não** conta como atividade |
+| cliente → sala | `["m", alvo, tíquete]` | **PROPOSTA** (IMPL-0021): um administrador pede que a sala remova a conexão `alvo`; veja [Remoção por administrador](#remoção-por-administrador-proposta) |
 | sala → cliente | `["w", id, sala]` | boas-vindas com o id anônimo |
 | sala → cliente | `["s", tickMs, [[id, x, z, yaw, speed, idadeMs], …]]` | poses que mudaram (10 Hz); na entrada, a lista toda |
 | sala → cliente | `["l", id]` | alguém saiu |
+| sala → cliente | `["m", alvo, 1]` ou `["m", alvo, 0]` | **PROPOSTA** (IMPL-0021): resposta só para quem pediu a remoção; `1` = a sala fechou `alvo` com `4003`, `0` = ninguém foi fechado |
 | cliente → sala | `["k", chapéu, cachecol, suéter, cores]` | visual do avatar (ids do catálogo, IMPL-0010); a sala só aceita ids existentes no encaixe certo |
 | sala → cliente | `["k", id, [chapéu, cachecol, suéter, cores]]` | visual de alguém (ao mudar; na entrada, todos os não padrão) |
 
@@ -725,6 +727,7 @@ Quando a última conexão sai ou é fechada, a sala para o timer e hiberna.
 |---|---|---|
 | `4001` | `full` (sala cheia) | tenta a próxima sala na hora; depois de uma volta completa, espera 30 s |
 | `4002` | `idle` (inatividade) | **não** reconecta sozinho: mostra "👥 em pausa" e reconecta no próximo toque, clique ou tecla |
+| `4003` | `removed` (removida por um administrador; **PROPOSTA**, IMPL-0021) | previsto na IMPL-0021: mensagem honesta e 60 s sem reconectar sozinho; um cliente que não conhece o código o trata como queda e reconecta |
 | `1008` | `rate` (abuso do protocolo) | nova tentativa com espera exponencial (1–30 s) |
 | outros (`1006`, queda de rede, deploy) | — | nova tentativa com espera exponencial (1–30 s) |
 
@@ -733,6 +736,49 @@ volta do mesmo jeito: no próximo toque, clique ou tecla com a aba visível.
 
 Carga medida (`apps/server/scripts/load.mjs`, `wrangler dev` local, 2026-11-11): 41 robôs → 40 conectados e 1
 recusado como cheio; cada visitante recebe ~9,7 mensagens/s e ~10 kB/s; do tick à chegada p95 9 ms (sem rede real).
+
+#### Remoção por administrador (PROPOSTA)
+
+**PROPOSTA** ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)), atrás da bandeira `PRESENCE_MODERATION_ENABLED` do servidor
+(`"false"` em produção; a API tem uma bandeira de mesmo nome). Código: `apps/server/src/moderation.ts` e
+`removeOnRequest` em `apps/server/src/room-do.ts`.
+
+A presença continua anônima: a sala não sabe quem é ninguém, nem o administrador. O jogo do administrador pede à API
+um tíquete de uso único (válido por 30 s, preso àquele administrador, à sala e ao id da conexão) e envia
+`["m", alvo, tíquete]` pela conexão que já está aberta. `alvo` é um id de conexão (inteiro positivo seguro) e
+`tíquete` tem exatamente 32 caracteres de `[A-Za-z0-9_-]`. A sala só aceita a forma exata escrita por `encodeRemove`
+(sem espaços, número em dígitos simples, no máximo 57 bytes); qualquer outra coisa que comece com `["m"` é mensagem
+inválida como as demais e conta para o fechamento `1008`.
+
+A sala pergunta à API se o tíquete vale, pelo service binding `API` (de Worker para Worker, sem segredo
+compartilhado): `POST /moderation/consume` com `{ticket, room, target}` e limite de 3 s. Só um `200` com corpo
+exatamente `{"ok":true}` é sim. Nesse caso a sala fecha o alvo com **`4003`** (motivo `removed`), os outros recebem
+`["l", alvo]` uma única vez e quem pediu recebe `["m", alvo, 1]`. Em qualquer outro caso a resposta é
+`["m", alvo, 0]` e ninguém é fechado:
+
+- bandeira desligada: a API nem é chamada, e não é abuso (o cliente pode ser mais novo que o servidor);
+- o alvo é a própria conexão ou não está nesta sala;
+- a sala está em memória há menos de 35 s (explicado abaixo);
+- outro pedido da mesma conexão ainda está sendo verificado;
+- binding ausente, recusa da API (`404`, `409`, …), erro, corpo diferente do esperado ou demora maior que 3 s;
+- o alvo saiu, ou foi fechado por inatividade, enquanto a API era consultada. Aqui o tíquete já foi consumido e o
+  registro de auditoria da API existe, embora a sala não tenha removido ninguém.
+
+Se quem pediu sair durante a consulta, a remoção confirmada pela API acontece do mesmo jeito; só a resposta se perde.
+
+Limites por conexão, que valem também com a bandeira desligada: um `["m", …]` por segundo
+(`REMOVE_MIN_INTERVAL_MS`) e 10 por minuto (`REMOVE_MAX_PER_MINUTE`), respondidos ou não. Passou disso, a sala fecha
+quem pediu com `1008`. `["m", …]` não conta como atividade.
+
+Espera de 35 s (`REMOVAL_WARMUP_MS`): um id nunca se repete enquanto a sala está em memória, mas uma sala que
+reinicia (deploy, sala que esvaziou) volta a contar do menor id livre, e um tíquete emitido pouco antes poderia
+apontar para outra pessoa com o mesmo id. Por isso a sala só atende pedidos depois de ficar em memória por mais
+tempo do que um tíquete vive (30 s). Essa espera não estava no contrato da IMPL-0021; foi acrescentada na
+implementação.
+
+A sala não guarda nem registra o tíquete, a resposta da API ou quem pediu: mantém só os horários dos últimos
+pedidos de cada conexão, em memória, para aplicar os limites. Nada vai para o storage do Durable Object nem para o
+log. Remover não é banir: o visitante é anônimo e pode entrar de novo.
 
 ## Erros
 

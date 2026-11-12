@@ -140,6 +140,34 @@ Conferência depois do deploy: abrir o jogo, não tocar em nada por pouco mais d
 "👥 em pausa"; um clique no chão deve trazer "👥 N" de volta. No painel da Cloudflare, a duração (GB-s) do Durable
 Object `VillageRoom` deve parar de crescer nos períodos sem ninguém ativo.
 
+### 4.4 Service binding do servidor para a API (PROPOSTA, IMPL-0021)
+
+`apps/server/wrangler.jsonc` declara `services: [{ binding: "API", service: "vilanoeldobem-api" }]`. É por ele, e só
+por ele, que uma sala pergunta à API se um tíquete de moderação vale
+([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md), [api.md](../reference/api.md#remoção-por-administrador-proposta)).
+Não há segredo para configurar nem recurso para criar: o binding é parte do deploy do servidor.
+
+Ordem: **API antes do servidor**.
+
+- O Worker `vilanoeldobem-api` precisa existir quando o servidor é publicado: a Cloudflare recusa o deploy de um
+  Worker cujo binding aponta para um serviço inexistente, e a versão anterior do servidor continua no ar
+  (comportamento da plataforma, não exercitado neste repositório). Em produção a API já existe.
+- Para a remoção funcionar, a API publicada precisa ter a rota `POST /moderation/consume`. Com uma API mais antiga
+  a rota responde `404`, a sala responde `0` a quem pediu e ninguém é removido.
+- Binding ausente (servidor publicado de uma configuração sem `services`), API fora do ar ou lenta (mais de 3 s): a
+  sala responde `0` e ninguém é removido. A presença não é afetada em nenhum desses casos.
+
+`PRESENCE_MODERATION_ENABLED` permanece `"false"` em produção, no servidor e na API: com ela desligada a sala
+responde `0` a todo pedido e nunca chama a API, então publicar o binding sozinho não muda nada para os visitantes.
+Ligar a bandeira depende da aprovação do responsável (a remoção é PROPOSTA) e dos dois Workers publicados; uma
+implementação testada não autoriza a ativação. Depois de ligada, o primeiro pedido de remoção em cada sala só é
+atendido 35 s depois de a sala entrar em memória (por exemplo, logo após um deploy do servidor).
+
+Em desenvolvimento local o binding se conecta sozinho ao `wrangler dev` da API (`pnpm --filter @vila/api dev`) que
+estiver rodando na mesma máquina; sem ele, a sala responde `0`. O script `dev` do servidor já liga a bandeira. O
+registro local do wrangler é um só por máquina: duas cópias do repositório rodando a API ao mesmo tempo disputam o
+nome `vilanoeldobem-api` (para isolar uma delas, use `WRANGLER_REGISTRY_PATH`).
+
 ## 5. Site público e domínios
 
 ```bash
