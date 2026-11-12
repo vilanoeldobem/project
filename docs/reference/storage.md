@@ -1,13 +1,16 @@
-# Armazenamento (D1)
+# Armazenamento (D1 e R2)
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
-> **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin}.ts`
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Atualizado em:** 2026-11-12
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin,files}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v4**). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(**v6**; em produção estão aplicadas até a v3). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
+
+Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucket R2 privado: ver
+[§ 5](#5-arquivos-no-r2-impl-0017).
 
 ## 1. Migrations
 
@@ -18,6 +21,7 @@ Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 | `0003_english_schema.sql` | nomes em inglês: `ongs` → `ngos`, `ong_id` → `ngo_id`, estados e ids (`praca-NN` → `plaza-NN`); dados migrados ([IMPL-0004](../decisions/0004-english-code-portuguese-docs.md)) |
 | `0004_accounts_ngo_applications.sql` | contas (`users`), links (`login_tokens`), `sessions`, `progress_events` e colunas da candidatura em `ngos` ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) |
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
+| `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -33,7 +37,7 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 | `cnpj_opened_on` | TEXT | `YYYY-MM-DD` (critério 2, ≥ 1 ano; medida PROPOSTA, PEN-013) |
 | `summary` | TEXT | aparece na casa publicada |
 | `status` | TEXT | `submitted` → `under_review` → (`changes_requested`) → `published` \| `rejected` |
-| `revision` | INTEGER > 0 | sobe a cada reenvio da candidatura |
+| `revision` | INTEGER > 0 | sobe a cada reenvio da candidatura e a cada arquivo enviado ou removido (v6) |
 | `created_at`, `updated_at` | TEXT | RFC 3339 UTC com milissegundos |
 | `applicant_id` | TEXT FK → users, `ON DELETE SET NULL` | v4; conta que enviou; some se a conta for excluída |
 | `city` | TEXT | v4; cidade da sede |
@@ -46,6 +50,23 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 | `review_note` | TEXT | v4; mensagem da administração à organização (ajustes ou rejeição) |
 
 Índice v4: `idx_ngos_applicant (applicant_id)`. Dados de organização, não pessoais.
+
+### ngo_files (v6)
+
+Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-files-r2.md)); os bytes ficam no R2.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | TEXT PK | UUID; a chave no R2 é `ngo/<ngo_id>/<id>` |
+| `ngo_id` | TEXT FK → ngos | sem `ON DELETE`: uma ONG com arquivos não pode ser apagada |
+| `kind` | TEXT | `logo` ou `document` |
+| `content_type` | TEXT | `image/png`, `image/jpeg` ou `application/pdf` |
+| `size` | INTEGER > 0 | bytes guardados (imagens já sem metadados) |
+| `uploaded_by` | TEXT FK → users, `ON DELETE SET NULL` | conta que enviou |
+| `created_at` | TEXT | RFC 3339 UTC com milissegundos |
+
+Índices: `idx_ngo_files_ngo (ngo_id, kind, created_at)`; `idx_ngo_files_one_logo`, único parcial em `ngo_id` onde
+`kind = 'logo'` (um logo por ONG). **Não há coluna de nome de arquivo.**
 
 ### lots
 
@@ -100,10 +121,13 @@ Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nad
 |---|---|---|---|
 | `ngo.submit`, `ngo.resubmit` | quem enviou | `ngo:<id>` | `{lot, revision}` |
 | `ngo.start_review`, `ngo.approve`, `ngo.request_changes`, `ngo.reject` | admin | `ngo:<id>` | `{from, to, lot, revision, hasNote}` (sem o texto da mensagem) |
+| `ngo.file_add`, `ngo.file_remove` | quem enviou | `ngo:<id>` | `{kind, file, revision}` (ids; sem nome de arquivo) |
+| `ngo.file_read` | admin que baixou um **documento** | `ngo:<id>` | `{kind, file}` |
 | `user.delete` | a própria conta | `user:<id>` | `NULL` |
 
 Lida pelo painel administrativo em `GET /admin/audit` (o autor aparece pelo nickname; consultar não grava nada
-aqui: só mutações são auditadas — [IMPL-0015](../decisions/0015-dash-backoffice-app.md)).
+aqui: só mutações são auditadas — [IMPL-0015](../decisions/0015-dash-backoffice-app.md); a exceção é o download de
+um documento de ONG por um admin, `ngo.file_read` — [IMPL-0017](../decisions/0017-ngo-files-r2.md)).
 
 ## 3. Dados pessoais e retenção
 
@@ -121,14 +145,36 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
+| Documentos da candidatura (R2) | até a pessoa removê-los ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
+| Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
 
 Progresso de visitantes sem conta (só `localStorage` do navegador, chave `vila.progress.v2`; migra para
 `progress_events` ao entrar e é apagado do navegador; o progresso de uma conta nunca é gravado nessa chave, e eventos
-ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), documentos de ONG (sem upload nesta versão), pagamentos. Logs de pagamento ficarão
+ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), os bytes de logos e documentos de ONG (ficam no R2, [§ 5](#5-arquivos-no-r2-impl-0017)), pagamentos. Logs de pagamento ficarão
 separados dos dados de gamificação (dossiê §13).
+
+## 5. Arquivos no R2 (IMPL-0017)
+
+Bucket `vilanoeldobem-files`, binding `FILES`, ligado só ao Worker da API. **PROPOSTA, desligado em produção**
+(`NGO_FILES_ENABLED = "false"`); o bucket ainda não foi criado.
+
+| Item | Como é |
+|---|---|
+| Acesso | privado: sem `r2.dev`, sem domínio próprio; todo byte sai pela API |
+| Chave | `ngo/<id da ONG>/<id do arquivo>` (dois UUIDs; nenhum nome) |
+| Metadado do objeto | só `contentType` |
+| Conteúdo | logo (PNG/JPEG, até 512 KB) e até 5 documentos (PDF/PNG/JPEG, até 5 MB) por candidatura |
+| Imagens | guardadas sem EXIF, XMP, comentários e blocos de texto (fica só a orientação do JPEG) |
+| Quem lê | logo: público só com a ONG `published`; documento: quem enviou e admins (leitura de admin auditada) |
+| Localização | dica `enam`, como o D1 (o R2 não tem região na América do Sul) |
+| Homologação | `env.staging` não tem bucket: as rotas respondem `404 files_disabled` |
+
+D1 e R2 não dividem transação: a ordem das escritas e o que sobra numa falha estão em
+[IMPL-0017](../decisions/0017-ngo-files-r2.md). Rotas e limites: [api.md](api.md#arquivos-da-candidatura-impl-0017).
 
 ## Ver também
 
-[api.md](api.md) · [guides/deploy.md](../guides/deploy.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)
+[api.md](api.md) · [guides/deploy.md](../guides/deploy.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
+[IMPL-0017](../decisions/0017-ngo-files-r2.md)

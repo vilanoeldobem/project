@@ -1,7 +1,7 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
-> **Atualizado em:** 2026-11-11
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
 
@@ -22,7 +22,8 @@ Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel admin
 `workers_dev: false`).
 
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
-([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1.
+([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1 e o do bucket
+R2 dos arquivos de ONG ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
 Deploy de produção e migrations remotas exigem autorização humana explícita (AGENTS.md).
 
 ## 1. Autenticar na conta do projeto
@@ -284,6 +285,55 @@ sem apagar o Worker, remova a rota (ou bloqueie no Access); apagar o Worker ou o
 exige autorização. Se o jogo novo já estiver publicado, reverter o painel deixa os admins sem tela de análise:
 reverta o jogo junto ou mantenha o painel.
 
+## 9. Arquivos das ONGs no R2 (IMPL-0017)
+
+Logo e documentos das candidaturas ficam num bucket R2 privado, lido só pela API
+([IMPL-0017](../decisions/0017-ngo-files-r2.md)). **PROPOSTA, desligado em produção**
+(`NGO_FILES_ENABLED = "false"` em `apps/api/wrangler.jsonc`). O R2 já está habilitado na conta (2026-11-12); **o
+bucket ainda não existe**.
+
+### 9.1 Ordem
+
+Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurso, aplica migration remota ou publica.
+
+1. **Criar o bucket** (uma vez), em `apps/api`:
+
+   ```bash
+   CLOUDFLARE_ACCOUNT_ID=9119b7496767fec497f6627c5ca56f32 pnpm exec wrangler r2 bucket create vilanoeldobem-files --location enam
+   ```
+
+   `enam` é a mesma localização do D1 (o R2 não tem região na América do Sul; a dica é "melhor esforço"). Não ligue
+   o endereço público `r2.dev` nem um domínio próprio: o bucket é privado e assim deve ficar.
+   **Sem o bucket, `pnpm deploy:api` falha** — a versão que já está no ar continua valendo.
+2. **Migration 0006 + API**, como no [§7.1](#71-ordem-do-deploy-da-040): `pnpm --filter @vila/api db:migrate:remote`
+   (aplica também a 0004 e a 0005, se ainda faltarem) e `pnpm deploy:api`. A 0006 só cria a tabela `ngo_files`: a
+   API anterior continua funcionando com ela. Com as contas desligadas a API nova não lê essa tabela, mas ela tem
+   de existir **antes** de ligar as contas (`DELETE /me` a consulta sempre que o bucket está ligado).
+3. **Conferir:**
+
+   ```bash
+   curl -s https://api.vilanoeldobem.com.br/health    # "files": true  (bucket ligado ao Worker)
+   curl -s https://api.vilanoeldobem.com.br/config    # "files": false (envio desligado)
+   ```
+
+4. **Painel e jogo** (`pnpm deploy:dash`, `pnpm deploy:client`): com `files: false` as telas não mostram nada de
+   arquivo; publicar antes ou depois da API não quebra nada.
+
+### 9.2 Ligar o envio
+
+Só depois de **(a)** as contas ligadas ([§7.3](#73-ligar-as-contas)), **(b)** a lista de documentos definida
+(PEN-019), **(c)** a revisão LGPD / ECA Digital cobrir os documentos e o prazo de retenção (OQ-12). Então, com
+autorização: mude `"NGO_FILES_ENABLED": "true"` em `apps/api/wrangler.jsonc` (commit) e rode `pnpm deploy:api`.
+`/config` passa a responder `"files": true`.
+
+Para desligar, volte a bandeira para `"false"` e publique a API: os arquivos ficam guardados, as telas somem, os
+logos das ONGs publicadas deixam de aparecer e a exclusão de conta continua apagando os documentos.
+
+### 9.3 Reverter
+
+`wrangler rollback` da API ([§6](#6-reverter)) é seguro: a versão anterior ignora a tabela e o bucket. A migration
+0006 não é revertida. Apagar o bucket apaga os arquivos de todas as ONGs e é mudança de recurso: exige autorização.
+
 ## Limitações conhecidas
 
 - Painel administrativo (`apps/dash`): implementado, **não publicado**; Access e exclusão do Web Analytics por decidir.
@@ -292,8 +342,9 @@ reverta o jogo junto ou mantenha o painel.
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
 - Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital, a verificação do domínio no Resend e a
   chave `RESEND_API_KEY` no Worker.
+- Arquivos de ONG (IMPL-0017): bucket não criado, migration 0006 não aplicada, envio desligado.
 
 ## Ver também
 
 [reference/architecture.md](../reference/architecture.md) · [reference/storage.md](../reference/storage.md) ·
-[IMPL-0015](../decisions/0015-dash-backoffice-app.md)
+[IMPL-0015](../decisions/0015-dash-backoffice-app.md) · [IMPL-0017](../decisions/0017-ngo-files-r2.md)

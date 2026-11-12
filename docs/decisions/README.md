@@ -35,5 +35,6 @@
 | [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; aguarda deploy) |
 | [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — implementada, não publicada; menu PROPOSTA |
 | [IMPL-0016](0016-click-navigation-and-colliders.md) | Navegação por clique com desvio de obstáculos e colisores medidos pelo que é desenhado | Proposta — implementada, a validar (layout do mundo segue PROPOSTA, PEN-017) |
+| [IMPL-0017](0017-ngo-files-r2.md) | Arquivos das candidaturas de ONG no R2 (logo e documentos) | Proposta — implementada, desligada em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

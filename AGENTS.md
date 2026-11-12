@@ -54,6 +54,9 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   mutation writes `audit_events`.
 - Accounts (IMPL-0011) stay behind `ACCOUNTS_ENABLED` ("false" in production) until the owner records the LGPD /
   ECA Digital review. Never flip it, grant `admin` remotely or apply remote migrations without explicit approval.
+- NGO files (IMPL-0017) stay behind `NGO_FILES_ENABLED` ("false" in production): the list of required documents is
+  PENDENTE (PEN-019), so no document is required or named. Never flip the flag or create the bucket without explicit
+  approval. Only the logo of a published NGO is ever public.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -71,7 +74,9 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
-- D1 is the only persistent server-side store. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
+- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
+  application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket
+  never gets a public URL, no file name is stored, and `ngo_files` in D1 decides who may read what. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
@@ -80,7 +85,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short.
-- Never log request bodies, e-mails, tokens, CNPJ documents or any personal data.
+- Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.
 
 ## Forbidden without explicit human authorisation
 

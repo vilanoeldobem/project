@@ -9,6 +9,36 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — arquivos das candidaturas de ONG no R2 (desligado em produção)
+
+- Logo e documentos da candidatura num bucket R2 privado ([IMPL-0017](docs/decisions/0017-ngo-files-r2.md)):
+  **PROPOSTA**, atrás da bandeira `NGO_FILES_ENABLED` (`"false"` em produção). O bucket `vilanoeldobem-files` ainda
+  não foi criado e a migration 0006 não foi aplicada no remoto. Nenhum documento é obrigatório nem nomeado: a lista
+  é PENDENTE (PEN-019, OQ-12).
+- API: `POST /ngo/application/files`, `GET` e `DELETE /ngo/application/files/:id`,
+  `GET /admin/applications/:id/files/:fileId` e a rota pública `GET /ngos/:id/logo` (só de ONG publicada).
+  `GET /ngo/application` e `GET /admin/applications/:id` trazem `files`; `/lots` traz `ngo_logo`; `/config` traz
+  `files` e `/health` diz se o bucket está ligado. Novo cabeçalho `X-Vila-Account` nas escritas de arquivo.
+- Logo: PNG ou JPEG, até 512 KB, 64 a 1024 px. Documentos: até 5, PDF, PNG ou JPEG, até 5 MB cada. O formato é
+  conferido pelos bytes (SVG e HTML recusados) e o tamanho é conferido de novo enquanto o arquivo chega.
+- Imagens são guardadas sem metadados (EXIF com GPS, XMP, comentários); o nome original do arquivo não é guardado.
+- Enviar ou remover arquivo muda a `revision` da candidatura: decisão do admin sobre a versão anterior é recusada.
+  Depois de publicada, a ONG não troca mais arquivo.
+- Leitura de documento por admin gravada em `audit_events` (`ngo.file_read`), além de `ngo.file_add` e
+  `ngo.file_remove`.
+- `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não publicada.
+- Jogo: seção "Arquivos da candidatura" na tela da candidatura (enviar, trocar e remover logo; até 5 documentos,
+  com download e remoção), só quando `/config` traz `files: true`. O arquivo é conferido no navegador com as mesmas
+  regras da API antes do envio. O painel do terreno publicado mostra o logo da ONG.
+- Painel administrativo: seção "Arquivos" na análise da candidatura (prévia do logo; documentos só por download,
+  um registro de auditoria por clique), rótulos das novas ações na auditoria e estado "Envio de arquivos desligado".
+  A CSP do painel passa a aceitar `blob:` em `img-src` (só para a prévia do logo).
+- `verify-accounts.mjs` cobre o envio de arquivos no jogo e a leitura no painel; aceita uma API em outra porta
+  (argumento `api`) e `VILA_API_PERSIST_TO` para o banco local dela.
+- Migration `0006_ngo_files.sql` (schema D1 v6): tabela `ngo_files`.
+- `packages/shared/src/accounts/files.ts`: limites, detecção de formato, limpeza de metadados e frases de erro,
+  usados pela API, pelo jogo e pelo painel.
+
 ### Added — painel administrativo (`apps/dash`, não publicado)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em

@@ -1,6 +1,6 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
@@ -31,7 +31,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [reference/api.md](reference/api.md) — rotas da API (`api.*`) e do servidor de tempo real (`server.*`), CORS e erros.
 - [reference/environment.md](reference/environment.md) — hora real de São Paulo, clima procedural, efeitos e presets.
 - [reference/quests.md](reference/quests.md) — missões narrativas `quests-v1` (PROPOSTA): estados, eventos, flags, NPCs, painel de doação e portão da casa publicada.
-- [reference/storage.md](reference/storage.md) — schema D1, migrations, estados.
+- [reference/storage.md](reference/storage.md) — schema D1, migrations, estados; arquivos de ONG no R2.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
 
 **Explicação**
@@ -50,6 +50,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
 | Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial — candidatura e análise implementadas, desligadas em produção (IMPL-0011) | [api](reference/api.md#candidatura-de-ong-p12-dec-015-dec-037) |
+| Logo e documentos de ONG (R2) | Implementado, desligado em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019, OQ-12) (IMPL-0017) | [api](reference/api.md#arquivos-da-candidatura-impl-0017) · [storage](reference/storage.md#5-arquivos-no-r2-impl-0017) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
 | Painel administrativo (`apps/dash`, `dash.*`) | Implementado, **não publicado** (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |
 | Missões e XP | Parcial (local; no servidor só com conta); `quests-v1` atrás de flags, conteúdo PROPOSTA (PEN-025) | [quests](reference/quests.md) · [domain-model](explanation/domain-model.md) |
