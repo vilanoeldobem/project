@@ -11,6 +11,8 @@ bucket privado, validação de imagens compartilhada e uma única implementaçã
 
 O novo PR depende do #32. Ele oferece uma substituição revisável para os trechos sobrepostos de #28/#29/#31;
 não faz merge nem fecha os PRs originais. O porte da retirada do #33 é a próxima frente, fora deste incremento.
+A base atual é `49db536`, incluindo a versão 0.4.0 e as últimas correções do Augusto; verificações da base anterior
+não comprovam esta combinação atualizada.
 
 ## Divisão e critérios
 
@@ -28,7 +30,9 @@ não faz merge nem fecha os PRs originais. O porte da retirada do #33 é a próx
 ## Aceite técnico
 
 1. O upload e o download de logo/documentos continuam funcionando com o cliente e o painel do #32; não existe
-   uma segunda rota de comprovantes ou outro binding para o mesmo propósito.
+   uma segunda rota de comprovantes ou outro binding para o mesmo propósito. Arquivos ficam bloqueados durante
+   `under_review`; `start_review` usa a revisão lida no servidor, e outras decisões a revisão vista pelo admin.
+   Admins continuam vendo metadados/bytes com bucket ligado e envio desligado; limites e sanitizer atuais são preservados.
 2. Alterar arquivo incrementa a revisão uma vez. Corridas de upload, remoção, análise ou aprovação não geram
    auditoria duplicada nem confirmam alteração que perdeu a condição de dono/revisão/estado.
 3. O painel não recebe arquivos novos associados a uma revisão antiga, nem arquivos antigos apresentados
@@ -42,7 +46,8 @@ não faz merge nem fecha os PRs originais. O porte da retirada do #33 é a próx
 7. Imagens passam pelo tratamento compartilhado; limites, formatos recusados e ausência de análise completa
    de PDF são documentados. Nenhum nome original, caminho, credencial ou chave de objeto é exposto no contrato.
 8. A migration 0010 parte da base #32 sem reconstruir nem renumerar sua migration 0006. Fixtures anteriores
-   preservam `ngo_files`, usuários, candidaturas e histórico; nenhum dado remoto é usado nos testes.
+   preservam `ngo_files`, usuários, candidaturas e histórico; nenhum dado remoto é usado nos testes. Rotas públicas
+   mantêm o fallback sem a tabela 0006; isso não dispensa 0010 nas rotas privadas conciliadas.
 9. Exclusão de conta não mistura decisões tomadas antes/depois de uma aprovação concorrente de modo a deixar
    logo público apontando para bytes apagados. A decisão sobre documentos e fotos fica coerente com as regras
    explicitadas na referência de armazenamento.
@@ -59,3 +64,48 @@ exclusão de conta. Não há declaração de compatibilidade antecipada com aque
 
 Ativação depende das políticas OQ-12/OQ-15, preparação operacional e autorização explícita. OQ-13 de analytics
 do #32 é preservada; não se deve reutilizar seu número para documentos. Missões e progresso não são alterados.
+
+## Verificação da árvore conciliada — 12/11/2026
+
+Base do #32: `49db536a50c96f66e49c982d920b9624bc014306`. Node 24.22.2, pnpm 10.32.1,
+Linux; execução serial, prioridade reduzida e dois workers nos testes.
+
+| Verificação executada | Resultado |
+|---|---|
+| `pnpm --workspace-concurrency=1 -r run typecheck` | 6 pacotes aprovados |
+| `pnpm --workspace-concurrency=1 -r run test --maxWorkers=2` | 569 testes: shared 146, API 159, client 179, dash 53, server 23, site 9 |
+| `pnpm --workspace-concurrency=1 -r run build` | Todos os builds aprovados; Workers somente `--dry-run` |
+| Migrations 0001–0006 + 0010 | Aplicadas somente no D1 do simulador isolado |
+| `verify-files-reconciliation.mjs` | Fluxo conjunto aprovado em workerd/D1/R2 local |
+| `smoke-api.sh` com API `:8792`, servidor `:8788`, jogo `:8799` | 14 verificações aprovadas |
+| `verify-accounts.mjs` | Chromium aprovado: cadastro/progresso, PNG/JPEG real, documento, pedido de ajustes/reenvio, análise, auditoria e logo publicada |
+
+O teste de integração usa PNGs e contas sintéticas. Exercita logo/documentos/galeria, remoção de metadados,
+isolamento de acesso, revisão desatualizada, bloqueio durante análise, remoção concorrente com auditoria única,
+perfil público e retenção após excluir a conta. Corridas determinísticas com barreiras ficam nos testes de API;
+uma rodada HTTP concorrente isolada não substitui esses testes.
+
+Para reproduzir, use apenas o ambiente `reconciliation-local` de `apps/api/wrangler.jsonc`. Aplique as migrations
+com `wrangler d1 migrations apply ngo-files-reconciliation-local --local --env reconciliation-local` e inicie
+`wrangler dev --env reconciliation-local --local --port 8792 --inspector-port 9242`. Ambos rodam em `apps/api`.
+Na raiz, `node apps/api/scripts/verify-files-reconciliation.mjs --seed` gera o SQL dos fixtures; execute-o nesse
+D1 **local** antes de rodar `node apps/api/scripts/verify-files-reconciliation.mjs http://localhost:8792`.
+O seed reinicia somente seus identificadores sintéticos; não usar esses comandos em uma base compartilhada.
+
+Para o navegador, faça os builds `build:local` do client e do dash e inicie seus Workers em `:8799` e `:8797`,
+além do servidor local em `:8788`. Na raiz:
+
+```bash
+VILA_API_ENV=reconciliation-local VILA_API_DB=ngo-files-reconciliation-local \
+CHROMIUM_PATH=/usr/bin/chromium VILA_STUB_ANALYTICS=1 \
+node apps/client/scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8792 http://localhost:8797
+```
+
+GTM fica substituído no teste por causa da OQ-13 já registrada no #32; analytics não é validado. Não foram
+exercitados Safari/Firefox, largura de celular ou envio real de e-mail. A galeria ainda não tem interface neste
+incremento; sua validação é pela API. Nenhum ambiente remoto foi modificado.
+
+A primeira rodada do navegador terminou por timeout ao abrir a segunda cena 3D. O harness foi ajustado para
+suspender a página do solicitante enquanto cria a conta administrativa, preservando o contexto e os cookies;
+a rodada completa seguinte passou, sem aumentar timeouts ou retirar asserções. Capturas ficam no diretório
+local ignorado `apps/client/verify-output/`. A aplicação não recebeu alteração visual por causa desse ajuste.

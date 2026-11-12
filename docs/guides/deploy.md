@@ -264,8 +264,9 @@ Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-ba
    dado nenhum.
 2. **Excluir `dash.*` do Cloudflare Web Analytics** (injeção automática da zona). A CSP do painel bloqueia o script
    de medição; se ele for injetado, aparece erro de CSP no console e o `verify.mjs` do painel falha. Conferido em
-   2026-11-12: o HTML de `dash.*` saiu sem o script e o `verify.mjs` passou em produção; se o Web Analytics da zona
-   mudar, confira de novo.
+   2026-11-12: o HTML de `dash.*` saiu sem o script e o `verify.mjs` daquela versão passou em produção; se o Web
+   Analytics da zona mudar, confira de novo. O `verify.mjs` atual exige `img-src 'self' blob:` (IMPL-0017): contra
+   produção ele só volta a passar depois de o painel ser publicado de novo.
 3. **Contas.** O painel só tem utilidade com `ACCOUNTS_ENABLED = "true"` ([§7.3](#73-ligar-as-contas)). Com a
    bandeira desligada ele abre, mostra "Contas desligadas" e só dados públicos.
 
@@ -315,7 +316,11 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
 
    `enam` é a mesma localização do D1 (o R2 não tem região na América do Sul; a dica é "melhor esforço"). Não ligue
    o endereço público `r2.dev` nem um domínio próprio: o bucket é privado e assim deve ficar.
-   **Sem o bucket, `pnpm deploy:api` falha** — a versão que já está no ar continua valendo.
+   **Sempre publique a API com `pnpm deploy:api`, nunca com `wrangler deploy` puro.** O wrangler fixado (4.158.0)
+   vem com o provisionamento automático ligado: ao ver no `wrangler.jsonc` um bucket que não existe, um
+   `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
+   `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
+   já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
 2. **Migration 0006 + API**, como no [§7.1](#71-ordem-do-deploy-da-040): `pnpm --filter @vila/api db:migrate:remote`
    (aplica também a 0004 e a 0005, se ainda faltarem) e `pnpm deploy:api`. A 0006 só cria a tabela `ngo_files`: a
    API anterior continua funcionando com ela. Com as contas desligadas a API nova não lê essa tabela, mas ela tem
@@ -342,8 +347,9 @@ logos das ONGs publicadas deixam de aparecer e a exclusão de conta continua apa
 
 ### 9.3 Reverter
 
-`wrangler rollback` da API ([§6](#6-reverter)) é seguro: a versão anterior ignora a tabela e o bucket. A migration
-0006 não é revertida. Apagar o bucket apaga os arquivos de todas as ONGs e é mudança de recurso: exige autorização.
+`wrangler rollback` da API ([§6](#6-reverter)) é seguro **enquanto o envio nunca tiver sido ligado**: a versão
+anterior ignora a tabela e o bucket. Depois de ligado, uma versão anterior a esta não apaga os documentos do R2 na
+exclusão de conta: não reverta para antes dela; desligue a bandeira. A migration 0006 não é revertida. Apagar o bucket apaga os arquivos de todas as ONGs e é mudança de recurso: exige autorização.
 
 ## Limitações conhecidas
 

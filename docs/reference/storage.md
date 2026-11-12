@@ -22,13 +22,16 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0004_accounts_ngo_applications.sql` | contas (`users`), links (`login_tokens`), `sessions`, `progress_events` e colunas da candidatura em `ngos` ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) |
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
 | `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
-
 | `0010_ngo_media_reconciliation.sql` | galeria `ngo_photos`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0021) |
 
 A migration 0006 do PR #32 é preservada. Esta branch aplica 0001–0006 e 0010: os números 0007–0009 pertencem
 a PRs anteriores e não são copiados, nem reaplicados como pipelines concorrentes. Não se deve aplicar esta
 sequência sobre uma base que tenha recebido migrations incompatíveis dos PRs antigos; revisar o histórico antes.
 A 0010 é pré-requisito do código conciliado mesmo com flags desligadas (sessão e decisões leem colunas novas).
+Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` responde sem logo e a rota de logo
+responde 404. Eles não dispensam a migration 0010 para usar as rotas privadas conciliadas.
+Operações de conta que encontrem ausência das novas colunas retornam `503 schema_outdated`; isso não substitui
+a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 
 Regras: migrations aplicadas são imutáveis; nada de `IF NOT EXISTS` para esconder schema divergente.
 
@@ -69,7 +72,7 @@ Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-fil
 | `ngo_id` | TEXT FK → ngos | sem `ON DELETE`: uma ONG com arquivos não pode ser apagada |
 | `kind` | TEXT | `logo` ou `document` |
 | `content_type` | TEXT | `image/png`, `image/jpeg` ou `application/pdf` |
-| `size` | INTEGER > 0 | bytes guardados (imagens já sem metadados) |
+| `size` | INTEGER > 0 | bytes guardados (imagens já sem os metadados conhecidos) |
 | `uploaded_by` | TEXT FK → users, `ON DELETE SET NULL` | conta que enviou |
 | `created_at` | TEXT | RFC 3339 UTC com milissegundos |
 
@@ -162,7 +165,7 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
-| Documentos da candidatura (R2) | até a pessoa removê-los ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
+| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
 | Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
 | Galeria (R2, PROPOSTA/OQ-15) | fotos aprovadas de ONG publicada ficam; demais fotos são apagadas com a conta |
 
@@ -184,8 +187,8 @@ Bucket `vilanoeldobem-files`, binding `FILES`, ligado só ao Worker da API. **PR
 | Chave | `ngo/<id da ONG>/<id do arquivo>` (dois UUIDs; nenhum nome) |
 | Metadado do objeto | só `contentType` |
 | Conteúdo | logo (PNG/JPEG, até 512 KB) e até 5 documentos (PDF/PNG/JPEG, até 5 MB) por candidatura |
-| Imagens | guardadas sem EXIF, XMP, comentários e blocos de texto (fica só a orientação do JPEG) |
-| Quem lê | logo: público só com ONG e terreno realmente `published`; documento: quem enviou e admins (leitura de admin auditada) |
+| Imagens | guardadas sem EXIF, XMP, IPTC, comentários, miniaturas e blocos de texto (fica só a orientação do JPEG); só recodificar removeria tudo |
+| Quem lê | logo: público só com ONG e terreno realmente `published`; documento: quem enviou e admins (leitura de admin auditada). Admins leem sempre que o bucket está ligado, mesmo com o envio desligado |
 | Localização | dica `enam`, como o D1 (o R2 não tem região na América do Sul) |
 | Homologação | `env.staging` não tem bucket: as rotas respondem `404 files_disabled` |
 

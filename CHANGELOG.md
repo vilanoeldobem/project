@@ -17,19 +17,18 @@ Cada versão indica o schema D1 que entrega.
 - Migration 0010 preserva 0006; acrescenta galeria, token exclusivo de escrita e intenção durável de exclusão.
   Requer revisão do histórico antes de aplicar; não importa migrations 0007–0009 nem a retirada do PR #33.
 - Candidatura e arquivos compartilham snapshot SQL. Estado/revisão exatos e token exclusivo impedem escrita
-  atrasada e auditoria duplicada; edição em `under_review` continua permitida como no #32.
+  atrasada e auditoria duplicada; preserva o bloqueio em `under_review` do #32 atualizado.
 - Exclusão de conta congela as evidências antes da limpeza R2 e permite retomar em falha. Incrementa a revisão
   final para invalidar decisões antigas; mantém política de conservar logo e fotos aprovadas de ONG publicada.
 - Logo público passa a exigir terreno publicado e `no-store`, como o perfil e a galeria. Nenhuma alteração de jogo,
   deploy, migration remota ou ativação pública faz parte desta entrega.
 
-### Changed — deploy de 2026-11-12
+### Added — conferência do jogo em produção
 
-- Os cinco Workers foram publicados a partir da `main` (`e2fa200`): API, servidor, painel administrativo
-  (`vilanoeldobem-dash`, criado nesse deploy, em `dash.vilanoeldobem.com.br`), jogo e site. Nenhuma migration remota
-  foi aplicada e as contas seguem desligadas.
-- Novo `apps/client/scripts/verify-live.mjs`: conferência do jogo em produção (carrega, entra na Vila, sem erro de
-  console ou de CSP, presença conectada). O `verify.mjs` passa a ser documentado como só local.
+- `apps/client/scripts/verify-live.mjs`: conferência do jogo publicado (carrega, entra na Vila, sem erro de console
+  ou de CSP, presença respondendo). O `verify.mjs` passa a ser documentado como só local.
+- A documentação registra o deploy de 2026-11-12 (painel administrativo publicado) e a pergunta aberta OQ-13
+  (destinos de medição do Google bloqueados pela CSP do jogo).
 
 ### Added — arquivos das candidaturas de ONG no R2 (desligado em produção)
 
@@ -45,7 +44,11 @@ Cada versão indica o schema D1 que entrega.
   conferido pelos bytes (SVG e HTML recusados) e o tamanho é conferido de novo enquanto o arquivo chega.
 - Imagens são guardadas sem metadados (EXIF com GPS, XMP, comentários); o nome original do arquivo não é guardado.
 - Enviar ou remover arquivo muda a `revision` da candidatura: decisão do admin sobre a versão anterior é recusada.
-  Depois de publicada, a ONG não troca mais arquivo.
+  Durante a análise (`under_review`) os arquivos ficam travados e, depois de publicada, a ONG não troca mais
+  arquivo. `start_review` passa a valer para a versão atual, sem conferir a revisão vista.
+- Limites: 20 envios ou remoções por minuto por conta e 60 mudanças de arquivo por candidatura a cada 24 horas.
+- Admins leem os arquivos existentes sempre que o bucket está ligado, mesmo com o envio desligado.
+- `pnpm deploy:api` passa `--x-provision=false`: o wrangler não cria mais sozinho um bucket que falta.
 - Leitura de documento por admin gravada em `audit_events` (`ngo.file_read`), além de `ngo.file_add` e
   `ngo.file_remove`.
 - `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não publicada.
@@ -61,7 +64,18 @@ Cada versão indica o schema D1 que entrega.
 - `packages/shared/src/accounts/files.ts`: limites, detecção de formato, limpeza de metadados e frases de erro,
   usados pela API, pelo jogo e pelo painel.
 
-### Added — painel administrativo (`apps/dash`, não publicado)
+## [0.4.0] - 2026-11-12
+
+**Contas e ONGs, painel administrativo, presença em tempo real e navegação por clique**
+([IMPL-0006](docs/decisions/0006-christmas-environment-real-time-procedural-weather.md) a
+[IMPL-0016](docs/decisions/0016-click-navigation-and-colliders.md)). Schema D1 **v5** no código; **produção segue na
+v3**: as migrations `0004` e `0005` não foram aplicadas e as contas continuam desligadas (`ACCOUNTS_ENABLED`), assim
+como as missões narrativas (`QUESTS_V1_ENABLED`). Os cinco Workers foram publicados a partir da `main` em 2026-11-12,
+na ordem API, servidor, painel administrativo (`vilanoeldobem-dash`, criado nesse deploy), jogo e site; esse deploy
+foi feito antes deste commit de versão, então `GET /health` em produção responde `"version": "0.3.0"` até a próxima
+publicação da API.
+
+### Added — painel administrativo (`apps/dash`)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em
   `dash.vilanoeldobem.com.br`, Worker `vilanoeldobem-dash` só com Static Assets (sem script, sem bindings). **Não

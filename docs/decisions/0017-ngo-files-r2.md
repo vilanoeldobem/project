@@ -39,27 +39,41 @@ Vila (LGPD, ECA Digital), embora quem candidata uma ONG seja um adulto responsá
 
    Nenhum documento é obrigatório nem tem nome: a lista é do dono do produto (PEN-019).
 4. **Bandeira própria:** `NGO_FILES_ENABLED` (`"false"` em produção). O envio só existe com ela, com
-   `ACCOUNTS_ENABLED` e com o bucket ligado; `GET /config` devolve `files`. Sem isso as rotas respondem
-   `404 files_disabled` e as telas não mostram nada de arquivo.
+   `ACCOUNTS_ENABLED` e com o bucket ligado; `GET /config` devolve `files`. Sem a bandeira ou sem o bucket as rotas
+   respondem `404 files_disabled` (com as contas desligadas, `404 accounts_disabled`, como toda rota de conta) e as
+   telas não oferecem envio. **A leitura por admin é a exceção:** basta o bucket estar ligado. Quem decide precisa
+   ver o que existe, mesmo com o envio desligado depois de arquivos terem sido enviados; senão uma aprovação
+   publicaria um logo que ninguém viu quando a bandeira voltasse.
 5. **A API confere o conteúdo, não o que o navegador diz.** O formato vem da assinatura dos bytes e tem de ser igual
    ao `Content-Type`; SVG e HTML são recusados (carregam script); o tamanho é conferido no cabeçalho e de novo
    enquanto os bytes chegam; a imagem tem de estar bem formada e dentro do limite de pixels, lido do cabeçalho do
    arquivo (um arquivo pequeno pode abrir como uma imagem gigante). A mesma função (`checkFile`) roda no navegador
    para avisar antes do envio.
-6. **Imagens são guardadas sem metadados.** EXIF (GPS, aparelho, miniatura), XMP, comentários, blocos de texto do
-   PNG e qualquer byte depois do fim da imagem são removidos; do EXIF do JPEG fica só a orientação, para foto de
-   celular não aparecer deitada. Os pixels não mudam. PDF é guardado como veio.
+6. **Imagens são guardadas sem os metadados conhecidos.** Saem: EXIF (GPS, aparelho, miniatura), XMP, IPTC,
+   comentários, miniaturas JFIF/JFXX, segmentos reservados, blocos de texto do PNG, blocos de exibição do PNG
+   repetidos, grandes demais ou depois dos pixels, e qualquer byte depois do fim da imagem. Do EXIF do JPEG fica só
+   a orientação (a do primeiro bloco), para foto de celular não aparecer deitada. Ficam como vieram os pixels, o
+   perfil de cor (ICC) e os poucos blocos que mudam a exibição. **Não é uma garantia absoluta:** só recodificar a
+   imagem remove tudo o que alguém possa esconder nela. PDF é guardado como veio.
+   A leitura também protege quem abre a imagem: um JPEG só pode ter um cabeçalho de tamanho, antes dos pixels (um
+   segundo cabeçalho faria a imagem abrir maior do que o tamanho conferido), e um arquivo feito de centenas de
+   milhares de pedacinhos é recusado em vez de consumir memória.
 7. **Arquivos servidos inertes:** `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none';
    sandbox`, documentos sempre como download (`Content-Disposition: attachment`), `no-store` nas rotas de conta.
-8. **Mudar arquivo muda a revisão.** Enviar ou remover um arquivo soma 1 em `ngos.revision`. A decisão do admin
-   carrega a revisão que ele viu: se os arquivos mudaram, ela é recusada (`409 stale_revision`), e nada que ninguém
-   analisou é publicado. **Depois de publicada, a ONG não troca mais arquivo** (DEC-037: só admin publica).
+8. **Mudar arquivo muda a revisão, e a análise trava os arquivos.** Enviar ou remover um arquivo soma 1 em
+   `ngos.revision`. A decisão do admin carrega a revisão que ele viu: se os arquivos mudaram, ela é recusada
+   (`409 stale_revision`), e nada que ninguém analisou é publicado. Arquivos só mudam em `submitted`,
+   `changes_requested` e `rejected`: **durante a análise (`under_review`) ficam travados** e, **depois de
+   publicada, a ONG não troca mais arquivo** (DEC-037: só admin publica). "Iniciar análise" (`start_review`) não
+   exige a revisão vista: vale para a versão atual e é o que trava os arquivos. Sem isso, quem enviou poderia
+   impedir qualquer decisão trocando arquivos sem parar.
 9. **Leitura de documento por admin é auditada** (`ngo.file_read`, com o id do admin e do arquivo). Enviar e remover
    também (`ngo.file_add`, `ngo.file_remove`). Ver o logo não grava nada.
 10. **Exclusão de conta (`DELETE /me`)** apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não
     publicada. O logo de uma ONG publicada fica, como a própria ONG. Isso vale sempre que o bucket estiver ligado,
     mesmo com a bandeira desligada depois.
-11. **Limite de envios:** 20 por minuto por conta (binding `FILE_LIMITER`).
+11. **Limites de uso:** 20 envios ou remoções por minuto por conta (binding `FILE_LIMITER`) e 60 mudanças de
+    arquivo por candidatura a cada 24 horas (`429 too_many_file_changes`; a contagem são as linhas de auditoria).
 12. **Escritas levam `X-Vila-Account`** (a conta que a página acredita estar logada), como as escritas em JSON levam
     `accountId`: o corpo aqui é o próprio arquivo.
 
@@ -67,9 +81,12 @@ Vila (LGPD, ECA Digital), embora quem candidata uma ONG seja um adulto responsá
 
 - **Enviar:** o objeto é gravado primeiro; a linha em `ngo_files`, a nova revisão e a auditoria entram numa
   transação só, guardada pela revisão lida. Se a transação recusar (a candidatura mudou no meio), o objeto é apagado.
-- **Remover:** a linha sai primeiro, depois o objeto.
-- **Excluir conta:** os objetos saem primeiro, depois as linhas. Se o R2 falhar, a conta **não** é excluída e a
-  pessoa tenta de novo.
+- **Remover:** a auditoria e a saída da linha entram na mesma transação, sob a mesma condição (o arquivo existe e
+  a candidatura é a revisão lida): quem perde uma corrida não grava nada. Depois sai o objeto.
+- **Excluir conta:** os objetos conhecidos saem primeiro; se o R2 falhar, a conta **não** é excluída e a pessoa
+  tenta de novo. A transação que apaga a conta apaga todas as linhas de arquivo dela, inclusive a de um envio que
+  tenha chegado no meio, e os objetos dessas linhas saem em seguida. Um envio que termine depois de a conta sumir
+  é recusado pelo banco e descarta o próprio objeto.
 
 Uma queda no meio deixa, no pior caso, um objeto que nenhuma linha aponta: inalcançável, só ocupa espaço. Nunca o
 contrário (uma linha publicável sem bytes), exceto na exclusão de conta, onde apagar os bytes vem antes de tudo.
@@ -96,10 +113,15 @@ contrário (uma linha publicável sem bytes), exceto na exclusão de conta, onde
   ajustada.
 - **Nada disso vale em produção ainda.** Faltam: criar o bucket (recurso novo, exige autorização), aplicar a
   migration 0006 no remoto, publicar a API e, só depois da revisão LGPD / ECA Digital cobrir os documentos, ligar a
-  bandeira ([deploy §9](../guides/deploy.md#9-arquivos-das-ongs-no-r2-impl-0017)). O `wrangler deploy` da API **falha
-  enquanto o bucket não existir** (falha segura: a versão anterior continua no ar).
-- A API passa a ler `ngo_files` em `DELETE /me` sempre que o bucket estiver ligado: a migration 0006 tem de estar
-  aplicada antes de as contas serem ligadas, como a 0004 e a 0005.
+  bandeira ([deploy §9](../guides/deploy.md#9-arquivos-das-ongs-no-r2-impl-0017)).
+- **O wrangler cria sozinho um bucket que falta.** A versão fixada (4.158.0) vem com o provisionamento automático
+  ligado: um `wrangler deploy` puro, ao ver no `wrangler.jsonc` um bucket que não existe, cria esse bucket sem
+  perguntar e sem a dica de localização. Por isso `pnpm deploy:api` roda `wrangler deploy --x-provision=false`
+  (um teste confere o script): sem o bucket, o esperado é o deploy falhar e a versão no ar continuar valendo. Isso
+  foi lido no código do wrangler, não testado com um deploy real. **Nunca rodar `wrangler deploy` puro na API.**
+- Com as contas ligadas e o bucket ligado, a API lê `ngo_files` em `DELETE /me` e nas telas da candidatura. Se a
+  migration 0006 ainda não estiver aplicada, essas leituras tratam a tabela ausente como "sem arquivos" e nada
+  quebra; mesmo assim a 0006 deve ir junto com a 0004 e a 0005.
 - **PDF não é inspecionado.** Um PDF pode trazer conteúdo malicioso ou dados além do necessário; quem baixa é um
   admin, num arquivo servido como download. Metadados do PDF (autor, programa) ficam como vieram.
 - **Sem prazo de retenção.** Documentos ficam até a pessoa removê-los ou excluir a conta, inclusive depois de uma

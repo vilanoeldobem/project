@@ -15,6 +15,10 @@ metadados de imagens e armazenamento privado. Os PRs #29/#31 desenvolveram, em p
 comprovantes com outros contratos, tabelas e buckets. A mesma numeração de migration e ADR foi usada para coisas
 diferentes. Integrar as árvores sem conciliação duplicaria comprovantes e produziria políticas incompatíveis.
 
+A base de revisão é o PR #32 em `49db536`, que inclui a versão 0.4.0 e as correções posteriores ao primeiro
+levantamento. Seu bloqueio de arquivos durante análise, leitura administrativa com envio desligado, limites
+de mutação e tratamento de imagens são preservados nesta conciliação.
+
 Três conceitos têm funções distintas: **logo** identifica a ONG; **documento** comprova a candidatura e permanece
 privado; **foto institucional** compõe uma galeria editorial e exige aprovação individual. Uma galeria não pode
 ser implementada tornando públicos todos os arquivos da candidatura.
@@ -40,14 +44,19 @@ ser implementada tornando públicos todos os arquivos da candidatura.
 5. **Preservar as telas prontas.** A integração de logo/documentos continua no jogo e no painel. Este incremento
    entrega a API da galeria e o perfil público textual aproveitado de #28; não cria outra tela de candidatura,
    um editor de galeria ou um novo fluxo visual de aprovação.
-6. **Conservar a política de edição do PR #32.** Arquivos da candidatura podem ser alterados em `submitted`,
-   `under_review`, `changes_requested` e `rejected`; ficam congelados depois de `published`. Toda mutação confere
-   dono, revisão e o estado exato observado. Mudar arquivo aumenta a revisão e invalida uma aprovação antiga.
+6. **Conservar a política de edição do PR #32 atualizado.** Arquivos da candidatura podem ser alterados em
+   `submitted`, `changes_requested` e `rejected`; ficam bloqueados durante `under_review` e depois de `published`.
+   `start_review` usa a revisão atual lida no servidor, sem exigir que seja a revisão enviada pelo cliente;
+   sua escrita ainda confere o estado e a revisão lidos. As demais decisões exigem a revisão vista pelo admin.
+   Toda mutação confere dono, revisão e o estado exato observado. Mudar arquivo aumenta a revisão e invalida uma aprovação antiga.
    Uma operação concorrente perdedora não pode confirmar auditoria usando apenas horário, ausência da linha
    removida ou uma revisão que outra operação produziu; usa identidade exclusiva da mutação vencedora.
+   Preservar os limites canônicos de 20 envios/remoções por minuto por conta e 60 mudanças por candidatura em 24 horas.
 7. **Ler candidatura e arquivos de forma coerente.** Os dados apresentados ao solicitante e à administração
    devem trazer a revisão e o conjunto de arquivos do mesmo snapshot. Preservar o formato já consumido pelas
-   telas. Documentos ativos acompanham reenvios da candidatura; não duplicar registros por revisão.
+   telas. Com `FILES` disponível, a administração lê metadados e bytes mesmo com `NGO_FILES_ENABLED` desligado;
+   desligar novos envios não esconde evidências de quem decide. Documentos ativos acompanham reenvios da
+   candidatura; não duplicar registros por revisão.
 8. **Uniformizar a publicação.** Perfil textual, logo e galeria exigem ONG publicada e terreno realmente
    associado por `lots.ngo_id`, também publicado. Galeria exige ainda foto aprovada. Leituras públicas de
    logo/foto/perfil usam `no-store`, incluindo verificações condicionais, para que uma nova consulta confira
@@ -75,8 +84,11 @@ intenção, o logo já publicado é preservado; se a intenção vencer, a aprova
 R2 e D1 continuam sem transação distribuída. Se o R2 falhar, a conta permanece, como no #32, e a intenção fica
 registrada para repetir `DELETE /me`. Não remover o marcador após falha parcial: alguns bytes podem já ter sido
 apagados. Consultas e sessão continuam disponíveis; gravações relacionadas respondem que a exclusão está em
-andamento. Uma repetição conclui a limpeza de forma idempotente. A finalização em D1 remove os registros e a
-conta e grava uma única auditoria; dois pedidos concorrentes não devem duplicá-la.
+andamento. Uma repetição conclui a limpeza de forma idempotente. A finalização em D1 remove os registros,
+incrementa as revisões das candidaturas, remove a conta e grava uma única auditoria; dois pedidos concorrentes
+não devem duplicá-la. O incremento invalida análises/reenvios já lidos mesmo depois de desaparecer a linha do
+usuário com a intenção de exclusão. Essa intenção durável substitui a segunda passagem de limpeza do #32 para
+que aprovação e envio não mudem o conjunto de evidências enquanto R2 é limpo.
 
 Nesse intervalo pode haver metadado privado cujo objeto já foi apagado; o download falha de forma fechada.
 Não afirmar atomicidade entre D1 e R2 nem comprovar exclusão física só pelo início da operação. Não há serviço
@@ -102,6 +114,12 @@ merge desses PRs automaticamente; Augusto decide a integração após revisão.
 O esquema desta proposta parte das migrations 0001–0006 do PR #32 e acrescenta 0010. As numerações 0007–0009
 permanecem reservadas às entregas já propostas em outras branches; sua ausência aqui não cria uma dependência
 implícita. Nenhuma migration já existente é editada para trocar de significado.
+A 0010 é pré-requisito das rotas de conta conciliadas mesmo com as flags de arquivos desligadas. Os fallbacks
+públicos do #32 para ausência de `ngo_files` continuam: `/lots` responde sem logo e a rota de logo responde 404.
+Esses fallbacks não tornam um banco antigo compatível com as novas rotas privadas.
+Se uma operação de conta encontrar ausência das colunas novas, responde `503 schema_outdated` sem repetir a
+escrita com guardas mais fracos. Isso não bloqueia globalmente cadastro, emissão de links ou consultas sem
+sessão; a migration continua sendo pré-requisito operacional.
 
 Um banco local criado com a migration 0006 de fotos do PR #29 é uma **linhagem alternativa**, não a base de
 upgrade deste PR. Não tentar converter esse banco só aplicando os scripts daqui, renomeando migrations ou

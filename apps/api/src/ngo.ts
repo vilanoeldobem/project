@@ -11,7 +11,7 @@
 import { validateApplication, type NgoApplication } from "@vila/shared/accounts/validate";
 
 import { newId } from "./crypto";
-import { filesBucket } from "./files";
+import { noFilesTable } from "./files";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { assertAccount, requireUser } from "./session";
@@ -66,12 +66,18 @@ export async function myApplication(env: Env, userId: string): Promise<NgoRow | 
 
 /** Application and file list share one SQL snapshot, so the admin cannot approve mismatched evidence. */
 export async function applicationSnapshot(env: Env, value: string, byOwner = false) {
-  const fileList = filesBucket(env) ? `COALESCE((SELECT json_group_array(json_object(
+  const fileList = `COALESCE((SELECT json_group_array(json_object(
     'id',id,'kind',kind,'contentType',content_type,'size',size,'createdAt',created_at))
-    FROM (SELECT * FROM ngo_files WHERE ngo_id = n.id ORDER BY kind = 'logo' DESC,created_at,id)), '[]')` : "'[]'";
-  const row = await env.DB!.prepare(`SELECT n.*, ${fileList} AS file_snapshot FROM ngos n
+    FROM (SELECT * FROM ngo_files WHERE ngo_id = n.id ORDER BY kind = 'logo' DESC,created_at,id)), '[]')`;
+  const query = (files: string) => env.DB!.prepare(`SELECT n.*, ${files} AS file_snapshot FROM ngos n
     WHERE ${byOwner ? "n.applicant_id" : "n.id"} = ? ORDER BY n.created_at DESC LIMIT 1`)
     .bind(value).first<NgoRow & { file_snapshot: string }>();
+  let row: Awaited<ReturnType<typeof query>>;
+  try { row = await query(env.FILES ? fileList : "'[]'"); }
+  catch (error) {
+    if (!noFilesTable(error)) throw error;
+    row = await query("'[]'");
+  }
   return { row, files: row ? JSON.parse(row.file_snapshot) as ApplicationFile[] : [] };
 }
 
@@ -167,6 +173,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
     if (active && ACTIVE.includes(active.status) && active.revision !== revision) throw new HttpError(409, "application_active");
     const dup = await db.prepare("SELECT id FROM ngos WHERE cnpj = ? AND id != ?").bind(value.cnpj, ngoId).first();
     if (dup) throw new HttpError(409, "cnpj_in_use", { cnpj: "Já existe uma candidatura com esse CNPJ." });
+    // The application moved on while this was being sent (a file was added or removed, IMPL-0017): not the lot's fault.
+    if (current && active && active.revision !== current.revision) throw new HttpError(409, "application_changed");
     throw new HttpError(409, "lot_unavailable", { lotId: "Esse terreno acabou de ser escolhido. Escolha outro." });
   }
   const { row, files } = await applicationSnapshot(env, ngoId);

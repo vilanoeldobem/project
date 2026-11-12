@@ -88,7 +88,9 @@ describe("canonical file reconciliation concurrency", () => {
     expect((await decision("start_review")).status).toBe(200); expect(revision()).toBe(1);
     paused.release(); expect((await pending).status).toBe(409);
     expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]); expect(audits("ngo.file_add")).toEqual([]);
-    // Editing during review remains the canonical PR32 contract after reloading that exact state.
+    // Latest PR32 freezes evidence during review, even after the owner reloads that state.
+    expect(await (await upload()).json()).toEqual({ error: "application_locked" });
+    expect((await decision("request_changes")).status).toBe(200);
     expect((await upload()).status).toBe(201);
   });
 

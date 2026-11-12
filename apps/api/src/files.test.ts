@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { FILE_RULES } from "@vila/shared/accounts/files";
 
-import { devVar, productionVar } from "../test/config.mjs";
+import { deployScript, devVar, productionVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { jpeg, pdf, png, pngChunk, text } from "../test/fixtures.mjs";
 import { createR2 } from "../test/r2.mjs";
 import { type Env, handleApi } from "./api";
+import { MAX_FILE_CHANGES_PER_DAY } from "./files";
+import { sha256Hex } from "./crypto";
 
 const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
@@ -91,6 +93,20 @@ const decide = (ngoId: string, action: string, admin: Signed, revision = revisio
 const rows = () => db.sql("SELECT id, ngo_id, kind, content_type, size FROM ngo_files ORDER BY created_at, id");
 const audits = (action: string) => db.sql("SELECT actor, subject, detail FROM audit_events WHERE action = ?", action);
 const bytesOf = async (res: Response) => new Uint8Array(await res.arrayBuffer());
+const errorOf = async (res: Response) => ((await res.json()) as { error: string }).error;
+
+/** Runs `competing` right before the next `db.batch` (a request that commits between another's read and its write). */
+function beforeNextBatch(competing: () => Promise<unknown>) {
+  const batch = db.batch.bind(db);
+  let fired = false;
+  db.batch = (async (list: D1PreparedStatement[]) => {
+    if (!fired) {
+      fired = true;
+      await competing();
+    }
+    return batch(list);
+  }) as typeof db.batch;
+}
 
 beforeEach(() => {
   db = createD1();
@@ -103,6 +119,11 @@ describe("feature flag", () => {
     expect(productionVar("NGO_FILES_ENABLED")).toBe("false");
     expect(devVar("NGO_FILES_ENABLED")).toBe("true");
     expect(productionVar("bucket_name")).toBe("vilanoeldobem-files");
+  });
+
+  it("deploys without automatic provisioning: a missing bucket must stop the deploy, not be created by it", () => {
+    // wrangler creates a bucket named in the config when it does not exist, unless told not to.
+    expect(deployScript()).toMatch(/wrangler deploy --x-provision=false$/);
   });
 
   it("says in /config whether uploads work: accounts, the flag and the bucket are all needed", async () => {
@@ -125,7 +146,8 @@ describe("feature flag", () => {
       expect((await upload(a, "logo", png(), "image/png")).body.error).toBe("files_disabled");
       expect((await call("GET", `/ngo/application/files/${id}`, undefined, a.cookie)).body.error).toBe("files_disabled");
       expect(((await (await remove(a, id)).json()) as any).error).toBe("files_disabled");
-      expect((await call("GET", `/admin/applications/${a.ngoId}/files/${id}`, undefined, a.cookie)).body.error).toBe("files_disabled");
+      // The admin route needs only the bucket (an admin always sees what exists): without it, disabled.
+      expect((await call("GET", `/admin/applications/${a.ngoId}/files/${id}`, undefined, a.cookie)).body.error).toBe(off.FILES === undefined && "FILES" in off ? "files_disabled" : "admin_only");
       expect((await call("GET", `/ngos/${a.ngoId}/logo`)).body.error).toBe("files_disabled");
       expect((await call("GET", "/ngo/application", undefined, a.cookie)).body.files).toEqual([]);
       env = { ...env, FILES: r2, NGO_FILES_ENABLED: "true" };
@@ -133,12 +155,51 @@ describe("feature flag", () => {
     expect(r2.keys()).toEqual([]);
   });
 
-  it("keeps /lots working with the flag off even where migration 0006 was not applied", async () => {
-    db.sql("DROP TABLE ngo_files");
-    env.NGO_FILES_ENABLED = "false";
-    const r = await call("GET", "/lots");
-    expect(r.status).toBe(200);
-    expect(r.body.lots[0]).toMatchObject({ id: "plaza-01", ngo_logo: null });
+  it("keeps the public routes working on a database behind the code (production is at migration 0003)", async () => {
+    // Every flag combination, on the schema production has today and on the one before 0006.
+    for (const upTo of [3, 5])
+      for (const flags of [{}, { NGO_FILES_ENABLED: "false" }, { ACCOUNTS_ENABLED: "false" }, { ACCOUNTS_ENABLED: "false", NGO_FILES_ENABLED: "false" }]) {
+        db = createD1({ upTo });
+        env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "true", ...flags };
+        const lots = await call("GET", "/lots");
+        expect([upTo, flags, lots.status]).toEqual([upTo, flags, 200]);
+        expect(lots.body.lots[0]).toMatchObject({ id: "plaza-01", ngo_logo: null });
+        expect((await call("GET", "/ngos/00000000-0000-4000-8000-000000000000/logo")).status).toBe(404);
+        expect((await call("GET", "/health")).status).toBe(200);
+      }
+  });
+
+  it("fails closed for an existing account without reconciliation columns, preserving its data", async () => {
+    db = createD1({ upTo: 5 });
+    env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
+    db.sql("INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES('legacy','Legacy','legacy','legacy','Recife','legacy@example.test','admin','2026-01-01')");
+    db.sql("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,'legacy','2099-01-01')", await sha256Hex("legacy"));
+    const cookie = "__Host-vila_session=legacy";
+    for (const [method, path, body] of [
+      ["GET", "/me"], ["GET", "/ngo/application"], ["GET", "/admin/applications"],
+      ["POST", "/ngo/application", { accountId: "legacy", ...APP }], ["DELETE", "/me"],
+    ] as const) {
+      const result = await call(method, path, body, cookie);
+      expect([method, path, result.status, result.body]).toEqual([method, path, 503, { error: "schema_outdated" }]);
+      expect(result.headers.get("Cache-Control")).toBe("no-store");
+    }
+    expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
+    expect(db.sql("SELECT COUNT(*) AS n FROM sessions")[0].n).toBe(1);
+    expect(db.sql("SELECT COUNT(*) AS n FROM ngos")[0].n).toBe(0);
+    expect(db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n).toBe(0);
+    expect(r2.keys()).toEqual([]);
+  });
+
+  it("keeps missing-0006 account reads and deletion working once reconciliation columns exist", async () => {
+    // Exercise the upstream missing-files fallback with our required columns, without creating ngo_files.
+    db = createD1({ upTo: 5, additionalMigrations: [10] });
+    env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
+    const a = await applicant();
+    expect((await call("GET", "/ngo/application", undefined, a.cookie)).body).toMatchObject({ application: { status: "submitted" }, files: [] });
+    const admin = await asAdmin();
+    expect((await call("GET", `/admin/applications/${a.ngoId}`, undefined, admin.cookie)).body.files).toEqual([]);
+    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
   });
 
   it("lets the browser send account and gallery caption headers (CORS preflight)", async () => {
@@ -305,11 +366,15 @@ describe("review and publication", () => {
     expect((await decide(a.ngoId, "approve", admin)).status).toBe(200);
   });
 
-  it("lets the applicant change files during review and after a request for changes, never once published", async () => {
+  it("takes file changes before and after the review, locks them during it and freezes them once published", async () => {
     const a = await applicant();
     const admin = await asAdmin();
-    await decide(a.ngoId, "start_review", admin);
     const doc = (await upload(a, "document", pdf(), "application/pdf")).body.file;
+    await decide(a.ngoId, "start_review", admin);
+    // Under review: what the admin is looking at cannot change.
+    const during = await upload(a, "logo", png(), "image/png");
+    expect([during.status, during.body.error]).toEqual([409, "application_locked"]);
+    expect(await errorOf(await remove(a, doc.id))).toBe("application_locked");
     await decide(a.ngoId, "request_changes", admin);
     const logo = (await upload(a, "logo", png(), "image/png")).body.file;
     await call("POST", "/ngo/application", { accountId: a.user.id, ...APP }, a.cookie);
@@ -320,10 +385,67 @@ describe("review and publication", () => {
     expect((await upload(a, "document", pdf(), "application/pdf")).body.error).toBe("application_locked");
     for (const id of [doc.id, logo.id]) {
       const r = await remove(a, id);
-      expect([r.status, ((await r.json()) as any).error]).toEqual([409, "application_locked"]);
+      expect([r.status, await errorOf(r)]).toEqual([409, "application_locked"]);
     }
     expect(rows()).toHaveLength(2);
     expect(r2.keys()).toHaveLength(2);
+    // After a rejection the applicant may prepare a new version, files included.
+    const b = await applicant("bia", "bia@example.com", { ...APP, cnpj: "11444777000161", lotId: "plaza-06" });
+    await decide(b.ngoId, "reject", admin);
+    expect((await upload(b, "document", pdf(), "application/pdf")).status).toBe(201);
+  });
+
+  it("does not let an applicant keep the review away by changing files", async () => {
+    const a = await applicant();
+    const admin = await asAdmin();
+    const seen = revisionOf(a.ngoId);
+    // The applicant changes files after every look the admin takes: a decision about the content stays stale…
+    const doc = (await upload(a, "document", pdf(), "application/pdf")).body.file;
+    expect((await decide(a.ngoId, "reject", admin, seen)).body.error).toBe("stale_revision");
+    await remove(a, doc.id);
+    expect((await decide(a.ngoId, "approve", admin, seen)).body.error).toBe("stale_revision");
+    // …but starting the review needs no revision: it works on whatever is current, and locks the files.
+    const started = await decide(a.ngoId, "start_review", admin, seen);
+    expect([started.status, started.body.application.status]).toEqual([200, "under_review"]);
+    expect((await upload(a, "document", pdf(), "application/pdf")).body.error).toBe("application_locked");
+    expect((await decide(a.ngoId, "reject", admin)).body.application.status).toBe("rejected");
+    // The audit row of the start names the revision it really applied to.
+    expect(JSON.parse(String(audits("ngo.start_review")[0].detail)).revision).toBe(revisionOf(a.ngoId));
+  });
+
+  it("shows an admin the files that exist even with the feature switched off, so nothing unseen is published", async () => {
+    const a = await applicant();
+    const admin = await asAdmin();
+    const logo = (await upload(a, "logo", png(), "image/png")).body.file;
+    env.NGO_FILES_ENABLED = "false";
+    expect((await call("GET", "/config")).body.files).toBe(false);
+    const detail = (await call("GET", `/admin/applications/${a.ngoId}`, undefined, admin.cookie)).body;
+    expect(detail.files.map((f: { id: string }) => f.id)).toEqual([logo.id]);
+    const read = await send("GET", `/admin/applications/${a.ngoId}/files/${logo.id}`, { cookie: admin.cookie });
+    expect([read.status, await bytesOf(read)]).toEqual([200, png()]);
+    // Nothing is public while it is off, and the applicant cannot change anything.
+    await decide(a.ngoId, "approve", admin);
+    expect((await call("GET", `/ngos/${a.ngoId}/logo`)).body.error).toBe("files_disabled");
+    expect((await upload(a, "logo", png(), "image/png")).body.error).toBe("files_disabled");
+  });
+
+  it("limits file changes per application per day and removals per account per minute", async () => {
+    const a = await applicant();
+    const doc = (await upload(a, "document", pdf(), "application/pdf")).body.file;
+    env.FILE_LIMITER = { limit: async () => ({ success: false }) };
+    const limited = await remove(a, doc.id);
+    expect([limited.status, await errorOf(limited)]).toEqual([429, "too_many_requests"]);
+    env.FILE_LIMITER = undefined;
+    for (let i = 1; i < MAX_FILE_CHANGES_PER_DAY; i++) db.sql("INSERT INTO audit_events (id, actor, action, subject, detail) VALUES (?, ?, 'ngo.file_add', ?, '{}')", `budget-${i}`, a.user.id, `ngo:${a.ngoId}`);
+    const up = await upload(a, "document", pdf(), "application/pdf");
+    expect([up.status, up.body.error]).toEqual([429, "too_many_file_changes"]);
+    expect(up.body.fields.file).toMatch(/amanhã/);
+    const del = await remove(a, doc.id);
+    expect([del.status, await errorOf(del)]).toEqual([429, "too_many_file_changes"]);
+    expect(r2.keys()).toHaveLength(1);
+    // Old changes do not count.
+    db.sql("UPDATE audit_events SET at = '2020-01-01T00:00:00.000Z' WHERE id LIKE 'budget-%'");
+    expect((await remove(a, doc.id)).status).toBe(200);
   });
 
   it("publishes only the logo, only after approval", async () => {
@@ -433,6 +555,39 @@ describe("reading and removing", () => {
     expect((await remove(a, keep.id)).status).toBe(200);
     expect(rows()).toEqual([]);
   });
+
+  it("writes one removal to the audit trail when two removals of the same file race", async () => {
+    const a = await applicant();
+    const doc = (await upload(a, "document", pdf(), "application/pdf")).body.file;
+    beforeNextBatch(() => remove(a, doc.id));
+    const loser = await remove(a, doc.id);
+    expect([loser.status, await errorOf(loser)]).toEqual([409, "application_changed"]);
+    expect(audits("ngo.file_remove")).toHaveLength(1);
+    expect(rows()).toEqual([]);
+    expect(revisionOf(a.ngoId)).toBe(3);
+  });
+
+  it("records no removal when it loses to an upload: the file is still there", async () => {
+    const a = await applicant();
+    const doc = (await upload(a, "document", pdf("x"), "application/pdf")).body.file;
+    beforeNextBatch(() => upload(a, "document", pdf("y"), "application/pdf"));
+    const loser = await remove(a, doc.id);
+    expect([loser.status, await errorOf(loser)]).toEqual([409, "application_changed"]);
+    expect(audits("ngo.file_remove")).toEqual([]);
+    expect(rows().map((r) => r.id)).toContain(doc.id);
+    expect(rows()).toHaveLength(2);
+    expect(r2.keys()).toHaveLength(2);
+  });
+
+  it("answers application_changed, not 'lot taken', when a resubmission loses to a file change", async () => {
+    const a = await applicant();
+    const admin = await asAdmin();
+    await decide(a.ngoId, "request_changes", admin);
+    beforeNextBatch(() => upload(a, "document", pdf(), "application/pdf"));
+    const r = await call("POST", "/ngo/application", { accountId: a.user.id, ...APP }, a.cookie);
+    expect([r.status, r.body.error]).toEqual([409, "application_changed"]);
+    expect(db.sql("SELECT status FROM ngos WHERE id = ?", a.ngoId)[0].status).toBe("changes_requested");
+  });
 });
 
 describe("account deletion (LGPD)", () => {
@@ -470,6 +625,50 @@ describe("account deletion (LGPD)", () => {
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
     expect(rows()).toHaveLength(1);
     expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect(rows()).toEqual([]);
+    expect(r2.keys()).toEqual([]);
+  });
+
+  it("blocks a late document while the account is being deleted (no files before)", async () => {
+    const a = await applicant();
+    // The persisted intent prevents an upload after cleanup looked for files and before account removal.
+    beforeNextBatch(async () => {
+      const late = await upload(a, "document", pdf(), "application/pdf");
+      expect([late.status, late.body.error]).toEqual([409, "account_deleting"]);
+    });
+    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect(rows()).toEqual([]);
+    expect(r2.keys()).toEqual([]);
+    expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
+  });
+
+  it("blocks a late document while the account's other files are leaving R2", async () => {
+    const a = await applicant();
+    await upload(a, "document", pdf("first"), "application/pdf");
+    const remove = r2.delete.bind(r2);
+    let fired = false;
+    r2.delete = async (keys: string | string[]) => {
+      if (!fired) {
+        fired = true;
+        const late = await upload(a, "document", pdf("second"), "application/pdf");
+        expect([late.status, late.body.error]).toEqual([409, "account_deleting"]);
+      }
+      return remove(keys);
+    };
+    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect(rows()).toEqual([]);
+    expect(r2.keys()).toEqual([]);
+  });
+
+  it("refuses an upload that lands after the account is gone, and leaves no object", async () => {
+    const a = await applicant();
+    const put = r2.put.bind(r2);
+    r2.put = async (...args: Parameters<typeof put>) => {
+      // The account is deleted while the bytes are being stored.
+      db.sql("DELETE FROM users WHERE id = ?", a.user.id);
+      return put(...args);
+    };
+    expect((await upload(a, "document", pdf(), "application/pdf")).status).toBeGreaterThanOrEqual(400);
     expect(rows()).toEqual([]);
     expect(r2.keys()).toEqual([]);
   });

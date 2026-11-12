@@ -506,13 +506,31 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.
 
 
-## Conciliação de arquivos de ONG — 2026-11-12 (IMPL-0021, PR para Augusto)
+## NGO files reconciliation — 2026-11-12 (IMPL-0021, PR for Augusto)
 
-- [x] Reutilizar pipeline/UI do #32 e preservar migration 0006; não portar pipeline privado duplicado do #31.
-- [x] Adaptar perfil/galeria do #28/#29 ao mesmo FILES, sanitizador compartilhado e upload cru.
-- [x] CAS por estado/revisão, auditoria por token, snapshot candidatura+arquivos e exclusão retomável de conta.
-- [x] Migration 0010, ambiente local isolado, testes de concorrência/galeria e contrato API/storage documentados.
-- [ ] Executar gates locais e smoke integrado; evidência pelo coordenador antes do PR.
-- [ ] Revisão do Augusto e decisão operacional sobre galeria/retenção (OQ-15).
-- [ ] Conciliar retirada do #33 numa próxima entrega; compatibilidade ainda não declarada.
-- [ ] Provisionamento/ativação remota somente em entrega autorizada após revisão.
+- [x] Reuse PR #32 pipeline/UI at `49db536` (0.4.0), preserve migration 0006; do not port the duplicate PR #31 pipeline.
+- [x] Adapt PR #28/#29 profile/gallery to the same FILES bucket, shared sanitizer and raw uploads.
+- [x] Preserve current upstream locks during under_review, server-read revision for start_review, admin reads with uploads disabled, file-change limits and missing-0006 public fallbacks.
+- [x] Exact state/revision CAS, operation-token audit, application+files snapshot and resumable account deletion with final revision bump.
+- [x] Migration 0010, isolated local environment, concurrency/gallery tests and API/storage contract documented.
+- [x] Rerun local gates and integrated smoke on the updated PR #32 base; evidence below.
+- [ ] Augusto review and operational decision on gallery/retention (OQ-15).
+- [ ] Port PR #33 withdrawal in a separate delivery; compatibility is not claimed yet.
+- [ ] Remote provisioning/activation only in an authorised delivery after review.
+
+### Final validation — updated PR #32 base
+
+Base: `49db536a50c96f66e49c982d920b9624bc014306`; Node 24.22.2 / pnpm 10.32.1 on Linux.
+Serial commands with low priority, two CPU threads and at most two Vitest workers:
+
+- `pnpm --workspace-concurrency=1 -r run typecheck`: all 6 packages passed.
+- `pnpm --workspace-concurrency=1 -r run test --maxWorkers=2`: 569 passed (shared 146, API 159, client 179, dash 53, server 23, site 9).
+- `pnpm --workspace-concurrency=1 -r run build`: passed; Worker builds use dry-run, no deploy.
+- Local migrations 0001–0006 and 0010; `verify-files-reconciliation.mjs`: passed against isolated workerd/D1/R2.
+- `sh scripts/smoke-api.sh http://localhost:8792 http://localhost:8788 http://localhost:8799`: 14 checks passed.
+- `verify-accounts.mjs` with the isolated API, Linux Chromium and GTM stub: passed; actual PNG/JPEG, private document upload/download/removal, changes requested/resubmission, admin approval/audit and public logo.
+- First browser attempt timed out with two active software-rendered scenes; parking the unused page (same context/cookies) allowed the complete rerun to pass. Product UI unchanged.
+- `git diff --check`: passed. AIOX QA source gate approved with no open P1/P2.
+
+Reproduction and limits: [reconciliation plan](../docs/implementation/ngo-files-reconciliation-plan.md).
+Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote infrastructure. Gallery UI remains a separate increment.

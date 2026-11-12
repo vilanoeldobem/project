@@ -14,7 +14,9 @@
  * account the page believes is signed in), as JSON writes send `accountId`.
  *
  * A change of files bumps the application's `revision`: an admin decision made on the previous revision is
- * refused (409 stale_revision), so nothing unseen gets published. Files are frozen once the NGO is published.
+ * refused (409 stale_revision), so nothing unseen gets published. Files are locked while an admin reviews
+ * (`under_review`) and frozen once the NGO is published. Admins read whatever files exist whenever the bucket is
+ * bound, even with the feature switched off: what could be published must always be visible to who decides.
  *
  * D1 and R2 do not share a transaction. Adding: the object is written first and removed again if the row is
  * refused. Removing: the row goes first, then the object. A crash in between leaves an unreachable object (never
@@ -39,7 +41,7 @@ interface FileRow {
 
 const COLUMNS = "id, ngo_id, kind, content_type, size, created_at";
 
-/** The bucket, when the feature is on. Uploads, downloads and the public logo all depend on both. */
+/** The bucket, when the feature is on. Uploads, the applicant's own reads and the public logo depend on both. */
 export const filesBucket = (env: Env): R2Bucket | null => (env.NGO_FILES_ENABLED === "true" && env.FILES ? env.FILES : null);
 
 function requireBucket(env: Env): R2Bucket {
@@ -48,15 +50,48 @@ function requireBucket(env: Env): R2Bucket {
   return bucket;
 }
 
+/**
+ * True for the error D1 raises when `ngo_files` does not exist (migration 0006 not applied yet). Reads treat
+ * that as "no files" instead of failing: a database behind the code must not break public routes or sign-out.
+ */
+export const noFilesTable = (e: unknown): boolean => /no such table: ngo_files/i.test(e instanceof Error ? e.message : String(e));
+
+/** File changes one application may make per day (uploads and removals): bounds audit rows and R2 writes. */
+export const MAX_FILE_CHANGES_PER_DAY = 60;
+
 export const objectKey = (ngoId: string, fileId: string) => `ngo/${ngoId}/${fileId}`;
 
 const fileView = (r: FileRow): ApplicationFile => ({ id: r.id, kind: r.kind, contentType: r.content_type, size: r.size, createdAt: r.created_at });
 
-/** Files of an application, logo first, documents in the order they were sent. Empty while the feature is off. */
+/**
+ * Files of an application, logo first, documents in the order they were sent. Listed whenever the bucket is
+ * bound (flag on or off), so an admin always sees what an approval would publish; empty without the bucket or
+ * without the table.
+ */
 export async function listFiles(env: Env, ngoId: string): Promise<ApplicationFile[]> {
-  if (!filesBucket(env)) return [];
-  const { results } = await env.DB!.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE ngo_id = ? ORDER BY kind = 'logo' DESC, created_at, id`).bind(ngoId).all<FileRow>();
-  return results.map(fileView);
+  if (!env.FILES) return [];
+  try {
+    const { results } = await env.DB!.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE ngo_id = ? ORDER BY kind = 'logo' DESC, created_at, id`).bind(ngoId).all<FileRow>();
+    return results.map(fileView);
+  } catch (e) {
+    if (noFilesTable(e)) return [];
+    throw e;
+  }
+}
+
+/** Refuses a file change once the application made too many in the last 24 hours (the audit rows are the count). */
+async function assertChangeBudget(env: Env, ngoId: string): Promise<void> {
+  const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  const used = await env.DB!.prepare("SELECT COUNT(*) AS n FROM audit_events WHERE subject = ? AND action IN ('ngo.file_add', 'ngo.file_remove') AND at > ?")
+    .bind(`ngo:${ngoId}`, since)
+    .first<{ n: number }>();
+  if ((used?.n ?? 0) >= MAX_FILE_CHANGES_PER_DAY)
+    throw new HttpError(429, "too_many_file_changes", { file: "Muitas alterações de arquivos hoje nesta candidatura. Tente de novo amanhã." });
+}
+
+/** Uploads and removals share one limiter, keyed by account. */
+async function assertRate(env: Env, user: User): Promise<void> {
+  if (env.FILE_LIMITER && !(await env.FILE_LIMITER.limit({ key: user.id })).success) throw new HttpError(429, "too_many_requests");
 }
 
 /** Same guard as `assertAccount`, for writes whose body is the file itself. */
@@ -82,7 +117,7 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
   if (!user.verified_at) throw new HttpError(403, "not_verified");
   assertAccountHeader(request, user);
   if (user.files_deleting) throw new HttpError(409, "account_deleting");
-  if (env.FILE_LIMITER && !(await env.FILE_LIMITER.limit({ key: user.id })).success) throw new HttpError(429, "too_many_requests");
+  await assertRate(env, user);
 
   const kind = url.searchParams.get("kind");
   if (!isFileKind(kind)) throw new HttpError(400, "bad_kind");
@@ -96,6 +131,7 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
   const app = await myApplication(env, user.id);
   if (!app) throw new HttpError(409, "no_application");
   if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
+  await assertChangeBudget(env, app.id);
   if (kind !== "logo") {
     const held = await db.prepare("SELECT COUNT(*) AS n FROM ngo_files WHERE ngo_id = ? AND kind = ?").bind(app.id, kind).first<{ n: number }>();
     if ((held?.n ?? 0) >= rule.maxCount) throw new HttpError(409, "too_many_files", { file: `Uma candidatura pode ter até ${rule.maxCount} documentos. Remova um para enviar outro.` });
@@ -153,11 +189,13 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
   const user = await requireUser(request, env);
   assertAccountHeader(request, user);
   if (user.files_deleting) throw new HttpError(409, "account_deleting");
+  await assertRate(env, user);
   const db = env.DB!;
   const app = await myApplication(env, user.id);
   const row = app ? await db.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE id = ? AND ngo_id = ?`).bind(fileId, app.id).first<FileRow>() : null;
   if (!app || !row) throw new HttpError(404, "not_found");
   if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
+  await assertChangeBudget(env, app.id);
 
   const now = new Date().toISOString(), token = newId();
   const [removed] = await db.batch([
@@ -214,7 +252,9 @@ export async function downloadOwnFile(request: Request, env: Env, fileId: string
 
 /** An admin reads a file of an application under review. Opening a document leaves an audit row (who, which file). */
 export async function downloadFileAdmin(request: Request, env: Env, ngoId: string, fileId: string): Promise<Response> {
-  const bucket = requireBucket(env);
+  // Bucket bound is enough (flag on or off): see `listFiles`.
+  if (!env.FILES) throw new HttpError(404, "files_disabled");
+  const bucket = env.FILES;
   const admin = await requireAdmin(request, env);
   const db = env.DB!;
   const row = await db.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE id = ? AND ngo_id = ?`).bind(fileId, ngoId).first<FileRow>();
@@ -239,7 +279,11 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
         AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')`
   )
     .bind(ngoId)
-    .first<FileRow>();
+    .first<FileRow>()
+    .catch((e) => {
+      if (noFilesTable(e)) return null;
+      throw e;
+    });
   if (!row) throw new HttpError(404, "not_found");
   const etag = `"${row.id}"`;
   // Other sites may show the logo (the game is another origin); it is public by definition.
@@ -261,13 +305,20 @@ export async function removeFilesOfAccount(env: Env, userId: string): Promise<D1
   // DELETE /me has already frozen owner mutations and administrative decisions with files_deleting.
   const DOOMED = "FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id WHERE n.applicant_id = ? AND (f.kind = 'document' OR n.status != 'published')";
   const PHOTOS = "FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE n.applicant_id = ? AND (n.status != 'published' OR p.status != 'approved')";
-  const { results } = await db.prepare(`SELECT f.id, f.ngo_id ${DOOMED}`).bind(userId).all<{ id: string; ngo_id: string }>();
+  let results: Array<{ id: string; ngo_id: string }> = [];
+  let hasFilesTable = true;
+  try {
+    results = (await db.prepare(`SELECT f.id, f.ngo_id ${DOOMED}`).bind(userId).all<{ id: string; ngo_id: string }>()).results;
+  } catch (error) {
+    if (!noFilesTable(error)) throw error;
+    hasFilesTable = false;
+  }
   const { results: photos } = await db.prepare(`SELECT p.id, p.object_key ${PHOTOS}`).bind(userId).all<{ id: string; object_key: string }>();
   if (!results.length && !photos.length) return [];
   if (!env.FILES) throw new HttpError(503, "files_unavailable");
   await env.FILES.delete([...results.map((r) => objectKey(r.ngo_id, r.id)), ...photos.map((p) => p.object_key)]);
   return [
-    db.prepare(`DELETE FROM ngo_files WHERE id IN (SELECT f.id ${DOOMED})`).bind(userId),
+    ...(hasFilesTable ? [db.prepare(`DELETE FROM ngo_files WHERE id IN (SELECT f.id ${DOOMED})`).bind(userId)] : []),
     db.prepare(`DELETE FROM ngo_photos WHERE id IN (SELECT p.id ${PHOTOS})`).bind(userId),
   ];
 }

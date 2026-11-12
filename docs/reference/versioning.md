@@ -1,7 +1,7 @@
 # Versionamento
 
-> **Status:** Implementado (0.2.0) · **Versão do software:** 0.2.0 · **Schema D1:** v3 ·
-> **Atualizado em:** 2026-11-10
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json`, `apps/*/package.json`, `packages/shared/package.json`,
 > `apps/api/src/api.ts` (`VERSION`), `CHANGELOG.md`
 
@@ -9,7 +9,7 @@
 
 | Item | Onde | Regra |
 |---|---|---|
-| Versão do software | `package.json` (raiz, `apps/client`, `apps/api`, `apps/server`, `apps/site`, `packages/shared`), `VERSION` em `apps/api/src/api.ts` | SemVer; todos iguais |
+| Versão do software | `package.json` (raiz, `apps/client`, `apps/api`, `apps/server`, `apps/site`, `apps/dash`, `packages/shared`), `VERSION` em `apps/api/src/api.ts` | SemVer; todos iguais |
 | Schema D1 | número da última migration | sobe a cada migration |
 | API HTTP | rotas de `api.*` (`/health`, `/indicators`, `/lots`, `/environment`) | aditivo não quebra; remoção/renomeação = breaking (a retirada do prefixo `/api` na IMPL-0009 foi breaking) |
 | Protocolo de presença | `server.*/room`, `packages/shared/src/net/protocol.ts` | mudança de mensagem = breaking (cliente e servidor juntos) |

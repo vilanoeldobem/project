@@ -23,7 +23,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
-import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, publicLogo, uploadFile } from "./files";
+import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
@@ -66,7 +66,7 @@ export interface Env {
   FILE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 export interface LotRow {
   id: string;
@@ -107,21 +107,27 @@ async function indicators(env: Env): Promise<Indicator[]> {
 
 async function lots(env: Env): Promise<LotRow[] | null> {
   if (!env.DB) return null;
-  // `ngo_files` is read only with the feature on: until then the table may not exist yet (migration 0006).
-  const logo = filesBucket(env)
-    ? `CASE WHEN n.status = 'published' AND l.state = 'published' THEN
-         (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`
-    : "NULL";
-  const { results } = await env.DB.prepare(
-    `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
-            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
-            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
-            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary,
-            ${logo} AS ngo_logo
-       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
-      ORDER BY l.street, l.slot`
-  ).all<LotRow>();
-  return results;
+  const LOGO = `CASE WHEN n.status = 'published' AND l.state = 'published' THEN
+       (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`;
+  const query = (logo: string) =>
+    env.DB!.prepare(
+      `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary,
+              ${logo} AS ngo_logo
+         FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
+        ORDER BY l.street, l.slot`
+    ).all<LotRow>();
+  // `ngo_files` is read only with the feature on, and a database that does not have the table yet (migration
+  // 0006 not applied) still answers, without logos: this public route must never depend on a later migration.
+  if (!filesBucket(env)) return (await query("NULL")).results;
+  try {
+    return (await query(LOGO)).results;
+  } catch (e) {
+    if (!noFilesTable(e)) throw e;
+    return (await query("NULL")).results;
+  }
 }
 
 const accountOrigins = (env: Env) => allowedOrigins(env.ACCOUNT_ORIGINS ?? env.ALLOWED_ORIGINS);
@@ -160,9 +166,10 @@ async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
   const method = request.method;
+  const accountRequest = ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
   if (method === "OPTIONS") return new Response(null, { status: 204 });
   try {
-    if (ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return noStore(await accountRoute(request, env, url));
+    if (accountRequest) return noStore(await accountRoute(request, env, url));
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }
@@ -194,6 +201,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
   } catch (err) {
     if (err instanceof HttpError) return errorResponse(err);
+    // Recognize only the new migration columns; never retry protected writes with weaker guards.
+    if (accountRequest && err instanceof Error && /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token)\b/i.test(err.message))
+      return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.
     console.error("api_error", pathname, err instanceof Error ? err.name : "unknown");
     return json({ error: "internal" }, { status: 500, headers: NO_STORE });

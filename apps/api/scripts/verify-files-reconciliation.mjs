@@ -61,15 +61,17 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   assert.equal(preview.status, 200);
   assert.ok(!Buffer.from(await preview.arrayBuffer()).includes(Buffer.from(privateMarker)));
   await read(await req(`/admin/ngo-photos/${photo.id}/decision`, 1, { accountId: users[1], action: "approve", revision: photo.revision }));
-  await read(await decision("start_review", (await app()).revision));
-  // PR32's workflow still allows file changes during review, invalidating the previous review revision.
-  const reviewRevision = (await app()).revision;
+  const beforeExtraRevision = (await app()).revision;
   const { file: extraDocument } = await file("document");
-  assert.equal((await decision("approve", reviewRevision)).status, 409);
+  assert.equal((await decision("approve", beforeExtraRevision)).status, 409);
   const remove = () => req(`/ngo/application/files/${extraDocument.id}`, 0, undefined, "DELETE", { "X-Vila-Account": users[0] });
   const removed = await Promise.all([remove(), remove()]);
   assert.equal(removed.filter((r) => r.status === 200).length, 1);
   assert.ok(removed.every((r) => [200, 404, 409].includes(r.status)));
+  // Latest PR32: starting review takes the current revision and locks further file changes.
+  await read(await decision("start_review", initialRevision));
+  assert.equal((await req("/ngo/application/files?kind=document", 0, picture, "POST", { "X-Vila-Account": users[0] })).status, 409);
+  assert.equal((await req(`/ngo/application/files/${doc.id}`, 0, undefined, "DELETE", { "X-Vila-Account": users[0] })).status, 409);
   await read(await decision("approve", (await app()).revision));
   const published = await read(await req(`/ngos/${ngo}`));
   assert.equal(published.ngo.description, "Synthetic public description");

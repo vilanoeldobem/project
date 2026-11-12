@@ -22,7 +22,9 @@
     { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }
   ],
   // Files of NGO applications (IMPL-0017): private bucket, no public bucket URL and no custom domain; every
-  // byte is served by this Worker. The bucket must exist before the first deploy (docs/guides/deploy.md §9).
+  // byte is served by this Worker. The bucket must be created by hand, with approval, before a deploy
+  // (docs/guides/deploy.md §9). Deploy only with `pnpm deploy:api`: it passes `--x-provision=false`. A bare
+  // `wrangler deploy` would CREATE a missing bucket by itself (automatic provisioning is on by default).
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "vilanoeldobem-files" }],
   "vars": {
     "ENVIRONMENT": "production",
@@ -78,7 +80,7 @@
         "ACCOUNTS_ENABLED": "false",
         "QUESTS_V1_ENABLED": "false",
         "NGO_FILES_ENABLED": "false",
-    "NGO_PHOTOS_ENABLED": "false",
+        "NGO_PHOTOS_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

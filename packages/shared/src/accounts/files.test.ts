@@ -156,6 +156,79 @@ describe("image cleaning", () => {
       expect(contains(cleanImage(jpeg(120, 90, [dirty]), "image/jpeg")!.bytes, "Exif")).toBe(false);
   });
 
+  it("takes the size from the one frame header before the pixel data, and refuses a second one", () => {
+    const frame = (width: number, height: number) => segment(0xc0, join(Uint8Array.of(8), be16(height), be16(width), Uint8Array.of(1, 1, 0x11, 0)));
+    const good = jpeg(128, 128);
+    // A fake small header after the scan (decoders never read it): the picture would decode at its real size.
+    const afterScan = join(good.subarray(0, good.length - 2), frame(64, 64), Uint8Array.of(0xff, 0xd9));
+    expect(cleanImage(afterScan, "image/jpeg")).toBeNull();
+    // Two headers before the scan.
+    expect(cleanImage(jpeg(128, 128, [frame(30000, 30000)]), "image/jpeg")).toBeNull();
+    // A scan with no frame before it.
+    expect(cleanImage(join(Uint8Array.of(0xff, 0xd8), segment(0xda, Uint8Array.of(1, 1, 0, 0, 63, 0)), Uint8Array.of(0x12, 0xff, 0xd9)), "image/jpeg")).toBeNull();
+    expect(checkFile("logo", "image/jpeg", afterScan)).toEqual({ ok: false, error: "file_invalid" });
+  });
+
+  it("drops thumbnails, look-alike headers, reserved segments and stray markers from a JPEG", () => {
+    const dirty = jpeg(120, 90, [
+      segment(0xe0, join(ascii("JFXX\0"), ascii("THUMBNAIL-SECRET"))),
+      segment(0xe0, join(ascii("JFIF\0"), Uint8Array.of(1, 1, 0, 0, 1, 0, 1, 4, 4), ascii("JFIF-THUMB-SECRET"))),
+      segment(0xee, ascii("NotAdobe-SECRET")),
+      segment(0xee, ascii("Adobe-BUT-TOO-LONG-SECRET")),
+      segment(0xf0, ascii("JPG0-SECRET")),
+      segment(0xc8, ascii("JPG-EXT-SECRET")),
+      segment(0xdf, ascii("EXP-SECRET")),
+      Uint8Array.of(0xff, 0xd0, 0xff, 0x01),
+    ]);
+    const clean = cleanImage(dirty, "image/jpeg")!;
+    expect(contains(clean.bytes, "SECRET")).toBe(false);
+    // What is left is exactly the plain file.
+    expect(clean.bytes).toEqual(jpeg(120, 90));
+  });
+
+  it("reads the rotation only from the first EXIF segment", () => {
+    const exif = (orientation: number) => segment(0xe1, join(ascii("Exif\0\0MM"), be16(42), be32(8), be16(1), be16(0x0112), be16(3), be32(1), be16(orientation), be16(0), be32(0)));
+    const first = (bytes: Uint8Array) => bytes[latin1(bytes).indexOf("Exif") + 25];
+    expect(first(cleanImage(jpeg(120, 90, [exif(6), exif(3)]), "image/jpeg")!.bytes)).toBe(6);
+    // Upright first, rotated second: browsers show it upright, so no rotation is written.
+    expect(contains(cleanImage(jpeg(120, 90, [exif(1), exif(6)]), "image/jpeg")!.bytes, "Exif")).toBe(false);
+  });
+
+  it("refuses a file made of hundreds of thousands of pieces instead of paying for each one", () => {
+    // 600k empty table segments in a row are one kept range (adjacent): no cost, still a valid structure.
+    const tables = new Uint8Array(600_000 * 4);
+    for (let i = 0; i < tables.length; i += 4) tables.set([0xff, 0xdb, 0x00, 0x02], i);
+    const merged = cleanImage(jpeg(64, 64, [tables]), "image/jpeg")!;
+    expect(merged.bytes.length).toBe(jpeg(64, 64).length + tables.length);
+    // Kept and dropped pieces alternating would need an object per piece: refused.
+    const mixed = new Uint8Array(300_000 * 8);
+    for (let i = 0; i < mixed.length; i += 8) mixed.set([0xff, 0xdb, 0x00, 0x02, 0xff, 0xfe, 0x00, 0x02], i);
+    const started = Date.now();
+    expect(cleanImage(jpeg(64, 64, [mixed]), "image/jpeg")).toBeNull();
+    const chunks = Array.from({ length: 12_000 }, () => [chunk("IDAT"), chunk("tEXt", ascii("a\0b"))]).flat();
+    expect(cleanImage(png(64, 64, chunks), "image/png")).toBeNull();
+    // Only restart markers after the start: nothing to keep, no frame, refused without building anything.
+    const restarts = new Uint8Array(5 * 1024 * 1024);
+    for (let i = 0; i < restarts.length; i += 2) restarts.set([0xff, i ? 0xd0 : 0xd8], i);
+    expect(cleanImage(restarts, "image/jpeg")).toBeNull();
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("keeps a display chunk of a PNG only once, small, and before the pixel data", () => {
+    const ihdr = chunk("IHDR", join(be32(64), be32(64), Uint8Array.of(8, 0, 0, 0, 0)));
+    const idat = sliceChunk(png(64, 64), "IDAT");
+    const build = (...chunks: Uint8Array[]) => join(PNG_SIGNATURE, ihdr, ...chunks, chunk("IEND"));
+    const hidden = ascii("HIDDEN-PAYLOAD-".repeat(40));
+    const clean = cleanImage(build(chunk("gAMA", be32(45455)), chunk("gAMA", ascii("%PDF-1.7 SECOND-GAMA")), chunk("pHYs", hidden), chunk("sRGB", hidden), idat, chunk("bKGD", ascii("AFTER")), chunk("cHRM", new Uint8Array(32))), "image/png")!;
+    for (const secret of ["HIDDEN-PAYLOAD", "SECOND-GAMA", "AFTER", "cHRM"]) expect(contains(clean.bytes, secret)).toBe(false);
+    expect(clean.bytes).toEqual(build(chunk("gAMA", be32(45455)), idat));
+    // The palette is part of the picture: malformed, repeated or late means a broken file.
+    const palette = chunk("PLTE", new Uint8Array(6));
+    expect(cleanImage(build(palette, idat), "image/png")!.bytes).toEqual(build(palette, idat));
+    for (const bad of [build(palette, palette, idat), build(idat, palette), build(chunk("PLTE", new Uint8Array(7)), idat), build(chunk("PLTE", new Uint8Array(771)), idat)]) expect(cleanImage(bad, "image/png")).toBeNull();
+    expect(cleanImage(join(PNG_SIGNATURE, ihdr, idat, chunk("IEND", ascii("x"))), "image/png")).toBeNull();
+  });
+
   it("refuses JPEGs without an end marker, without a scan or with a broken segment length", () => {
     const good = jpeg(64, 64);
     expect(cleanImage(good.subarray(0, good.length - 2), "image/jpeg")).toBeNull();
@@ -236,9 +309,8 @@ describe("rules and copy", () => {
     expect(fileDownloadName({ kind: "document", contentType: "image/jpeg" }, 5)).toBe("documento-5.jpg");
   });
 
-  it("lets files change until the application is published", () => {
-    for (const s of ["submitted", "under_review", "changes_requested", "rejected"]) expect(filesEditable(s)).toBe(true);
-    expect(filesEditable("published")).toBe(false);
-    expect(filesEditable("anything")).toBe(false);
+  it("lets files change before and after the admin review, never during it or once published", () => {
+    for (const s of ["submitted", "changes_requested", "rejected"]) expect(filesEditable(s)).toBe(true);
+    for (const s of ["under_review", "published", "anything"]) expect(filesEditable(s)).toBe(false);
   });
 });

@@ -117,10 +117,15 @@ export function ApplicationFiles({
       <h3 id="files-title">Arquivos da candidatura</h3>
       {editable ? (
         <p className="note">Enviar arquivos é opcional. Só você e a administração da Vila veem os documentos. O logo só fica público se a organização for aprovada.</p>
-      ) : (
+      ) : status === "published" ? (
         <p className="note">
           A organização já foi publicada: os arquivos não podem mais ser alterados. O logo aparece na casa da organização; os documentos continuam visíveis só para você e a
           administração da Vila.
+        </p>
+      ) : (
+        <p className="note">
+          A candidatura está em análise: os arquivos ficam travados até a decisão da administração, para que seja analisado exatamente o que você enviou. Se forem pedidos
+          ajustes, você poderá alterá-los de novo.
         </p>
       )}
 

@@ -28,7 +28,8 @@ pnpm --filter @vila/client dev:worker                           # client → :87
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # movement, colliders, layout (local only)
-node apps/client/scripts/verify-live.mjs                                # deployed game, read-only (verify.mjs is local only)
+# after a deploy only (not a pre-merge gate; verify.mjs above is local only):
+node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
 node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
 node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)
@@ -60,7 +61,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   approval. The logo requires a published NGO and actual published lot. Institutional gallery photos are a
   separate reviewed type: read [IMPL-0021](docs/decisions/0021-ngo-files-reconciliation.md) before changing their
   storage or access. Only individually approved gallery photos of a published NGO/lot may also be public;
-  documents remain private. `NGO_PHOTOS_ENABLED` stays off until its operational review.
+  documents remain private. Canonical application files are locked during `under_review`; admins may read their
+  metadata/bytes with `FILES` bound even when uploads are off. `NGO_PHOTOS_ENABLED` stays off until its operational review.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -94,7 +96,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 
 ## Forbidden without explicit human authorisation
 
-`git push`, `git reset --hard`, `git clean`, `wrangler deploy`, remote D1 migrations, creating or
+`git push`, `git reset --hard`, `git clean`, `wrangler deploy` (and, when authorised, only through `pnpm deploy:<app>`:
+a bare `wrangler deploy` of the API creates a missing R2 bucket by itself), remote D1 migrations, creating or
 deleting Cloudflare resources, changing secrets, adding payment/OAuth integrations, editing the docs
 repository.
 
