@@ -39,6 +39,38 @@ Cada versão indica o schema D1 que entrega.
   `UserSummary.blocked`, `ModerationConfig`, `ModerationTicket`, regras da mensagem e do bilhete
   (`moderation.ts`, com `MODERATION_TICKET_TTL_MS`) e frases em pt-BR para os novos erros.
 
+### Added — painel: papéis, bloqueio de conta (PROPOSTA) e remoção de logo (IMPL-0021)
+
+- Seção "Usuários": papel com os rótulos compartilhados ("Padrão" / "Administrador"; o rótulo local "Jogador"
+  saiu), coluna "Situação" ("Bloqueada") e as ações "Tornar administrador" / "Tornar padrão"
+  (`POST /admin/users/:id/role`). Nada é oferecido na própria linha ("Você não pode mudar o próprio papel."). Cada
+  ação tem um segundo passo que nomeia a conta e diz a consequência; o botão só libera depois de marcada a frase de
+  confirmação (clique duplo ou Enter segurado não enviam nada). Recusas mostram a frase da API (`last_admin`,
+  `account_blocked`, `admin_only`, …); depois de uma mudança a linha mostra o que a API respondeu e a lista é
+  relida. E-mail e nome continuam fora do painel.
+- **PROPOSTA** (política PENDENTE, [OQ-11](docs/decisions/open-questions.md)): "Bloquear conta" só aparece quando
+  `/config` traz `moderation.block: true`, pede a "Mensagem para a pessoa (ela vai ler)" (regra compartilhada, 10 a
+  1000 caracteres) e diz o efeito (sessões encerradas; a pessoa só lê a mensagem, sai e exclui a conta). Não é
+  oferecido na própria linha nem na de um administrador ("Remova o papel de administrador antes…"). "Desbloquear"
+  aparece sempre que a conta está bloqueada, também com a bandeira desligada. A seção traz o aviso de PROPOSTA.
+- Link `dash.*/#applications/<id>` (o que o jogo monta) abre a candidatura; seguido sem sessão, a pessoa cai nessa
+  candidatura depois de entrar (o id fica 20 minutos no `localStorage` do navegador e é usado uma vez). Id
+  malformado ou desconhecido mostra "Candidatura não encontrada."; só um id bem formado entra no caminho de uma
+  requisição.
+- Detalhe da candidatura: "Remover logo" (`POST /admin/ngos/:id/logo/remove`), com confirmação, a revisão em tela e
+  releitura em `stale_revision`. Auditoria com rótulos para `user.role_change`, `user.block`, `user.unblock`,
+  `ngo.logo_remove` e `presence.remove` ("Remoção de visitante autorizada"). "Sistema" mostra `moderation.presence`
+  e `moderation.block` como as outras bandeiras.
+- Sessões: conta bloqueada que entra no painel vê só "Conta bloqueada", a mensagem e "Sair"; um administrador
+  rebaixado com o painel aberto cai em "Apenas administradores" na requisição seguinte, sem laço.
+- Conferência local em navegador: `apps/dash/scripts/verify-moderation.mjs`
+  ([development §4.7](docs/guides/development.md#47-adicionar-uma-seção-ao-painel-administrativo)).
+
+### Fixed — painel em telas estreitas
+
+- A legenda das tabelas do painel ("Contas", "Eventos de auditoria", …) aparecia com uma letra por linha abaixo de
+  640 px; agora ocupa a largura da tela.
+
 ### Changed — a conferência de sessão exige a migration 0010
 
 - Toda rota que lê a sessão passa a ler `users.blocked`: num banco sem a 0010, com as contas ligadas, elas

@@ -711,6 +711,8 @@ no-store`. Mais recentes primeiro. Consultar não grava `audit_events` (só muta
 - Papel e bloqueio mudam só pelas rotas de [papéis](#papéis-impl-0021) e de
   [bloqueio de conta](#bloqueio-de-conta-impl-0021-proposta). Não existe rota que altere os dados ou apague a
   conta de terceiros. Quais sanções existem e quem as aplica continua PENDENTE (OQ-11, DEC-037).
+- No painel, essas ações ficam na seção "Usuários" e a remoção de logo, no detalhe da candidatura
+  ([architecture §11](architecture.md#11-painel-administrativo-appsdashsrc)).
 
 ### Papéis (IMPL-0021)
 
