@@ -9,6 +9,8 @@ Esta implementação parte do PR #31 e da sequência #28 → #29 → #31. O [PR 
 
 A compatibilidade com #32 não foi implementada nem validada. Os guards de retirada precisam ser portados e testados contra o pipeline escolhido, inclusive logo/arquivos públicos, permissões privadas e efeitos da política de retenção/exclusão da conta. Este PR continua revisável sobre sua base atual, sem escolher nem mesclar as implementações concorrentes.
 
+Bloqueio concreto: o `publicLogo` de `files.ts` no PR #32 exige apenas status armazenado `published` e tipo logo e usa cache de 300 s. Como esta entrega conserva a aprovação histórica e registra a retirada em `ngo_withdrawals`, juntar ambos sem adaptar a leitura ainda serviria o logo da ONG retirada. A reconciliação deve consultar o registro de retirada e definir a revogação/cache dessa resposta. O CI desta branch não valida a combinação com o PR #32.
+
 ## Entrega
 
 Um administrador autorizado retira a publicação de uma ONG com motivo e revisão esperada. Depois da confirmação,
