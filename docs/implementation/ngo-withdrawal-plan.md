@@ -3,6 +3,12 @@
 > **Status:** Publicado no [PR #33](https://github.com/vilanoeldobem/project/pull/33), sobre o PR #31, para revisão de Augusto; proposta desligada em produção/homologação.
 > **Data:** 2026-11-12 · **Decisão técnica:** [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)
 
+## Dependência de integração descoberta durante a publicação
+
+Esta implementação parte do PR #31 e da sequência #28 → #29 → #31. O [PR #32 do Augusto](https://github.com/vilanoeldobem/project/pull/32) propõe outro pipeline de arquivos, sobreposto aos PRs #29/#31, com colisão de migration 0006 e ADR IMPL-0017. A reconciliação dessas frentes é pré-requisito ao merge desta entrega.
+
+A compatibilidade com #32 não foi implementada nem validada. Os guards de retirada precisam ser portados e testados contra o pipeline escolhido, inclusive logo/arquivos públicos, permissões privadas e efeitos da política de retenção/exclusão da conta. Este PR continua revisável sobre sua base atual, sem escolher nem mesclar as implementações concorrentes.
+
 ## Entrega
 
 Um administrador autorizado retira a publicação de uma ONG com motivo e revisão esperada. Depois da confirmação,
