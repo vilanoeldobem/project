@@ -7,19 +7,21 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ApplicationDetail, Me } from "@vila/shared/accounts/contract";
+import type { ApplicationDetail, Me, UserSummary } from "@vila/shared/accounts/contract";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
+import { BLOCK_MESSAGE_ERROR } from "@vila/shared/accounts/moderation";
 
 import { dateTime } from "../lib/format";
+import type { UserAction } from "../lib/moderation";
 
-import { Applications, Review } from "./Applications";
+import { Applications, LogoRemovalConfirmation, Review } from "./Applications";
 import { Audit } from "./Audit";
 import { Lots } from "./Lots";
 import { Pending } from "./Pending";
 import { Shell } from "./Shell";
-import { NotAdmin, SignIn } from "./SignIn";
-import { System } from "./System";
-import { Users } from "./Users";
+import { Blocked, NotAdmin, SignIn } from "./SignIn";
+import { Flags, System } from "./System";
+import { SanctionsNote, UserConfirmation, Users, UserTable } from "./Users";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const count = (text: string, part: string) => text.split(part).length - 1;
@@ -76,6 +78,37 @@ describe("sign-in", () => {
     expect(count(page, "<button")).toBe(1);
     expect(page).toContain(">Sair</button>");
     expect(page).not.toMatch(/<nav|<a |<table|ana@example\.com|Ana Lima/);
+    // Nobody is told a role was taken unless it was.
+    expect(page).not.toMatch(/foi retirado|data-state="demoted"/);
+  });
+
+  it("tells an administrator demoted while using the dashboard what happened, with the same single way out", () => {
+    const page = html(<NotAdmin user={{ ...ADMIN, role: "player" }} demoted onSignOut={() => {}} />);
+    expect(page).toContain("<h1>Apenas administradores</h1>");
+    expect(page).toMatch(/<p role="alert" data-state="demoted">O papel de administrador de @ana_lima foi retirado enquanto o painel estava aberto\./);
+    expect([count(page, "<button"), page.includes(">Sair</button>")]).toEqual([1, true]);
+    expect(page).not.toMatch(/<nav|<a |<table|ana@example\.com|Ana Lima/);
+  });
+
+  it("shows a blocked account that it is blocked and the message as written, with only a way out (IMPL-0021)", () => {
+    const message = "Sua conta foi bloqueada por desrespeitar outras pessoas.\nFale com a equipe se achar que foi um engano.";
+    const page = html(<Blocked user={{ ...ADMIN, role: "player", blocked: { message, at: "2026-11-12T10:00:00.000Z" } }} onSignOut={() => {}} />);
+    expect(page).toContain("<h1>Conta bloqueada</h1>");
+    expect(page).toContain('data-state="blocked"');
+    expect(page).toContain("A conta @ana_lima foi bloqueada pela administração da Vila");
+    expect(page).toContain(`<strong>Mensagem da administração</strong> (${dateTime("2026-11-12T10:00:00.000Z")}):`);
+    // Word for word, line break included (the style keeps it); nothing of it is interpreted.
+    expect(page).toContain(`<p class="message" data-field="block-message">${message}</p>`);
+    expect([count(page, "<button"), page.includes(">Sair</button>")]).toEqual([1, true]);
+    // No dashboard: no menu, no link, no table, no field; and never the e-mail or the name.
+    expect(page).not.toMatch(/<nav|<a |<table|<input|<textarea|ana@example\.com|Ana Lima/);
+    // The same screen whatever the role the API reports.
+    expect(html(<Blocked user={{ ...ADMIN, blocked: { message, at: "2026-11-12T10:00:00.000Z" } }} onSignOut={() => {}} />)).not.toMatch(/<nav|<a |<table/);
+    // Markup in a message is text.
+    expect(html(<Blocked user={{ ...ADMIN, role: "player", blocked: { message: "<b>oi</b> <script>x</script>", at: "" } }} onSignOut={() => {}} />)).toContain("&lt;b&gt;oi&lt;/b&gt; &lt;script&gt;x&lt;/script&gt;");
+    // The API could not read the message (a block lifted at that instant): still blocked, still only a way out.
+    const bare = html(<Blocked user={{ ...ADMIN, role: "player", blocked: { message: "", at: "" } }} onSignOut={() => {}} />);
+    expect([bare.includes("<h1>Conta bloqueada</h1>"), bare.includes('data-field="block-message"'), count(bare, "<button")]).toEqual([true, false, 1]);
   });
 });
 
@@ -122,12 +155,156 @@ describe("sections with accounts off", () => {
     expect(html(<Lots locked />)).toContain('data-state="accounts-off"');
   });
 
-  it("keep sanctions as a pending note without any action", () => {
-    for (const page of [html(<Users locked />), html(<Users locked={false} />)]) {
-      expect(page).toContain("Sanções: pendente de definição");
+  it("keep the sanction policy as a PROPOSTA note, and offer no action before the accounts are read", () => {
+    for (const page of [html(<Users locked />), html(<Users locked={false} accountId="u1" />)]) {
+      expect(page).toContain("PROPOSTA (IMPL-0021): bloqueio de conta — política de sanções pendente");
+      for (const text of ["OQ-11", "DEC-037", "<code>ACCOUNT_BLOCK_ENABLED</code>", "pergunta aberta para o dono do produto", "não tem prazo nem", "não é avisada por e-mail"]) expect(page).toContain(text);
       expect(count(page, 'data-state="pending"')).toBe(1);
       expect(count(page, "<button")).toBe(0);
+      // Whether the block is on is said only once the API has said it.
+      expect(page).not.toContain("data-flag-note");
     }
+  });
+});
+
+describe("accounts: roles and block (IMPL-0021)", () => {
+  /**
+   * What the list endpoint would look like if it ever leaked personal data: the e-mail and the name are in the
+   * fixture on purpose, to prove that nothing on screen comes from them.
+   */
+  const account = (over: Partial<UserSummary> & { name: string; email: string }): UserSummary => ({ id: "", nickname: "", role: "player", city: "Recife", createdAt: "2026-11-01T12:00:00.000Z", verified: true, blocked: false, ...over });
+  const SELF = account({ id: "a0000000-0000-4000-8000-000000000001", nickname: "ana_lima", role: "admin", name: "Ana Lima", email: "ana@example.com" });
+  const OTHER_ADMIN = account({ id: "c0000000-0000-4000-8000-000000000003", nickname: "caio", role: "admin", name: "Caio Souza", email: "caio@example.com", city: "Olinda" });
+  const PLAYER = account({ id: "b0000000-0000-4000-8000-000000000002", nickname: "bia", name: "Beatriz Rocha", email: "bia@example.com", verified: false });
+  const BLOCKED = account({ id: "d0000000-0000-4000-8000-000000000004", nickname: "dani", name: "Daniela Reis", email: "dani@example.com", blocked: true });
+  const ALL = [SELF, OTHER_ADMIN, PLAYER, BLOCKED];
+  const PERSONAL = /ana@example\.com|caio@example\.com|bia@example\.com|dani@example\.com|Ana Lima|Caio Souza|Beatriz Rocha|Daniela Reis|@example|mailto:/;
+
+  const table = (blockOn: boolean, selfId: string | undefined = SELF.id, users = ALL) => html(<UserTable users={users} selfId={selfId} blockOn={blockOn} onAction={() => {}} />);
+  /** The HTML of one account's row. */
+  const rowOf = (page: string, user: UserSummary) => {
+    const start = page.indexOf(`<tr role="row" data-row="${user.id}">`);
+    expect(start).toBeGreaterThan(-1);
+    return page.slice(start, page.indexOf("</tr>", start));
+  };
+  const buttons = (row: string) => [...row.matchAll(/<button type="button" class="btn btn--small"( disabled="")? data-action="([a-z]+)" aria-label="([^"]+)">([^<]+)<\/button>/g)].map((m) => `${m[4]} [${m[2]}] (${m[3]})${m[1] ? " disabled" : ""}`);
+
+  it("shows nickname, shared role label, city, verification and the block, and never an e-mail or a name", () => {
+    const page = table(true);
+    expect(page).toContain("<caption>Contas</caption>");
+    for (const column of ["Nickname", "Papel", "Cidade", "Criada em", "Verificada", "Situação", "Ações"]) expect(page).toContain(`<th scope="col" role="columnheader">${column}</th>`);
+    const cells = (user: UserSummary) => [...rowOf(page, user).matchAll(/<td role="cell" data-label="([^"]+)">(.*?)<\/td>/g)].slice(0, 6).map((m) => `${m[1]}: ${m[2]}`);
+    expect(cells(SELF)).toEqual(["Nickname: @ana_lima (você)", 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Recife", `Criada em: ${dateTime(SELF.createdAt)}`, "Verificada: Sim", "Situação: —"]);
+    expect(cells(OTHER_ADMIN)).toEqual(["Nickname: @caio", 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Olinda", `Criada em: ${dateTime(OTHER_ADMIN.createdAt)}`, "Verificada: Sim", "Situação: —"]);
+    expect(cells(PLAYER)).toEqual(["Nickname: @bia", 'Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(PLAYER.createdAt)}`, "Verificada: Não", "Situação: —"]);
+    expect(cells(BLOCKED).slice(1)).toEqual(['Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(BLOCKED.createdAt)}`, "Verificada: Sim", 'Situação: <span class="status" data-status="blocked">Bloqueada</span>']);
+    expect(count(page, "Bloqueada")).toBe(1);
+    // The old local label is gone: the role reads as the shared contract says.
+    expect(page).not.toContain("Jogador");
+    for (const flag of [true, false]) expect(table(flag)).not.toMatch(PERSONAL);
+  });
+
+  it("offers no role change and no block on one's own row, and says why", () => {
+    for (const blockOn of [true, false]) {
+      const row = rowOf(table(blockOn), SELF);
+      expect([blockOn, count(row, "<button")]).toEqual([blockOn, 0]);
+      expect(row).toContain('<span class="muted">Você não pode mudar o próprio papel.</span>');
+    }
+    expect(rowOf(table(true), SELF)).toContain("Também não pode bloquear a própria conta.");
+    // The same account is an ordinary row for another administrator.
+    expect(buttons(rowOf(table(true, OTHER_ADMIN.id), SELF))).toEqual(["Tornar padrão [demote] (Tornar padrão: @ana_lima)"]);
+  });
+
+  it("offers no block on an administrator's row, and says to remove the role first", () => {
+    const row = rowOf(table(true), OTHER_ADMIN);
+    expect(buttons(row)).toEqual(["Tornar padrão [demote] (Tornar padrão: @caio)"]);
+    expect(row).toContain('<span class="muted">Remova o papel de administrador antes de bloquear esta conta.</span>');
+    expect(row).not.toMatch(/Bloquear conta|data-action="block"/);
+  });
+
+  it("hides the block with the flag off but still offers the unblock", () => {
+    const on = table(true), off = table(false);
+    expect(buttons(rowOf(on, PLAYER))).toEqual(["Tornar administrador [promote] (Tornar administrador: @bia)", "Bloquear conta [block] (Bloquear conta: @bia)"]);
+    expect(buttons(rowOf(off, PLAYER))).toEqual(["Tornar administrador [promote] (Tornar administrador: @bia)"]);
+    expect([count(on, 'data-action="block"'), count(off, 'data-action="block"'), off.includes("Bloquear conta")]).toEqual([1, 0, false]);
+    for (const page of [on, off]) {
+      expect(buttons(rowOf(page, BLOCKED))).toEqual(["Desbloquear [unblock] (Desbloquear: @dani)"]);
+      expect(rowOf(page, BLOCKED)).toContain("Desbloqueie a conta antes de torná-la administradora.");
+    }
+    // With the flag off nobody is told to remove a role in order to block.
+    expect(off).not.toContain("Remova o papel de administrador");
+  });
+
+  it("offers nothing when it does not know who is signed in, and disables every action while a request is out", () => {
+    const anonymous = html(<UserTable users={ALL} selfId={undefined} blockOn onAction={() => {}} />);
+    expect(count(anonymous, "<button")).toBe(0);
+    const busy = html(<UserTable users={ALL} selfId={SELF.id} blockOn busy onAction={() => {}} />);
+    expect([count(busy, "<button"), count(busy, 'disabled=""')]).toEqual([4, 4]);
+  });
+
+  it("opens the confirmation and shows the result right below the row they are about", () => {
+    const page = html(<UserTable users={ALL} selfId={SELF.id} blockOn onAction={() => {}} detailOf={(u) => (u.id === PLAYER.id ? <p>detalhe de {u.nickname}</p> : undefined)} />);
+    expect(count(page, 'class="table__detail"')).toBe(1);
+    expect(page.slice(page.indexOf(`data-row="${PLAYER.id}"`))).toMatch(/^[^]*?<\/tr><tr role="row" class="table__detail"><td role="cell" colSpan="7">\s*<p>detalhe de bia<\/p><\/td><\/tr>/i);
+  });
+
+  const confirmation = (action: UserAction, props: Partial<Parameters<typeof UserConfirmation>[0]> = {}) => html(<UserConfirmation action={action} nickname="bia" onConfirm={() => {}} onCancel={() => {}} {...props} />);
+  const confirmButtons = (page: string) => [...page.matchAll(/<button type="button" class="btn[^"]*"( disabled="")?[^>]*>([^<]+)<\/button>/g)].map((m) => `${m[2]}${m[1] ? " (disabled)" : ""}`);
+
+  it("asks to confirm a role change in a second step that names the account and states the consequence", () => {
+    const promote = confirmation("promote");
+    expect(promote).toMatch(/<section class="confirm" data-confirm="promote" aria-labelledby="([^"]+)"><h3 id="\1" tabindex="-1">Tornar @bia administrador\?<\/h3>/);
+    expect(promote).toContain("@bia terá acesso a este painel e poderes de moderação no jogo");
+    expect(promote).toMatch(/<label class="check"><input type="checkbox"\/>Confirmo que @bia deve ser administrador<\/label>/);
+    const demote = confirmation("demote");
+    expect(demote).toContain('data-confirm="demote"');
+    expect(demote).toContain("Tornar @bia padrão?");
+    expect(demote).toContain("@bia perderá o acesso a este painel");
+    for (const [page, label] of [[promote, "Tornar administrador"], [demote, "Tornar padrão"]] as const) {
+      // Nothing can be sent before the tick: the button starts disabled, and there is a way back.
+      expect(confirmButtons(page)).toEqual([`${label} (disabled)`, "Cancelar"]);
+      expect(page).toContain('title="Confirme antes de continuar"');
+      // Not a form: no implicit submission by Enter, and no text to write for a role change.
+      expect(page).not.toMatch(/<form|<textarea|type="submit"/);
+    }
+  });
+
+  it("asks for the message to the person before a block, labelled as something they will read, and states the effect", () => {
+    const page = confirmation("block");
+    expect(page).toContain('data-confirm="block"');
+    expect(page).toContain("Bloquear a conta de @bia?");
+    expect(page).toContain('<span class="field__label">Mensagem para a pessoa (ela vai ler)</span>');
+    expect(page).toContain("De 10 a 1000 caracteres. A pessoa lê este texto como foi escrito, ao tentar entrar. Não é uma anotação interna");
+    expect(count(page, "<textarea")).toBe(1);
+    for (const effect of ["Todas as sessões de @bia são encerradas", "só consegue ler a mensagem abaixo, sair e excluir a própria conta", "vale até um administrador desbloquear"]) expect(page).toContain(effect);
+    expect(page).toContain("Confirmo o bloqueio e sei que @bia vai ler esta mensagem");
+    expect(confirmButtons(page)).toEqual(["Bloquear conta (disabled)", "Cancelar"]);
+    expect(page).not.toMatch(/<form|type="submit"/);
+    // The unblock is confirmed too, with nothing to write.
+    const unblock = confirmation("unblock");
+    expect(unblock).toContain("Desbloquear a conta de @bia?");
+    expect(confirmButtons(unblock)).toEqual(["Desbloquear (disabled)", "Cancelar"]);
+    expect(unblock).not.toContain("<textarea");
+  });
+
+  it("shows a refusal inside the confirmation, the field's own error by the field, and locks everything while sending", () => {
+    const refused = confirmation("demote", { error: "Esta pessoa é a única administradora. A Vila precisa de pelo menos um administrador." });
+    expect(refused).toMatch(/<p class="error" role="alert">Esta pessoa é a única administradora\. A Vila precisa de pelo menos um administrador\.<\/p>/);
+    const field = confirmation("block", { fieldError: BLOCK_MESSAGE_ERROR, message: "curta" });
+    expect(field).toContain(`<span class="field__error" role="alert">${BLOCK_MESSAGE_ERROR}</span>`);
+    expect(field).toContain(">curta</textarea>");
+    const busy = confirmation("block", { busy: true, message: "Mensagem para a pessoa." });
+    expect(confirmButtons(busy)).toEqual(["Enviando… (disabled)", "Cancelar (disabled)"]);
+    expect(busy).toMatch(/<textarea disabled=""/);
+    expect(busy).toMatch(/<input type="checkbox" disabled=""\/>/);
+  });
+
+  it("says in the PROPOSTA note whether the block works in this API", () => {
+    const on = html(<SanctionsNote blockOn />), off = html(<SanctionsNote blockOn={false} />);
+    expect(on).toContain('<p data-flag-note="on">Nesta API o bloqueio está ligado.</p>');
+    expect(off).toContain('data-flag-note="off"');
+    expect(off).toContain("não é possível bloquear contas. Um bloqueio já registrado continua valendo e pode ser desfeito aqui.");
+    for (const page of [on, off]) expect([count(page, 'data-state="pending"'), page.includes("OQ-11"), count(page, "<button")]).toEqual([1, true, 0]);
   });
 });
 
@@ -157,6 +334,46 @@ describe("system", () => {
     const page = html(<System />);
     expect(page).toMatch(/<a class="btn btn--small" href="http:\/\/localhost:8788\/health" target="_blank" rel="noopener noreferrer">/);
     expect(page).toContain("http://localhost:8787");
+  });
+
+  it("shows the two moderation flags the same way as the other flags (IMPL-0021)", () => {
+    const page = html(<Flags config={{ accounts: true, quests: false, files: true, withdrawal: false, moderation: { presence: false, block: true } }} />);
+    const lines = [...page.matchAll(/<dt>([^<]+) <code class="muted">([^<]+)<\/code><\/dt><dd data-flag="([^"]+)">([^<]+)<\/dd>/g)].map((m) => [m[1], m[2], m[3], m[4]]);
+    expect(lines).toEqual([
+      ["Contas, XP no servidor, candidaturas e análise", "accounts", "accounts", "Ligado"],
+      ["Missões narrativas quests-v1 (PROPOSTA)", "quests", "quests", "Desligado"],
+      ["Logo e documentos nas candidaturas (PROPOSTA)", "files", "files", "Ligado"],
+      ["Retirada de ONG publicada (PROPOSTA)", "withdrawal", "withdrawal", "Desligado"],
+      ["Remoção de visitante de uma sala do jogo (PROPOSTA)", "moderation.presence", "moderation.presence", "Desligado"],
+      ["Bloqueio de conta (PROPOSTA)", "moderation.block", "moderation.block", "Ligado"],
+    ]);
+    // Never the raw group, and an API that sends nothing says so.
+    expect(page).not.toMatch(/\{|&quot;/);
+    expect(html(<Flags config={{}} />)).toContain("A API não informou nenhuma bandeira.");
+  });
+});
+
+describe("link to one application (IMPL-0021)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says the application was not found for a malformed address, with the way back and without asking the API", () => {
+    const fetched = vi.fn();
+    vi.stubGlobal("fetch", fetched);
+    const page = html(<Applications unknown locked={false} accountId={ADMIN.id} />);
+    expect(page).toContain('<h1 tabindex="-1">Candidatura não encontrada</h1>');
+    expect(page).toMatch(/data-state="not-found"><strong class="notice__title">Candidatura não encontrada\.<\/strong>/);
+    expect(page).toContain('href="#/applications">Voltar à lista</a>');
+    expect(page).not.toMatch(/Carregando|<button|<textarea/);
+    expect(fetched).not.toHaveBeenCalled();
+    // With accounts off the section keeps its honest "contas desligadas" state.
+    expect(html(<Applications unknown locked />)).toContain('data-state="accounts-off"');
+  });
+
+  it("opens the detail of a well-formed id (a loading state first, never a blank screen)", () => {
+    const page = html(<Applications id={DETAIL.application.id} locked={false} accountId={ADMIN.id} />);
+    expect(page).toContain('<h1 tabindex="-1">Carregando…</h1>');
+    expect(page).toContain('href="#/applications">Voltar à lista</a>');
+    expect(page).not.toContain("não encontrada");
   });
 });
 
@@ -255,6 +472,59 @@ describe("withdrawal of a published NGO (IMPL-0020, PROPOSTA)", () => {
     const page = withdrawalReview({ status: "withdrawn" });
     expect(page).toContain('data-state="withdrawn"');
     expect(page).not.toContain("Mensagem enviada à organização");
+  });
+});
+
+describe("logo removal by the administration (IMPL-0021)", () => {
+  /** `accountId: null` is a screen that does not know who is signed in. */
+  const logoReview = (over: Partial<ApplicationDetail["application"]>, rest: Partial<ApplicationDetail> = {}, accountId: string | null = ADMIN.id, filesOn = true) =>
+    html(<Review id={DETAIL.application.id} d={{ ...DETAIL, files: [LOGO, PDF], ...rest, application: { ...DETAIL.application, ...over } }} filesOn={filesOn} accountId={accountId ?? undefined} onDetail={() => {}} />);
+  const REMOVE = /<button type="button" class="btn btn--small" data-action="remove-logo"( disabled="")? title="([^"]*)">Remover logo<\/button>/;
+
+  it("offers the removal beside the files whenever the NGO has a logo, in any status, also with uploads off", () => {
+    for (const status of ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"] as const) {
+      const match = REMOVE.exec(logoReview({ status }));
+      expect([status, match?.[1], match?.[2]]).toEqual([status, undefined, ""]);
+    }
+    expect(logoReview({}, {}, ADMIN.id, false)).toMatch(REMOVE);
+    // Between the logo and the documents, in the files section.
+    const page = logoReview({});
+    expect(page.indexOf("<h3>Logo</h3>")).toBeLessThan(page.indexOf('data-action="remove-logo"'));
+    expect(page.indexOf('data-action="remove-logo"')).toBeLessThan(page.indexOf("<h3>Documentos</h3>"));
+  });
+
+  it("does not offer it without a logo or without knowing who is signed in, and waits for a pending account erasure", () => {
+    expect(logoReview({}, { files: [PDF] })).not.toContain("Remover logo");
+    expect(logoReview({}, { files: [] })).not.toContain("Remover logo");
+    expect(logoReview({}, {}, null)).not.toContain("Remover logo");
+    const deleting = REMOVE.exec(logoReview({}, { applicant: { nickname: "ong_teste", deletionPending: true } }));
+    expect([deleting?.[1], deleting?.[2]]).toEqual([' disabled=""', "Exclusão da conta pendente"]);
+  });
+
+  it("removes nothing before a confirmation that names the organisation, the version on screen and what cannot be undone", () => {
+    // The first button only opens the second step: until then there is no confirmation on screen.
+    expect(logoReview({})).not.toMatch(/data-confirm|type="checkbox"[^>]*\/>Entendo que o logo/);
+    const page = html(<LogoRemovalConfirmation name="Associação Exemplo" revision={2} onConfirm={() => {}} onCancel={() => {}} />);
+    expect(page).toMatch(/<section class="confirm" data-confirm="remove-logo" aria-labelledby="([^"]+)"><h3 id="\1" tabindex="-1">Remover o logo de Associação Exemplo\?<\/h3>/);
+    for (const text of ["se a organização está publicada, na casa dela na Vila", "O painel não tem como desfazer", "(hoje: versão 2)", "fica registrada na auditoria"]) expect(page).toContain(text);
+    expect(page).toContain("Entendo que o logo será apagado e que o painel não tem como desfazer");
+    expect(page).toMatch(/<button type="button" class="btn btn--primary" disabled="" title="Confirme antes de continuar">Remover logo<\/button>/);
+    expect(page).toContain(">Cancelar</button>");
+    expect(page).not.toMatch(/<form|type="submit"/);
+    const refused = html(<LogoRemovalConfirmation name="Associação Exemplo" revision={2} error="A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual." onConfirm={() => {}} onCancel={() => {}} />);
+    expect(refused).toMatch(/<p class="error" role="alert">A organização enviou uma nova versão enquanto esta tela estava aberta\. Revise a versão atual\.<\/p>/);
+  });
+
+  it("announces the result in a live region that is always there", () => {
+    for (const page of [logoReview({}), logoReview({}, { files: [] })]) expect(page).toContain('<div aria-live="polite" data-result="remove-logo"></div>');
+  });
+
+  it("labels the removal in the history, without the file id", () => {
+    const history = [{ at: "2026-11-12T10:00:00.000Z", action: "ngo.logo_remove", detail: JSON.stringify({ file: LOGO.id, revision: 3 }), actor: "ana_lima" }];
+    const page = logoReview({}, { history });
+    const list = page.slice(page.indexOf('<ol class="history">'));
+    expect(list).toContain(`${dateTime("2026-11-12T10:00:00.000Z")} · Logo removido pela administração · @ana_lima`);
+    expect(list).not.toMatch(/aaaaaaaa-0000|ngo\.logo_remove/);
   });
 });
 
