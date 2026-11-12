@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { clearance, distanceTo, footprint } from "./collision";
 import { createBody, type Intent, MOTION, STEP, stepBody } from "./motion";
+import { createNavField, createRoute, planRoute, stepWalk } from "./navigation";
 import {
   DONATION_PANEL,
   LOTS,
@@ -64,11 +66,64 @@ describe("stepBody", () => {
     expect(b.x).toBeGreaterThan(3); // slid around it instead of sticking
   });
 
-  it("abandons a target behind an obstacle it cannot pass", () => {
+  // The last resort: steered straight at a point it cannot reach (no route), the body gives up after
+  // `stuckTime`. Clicks no longer end up here: `navigation.ts` resolves and routes them (IMPL-0016).
+  it("abandons a target behind an obstacle it cannot pass, without claiming it arrived", () => {
     const wall = [{ x: 3, z: 0, r: 1 }];
     const b = createBody(0, 0);
-    const { done } = run(b, { ...idle, target: { x: 3, z: 0 } }, 3, wall);
-    expect(done).toBe(true);
+    let last = stepBody(b, { ...idle, target: { x: 3, z: 0 } }, wall);
+    for (let i = 0; i < 180 && !last.targetDone; i++) last = stepBody(b, { ...idle, target: { x: 3, z: 0 } }, wall);
+    expect(last.targetDone).toBe(true);
+    expect(last.arrived).toBe(false);
+  });
+
+  it("keeps its pace through a waypoint and eases only into the final destination", () => {
+    const b = createBody(0, 9);
+    // A waypoint with 10 u of path left after it: no slow-down, and never "arrived".
+    const { done } = run(b, { ...idle, target: { x: 3, z: 9, rest: 10 } }, 0.33, []);
+    expect(done).toBe(false);
+    expect(b.x).toBeGreaterThan(1.4);
+    expect(Math.hypot(b.vx, b.vz)).toBeGreaterThan(MOTION.maxSpeed * 0.9);
+    const c = createBody(0, 9);
+    run(c, { ...idle, target: { x: 3, z: 9 } }, 0.33, []);
+    expect(Math.hypot(c.vx, c.vz)).toBeLessThan(Math.hypot(b.vx, b.vz));
+  });
+
+  it("is pushed out of a box and slides along its side", () => {
+    const wall = [footprint({ x: 3, z: 0, rot: 0.5 }, -0.5, 0.5, -3, 3)];
+    const b = createBody(0, 0.4);
+    run(b, { ...idle, moveX: 1 }, 2.5, wall);
+    expect(distanceTo(wall[0], b.x, b.z)).toBeGreaterThanOrEqual(MOTION.radius - 1e-6);
+    expect(b.x).toBeGreaterThan(3.5); // slid around it instead of sticking
+  });
+
+  // The old single push-out pass let the body through any gap it was pressed into (each collider pushed it
+  // into the other, and it crept forward): between a bench and its lamp post, a stall and an NPC, …
+  it("is never squeezed through a gap narrower than itself, and rests there without jitter", () => {
+    const wall = footprint({ x: 20, z: -5 }, -10, 10, -5, 5); // blocks z <= 0 for x in 10..30
+    for (const gap of [0.7, 0.8, 0.88]) {
+      const post = { x: 20, z: gap + 0.5, r: 0.5 };
+      for (const colliders of [[wall, post], [post, wall]])
+        for (const press of [0, -0.3, -1]) {
+          const label = `gap ${gap}, press ${press}, ${colliders[0] === wall ? "wall first" : "post first"}`;
+          const b = createBody(14, 0.46);
+          const intent = { ...idle, moveX: 1, moveZ: press }; // along the wall, into the gap
+          run(b, intent, 4, colliders);
+          expect(b.x, label).toBeLessThan(20);
+          const at = [b.x, b.z];
+          let wobble = 0;
+          for (let i = 0; i < 120; i++) {
+            stepBody(b, intent, colliders);
+            wobble = Math.max(wobble, Math.hypot(b.x - at[0], b.z - at[1]));
+          }
+          expect(wobble, label).toBeLessThan(1e-3);
+          expect(clearance(colliders, b.x, b.z), label).toBeGreaterThan(-0.011);
+        }
+    }
+    // A gap it fits through stays open.
+    const b = createBody(14, 0.46);
+    run(b, { ...idle, moveX: 1, moveZ: -0.3 }, 4, [wall, { x: 20, z: 1.5, r: 0.5 }]);
+    expect(b.x).toBeGreaterThan(21);
   });
 
   it("stays inside the world", () => {
@@ -103,13 +158,18 @@ describe("world helpers", () => {
       for (const o of OBSTACLES) expect(Math.hypot(p.x - o.x, p.z - o.z)).toBeGreaterThan(o.r + MOTION.radius);
   });
 
+  // Was a straight line that got past the villager and the dog only by squeezing between them (a gap
+  // narrower than the body); a click is now a planned route.
   it("walks around the tree to a gift on the other side (click across the plaza)", async () => {
     const { GIFTS } = await import("./world");
     const from = GIFTS.find((g) => g.id === "gift-bench")!, to = GIFTS.find((g) => g.id === "gift-palm")!;
     const b = createBody(from.x, from.z);
-    const { done } = run(b, { ...idle, target: { x: to.x, z: to.z } }, 6);
-    expect(done).toBe(true);
-    expect(Math.hypot(b.x - to.x, b.z - to.z)).toBeLessThan(1.4);
+    const field = createNavField(OBSTACLES), route = createRoute();
+    planRoute(field, route, b.x, b.z, to.x, to.z);
+    let arrived = false;
+    for (let i = 0; i < 6 / STEP && !arrived; i++) arrived = stepWalk(b, route, field, OBSTACLES).arrived;
+    expect(arrived).toBe(true);
+    expect(Math.hypot(b.x - to.x, b.z - to.z)).toBeLessThan(MOTION.arriveEpsilon);
   });
 
   it("keeps placed props off lots (house up to 5 u), the pond and the sleigh", async () => {
