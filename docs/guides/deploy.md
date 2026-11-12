@@ -156,30 +156,38 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
 3. Smoke e `verify.mjs` como em [§4](#4-publicar).
 
-### 7.2 Cloudflare Email Service (OQ-08)
+### 7.2 E-mail pelo Resend (IMPL-0012)
 
-O link de acesso sai pelo Cloudflare Email Service (binding `send_email` `EMAIL`, remetente
-`acesso@vilanoeldobem.com.br`, `MAIL_FROM`). Antes de ligar as contas, o domínio precisa estar cadastrado no
-serviço. A documentação da comunidade cita:
+O link de acesso sai pela API HTTPS do [Resend](https://resend.com) (`apps/api/src/mail.ts`), com remetente
+`MAIL_FROM` (`acesso@vilanoeldobem.com.br`). A chave fica no segredo `RESEND_API_KEY` do Worker `vilanoeldobem-api`
+— nunca em `vars`, no repositório ou em log. Criar ou alterar segredos e recursos exige autorização (AGENTS.md).
 
-```bash
-cd apps/api
-pnpm exec wrangler email sending enable vilanoeldobem.com.br
-```
+1. **Domínio no Resend.** Em *Domains*, adicionar o domínio do remetente e criar no DNS os registros SPF e DKIM
+   exatamente como o painel mostra (`TXT` e `MX` ou `CNAME`). A verificação costuma sair em minutos e pode levar até
+   72 h. Sem domínio verificado, o Resend recusa o envio (`403 validation_error`). O Resend recomenda um
+   subdomínio no lugar do domínio raiz; se o remetente mudar, ajustar `MAIL_FROM` em `apps/api/wrangler.jsonc`.
+2. **Chave.** Em *API Keys*, criar uma chave com permissão só de envio (*Sending access*).
+3. **Segredo no Worker**, por um dos caminhos:
+   - **GitHub:** gravar a chave em `RESEND_API_KEY` e um token da Cloudflare com permissão de editar Workers em
+     `CLOUDFLARE_API_TOKEN` (*Settings → Secrets and variables → Actions*), depois rodar à mão o workflow
+     **api-secrets** (*Actions → api-secrets → Run workflow*). Ele só roda quando alguém dispara e não imprime a chave.
+   - **Local:** `cd apps/api && pnpm exec wrangler secret put RESEND_API_KEY --env=""`.
 
-Confirmar no painel / documentação da Cloudflare (o comando e os registros DNS exigidos podem mudar). Criar ou
-alterar recursos da Cloudflare exige autorização (AGENTS.md).
+   Gravar um segredo publica na hora uma nova versão do Worker com o mesmo código.
+4. **Conferir:** `curl -s https://api.vilanoeldobem.com.br/health` → `"mail": true` (diz só se a chave existe, nunca
+   o valor).
 
-- O Email Service está em **beta**; enviar para qualquer destinatário pode exigir o plano Workers Paid — **verificar
-  plano** antes de ligar.
-- Sem o domínio cadastrado, o envio falha e a API responde `503 mail_unavailable` (falha fechada; o log traz só o
-  código do erro, nunca endereço nem link).
-- Conferir se `acesso@` deve receber respostas (senão, configurar o Email Routing ou deixar claro no texto).
+- Sem a chave, ou se o Resend recusar o envio, a API responde `503 mail_unavailable` (falha fechada). O log traz só
+  `mail_error`, o status HTTP e o nome do erro do Resend: nunca endereço, link ou chave.
+- Homologação (`env.staging`) não recebe a chave: lá o envio sempre falha fechado.
+- O Resend passa a tratar o e-mail e o nickname de quem pede o link (operador fora do Brasil): isso entra na
+  revisão LGPD / ECA Digital antes de ligar as contas.
+- Conferir se `acesso@` deve receber respostas (senão, deixar claro no texto do e-mail).
 
 ### 7.3 Ligar as contas
 
-Só depois de **(a)** a revisão LGPD / ECA Digital registrada pelo dono do produto e **(b)** o domínio cadastrado no
-Email Service com um envio de teste recebido. Então, com autorização:
+Só depois de **(a)** a revisão LGPD / ECA Digital registrada pelo dono do produto e **(b)** o domínio verificado no
+Resend, `"mail": true` em `/health` e um envio de teste recebido. Então, com autorização:
 
 1. Mude `"ACCOUNTS_ENABLED": "true"` em `apps/api/wrangler.jsonc` (commit) e rode `pnpm deploy:api`.
 2. Confira `curl -s https://api.vilanoeldobem.com.br/config` → `{"accounts":true}` e crie uma conta de teste em
@@ -213,7 +221,8 @@ pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
-- Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital e o cadastro do domínio no Email Service.
+- Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital, a verificação do domínio no Resend e a
+  chave `RESEND_API_KEY` no Worker.
 
 ## Ver também
 

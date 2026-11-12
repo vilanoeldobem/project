@@ -14,9 +14,8 @@
       "migrations_dir": "../../migrations"
     }
   ],
-  // Cloudflare Email Service (IMPL-0011): sends only the sign-in link. The sending domain must be onboarded
-  // (docs/guides/deploy.md); until then sends fail closed with 503 "mail_unavailable".
-  "send_email": [{ "name": "EMAIL" }],
+  // E-mail goes through Resend (IMPL-0012): the API key is the Worker secret RESEND_API_KEY (never a var; see
+  // docs/guides/deploy.md). Without it sign-in e-mails fail closed with 503 "mail_unavailable".
   // Sign-in requests per client IP (the IP is only a rate-limit key, never stored).
   "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }],
   "vars": {
@@ -35,14 +34,14 @@
   "workers_dev": true,
   "preview_urls": false,
   // Staging (docs/guides/staging-database.md): own D1, no routes, no workers.dev, no browser origins, accounts off.
-  // Bindings are not inherited: staging deliberately has no EMAIL (sends fail closed) and no AUTH_LIMITER.
+  // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed) and no
+  // AUTH_LIMITER.
   "env": {
     "staging": {
       "name": "vilanoeldobem-api-staging",
       "routes": [],
       "workers_dev": false,
       "preview_urls": false,
-      "send_email": [],
       "ratelimits": [],
       "vars": {
         "ENVIRONMENT": "staging",

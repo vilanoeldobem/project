@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — e-mail
+
+- O link de acesso passa a sair pelo Resend ([IMPL-0012](docs/decisions/0012-resend-transactional-email.md)) no
+  lugar do Cloudflare Email Service: segredo `RESEND_API_KEY` no Worker da API, sem binding `send_email`. Sem a
+  chave o envio falha fechado (`503 mail_unavailable`), como antes. `GET /health` ganhou `mail` (se a chave existe).
+- Workflow manual `api-secrets` grava `RESEND_API_KEY` no Worker a partir dos segredos do GitHub.
+
 ### Added — medição
 
 - Google Tag Manager (`GTM-MQP2RVMB`) no site e no jogo. A inicialização do `dataLayer` fica em `/gtag-init.js`
@@ -28,7 +35,7 @@ Cada versão indica o schema D1 que entrega.
 ### Added — 0.4.0 "Contas e ONGs" (desligado em produção)
 
 - Contas ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)): cadastro com Nome, Nickname, Cidade e
-  E-mail (DEC-038; só o nickname é público), entrada por link mágico enviado pelo Cloudflare Email Service (15 min,
+  E-mail (DEC-038; só o nickname é público), entrada por link mágico enviado por e-mail (15 min,
   uso único), sessão em cookie HttpOnly, sair e excluir conta. Atrás da bandeira `ACCOUNTS_ENABLED`, **desligada em
   produção** até a revisão LGPD / ECA Digital e o cadastro do domínio de e-mail.
 - Missões e XP no servidor: eventos idempotentes, progresso local migrado ao entrar (DEC-042).

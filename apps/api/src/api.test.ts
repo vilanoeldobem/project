@@ -11,10 +11,13 @@ const env = (db?: Partial<D1Database>): Env => ({
 const get = (path: string, e: Env, method = "GET") => handleApi(new Request(`https://vila.test${path}`, { method }), e);
 
 describe("worker /api", () => {
-  it("health reports db presence", async () => {
+  it("health reports db presence and whether the mail key is set, never the key", async () => {
     const res = await get("/health", env());
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, environment: "test", db: false });
+    expect(await res.json()).toMatchObject({ ok: true, environment: "test", db: false, mail: false });
+    const withKey = await (await get("/health", { ...env(), RESEND_API_KEY: "re_test_secret" })).text();
+    expect(JSON.parse(withKey).mail).toBe(true);
+    expect(withKey).not.toContain("re_test_secret");
   });
 
   it("indicators never invent numbers", async () => {
