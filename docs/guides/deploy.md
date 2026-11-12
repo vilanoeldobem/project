@@ -11,6 +11,7 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 | Host | Worker | App |
 |---|---|---|
 | https://play.vilanoeldobem.com.br | `vilanoeldobem` | `apps/client` (jogo, Static Assets) |
+| https://client.vilanoeldobem.com.br | `vilanoeldobem` | 302 → `play` (apelido com o nome do app; mesmo caminho e query) |
 | https://app.vilanoeldobem.com.br | `vilanoeldobem` | 301 → `play` (mesmo caminho e query) |
 | https://api.vilanoeldobem.com.br | `vilanoeldobem-api` | `apps/api` (API HTTP + D1) |
 | https://server.vilanoeldobem.com.br | `vilanoeldobem-server` | `apps/server` (presença, Durable Object `VillageRoom`) |
@@ -145,6 +146,7 @@ pnpm deploy:site                     # build + wrangler deploy (www + raiz como 
 node apps/site/scripts/verify.mjs https://www.vilanoeldobem.com.br
 curl -sI https://vilanoeldobem.com.br | grep -i location   # → https://www.vilanoeldobem.com.br/
 curl -sI https://app.vilanoeldobem.com.br | grep -i location   # → https://play.vilanoeldobem.com.br/
+curl -sI https://client.vilanoeldobem.com.br | grep -i location   # → https://play.vilanoeldobem.com.br/
 ```
 
 A zona `vilanoeldobem.com.br` está ativa na conta do projeto. Os hosts são **Workers Custom Domains** declarados em

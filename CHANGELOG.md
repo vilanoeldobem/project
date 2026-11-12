@@ -9,6 +9,12 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — apelido `client.*` para o jogo
+
+- `client.vilanoeldobem.com.br` passa a ser um Custom Domain do Worker do jogo e redireciona (302) para
+  `play.vilanoeldobem.com.br`, com o mesmo caminho e query. O jogo continua em uma única origem (`play.*`): CORS,
+  cookie de sessão e servidor de tempo real não mudam. O domínio é criado no próximo `pnpm deploy:client`.
+
 ### Added — retirada administrativa de ONG publicada (PROPOSTA, desligada)
 
 - **PROPOSTA** ([IMPL-0020](docs/decisions/0020-ngo-publication-withdrawal.md)), atrás da bandeira

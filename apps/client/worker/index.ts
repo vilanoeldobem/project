@@ -1,6 +1,6 @@
 /**
- * Game client Worker (play.vilanoeldobem.com.br): static assets; runs first only to redirect the old
- * app.* host (see handle.ts).
+ * Game client Worker (play.vilanoeldobem.com.br): static assets; runs first only to redirect its other
+ * hosts, app.* and client.*, to play.* (see handle.ts).
  */
 import { type Env, handle } from "./handle";
 
