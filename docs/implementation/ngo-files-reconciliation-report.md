@@ -109,7 +109,7 @@ A árvore anterior `0921674` passou typecheck, 569 testes, build, smoke local e 
 substituído por causa da OQ-13. Esse histórico antecede as correções desta revisão, a nova numeração e o novo
 simulador; não comprova a árvore atual. Nenhuma migration ou ativação remota ocorreu.
 
-**Rodada atual:** [CI no commit `bb1c813`](https://github.com/vilanoeldobem/project/actions/runs/43272168427/job/131371240921), em Linux, Node 24.22.2 e pnpm 10.32.1:
+**Primeira rodada:** [CI no commit `bb1c813`](https://github.com/vilanoeldobem/project/actions/runs/43272168427/job/131371240921), em Linux, Node 24.22.2 e pnpm 10.32.1:
 
 - `pnpm typecheck`, `pnpm test` e `pnpm build`: aprovados. **593 testes** (shared 146, API 183, client 179, dash 53, server 23, site 9).
 - `node scripts/verify-media-local.mjs`: aprovado com banco/bucket novos no simulador workerd/D1/R2, migrations 0001–0007 e dados sintéticos. Inclui escrita condicional, remoção pelo responsável, auditoria de leitura/aprovação e exclusão de conta.
