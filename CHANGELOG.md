@@ -222,6 +222,18 @@ Cada versão indica o schema D1 que entrega.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
   marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
   antecipadas para a 0.4.0.
+- Site público adotou identidade voxel da Vila nevada, com temas Dia Nevado e Noite Natalina, arte própria e conteúdo reorganizado.
+  A marca continua sendo o texto temporário ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)): o site
+  não exibe imagem de logo enquanto não houver uma aprovada (DEC-024, PEN-016).
+- Efeitos oferecem controle de neve e movimento reduzido, relógio de São Paulo e suporte responsivo e acessível.
+  Com a neve desligada não sobra floco na tela; com movimento reduzido a neve fica parada e o botão continua
+  ligando e desligando. Os links das seções quebram de linha no celular (nada fica fora da tela) e a ordem do
+  teclado segue a ordem visual do cabeçalho.
+- O relógio do site usa as mesmas fronteiras de fase do jogo (`CYCLE` em `packages/shared/src/environment`), em
+  `apps/site/src/villageClock.ts`, com testes nas fronteiras.
+- Verificação automatizada do site (`apps/site/scripts/verify.mjs`) passou a cobrir rotas, temas, tamanhos de tela,
+  acessibilidade e estados extremos: o que a neve realmente pinta (ligada, desligada, movimento reduzido), contraste
+  do anel de foco (≥ 3:1), ordem do teclado, contraste alto nos dois temas e a página sem JavaScript.
 
 ### Fixed
 
@@ -232,6 +244,8 @@ Cada versão indica o schema D1 que entrega.
 
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
+- Rota 404 passou a compartilhar o tema do site e direcionar para o endereço correto do jogo; não é indexada
+  (`noindex`).
 
 ### Fixed — verificação
 

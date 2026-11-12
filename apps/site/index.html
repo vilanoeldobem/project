@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#173D35" />
+    <!-- Window chrome follows the system scheme; the manual theme toggle rewrites both contents at runtime. -->
+    <meta name="theme-color" content="#0C3A30" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#07201B" media="(prefers-color-scheme: dark)" />
     <title>Vila Noel do Bem — vila natalina virtual em 3D</title>
     <meta name="description" content="Uma vila natalina virtual em 3D voxel para explorar, jogar, conhecer organizações sociais e encontrar oportunidades de fazer o bem." />
     <link rel="canonical" href="https://www.vilanoeldobem.com.br/" />
@@ -16,16 +18,24 @@
     <script src="/gtag-init.js"></script>
     <script async src="https://www.googletagmanager.com/gtm.js?id=GTM-MQP2RVMB"></script>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Applies the saved theme before first paint (no inline script: the CSP forbids it). -->
+    <script src="/theme.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@600&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet" />
+    <link rel="preload" as="image" href="/img/praca.webp" type="image/webp" fetchpriority="high" />
   </head>
   <body>
     <div id="root"></div>
     <noscript>
-      <h1>Vila Noel do Bem</h1>
-      <p>Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.</p>
-      <p><a href="https://play.vilanoeldobem.com.br">Entrar na Vila</a></p>
+      <!-- Fixed light card in both colour schemes: its text colours inherit from it, never from the theme tokens. -->
+      <div style="max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; font-family: Nunito, system-ui, sans-serif; color: #112821; background: #fdf9ef;">
+        <h1 style="font-family: Fredoka, Nunito, sans-serif; color: inherit;">Vila Noel do Bem</h1>
+        <p>Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.</p>
+        <p>Explore uma vila natalina nevada em voxel art, jogue minijogos gratuitos e conheça organizações sociais — direto no navegador, no computador ou no celular.</p>
+        <p><a href="https://play.vilanoeldobem.com.br">Entrar na Vila</a></p>
+        <p>O cadastro de ONGs abre em breve. As doações serão habilitadas após a definição e o contrato da instituição parceira.</p>
+      </div>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
