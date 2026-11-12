@@ -16,6 +16,8 @@ Cada versão indica o schema D1 que entrega.
   exclusão pendente, visível e repetível.
 - Rotas públicas sempre ligadas (`/lots`, `/indicators`, `/ngos/:id`, logo e foto) cobertas por teste nos schemas
   v3 a v6, em todas as combinações de bandeiras e bucket.
+- `AGENTS.md` e `storage.md` voltam a trazer as regras originais (bucket só com arquivos de candidatura, só o logo
+  público, regras de migrations); a galeria aparece como exceção estreita e explícita, PROPOSTA.
 
 ### Added — conciliação dos arquivos e galeria de ONGs (PR, PROPOSTA)
 

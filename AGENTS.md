@@ -59,10 +59,12 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - NGO files (IMPL-0017) stay behind `NGO_FILES_ENABLED` ("false" in production): the list of required documents is
   PENDENTE (PEN-019), so no document is required or named. Never flip the flag or create the bucket without explicit
   approval. Only the logo of a published NGO is ever public.
-  The institutional gallery in [IMPL-0018](docs/decisions/0018-ngo-files-reconciliation.md) is PROPOSTA,
-  implemented as dark code for local validation. `NGO_PHOTOS_ENABLED` must stay false in production until
-  the technical owner explicitly accepts the proposed exception to this rule and OQ-15 is resolved.
-  Documents remain private; local gallery tests do not grant publication approval.
+- NGO gallery photos ([IMPL-0018](docs/decisions/0018-ngo-files-reconciliation.md)) are **PROPOSTA**: dark code
+  behind `NGO_PHOTOS_ENABLED` ("false" in production), validated locally only. The proposal makes one narrow
+  exception to the rule above: a gallery photo that an admin approved individually, of a published NGO on a
+  published lot, would also be public. Nothing else changes: documents stay private. Never flip the flag until the
+  technical owner explicitly accepts that exception and the product owner answers OQ-15 (image rights and consent,
+  retention); passing tests do not grant either.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -80,10 +82,11 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
-- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds the bytes of NGO
-  application files (IMPL-0017, behind `NGO_FILES_ENABLED`) and separately reviewed gallery photos (IMPL-0018,
-  behind `NGO_PHOTOS_ENABLED`), both PROPOSTA: every read goes through the API, the bucket
-  never gets a public URL, no file name is stored, and `ngo_files` / `ngo_photos` in D1 decide who may read what. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
+- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
+  application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket
+  never gets a public URL, no file name is stored, and `ngo_files` in D1 decides who may read what. Proposed
+  exception (IMPL-0018, PROPOSTA, behind `NGO_PHOTOS_ENABLED`, off in production): with that flag on, the same bucket
+  also holds the bytes of gallery photos under the same rules, and `ngo_photos` in D1 decides who may read them. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay

@@ -24,17 +24,17 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
 
-As migrations são sequenciais: esta versão contém 0001–0007. A 0006 mantém o contrato canônico de arquivos;
-0007 acrescenta a galeria e os guardas de conciliação. Migrations não aplicadas podem ser ajustadas antes de
-integrar; uma migration já aplicada não muda de nome nem significado. Simuladores com a antiga 0010 são bases
-alternativas: usar nova base isolada, sem renomear seu histórico ou apagá-los.
+Esta versão contém 0001–0007, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+galeria e os guardas de conciliação. A 0007 chamava-se 0010 enquanto esta entrega estava em revisão: nunca foi
+aplicada no remoto e recebeu o próximo número livre antes de integrar. Simuladores locais com a antiga 0010 são
+bases alternativas: usar nova base isolada, sem renomear seu histórico ou apagá-los.
 A 0007 é pré-requisito do código conciliado mesmo com flags desligadas (sessão e decisões leem colunas novas).
 Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` responde sem logo e a rota de logo
 responde 404. Eles não dispensam a migration 0007 para usar as rotas privadas conciliadas.
 Operações de conta que encontrem ausência das novas colunas retornam `503 schema_outdated`; isso não substitui
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 
-Regras: números sequenciais; migrations aplicadas são imutáveis; nada de `IF NOT EXISTS` para esconder schema divergente.
+Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
 ## 2. Tabelas
 
