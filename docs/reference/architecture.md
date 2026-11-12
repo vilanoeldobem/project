@@ -55,7 +55,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
 | Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. Com `/config.files` ligado ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA), a tela da candidatura ganha "Arquivos da candidatura" (`ui/ApplicationFiles.tsx`, `lib/files.ts`): logo e documentos conferidos no navegador com as mesmas regras da API e enviados já sem metadados; o painel do terreno publicado mostra o logo (`ui/BlobImage.tsx`: lido por `fetch` e exibido por URL de objeto, sem alargar a CSP). A análise administrativa saiu do jogo: admins veem só o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) |
 | Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla |
-| Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar `app.*` → `play.*` (301, mesmo caminho e query); o resto vai para os Static Assets |
+| Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar os outros hosts para `play.*`, com o mesmo caminho e query: `app.*` (301, endereço antigo) e `client.*` (302, apelido); o resto vai para os Static Assets |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
 
@@ -260,7 +260,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | todos | `routes` | Custom Domain do app | Um subdomínio por Worker |
 | todos | `observability.enabled` | `true` | Logs de erro (requisito do doc 06) |
 | client | `assets.not_found_handling` | `single-page-application` | Rotas do cliente caem no `index.html` |
-| client | `assets.run_worker_first` | `true` | Worker só redireciona `app.*`; o resto vai para `ASSETS` |
+| client | `assets.run_worker_first` | `true` | Worker só redireciona `app.*` e `client.*`; o resto vai para `ASSETS` |
 | api | `d1_databases[0]` | binding `DB`, `migrations_dir: ../../migrations` | Migrations na raiz do repo |
 | api | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br` | CORS por origem exata |
 | api | `vars.ACCOUNT_ORIGINS` | `https://play.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br` | Só o jogo e o painel usam rotas de conta e recebem CORS com credenciais |

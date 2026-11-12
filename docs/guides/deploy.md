@@ -11,7 +11,7 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 | Host | Worker | App |
 |---|---|---|
 | https://play.vilanoeldobem.com.br | `vilanoeldobem` | `apps/client` (jogo, Static Assets) |
-| https://client.vilanoeldobem.com.br | `vilanoeldobem` | 302 → `play` (apelido com o nome do app; mesmo caminho e query) |
+| https://client.vilanoeldobem.com.br | `vilanoeldobem` | 302 → `play` (apelido com o nome do app; mesmo caminho e query). **Ainda não publicado:** o domínio nasce no próximo `pnpm deploy:client` |
 | https://app.vilanoeldobem.com.br | `vilanoeldobem` | 301 → `play` (mesmo caminho e query) |
 | https://api.vilanoeldobem.com.br | `vilanoeldobem-api` | `apps/api` (API HTTP + D1) |
 | https://server.vilanoeldobem.com.br | `vilanoeldobem-server` | `apps/server` (presença, Durable Object `VillageRoom`) |
@@ -81,7 +81,7 @@ depois `wrangler deploy`:
 ```bash
 pnpm deploy:api        # api.vilanoeldobem.com.br
 pnpm deploy:server     # server.vilanoeldobem.com.br
-pnpm deploy:client     # play.vilanoeldobem.com.br (+ redirecionamento de app.*)
+pnpm deploy:client     # play.vilanoeldobem.com.br (+ redirecionamento de app.* e client.*)
 pnpm deploy:site       # www.vilanoeldobem.com.br
 pnpm deploy:dash       # dash.vilanoeldobem.com.br
 sh scripts/smoke-api.sh                                   # padrão: api.*, server.* e play.* de produção
@@ -104,7 +104,8 @@ Mudança incompatível: a API perdeu o prefixo `/api`, então cliente e API vão
    Durable Object `VillageRoom` pela migration `v1-village-room` (classe com SQLite, disponível no plano gratuito;
    nada é gravado nela). Conferir `curl -s https://server.vilanoeldobem.com.br/health` → `"rooms":true`.
 3. **Cliente** (`pnpm deploy:client`): substitui o Worker `vilanoeldobem`, que passa a servir `play.*` e só
-   redirecionar `app.*` (301).
+   redirecionar `app.*` (301) e `client.*` (302). Antes do primeiro deploy com `client.*`, confira que a zona não tem
+   registro DNS `client`: fora de um terminal interativo o wrangler substitui um registro existente sem perguntar.
 4. **Site** (`pnpm deploy:site`): links passam a apontar para `play.*`.
 
 Depois, rode o smoke e abra o jogo em dois aparelhos para conferir o chip "👥 2". Se `server.*/room` falhar, o
@@ -146,7 +147,7 @@ pnpm deploy:site                     # build + wrangler deploy (www + raiz como 
 node apps/site/scripts/verify.mjs https://www.vilanoeldobem.com.br
 curl -sI https://vilanoeldobem.com.br | grep -i location   # → https://www.vilanoeldobem.com.br/
 curl -sI https://app.vilanoeldobem.com.br | grep -i location   # → https://play.vilanoeldobem.com.br/
-curl -sI https://client.vilanoeldobem.com.br | grep -i location   # → https://play.vilanoeldobem.com.br/
+curl -sI https://client.vilanoeldobem.com.br | grep -i location   # → https://play.vilanoeldobem.com.br/ (depois do deploy que cria o domínio)
 ```
 
 A zona `vilanoeldobem.com.br` está ativa na conta do projeto. Os hosts são **Workers Custom Domains** declarados em

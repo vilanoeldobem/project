@@ -23,7 +23,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
     lib/                    api.ts (cliente da API), account.ts (conta, sessão, sincronização do progresso),
                             endpoints.ts (hosts por modo de build), services.ts
     net/multiplayer.ts      conexão de presença com o servidor
-  worker/                   index.ts (entrada) + handle.ts (redireciona app.* → play.*)
+  worker/                   index.ts (entrada) + handle.ts (redireciona app.* e client.* → play.*)
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
