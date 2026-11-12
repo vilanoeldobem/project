@@ -21,7 +21,7 @@ function AuditTable() {
   const page = usePaged((before) => api.audit(before));
   const events = page.items ?? [];
   return (
-    <Live loading={page.loading} error={page.error}>
+    <Live loading={page.loading} error={page.error} onRetry={page.retry}>
       {page.items && events.length === 0 && (
         <p className="muted" data-state="empty">
           Nenhum evento registrado.

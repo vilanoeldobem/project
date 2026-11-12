@@ -59,11 +59,15 @@ export function AccountsOff({ what }: { what: string }) {
   );
 }
 
-/** Async region: announces loading, errors and results to assistive technology without stealing focus. */
+/**
+ * Async region: announces loading, errors and results to assistive technology without stealing focus. What was
+ * already loaded stays on screen when a later request fails (the error goes below it, with a way to retry).
+ */
 export function Live({ loading, error, onRetry, children }: { loading: boolean; error: string; onRetry?: () => void; children?: ReactNode }) {
   return (
     <div aria-live="polite" aria-busy={loading}>
-      {error ? (
+      {children}
+      {error && (
         <div className="error" role="alert">
           <p>{error}</p>
           {onRetry && (
@@ -72,8 +76,6 @@ export function Live({ loading, error, onRetry, children }: { loading: boolean; 
             </button>
           )}
         </div>
-      ) : (
-        children
       )}
       {loading && !error && <p className="muted">Carregando…</p>}
     </div>

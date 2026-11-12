@@ -11,14 +11,15 @@ import { SERVICES } from "../lib/services";
 
 export function Shell({ route, user, onSignOut, children }: { route: Route; user: Me | null; onSignOut: () => void; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
-  const first = useRef(true);
   const label = SECTIONS.find((s) => s.section === route.section)!.label;
-  const where = route.section === "applications" ? (route.id ?? "") : "";
+  const where = `${route.section}/${route.section === "applications" ? (route.id ?? "") : ""}`;
+  const shown = useRef(where);
   useEffect(() => {
     document.title = `${label} — Painel administrativo — Vila Noel do Bem`;
-    // Not on the first paint: focus stays where the browser put it until the person navigates.
-    if (first.current) first.current = false;
-    else (main.current?.querySelector<HTMLElement>("h1") ?? main.current)?.focus();
+    // Only when the person navigates: on the first paint focus stays where the browser put it.
+    if (shown.current === where) return;
+    shown.current = where;
+    (main.current?.querySelector<HTMLElement>("h1") ?? main.current)?.focus();
   }, [label, where]);
   return (
     <div className="shell">

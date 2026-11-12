@@ -137,7 +137,11 @@ for (const size of ["desktop", "mobile"]) {
     await menu.getByRole("link", { name: section.menu, exact: true }).click();
     const main = page.getByRole("main");
     if (!(await visible(main.getByRole("heading", { level: 1, name: section.title, exact: true })))) errors.push(`${name}: heading "${section.title}" not shown`);
-    await page.waitForLoadState("networkidle");
+    // Wait until every async region of the section has answered (`aria-busy` back to false). "networkidle" would
+    // not do: a hash navigation stays in the same document, where it has already fired.
+    await page
+      .waitForFunction(() => !document.querySelector('main [aria-busy="true"]'), null, { timeout: WAIT })
+      .catch(() => errors.push(`${name}: still loading after ${WAIT / 1000} s`));
     for (const [state, count] of Object.entries(section.states)) {
       await visible(main.locator(`[data-state="${state}"]`).first(), 10000);
       const found = await main.locator(`[data-state="${state}"]`).count();

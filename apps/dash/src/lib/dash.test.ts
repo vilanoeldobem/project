@@ -110,13 +110,32 @@ describe("session", () => {
     expect(await openSession(fake({ verify: refused, me: async () => ({ user: ADMIN }) }), "token")).toEqual({ kind: "signed_in", user: ADMIN });
   });
 
-  it("reports an unreachable API instead of pretending to be signed out", async () => {
+  it("reports an unreachable API instead of pretending to be signed out, and keeps an unused link token", async () => {
     const down = async (): Promise<never> => {
       throw new ApiError(0, "network");
     };
-    expect(await openSession(fake({ config: down }), null)).toEqual({ kind: "unavailable" });
-    expect(await openSession(fake({ verify: down }), "token")).toEqual({ kind: "unavailable" });
-    expect(await openSession(fake({ me: down }), null)).toEqual({ kind: "unavailable" });
+    expect(await openSession(fake({ config: down }), null)).toEqual({ kind: "unavailable", token: null });
+    expect(await openSession(fake({ config: down }), "token")).toEqual({ kind: "unavailable", token: "token" });
+    expect(await openSession(fake({ verify: down }), "token")).toEqual({ kind: "unavailable", token: "token" });
+    expect(await openSession(fake({ me: down }), null)).toEqual({ kind: "unavailable", token: null });
+  });
+
+  it("does not call a link expired when the API refused for another reason", async () => {
+    const calls: string[] = [];
+    const limited = async (): Promise<never> => {
+      throw new ApiError(429, "too_many_requests");
+    };
+    // The rate limiter answers before the token is looked at: the link is still good, so it is kept for a retry.
+    expect(await openSession(fake({ verify: limited }, calls), "token")).toEqual({
+      kind: "unavailable",
+      token: "token",
+      reason: "Muitas tentativas seguidas. Espere um minuto e tente de novo.",
+    });
+    expect(calls).toEqual(["config"]);
+    const broken = async (): Promise<never> => {
+      throw new ApiError(503, "db_unavailable");
+    };
+    expect(await openSession(fake({ verify: broken }), "token")).toMatchObject({ kind: "unavailable", token: "token" });
   });
 
   it("treats only the admin role as an admin", () => {

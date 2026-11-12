@@ -63,14 +63,14 @@ h1:focus { outline: none; }
 .menu a { display: flex; align-items: center; min-height: 44px; padding: 0 12px; font-weight: 700; text-decoration: none; color: var(--cream); border-bottom: 4px solid transparent; }
 .menu a:hover { background: var(--pine); }
 .menu a[aria-current="page"] { border-bottom-color: var(--gold); background: var(--pine); }
-.main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; }
+.main { max-width: 1100px; margin: 0 auto; padding: 20px 16px 40px; overflow-wrap: anywhere; }
 .main:focus { outline: none; }
 .foot { display: flex; flex-wrap: wrap; gap: 6px 16px; max-width: 1100px; margin: 0 auto; padding: 16px; font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); }
 .page-head { margin-bottom: 12px; }
 
 /* Sign-in and the other full-page states */
 .gate { min-height: 100vh; display: grid; place-items: center; padding: 16px; background: var(--pine); }
-.gate__card { width: 100%; max-width: 440px; padding: 24px; background: var(--cream); border-radius: 14px; border: 3px solid var(--gold); }
+.gate__card { width: 100%; max-width: 440px; padding: 24px; background: var(--cream); border-radius: 14px; border: 3px solid var(--gold); overflow-wrap: anywhere; }
 .form { display: grid; gap: 12px; margin: 12px 0; }
 
 /* Fields */

@@ -6,7 +6,7 @@
  *   - admin → every section.
  * The API enforces the role on every `/admin/*` route; what is hidden here is convenience, not the protection.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { takeLoginToken } from "./lib/login-token";
 import { useRoute } from "./lib/router";
@@ -29,15 +29,31 @@ const start = () => (startup ??= openSession(api, takeLoginToken()));
 export function App() {
   const [session, setSession] = useState<Session>({ kind: "loading" });
   const route = useRoute();
+  /** Number of the latest session read: an older one that answers late is dropped. */
+  const latest = useRef(0);
+  /** True while a session read is in flight: its own refusals must not start another one. */
+  const opening = useRef(false);
 
-  const reopen = useCallback((token: string | null, notice?: string) => {
-    setSession({ kind: "loading" });
-    void openSession(api, token, notice).then(setSession);
+  const follow = useCallback((reading: Promise<Session>) => {
+    const mine = ++latest.current;
+    opening.current = true;
+    void reading.then((s) => {
+      if (mine !== latest.current) return;
+      opening.current = false;
+      setSession(s);
+    });
   }, []);
 
+  const reopen = useCallback(
+    (token: string | null, notice?: string) => {
+      setSession({ kind: "loading" });
+      follow(openSession(api, token, notice));
+    },
+    [follow]
+  );
+
   useEffect(() => {
-    let live = true;
-    void start().then((s) => live && setSession(s));
+    follow(start());
     // A link opened in a tab that already shows the dashboard only changes the fragment (no page load).
     const onHash = () => {
       const token = takeLoginToken();
@@ -45,23 +61,30 @@ export function App() {
     };
     window.addEventListener("hashchange", onHash);
     // A call refused as signed out, not admin or accounts off: re-read who is here instead of showing stale screens.
-    const stop = onSessionChanged(() => reopen(null, SESSION_ENDED));
+    const stop = onSessionChanged(() => {
+      if (!opening.current) reopen(null, SESSION_ENDED);
+    });
     return () => {
-      live = false;
       window.removeEventListener("hashchange", onHash);
       stop();
     };
-  }, [reopen]);
+  }, [follow, reopen]);
 
   const signOut = () => {
     void api
       .logout()
       .catch(() => null)
-      .then(() => setSession({ kind: "signed_out" }));
+      .then(() => {
+        // Whatever session read is still in flight no longer matters.
+        latest.current++;
+        opening.current = false;
+        setSession({ kind: "signed_out" });
+      });
   };
 
   if (session.kind === "loading") return <Starting />;
-  if (session.kind === "unavailable") return <Unavailable onRetry={() => reopen(null)} />;
+  // "Tentar de novo" carries the link token that was not consumed, if there was one.
+  if (session.kind === "unavailable") return <Unavailable reason={session.reason} onRetry={() => reopen(session.token)} />;
   if (session.kind === "signed_out") return <SignIn notice={session.notice} />;
   if (session.kind === "signed_in" && !isAdmin(session)) return <NotAdmin user={session.user} onSignOut={signOut} />;
 

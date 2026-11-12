@@ -27,7 +27,7 @@ function UsersTable() {
   const page = usePaged((before) => api.users(before));
   const users = page.items ?? [];
   return (
-    <Live loading={page.loading} error={page.error}>
+    <Live loading={page.loading} error={page.error} onRetry={page.retry}>
       <p className="muted">E-mail e nome não aparecem aqui: só o nickname é público, e o painel guarda o mínimo.</p>
       {page.items && users.length === 0 && (
         <p className="muted" data-state="empty">

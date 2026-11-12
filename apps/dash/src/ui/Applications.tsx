@@ -134,11 +134,11 @@ export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; 
     setDone("");
     try {
       const ticked = { activeCnpj: checks.cnpj, oneYear: checks.year, fundsConfirmable: checks.funds };
-      await api.adminDecide(id, action, a.revision, note || undefined, action === "approve" ? ticked : undefined);
-      const fresh = await api.adminGet(id);
-      onDetail(fresh);
+      const { application } = await api.adminDecide(id, action, a.revision, note || undefined, action === "approve" ? ticked : undefined);
+      // The decision is recorded: show it even if re-reading the history fails (it is only stale then).
+      onDetail(await api.adminGet(id).catch(() => ({ ...d, application })));
       setNote("");
-      setDone(`Decisão registrada: ${STATUS_LABEL[fresh.application.status]}.`);
+      setDone(`Decisão registrada: ${STATUS_LABEL[application.status]}.`);
     } catch (e) {
       // The applicant resubmitted while this screen was open: show the new version, untick the checks.
       if ((e as { code?: string }).code === "stale_revision") {

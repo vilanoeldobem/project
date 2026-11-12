@@ -101,11 +101,12 @@ export function NotAdmin({ user, onSignOut }: { user: Me; onSignOut: () => void 
   );
 }
 
-export function Unavailable({ onRetry }: { onRetry: () => void }) {
+/** `reason`: the API answered but refused for now (rate limit, database down); without it, no answer came at all. */
+export function Unavailable({ reason, onRetry }: { reason?: string; onRetry: () => void }) {
   return (
-    <Frame title="API indisponível">
+    <Frame title={reason ? "Não foi possível entrar agora" : "API indisponível"}>
       <p className="lead" role="alert">
-        Não foi possível falar com a API da Vila. Sem ela o painel não tem o que mostrar.
+        {reason ?? "Não foi possível falar com a API da Vila. Sem ela o painel não tem o que mostrar."}
       </p>
       <button className="btn" onClick={onRetry}>
         Tentar de novo

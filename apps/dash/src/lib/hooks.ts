@@ -41,6 +41,8 @@ export interface Paged<T> {
   error: string;
   loading: boolean;
   more: () => void;
+  /** Repeats the request that failed (the first page or the last "more"); what is loaded stays. */
+  retry: () => void;
 }
 
 /** Newest-first list read page by page ("Carregar mais"): the first page replaces, the next ones append. */
@@ -52,8 +54,10 @@ export function usePaged<T>(fetchPage: (before?: string) => Promise<Page<T>>): P
   const fetcher = useRef(fetchPage);
   fetcher.current = fetchPage;
   const request = useRef(0);
+  const asked = useRef<string | undefined>(undefined);
   const load = useCallback((before?: string) => {
     const mine = ++request.current;
+    asked.current = before;
     setLoading(true);
     setError("");
     fetcher.current(before).then(
@@ -71,5 +75,5 @@ export function usePaged<T>(fetchPage: (before?: string) => Promise<Page<T>>): P
     );
   }, []);
   useEffect(() => load(), [load]);
-  return { items, hasMore: next !== null, error, loading, more: () => next && !loading && load(next) };
+  return { items, hasMore: next !== null, error, loading, more: () => next && !loading && load(next), retry: () => load(asked.current) };
 }
