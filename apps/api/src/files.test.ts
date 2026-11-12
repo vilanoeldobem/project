@@ -192,7 +192,7 @@ describe("feature flag", () => {
 
   it("keeps missing-0006 account reads and deletion working once reconciliation columns exist", async () => {
     // Exercise the upstream missing-files fallback with our required columns, without creating ngo_files.
-    db = createD1({ upTo: 5, additionalMigrations: [10] });
+    db = createD1({ upTo: 5, additionalMigrations: [7] });
     env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
     const a = await applicant();
     expect((await call("GET", "/ngo/application", undefined, a.cookie)).body).toMatchObject({ application: { status: "submitted" }, files: [] });
@@ -550,10 +550,11 @@ describe("reading and removing", () => {
     expect(r2.keys()).toEqual([`ngo/${a.ngoId}/${keep.id}`]);
     expect(audits("ngo.file_remove")).toEqual([{ actor: a.user.id, subject: `ngo:${a.ngoId}`, detail: JSON.stringify({ kind: "document", file: doc.id, revision: 4 }) }]);
     expect((await remove(a, doc.id)).status).toBe(404);
-    // The row is gone even if R2 fails to delete: the object is then unreachable, not served.
+    // Metadata is hidden, but a durable cleanup intent exposes failure and permits recovery.
     r2.failNext("delete");
-    expect((await remove(a, keep.id)).status).toBe(200);
+    expect((await remove(a, keep.id)).status).toBe(503);
     expect(rows()).toEqual([]);
+    expect(db.sql("SELECT id,cleanup_pending FROM media_upload_intents")).toEqual([{id:keep.id,cleanup_pending:1}]);
   });
 
   it("writes one removal to the audit trail when two removals of the same file race", async () => {

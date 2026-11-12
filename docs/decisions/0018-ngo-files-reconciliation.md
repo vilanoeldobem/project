@@ -1,4 +1,4 @@
-# IMPL-0021: Conciliação de arquivos e galeria de ONGs sobre o fluxo do PR #32
+# IMPL-0018: Conciliação de arquivos e galeria de ONGs sobre o fluxo do PR #32
 
 **Status:** Proposta — implementação para revisão de Augusto; ativação remota permanece desligada
 **Data:** 2026-11-12
@@ -6,7 +6,7 @@
 [PR #32](https://github.com/vilanoeldobem/project/pull/32), [PR #28](https://github.com/vilanoeldobem/project/pull/28),
 [PR #29](https://github.com/vilanoeldobem/project/pull/29) e [PR #31](https://github.com/vilanoeldobem/project/pull/31);
 DEC-028, DEC-037 e PEN-019 do repositório `vilanoeldobem/docs`;
-[plano de conciliação](../implementation/ngo-files-reconciliation-plan.md).
+[registro da entrega](../implementation/ngo-files-reconciliation-report.md).
 
 ## Contexto
 
@@ -33,11 +33,11 @@ ser implementada tornando públicos todos os arquivos da candidatura.
    prefixos de objeto distintos e chaves geradas no servidor. A autorização continua por registro e rota no D1;
    conhecer uma chave não dá acesso. Não criar bucket público, domínio R2 ou URL assinada que contorne a API.
 3. **Manter a galeria separada no domínio.** `ngo_photos` guarda revisão, legenda, posição e estado editorial;
-   a nova migration 0010 adiciona essa estrutura e os guardas necessários à conciliação. Fotos entram pendentes;
+   a nova migration 0007 adiciona essa estrutura e os guardas necessários à conciliação. Fotos entram pendentes;
    outro administrador aprova, rejeita ou remove. Aprovar a candidatura não aprova a galeria. Bytes e metadados
    de uma foto são imutáveis; substituir exige novo envio e revisão.
 4. **Reutilizar a validação de imagens do PR #32.** Logo/documentos conservam seus limites. A galeria usa
-   PNG/JPEG, até 2 MiB, lados até 4096 px, área até 16 milhões de pixels e até dez fotos não removidas, conforme
+   PNG/JPEG, até 2 MiB, lados até 4096 px, área até 16 milhões de pixels e até dez fotos pendentes/aprovadas, conforme
    proposta herdada de #29. WebP do contrato anterior fica de fora, pois não tem tratamento compartilhado de
    metadados. A API da galeria recebe bytes e metadados limitados fora da URL; o contrato exato fica na
    [referência da API](../reference/api.md). Não manter um segundo parser de imagem/base64 para a galeria.
@@ -65,9 +65,8 @@ ser implementada tornando públicos todos os arquivos da candidatura.
    persistidos; leitura administrativa é auditada. A intenção de retenção do PR #32 permanece: excluir a conta
    remove documentos e o logo ainda não publicado, preservando o logo institucional publicado. As proteções de
    concorrência precisam respeitar essa distinção também quando aprovação e exclusão acontecem juntas.
-   A proposta para a galeria preserva fotos aprovadas de ONG cujo estado é `published` e remove as demais.
-   Essa retenção usa o estado da ONG, como o logo no #32; não apaga uma foto institucional aprovada só porque
-   o vínculo ao terreno está temporariamente ausente. A leitura pública continua exigindo o terreno publicado.
+   A galeria é removida integralmente quando a conta é excluída, inclusive as fotos aprovadas. A correção
+   atende à revisão de remoção de conteúdo: a preservação canônica do logo não se estende à galeria.
    A implementação não transforma essa proposta técnica em aprovação jurídica de retenção.
 10. **Manter a implantação separada da entrega.** `NGO_FILES_ENABLED` e `NGO_PHOTOS_ENABLED` ficam desligadas
     remotamente. Nenhuma migration, bucket, segredo, domínio, merge ou deploy é executado por esta conciliação.
@@ -76,7 +75,7 @@ ser implementada tornando públicos todos os arquivos da candidatura.
 ### Exclusão da conta concorrente com análise e arquivos
 
 A intenção de excluir arquivos da conta precisa ser persistida em D1 antes de apagar bytes no R2. O marcador
-`users.files_deleting`, adicionado em 0010, congela as mutações relevantes da candidatura, arquivos, galeria e
+`users.files_deleting`, adicionado em 0007, congela as mutações relevantes da candidatura, arquivos, galeria e
 análise administrativa tanto na leitura inicial quanto na condição SQL de escrita. Assim, uma aprovação não
 pode trocar o destino do logo enquanto a limpeza usa a decisão observada. Se a aprovação vencer antes da
 intenção, o logo já publicado é preservado; se a intenção vencer, a aprovação perde sua condição de escrita.
@@ -93,7 +92,49 @@ que aprovação e envio não mudem o conjunto de evidências enquanto R2 é limp
 Nesse intervalo pode haver metadado privado cujo objeto já foi apagado; o download falha de forma fechada.
 Não afirmar atomicidade entre D1 e R2 nem comprovar exclusão física só pelo início da operação. Não há serviço
 novo de fila, rotina de expiração ou cancelamento da intenção neste incremento; recuperação é repetir a
-exclusão autorizada. A referência de armazenamento descreve o procedimento testado.
+exclusão autorizada. A referência de armazenamento descreve o procedimento; a validação desta rodada está
+registrada separadamente no relatório da entrega.
+
+### Recuperação de logo e comprovantes
+
+`media_upload_intents` registra `id`, `ngo_id`, `uploaded_by`, `created_at` e `cleanup_pending` antes de acessar
+R2. A chave é derivada de ONG/id; não duplica nome, conteúdo, tamanho ou tipo do arquivo. O índice único de logo
+em `ngo_files` impede usar essa tabela como área temporária para uma substituição. O registro separado guarda
+somente a intenção de envio/limpeza, sem introduzir outro contrato de documentos.
+
+`media-storage.ts` é compartilhado com a galeria: reserva vazia, releitura da autorização e escrita dos bytes
+condicionada ao ETag da reserva. A transação canônica só finaliza com intenção ativa e a remove junto da gravação
+dos metadados/auditoria. Remover arquivo ou substituir logo cria uma intenção de limpeza na transação que
+desvincula os metadados; a intenção só desaparece após confirmação da exclusão em R2. Se a confirmação do commit
+se perder, reler os metadados antes de compensar impede apagar bytes já vinculados.
+
+Responsável e admin podem acionar as rotas autenticadas de recuperação em `files/recover`, mesmo com o envio
+desligado. Cada chamada trata até 50 intenções: limpeza já marcada ou upload com mais de 15 minutos. O prazo
+identifica envio abandonado para cancelamento; não define retenção de documentos. A recuperação marca a intenção
+antes de apagar bytes, impedindo a finalização de um upload atrasado. Admin registra a tentativa antes do I/O
+destrutivo; falha mantém o registro para repetição. `DELETE /me` inclui as chaves e intenções da conta.
+
+Não há cron ou serviço de fila neste incremento. Uma queda no intervalo de criação de uma reserva vazia após
+cancelamento pode deixar zero bytes sem dados pessoais. Não afirmar atomicidade distribuída ou zero objetos
+órfãos; a execução dos testes desta rodada ainda precisa ser registrada.
+
+### Ciclo de vida da galeria após revisão
+
+O responsável pode remover uma foto, inclusive aprovada, e a exclusão da conta apaga toda a galeria.
+Rejeitar libera cota e limpa a legenda. A revogação em D1 precede a exclusão dos bytes: falha mantém marcador
+`cleanup_pending` e a linha descoberta nas listas/fila para repetição. Envios são permitidos somente em
+`submitted`, `changes_requested` e `published`; a galeria tem decisão própria, sem liberar comprovantes.
+
+Uma linha `upload_pending` é criada antes de R2. Uma reserva vazia e escrita condicional pelo ETag impedem que
+um upload atrasado recrie bytes pessoais depois de uma remoção concorrente da reserva. O limite de escrita
+na mesma chave exige uma tentativa adicional limitada quando R2 responde 429; não há repetição ilimitada.
+Confirmação incerta de D1 exige releitura antes de descartar o objeto. A galeria guarda a intenção na própria
+linha; logo/comprovantes usam `media_upload_intents`, descrita acima. Ambos reutilizam a mesma primitiva de
+reserva/escrita condicional, preservando seus contratos e caminhos próprios de recuperação.
+
+Envio e GET administrativo de foto geram auditoria. Aprovação exige leitura registrada da mesma foto/revisão
+pelo mesmo administrador; HEAD só consulta metadados. Isso comprova acesso ao conteúdo, não compreensão nem
+validade jurídica da imagem. Declaração de direitos e conferência operacional continuam sob OQ-15.
 
 ### Mapa de substituição para revisão
 
@@ -111,10 +152,11 @@ merge desses PRs automaticamente; Augusto decide a integração após revisão.
 
 ### Numeração e bases de dados
 
-O esquema desta proposta parte das migrations 0001–0006 do PR #32 e acrescenta 0010. As numerações 0007–0009
-permanecem reservadas às entregas já propostas em outras branches; sua ausência aqui não cria uma dependência
-implícita. Nenhuma migration já existente é editada para trocar de significado.
-A 0010 é pré-requisito das rotas de conta conciliadas mesmo com as flags de arquivos desligadas. Os fallbacks
+O esquema contém migrations sequenciais 0001–0007; a 0006 canônica é preservada. A antiga 0010 desta entrega
+não foi aplicada remotamente e foi renomeada antes da integração para 0007. O ADR usa o próximo identificador
+após IMPL-0017. Não há reserva de números para PRs ainda abertos: cada integração usa a sequência efetiva.
+
+A 0007 é pré-requisito das rotas de conta conciliadas mesmo com as flags de arquivos desligadas. Os fallbacks
 públicos do #32 para ausência de `ngo_files` continuam: `/lots` responde sem logo e a rota de logo responde 404.
 Esses fallbacks não tornam um banco antigo compatível com as novas rotas privadas.
 Se uma operação de conta encontrar ausência das colunas novas, responde `503 schema_outdated` sem repetir a
@@ -152,5 +194,5 @@ auditada como já previsto em #32; outras consultas administrativas continuam so
 
 ## Relacionados
 
-[IMPL-0017](0017-ngo-files-r2.md) · [Plano](../implementation/ngo-files-reconciliation-plan.md) ·
+[IMPL-0017](0017-ngo-files-r2.md) · [Registro](../implementation/ngo-files-reconciliation-report.md) ·
 [API](../reference/api.md) · [Armazenamento](../reference/storage.md) · [Perguntas abertas](open-questions.md).

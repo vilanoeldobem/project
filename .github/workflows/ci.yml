@@ -30,3 +30,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Local media lifecycle (workerd, D1, R2)
+        run: node scripts/verify-media-local.mjs
+        timeout-minutes: 3

@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -56,8 +56,11 @@ região na América do Sul; `enam` é a mais próxima).
 pnpm --filter @vila/api db:migrate:remote
 ```
 
-Exige autorização humana explícita. Aplique **junto** com o deploy da API que usa o schema novo (na 0.4.0, a
-migration `0004_accounts_ngo_applications.sql`; ver [§7](#7-contas-e-ongs-040)).
+Exige autorização humana explícita. Confira o histórico remoto e aplique a sequência efetiva antes de
+disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007;
+operações que encontrem colunas novas ausentes retornam `503 schema_outdated`. As rotas públicas continuam
+tolerantes à v3, inclusive `/ngos/:id`; isso não dispensa o upgrade antes de ativar as contas. O último estado
+registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
 
 ## 4. Publicar
 
@@ -174,17 +177,19 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 
 ### 7.1 Ordem do deploy da 0.4.0
 
-1. **Migration remota 0004 + API, juntas** (ambas exigem autorização):
+1. **Migrations sequenciais até 0007 + API** (ambas exigem autorização):
 
    ```bash
-   pnpm --filter @vila/api db:migrate:remote     # aplica 0004_accounts_ngo_applications.sql
+   pnpm --filter @vila/api db:migrate:remote     # aplica somente as migrations pendentes da sequência revisada
    pnpm deploy:api
    curl -s https://api.vilanoeldobem.com.br/health    # "db":true
    curl -s https://api.vilanoeldobem.com.br/config    # {"accounts":false}
    ```
 
-   A 0004 só cria tabelas e acrescenta colunas em `ngos`: a API anterior continua funcionando com ela, então a
-   migration pode ir um pouco antes do deploy, nunca depois.
+   Aplique a sequência revisada antes de ativar o fluxo de contas. 0006 contém os arquivos canônicos e 0007
+   contém a galeria e guardas. O perfil público funciona na v3 com campos opcionais ausentes tratados como
+   vazios; teste uma ONG inexistente em `GET /ngos/00000000-0000-4000-8000-000000000000` → 404. Isso não afirma
+   que o banco remoto já recebeu as migrations.
 2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
 3. Smoke e `verify.mjs` como em [§4](#4-publicar).
 

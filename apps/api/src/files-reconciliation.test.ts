@@ -249,3 +249,126 @@ describe("account file-deletion intent", () => {
     expect(audits("user.delete")).toHaveLength(1); expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]);
   });
 });
+
+it("preserves linked canonical file bytes after a committed batch loses its acknowledgement", async () => {
+  vi.spyOn(console,"error").mockImplementation(()=>{});
+  const batch=db.batch.bind(db);
+  db.batch=async (statements)=>{await batch(statements);throw new Error("lost acknowledgement");};
+  expect((await upload()).status).toBe(500);
+  expect(fileRows()).toHaveLength(1);expect(r2.keys()).toHaveLength(1);
+  const id=String(fileRows()[0].id);
+  expect((await request("GET",`/ngo/application/files/${id}`)).status).toBe(200);
+  expect(db.sql("SELECT * FROM media_upload_intents")).toEqual([]);
+});
+
+const recover = (user = "owner") => request("POST", user === "admin" ? `/admin/applications/${NGO}/files/recover` : "/ngo/application/files/recover",
+  user, undefined, { "X-Vila-Account": user });
+const uploadIntents = () => db.sql("SELECT id,ngo_id,cleanup_pending FROM media_upload_intents");
+
+describe("durable canonical file storage", () => {
+  it("records an intent before any R2 write and removes it only after canonical metadata commits", async () => {
+    const put = r2.put.bind(r2);
+    vi.spyOn(r2, "put").mockImplementation(async (...args) => {
+      expect(uploadIntents()).toHaveLength(1);
+      expect(fileRows()).toEqual([]);
+      return put(...args);
+    });
+    await file();
+    expect(uploadIntents()).toEqual([]);
+    expect(r2.keys()).toHaveLength(1);
+  });
+
+  it("recovers an abandoned private object, preserves fresh uploads and never lists private keys", async () => {
+    await db.prepare("INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,created_at) VALUES('abandoned',?,'owner','2000-01-01'),('fresh',?,'owner','2099-01-01')").bind(NGO, NGO).run();
+    await r2.put(`ngo/${NGO}/abandoned`, pdf());
+    await r2.put(`ngo/${NGO}/fresh`, new Uint8Array());
+    env.NGO_FILES_ENABLED = "false";
+    const response = await recover();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cleaned: 1, remaining: 1 });
+    expect(r2.keys()).toEqual([`ngo/${NGO}/fresh`]);
+    expect(uploadIntents().map((i) => i.id)).toEqual(["fresh"]);
+    expect(fileRows()).toEqual([]);
+  });
+
+  it("retains failed deletion cleanup and permits audited administrator recovery with flags off", async () => {
+    const id = await file(); r2.failNext("delete");
+    expect((await remove(id)).status).toBe(503);
+    expect(uploadIntents()).toEqual([{ id, ngo_id: NGO, cleanup_pending: 1 }]);
+    expect((await request("GET", `/ngo/application/files/${id}`)).status).toBe(404);
+    env.NGO_FILES_ENABLED = "false";
+    expect((await recover("admin")).status).toBe(200);
+    expect(r2.keys()).toEqual([]); expect(uploadIntents()).toEqual([]);
+    expect(audits("ngo.file_cleanup")).toHaveLength(1);
+  });
+
+  it("tracks a replaced logo until owner cleanup succeeds without harming the new logo", async () => {
+    const old = await file("logo"); r2.failNext("delete");
+    const current = await file("logo");
+    expect(fileRows().map((r) => r.id)).toEqual([current]);
+    expect(uploadIntents().map((r) => r.id)).toEqual([old]);
+    expect((await recover()).status).toBe(200);
+    expect(r2.keys()).toEqual([`ngo/${NGO}/${current}`]); expect(uploadIntents()).toEqual([]);
+    expect((await request("GET", `/ngo/application/files/${current}`)).status).toBe(200);
+  });
+
+  it("keeps a committed replacement readable after a lost acknowledgement and recovers its old bytes", async () => {
+    const old = await file("logo"), batch = db.batch.bind(db);
+    vi.spyOn(console,"error").mockImplementation(()=>{});
+    db.batch = async (statements) => { db.batch = batch; await batch(statements); throw new Error("lost acknowledgement"); };
+    expect((await upload("logo")).status).toBe(500);
+    const current = String(fileRows()[0].id);
+    expect(current).not.toBe(old);
+    expect((await request("GET", `/ngo/application/files/${current}`)).status).toBe(200);
+    expect(uploadIntents().map((r) => r.id)).toEqual([old]);
+    expect((await recover()).status).toBe(200);
+    expect(r2.keys()).toEqual([`ngo/${NGO}/${current}`]);
+  });
+
+  it("keeps an uncommitted upload discoverable when immediate compensation fails", async () => {
+    const batch = db.batch.bind(db);
+    vi.spyOn(console,"error").mockImplementation(()=>{});
+    db.batch = async () => { db.batch = batch; throw new Error("transaction failed"); };
+    r2.failNext("delete");
+    expect((await upload()).status).toBe(500);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toHaveLength(1);
+    expect(uploadIntents()[0].cleanup_pending).toBe(1);
+    expect((await recover()).status).toBe(200);
+    expect(r2.keys()).toEqual([]); expect(uploadIntents()).toEqual([]);
+  });
+
+  it("prevents an already-dispatched private put from recreating bytes after account erasure", async () => {
+    const put = r2.put.bind(r2), paused = gate();
+    vi.spyOn(r2, "put").mockImplementation(async (...args) => {
+      if (args[2]?.onlyIf) { paused.entered(); await paused.wait; }
+      return put(...args);
+    });
+    const pending = upload(); await paused.ready;
+    expect(uploadIntents()).toHaveLength(1);
+    expect((await deleteAccount()).status).toBe(204);
+    expect(r2.keys()).toEqual([]); expect(uploadIntents()).toEqual([]);
+    paused.release(); expect((await pending).status).toBe(409);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]);
+  });
+
+  it("cancels an abandoned upload before a late put and bounds recovery to 50 intents", async () => {
+    const put = r2.put.bind(r2), paused = gate();
+    vi.spyOn(r2, "put").mockImplementation(async (...args) => {
+      if (args[2]?.onlyIf) { paused.entered(); await paused.wait; }
+      return put(...args);
+    });
+    const pending = upload(); await paused.ready;
+    db.sql("UPDATE media_upload_intents SET created_at='2000-01-01'");
+    expect(await (await recover()).json()).toEqual({ cleaned: 1, remaining: 0 });
+    paused.release(); expect((await pending).status).toBe(409);
+    expect(r2.keys()).toEqual([]); expect(fileRows()).toEqual([]);
+    for (let i=0;i<51;i++) await db.prepare("INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,created_at) VALUES(?,?,'owner','2000-01-01')").bind(`orphan-${i}`,NGO).run();
+    expect(await (await recover()).json()).toEqual({ cleaned: 50, remaining: 1 });
+    expect(await (await recover()).json()).toEqual({ cleaned: 1, remaining: 0 });
+  });
+
+  it("rejects recovery by a non-admin or a stale account header", async () => {
+    expect((await request("POST", `/admin/applications/${NGO}/files/recover`, "owner", undefined, { "X-Vila-Account":"owner" })).status).toBe(403);
+    expect((await request("POST", "/ngo/application/files/recover", "owner", undefined, { "X-Vila-Account":"admin" })).status).toBe(409);
+  });
+});

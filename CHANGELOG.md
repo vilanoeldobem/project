@@ -13,15 +13,25 @@ Cada versão indica o schema D1 que entrega.
 
 - Reaproveita o PR #32: `FILES`, `ngo_files`, uploads crus, sanitizador e telas de logo/documentos permanecem
   canônicos. Perfil público e galeria dos PRs #28/#29 são adaptados a esse bucket, sem o pipeline concorrente
-  de documentos do #31. Galeria PNG/JPEG com aprovação individual, desligada em produção/staging (IMPL-0021).
-- Migration 0010 preserva 0006; acrescenta galeria, token exclusivo de escrita e intenção durável de exclusão.
-  Requer revisão do histórico antes de aplicar; não importa migrations 0007–0009 nem a retirada do PR #33.
+  de documentos do #31. Galeria PNG/JPEG com aprovação individual, desligada em produção/staging (IMPL-0018).
+- Migration 0007 preserva 0006; acrescenta galeria, token exclusivo de escrita e intenção durável de exclusão.
+  Sequência 0001–0007 sem lacunas; não importa pipelines alternativos nem a retirada do PR #33.
 - Candidatura e arquivos compartilham snapshot SQL. Estado/revisão exatos e token exclusivo impedem escrita
   atrasada e auditoria duplicada; preserva o bloqueio em `under_review` do #32 atualizado.
 - Exclusão de conta congela as evidências antes da limpeza R2 e permite retomar em falha. Incrementa a revisão
-  final para invalidar decisões antigas; mantém política de conservar logo e fotos aprovadas de ONG publicada.
+  final para invalidar decisões antigas; conserva o logo institucional canônico e remove toda a galeria.
 - Logo público passa a exigir terreno publicado e `no-store`, como o perfil e a galeria. Nenhuma alteração de jogo,
   deploy, migration remota ou ativação pública faz parte desta entrega.
+
+### Fixed — revisão de perfil e arquivos
+
+- Perfil público tolerante ao schema v3, sem cidade, com aviso explícito dos campos públicos na candidatura.
+- Configuração de teste local separada da configuração de deploy, com banco e bucket sintéticos novos.
+- Numeração sequencial de migrations/ADRs e registro de entrega indexado, com respostas às revisões.
+- Logo/comprovantes registram intenção antes de R2, preservam bytes após confirmação incerta e rastreiam
+  limpeza de arquivos removidos/substituídos. Recuperação autenticada por responsável/admin, limitada a 50
+  intenções por chamada; primitiva de reserva/escrita condicional compartilhada com galeria (validação atual pendente).
+- Galeria removível pelo responsável e na exclusão da conta; demais salvaguardas e validação registradas na entrega.
 
 ### Added — conferência do jogo em produção
 

@@ -19,6 +19,7 @@ INSERT OR REPLACE INTO sessions(token_hash,user_id,expires_at) VALUES('${hash(to
   console.log(`UPDATE lots SET ngo_id=NULL,state='available' WHERE ngo_id='${ngo}';
 DELETE FROM ngo_files WHERE ngo_id='${ngo}';
 DELETE FROM ngo_photos WHERE ngo_id='${ngo}';
+DELETE FROM media_upload_intents WHERE ngo_id='${ngo}';
 DELETE FROM audit_events WHERE subject='ngo:${ngo}';
 DELETE FROM ngos WHERE id='${ngo}';
 INSERT INTO ngos(id,name,cnpj,cnpj_opened_on,status,applicant_id,requested_lot_id,description,tags,projects)
@@ -60,6 +61,13 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   const preview = await req(`/ngo/photos/${photo.id}/content`, 0);
   assert.equal(preview.status, 200);
   assert.ok(!Buffer.from(await preview.arrayBuffer()).includes(Buffer.from(privateMarker)));
+  const photoDecision = () => req(`/admin/ngo-photos/${photo.id}/decision`, 1, { accountId: users[1], action: "approve", revision: photo.revision });
+  assert.equal((await photoDecision()).status, 409);
+  assert.equal((await req(`/admin/ngo-photos/${photo.id}/content`, 1, undefined, "HEAD")).status, 200);
+  assert.equal((await photoDecision()).status, 409);
+  const reviewedPhoto = await req(`/admin/ngo-photos/${photo.id}/content`, 1);
+  assert.equal(reviewedPhoto.status, 200);
+  await reviewedPhoto.arrayBuffer();
   await read(await req(`/admin/ngo-photos/${photo.id}/decision`, 1, { accountId: users[1], action: "approve", revision: photo.revision }));
   const beforeExtraRevision = (await app()).revision;
   const { file: extraDocument } = await file("document");
@@ -75,6 +83,7 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   await read(await decision("approve", (await app()).revision));
   const published = await read(await req(`/ngos/${ngo}`));
   assert.equal(published.ngo.description, "Synthetic public description");
+  assert.ok(!Object.hasOwn(published.ngo, "city"));
   assert.ok(published.ngo.photos.some((p) => p.id === photo.id));
   assert.ok(!JSON.stringify(published).includes(doc.id));
   for (const path of [`/ngos/${ngo}/logo`, photoPath]) {
@@ -88,9 +97,15 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   assert.equal(detail.history.filter((h) => h.action === "ngo.file_remove").length, 1);
   assert.equal(detail.history.filter((h) => h.action === "ngo.file_read").length, 1);
   assert.equal((await req("/ngo/application/files?kind=logo", 0, picture, "POST", { "X-Vila-Account": users[0] })).status, 409);
+  const { photo: extraPhoto } = await read(await req(`/ngo/photos?ngoId=${ngo}&position=1`, 0, picture, "POST", { "X-Vila-Account": users[0] }), 201);
+  const removeOwnPhoto = () => req(`/ngo/photos/${extraPhoto.id}`, 0, undefined, "DELETE", { "X-Vila-Account": users[0] });
+  assert.equal((await removeOwnPhoto()).status, 200);
+  assert.equal((await removeOwnPhoto()).status, 200);
+  assert.equal((await req(`/ngo/photos/${extraPhoto.id}/content`, 0)).status, 404);
   assert.equal((await req("/me", 0, undefined, "DELETE")).status, 204);
   assert.equal((await req(`/admin/applications/${ngo}/files/${doc.id}`, 1)).status, 404);
   assert.equal((await req(`/ngos/${ngo}/logo`)).status, 200);
-  assert.equal((await req(photoPath)).status, 200);
-  console.log("PASS: canonical logo/documents + reviewed photos, sanitized images, revision/audit races and account cleanup");
+  assert.equal((await req(photoPath)).status, 404);
+  assert.deepEqual((await read(await req(`/ngos/${ngo}`))).ngo.photos, []);
+  console.log("PASS: canonical files + reviewed photos, sanitized images, revision/audit races, owner erasure and account cleanup");
 }

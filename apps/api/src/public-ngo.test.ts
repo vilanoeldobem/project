@@ -34,7 +34,7 @@ describe("public NGO profile", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ ngo: {
-      id: NGO_ID, name: "Associação Exemplo", summary: "Resumo público", description: "Descrição aprovada", city: "Recife",
+      id: NGO_ID, name: "Associação Exemplo", summary: "Resumo público", description: "Descrição aprovada",
       tags: ["education", "children"], projects: [{ title: "Leitura", description: "Projeto aprovado" }], lotId: "plaza-01", photos: [],
     } });
   });
@@ -82,14 +82,14 @@ describe("public NGO profile", () => {
     expect(JSON.parse(text).ngo).toMatchObject({ tags: ["education"], projects: [{ title: "Leitura", description: "Projeto aprovado" }] });
     expect(text).not.toContain("PRIVATE_");
     expect(text).not.toContain("11222333000181");
-    expect(Object.keys(JSON.parse(text).ngo).sort()).toEqual(["city", "description", "id", "lotId", "name", "photos", "projects", "summary", "tags"]);
+    expect(Object.keys(JSON.parse(text).ngo).sort()).toEqual(["description", "id", "lotId", "name", "photos", "projects", "summary", "tags"]);
   });
 
   it.each([null, "not-json", '{"private":"PRIVATE_VALUE"}', "null"])("handles legacy or malformed JSON without exposing it: %s", async (value) => {
     await db.prepare("UPDATE ngos SET summary = NULL, city = NULL, description = NULL, tags = ?, projects = ? WHERE id = ?").bind(value, value, NGO_ID).run();
     const res = await get();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ngo: { summary: null, city: null, description: null, tags: [], projects: [] } });
+    expect(await res.json()).toMatchObject({ ngo: { summary: null, description: null, tags: [], projects: [] } });
   });
 
   it.each(["not-an-id", "", `${NGO_ID}/private`, "%27OR%201=1"])("returns the same not-found result for invalid ids: %s", async (id) => {
@@ -116,4 +116,15 @@ describe("public NGO profile", () => {
     expect(post.status).toBe(405);
     expect(post.headers.get("Allow")).toBe("GET, HEAD, OPTIONS");
   });
+});
+
+
+it("serves a minimal published NGO on the production v3 schema without leaking private fields", async () => {
+  db = createD1({ upTo: 3 }); env.DB = db;
+  await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', 'published')").bind(NGO_ID).run();
+  await db.prepare("UPDATE lots SET ngo_id=?,state='published' WHERE id='plaza-01'").bind(NGO_ID).run();
+  const response = await get();
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ ngo: { id: NGO_ID, name: "Public NGO", summary: "Public summary", description: null, tags: [], projects: [], lotId: "plaza-01", photos: [] } });
+  expect((await get(`/ngos/${UNKNOWN_ID}`)).status).toBe(404);
 });

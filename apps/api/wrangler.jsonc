@@ -53,21 +53,6 @@
   // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed), no
   // AUTH_LIMITER and no FILES bucket (uploads answer 404 files_disabled).
   "env": {
-    // Simulator only: never provision or deploy these synthetic resources.
-    "reconciliation-local": {
-      "name": "vilanoeldobem-api-reconciliation-local", "routes": [], "workers_dev": false, "preview_urls": false,
-      "ratelimits": [],
-      "vars": {
-        "ENVIRONMENT": "development", "ACCOUNTS_ENABLED": "true", "NGO_FILES_ENABLED": "true",
-        "NGO_PHOTOS_ENABLED": "true", "QUESTS_V1_ENABLED": "false", "MAIL_FROM": "",
-        "ALLOWED_ORIGINS": "http://localhost:8799,http://localhost:8797,http://localhost:5173",
-        "ACCOUNT_ORIGINS": "http://localhost:8799,http://localhost:8797,http://localhost:5173",
-        "GAME_ORIGIN": "http://localhost:8799", "DASH_ORIGIN": "http://localhost:8797"
-      },
-      "d1_databases": [{ "binding": "DB", "database_name": "ngo-files-reconciliation-local",
-        "database_id": "00000000-0000-0000-0000-000000000010", "migrations_dir": "../../migrations", "remote": false }],
-      "r2_buckets": [{ "binding": "FILES", "bucket_name": "ngo-files-reconciliation-local", "remote": false }]
-    },
     "staging": {
       "name": "vilanoeldobem-api-staging",
       "routes": [],

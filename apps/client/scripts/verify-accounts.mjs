@@ -26,7 +26,8 @@
  * give the same directory in VILA_API_PERSIST_TO, so the admin role is granted in its database:
  *   VILA_API_PERSIST_TO=/path/to/state node scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8791
  * Without the variable, wrangler's default local state of apps/api is used.
- * An isolated config environment can also set VILA_API_ENV and VILA_API_DB. CHROMIUM_PATH selects the local
+ * An isolated config can set VILA_API_CONFIG (relative to apps/api); VILA_API_ENV and VILA_API_DB remain optional.
+ * CHROMIUM_PATH selects the local
  * Chromium executable. VILA_STUB_ANALYTICS=1 stubs GTM only (OQ-13); that run does not validate analytics.
  *
  * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 11 of them
@@ -122,10 +123,11 @@ const apiDir = new URL("../../api/", import.meta.url).pathname;
 /** Where the API under test keeps its local data, when not in wrangler's default place (see the header). */
 const persistTo = process.env.VILA_API_PERSIST_TO;
 const apiEnvironment = process.env.VILA_API_ENV;
+const apiConfig = process.env.VILA_API_CONFIG;
 const apiDatabase = process.env.VILA_API_DB ?? "vilanoeldobem";
 /** Runs SQL on the LOCAL D1 of the API (never remote). */
 const localSql = (command) =>
-  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", apiDatabase, "--local", ...(apiEnvironment ? ["--env", apiEnvironment] : []), ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
+  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", apiDatabase, "--local", ...(apiConfig ? ["--config", apiConfig] : []), ...(apiEnvironment ? ["--env", apiEnvironment] : []), ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
     cwd: apiDir,
     stdio: "pipe",
   });
@@ -175,10 +177,12 @@ if (!filesOn) console.log("note: /config says files are off in this API; the upl
 
 // Local only: drop applications left by earlier runs of this script (they would use up the 8 lots). Their file
 // rows go first (the table exists from migration 0006 on); the bytes stay, unreachable, in the local bucket.
-try {
-  localSql("DELETE FROM ngo_files WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %')");
-} catch {
-  /* a local database without the ngo_files table */
+for (const table of ["ngo_files", "ngo_photos", "media_upload_intents"]) {
+  try {
+    localSql(`DELETE FROM ${table} WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %')`);
+  } catch {
+    /* A local database may predate the optional file/gallery tables. */
+  }
 }
 localSql(
   "UPDATE lots SET state = 'available', ngo_id = NULL WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %'); " +
@@ -369,6 +373,7 @@ await a.getByLabel("Nome da organização *").fill(`Associação Teste ${run}`);
 await a.getByLabel(/^CNPJ \*/).fill(cnpj());
 await a.getByLabel("Data de abertura do CNPJ *").fill("2019-05-20");
 await a.getByLabel("Cidade da sede *").fill("Olinda");
+if (!(await visible(a.getByText("Usada na análise da candidatura; não aparece no perfil público."), API_WAIT))) errors.push("applicant: private-city explanation missing");
 await click(a.getByRole("button", { name: "Continuar" }));
 // Step 2 must refuse to continue without the three declarations.
 await click(a.getByRole("button", { name: "Continuar" }));
@@ -376,7 +381,8 @@ if (!(await visible(a.getByText("Confirme os três requisitos"), 10000))) errors
 for (const label of ["CNPJ ativo", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos recebidos"]) await a.getByLabel(label).check();
 await a.getByLabel("Como os recursos podem ser confirmados? *").fill("Extratos mensais da conta da organização e relatório conciliável.");
 await click(a.getByRole("button", { name: "Continuar" }));
-await a.getByLabel("Resumo (aparece na casa) *").fill("Oficinas de leitura para crianças do bairro.");
+await a.getByLabel("Resumo (público após aprovação) *").fill("Oficinas de leitura para crianças do bairro.");
+if (!(await visible(a.getByText("Após a aprovação, nome, resumo, descrição, áreas de atuação e projetos ficarão públicos na Vila. Não inclua dados pessoais nesses textos."), API_WAIT))) errors.push("applicant: public-content disclosure missing");
 await a.getByLabel("Sobre a organização *").fill("Atendemos crianças de 6 a 12 anos com reforço escolar, leitura e atividades culturais no contraturno escolar.");
 await click(a.getByRole("button", { name: "Crianças" }));
 await click(a.getByRole("button", { name: "Educação" }));

@@ -23,17 +23,17 @@ import { localSnapshot } from "@vila/shared/environment/config";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
-import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, uploadFile } from "./files";
+import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, recoverFileUploads, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
-import { decidePhoto, listPhotos, photoContent, uploadPhoto } from "./ngo-photos";
+import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 
 export interface Env {
   DB?: D1Database;
-  /** Institutional gallery on the canonical private FILES bucket (IMPL-0021). */
+  /** Institutional gallery on the canonical private FILES bucket (IMPL-0018). */
   NGO_PHOTOS_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
@@ -237,12 +237,18 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("POST", "/ngo/application")) return submitApplication(request, env);
   if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
   if (is("GET", "/ngo/photos")) return listPhotos(request, env, url.searchParams.get("ngoId") ?? "", false);
+  if (is("GET", "/admin/ngo-photos")) return pendingPhotos(request, env);
+  const ownPhoto = /^\/ngo\/photos\/([^/]+)$/.exec(pathname);
+  if (ownPhoto && method === "DELETE") return deleteOwnPhoto(request, env, ownPhoto[1]);
   const adminPhotos = /^\/admin\/ngos\/([^/]+)\/photos$/.exec(pathname);
   if (adminPhotos && method === "GET") return listPhotos(request, env, adminPhotos[1], true);
   const preview = /^\/(ngo\/photos|admin\/ngo-photos)\/([^/]+)\/content$/.exec(pathname);
   if (preview && (method === "GET" || method === "HEAD")) return photoContent(request, env, preview[2], preview[1].startsWith("admin") ? "admin" : "owner");
   const decision = /^\/admin\/ngo-photos\/([^/]+)\/decision$/.exec(pathname);
   if (decision && method === "POST") return decidePhoto(request, env, decision[1]);
+  if (is("POST", "/ngo/application/files/recover")) return recoverFileUploads(request, env);
+  const recover = /^\/admin\/applications\/([0-9a-f-]{36})\/files\/recover$/.exec(pathname);
+  if (recover && method === "POST") return recoverFileUploads(request, env, recover[1]);
   if (is("POST", "/ngo/application/files")) return uploadFile(request, env, url);
   const own = OWN_FILE.exec(pathname);
   if (own && method === "GET") return downloadOwnFile(request, env, own[1]);

@@ -10,7 +10,6 @@ interface PublicNgoRow {
   name: string;
   summary: string | null;
   description: string | null;
-  city: string | null;
   tags: string | null;
   projects: string | null;
   lotId: string;
@@ -31,7 +30,7 @@ export async function publicNgo(env: Env, id: string): Promise<Response> {
   if (!env.DB) throw new HttpError(503, "db_unavailable");
   // The published lot is the actual public association; requested_lot_id only records the application.
   const row = await env.DB.prepare(
-    `SELECT n.id, n.name, n.summary, n.description, n.city, n.tags, n.projects, l.id AS lotId
+    `SELECT n.*, l.id AS lotId
        FROM ngos n JOIN lots l ON l.ngo_id = n.id
       WHERE n.id = ? AND n.status = 'published' AND l.state = 'published'
       ORDER BY l.id LIMIT 1`
@@ -45,7 +44,7 @@ export async function publicNgo(env: Env, id: string): Promise<Response> {
     .map(({ title, description }) => ({ title, description }));
 
   return json({ ngo: {
-    id: row.id, name: row.name, summary: row.summary, description: row.description, city: row.city,
+    id: row.id, name: row.name, summary: row.summary ?? null, description: row.description ?? null,
     tags, projects, lotId: row.lotId, photos: await publicPhotos(env, id),
   } }, { headers: NO_STORE });
 }

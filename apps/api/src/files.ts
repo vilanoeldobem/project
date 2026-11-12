@@ -18,15 +18,15 @@
  * (`under_review`) and frozen once the NGO is published. Admins read whatever files exist whenever the bucket is
  * bound, even with the feature switched off: what could be published must always be visible to who decides.
  *
- * D1 and R2 do not share a transaction. Adding: the object is written first and removed again if the row is
- * refused. Removing: the row goes first, then the object. A crash in between leaves an unreachable object (never
- * a row without bytes that could be published), which only costs storage.
+ * D1 records upload/cleanup intents before touching R2. Conditional writes prevent a cancelled upload from
+ * recreating erased bytes; owner/admin recovery retries abandoned intents without exposing private objects.
  */
 import { checkFile, type ApplicationFile, type FileKind, FILE_RULES, fileErrorText, filesEditable, isFileKind, isFileType } from "@vila/shared/accounts/files";
 
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readBytes } from "./http";
 import { myApplication } from "./ngo";
+import { putReserved } from "./media-storage";
 import { requireAdmin, requireUser, type User } from "./session";
 import type { Env } from "./api";
 
@@ -99,14 +99,42 @@ export function assertAccountHeader(request: Request, user: User): void {
   if (request.headers.get("X-Vila-Account") !== user.id) throw new HttpError(409, "account_changed");
 }
 
-/** Deleting an object that could not be linked (or is no longer linked) must not fail the request. */
-async function discard(bucket: R2Bucket, keys: string | string[]): Promise<void> {
-  try {
-    await bucket.delete(keys);
-  } catch (e) {
-    // The object stays unreachable (no row points at it). Log the error class only: never a key or a name.
-    console.error("file_cleanup_failed", e instanceof Error ? e.name : "unknown");
+interface UploadIntent { id: string; ngo_id: string }
+
+async function cleanupIntent(env: Env, intent: UploadIntent): Promise<boolean> {
+  // Claim before deleting: this also prevents an in-flight upload from publishing its metadata.
+  const claimed = await env.DB!.prepare(`UPDATE media_upload_intents SET cleanup_pending=1
+    WHERE id=? AND NOT EXISTS (SELECT 1 FROM ngo_files WHERE id=media_upload_intents.id)`)
+    .bind(intent.id).run();
+  if (!claimed.meta.changes) return false;
+  await env.FILES!.delete(objectKey(intent.ngo_id, intent.id));
+  await env.DB!.prepare("DELETE FROM media_upload_intents WHERE id=? AND cleanup_pending=1").bind(intent.id).run();
+  return true;
+}
+
+/** Bounded, explicit recovery also works with uploads disabled. Fresh in-flight uploads are left alone. */
+export async function recoverFileUploads(request: Request, env: Env, ngoId?: string): Promise<Response> {
+  const user = await (ngoId ? requireAdmin(request, env) : requireUser(request, env));
+  assertAccountHeader(request, user);
+  await assertRate(env, user);
+  if (!env.FILES) throw new HttpError(503, "files_unavailable");
+  const app = ngoId ? await env.DB!.prepare("SELECT id FROM ngos WHERE id=?").bind(ngoId).first<{ id: string }>()
+    : await myApplication(env, user.id);
+  if (!app) throw new HttpError(404, "not_found");
+  const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const { results } = await env.DB!.prepare(`SELECT id,ngo_id FROM media_upload_intents
+    WHERE ngo_id=? AND (cleanup_pending=1 OR created_at<?) ORDER BY created_at,id LIMIT 50`)
+    .bind(app.id, cutoff).all<UploadIntent>();
+  let cleaned = 0;
+  // Record an administrative cleanup attempt before destructive I/O, including partial/failing attempts.
+  if (ngoId && results.length) await env.DB!.prepare("INSERT INTO audit_events(id,actor,action,subject,detail) VALUES(?,?,'ngo.file_cleanup',?,?)")
+    .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ requested: results.length })).run();
+  for (const intent of results) {
+    try { if (await cleanupIntent(env, intent)) cleaned++; }
+    catch { throw new HttpError(503, "file_cleanup_pending"); }
   }
+  const remaining = await env.DB!.prepare("SELECT COUNT(*) AS n FROM media_upload_intents WHERE ngo_id=?").bind(app.id).first<{ n: number }>();
+  return json({ cleaned, remaining: remaining?.n ?? 0 }, { headers: NO_STORE });
 }
 
 const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)";
@@ -150,42 +178,56 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
   const id = newId();
   const key = objectKey(app.id, id);
   const previousLogo = kind === "logo" ? await db.prepare("SELECT id FROM ngo_files WHERE ngo_id = ? AND kind = 'logo'").bind(app.id).first<{ id: string }>() : null;
-  await bucket.put(key, check.bytes, { httpMetadata: { contentType: check.type } });
-
   const now = new Date().toISOString(), token = newId();
+  const staged = await db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,created_at)
+    SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id
+      WHERE n.id=? AND u.id=? AND n.revision=? AND n.status=? AND u.files_deleting=0)`)
+    .bind(id, app.id, user.id, now, app.id, user.id, app.revision, app.status).run();
+  if (!staged.meta.changes) throw new HttpError(409, "application_changed");
   const statements = [
     // Claim the exact application snapshot before replacing anything. Only this operation's token may write.
     db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
       WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND EXISTS (SELECT 1 FROM media_upload_intents WHERE id=? AND cleanup_pending=0)
         AND (? = 'logo' OR (SELECT COUNT(*) FROM ngo_files WHERE ngo_id = ? AND kind = ?) < ?)`)
-      .bind(now, token, app.id, user.id, app.revision, app.status, kind, app.id, kind, rule.maxCount),
+      .bind(now, token, app.id, user.id, app.revision, app.status, id, kind, app.id, kind, rule.maxCount),
+    ...(kind === "logo" ? [db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
+      SELECT id,ngo_id,uploaded_by,1 FROM ngo_files WHERE ngo_id=? AND kind='logo' AND ${MINE}`).bind(app.id, app.id, token)] : []),
     ...(kind === "logo" ? [db.prepare(`DELETE FROM ngo_files WHERE ngo_id = ? AND kind = 'logo' AND ${MINE}`).bind(app.id, app.id, token)] : []),
     db.prepare(`INSERT INTO ngo_files (id, ngo_id, kind, content_type, size, uploaded_by, created_at)
       SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${MINE}`)
       .bind(id, app.id, kind, check.type, check.bytes.length, user.id, now, app.id, token),
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_add', ?, ? WHERE ${MINE}`)
       .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind, file: id, revision: app.revision + 1 }), app.id, token),
+    db.prepare(`DELETE FROM media_upload_intents WHERE id=? AND ${MINE}`).bind(id, app.id, token),
   ];
   let written = 0;
   try {
+    await putReserved(bucket, key, check.bytes, check.type, async () => Boolean(await db.prepare(`SELECT i.id
+      FROM media_upload_intents i JOIN ngos n ON n.id=i.ngo_id JOIN users u ON u.id=n.applicant_id
+      WHERE i.id=? AND i.cleanup_pending=0 AND u.id=? AND u.files_deleting=0 AND n.revision=? AND n.status=?`)
+      .bind(id, user.id, app.revision, app.status).first()));
     written = (await db.batch(statements))[0].meta.changes;
   } catch (e) {
-    await discard(bucket, key);
+    // A committed batch can lose its acknowledgement; preserve bytes if its metadata exists or cannot be checked.
+    const linked = await db.prepare("SELECT id FROM ngo_files WHERE id = ?").bind(id).first();
+    if (!linked) await cleanupIntent(env, { id, ngo_id: app.id }).catch(() => {}); // The durable intent remains retryable.
+    if (e instanceof HttpError && e.code === "upload_cancelled") throw new HttpError(409, "application_changed");
     throw e;
   }
   if (!written) {
     // The application changed while the bytes were arriving (resubmitted, decided, another upload won the race).
-    await discard(bucket, key);
+    await cleanupIntent(env, { id, ngo_id: app.id }).catch(() => {});
     throw new HttpError(409, "application_changed");
   }
-  if (previousLogo) await discard(bucket, objectKey(app.id, previousLogo.id));
+  if (previousLogo) await cleanupIntent(env, { id: previousLogo.id, ngo_id: app.id }).catch(() => {});
   const file: ApplicationFile = { id, kind, contentType: check.type, size: check.bytes.length, createdAt: now };
   return json({ file, revision: app.revision + 1 }, { status: 201, headers: NO_STORE });
 }
 
 export async function deleteFile(request: Request, env: Env, fileId: string): Promise<Response> {
-  const bucket = requireBucket(env);
+  requireBucket(env);
   const user = await requireUser(request, env);
   assertAccountHeader(request, user);
   if (user.files_deleting) throw new HttpError(409, "account_deleting");
@@ -204,12 +246,15 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
         AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
         AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ?)`)
       .bind(now, token, app.id, user.id, app.revision, app.status, fileId, app.id),
+    db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
+      SELECT id,ngo_id,uploaded_by,1 FROM ngo_files WHERE id=? AND ngo_id=? AND ${MINE}`).bind(fileId, app.id, app.id, token),
     db.prepare(`DELETE FROM ngo_files WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(fileId, app.id, app.id, token),
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_remove', ?, ? WHERE ${MINE}`)
       .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind: row.kind, file: fileId, revision: app.revision + 1 }), app.id, token),
   ]);
   if (!removed.meta.changes) throw new HttpError(409, "application_changed");
-  await discard(bucket, objectKey(app.id, fileId));
+  try { await cleanupIntent(env, { id: fileId, ngo_id: app.id }); }
+  catch { throw new HttpError(503, "file_cleanup_pending"); }
   return json({ revision: app.revision + 1 }, { headers: NO_STORE });
 }
 
@@ -295,7 +340,7 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
 /**
  * Account deletion (LGPD): the applicant's documents go with the account, and so does the logo of an
  * application that was never published. The logo of a published NGO stays, like the NGO itself.
- * Approved gallery photos of a published NGO also stay; other gallery photos are removed.
+ * All gallery photos belonging to the account are erased, including approved photos.
  * Runs even with feature flags off. Missing storage with owned metadata fails closed, preserving the account.
  * The objects are removed before the rows: if the request dies in between, bytes are gone and rows are not,
  * never the opposite. Returns the statements that drop the rows, for the caller's transaction.
@@ -304,7 +349,7 @@ export async function removeFilesOfAccount(env: Env, userId: string): Promise<D1
   const db = env.DB!;
   // DELETE /me has already frozen owner mutations and administrative decisions with files_deleting.
   const DOOMED = "FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id WHERE n.applicant_id = ? AND (f.kind = 'document' OR n.status != 'published')";
-  const PHOTOS = "FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE n.applicant_id = ? AND (n.status != 'published' OR p.status != 'approved')";
+  const PHOTOS = "FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE n.applicant_id = ?";
   let results: Array<{ id: string; ngo_id: string }> = [];
   let hasFilesTable = true;
   try {
@@ -314,11 +359,13 @@ export async function removeFilesOfAccount(env: Env, userId: string): Promise<D1
     hasFilesTable = false;
   }
   const { results: photos } = await db.prepare(`SELECT p.id, p.object_key ${PHOTOS}`).bind(userId).all<{ id: string; object_key: string }>();
-  if (!results.length && !photos.length) return [];
+  const { results: intents } = await db.prepare("SELECT id,ngo_id FROM media_upload_intents WHERE uploaded_by=?").bind(userId).all<UploadIntent>();
+  if (!results.length && !photos.length && !intents.length) return [];
   if (!env.FILES) throw new HttpError(503, "files_unavailable");
-  await env.FILES.delete([...results.map((r) => objectKey(r.ngo_id, r.id)), ...photos.map((p) => p.object_key)]);
+  await env.FILES.delete([...results.map((r) => objectKey(r.ngo_id, r.id)), ...photos.map((p) => p.object_key), ...intents.map((i) => objectKey(i.ngo_id, i.id))]);
   return [
     ...(hasFilesTable ? [db.prepare(`DELETE FROM ngo_files WHERE id IN (SELECT f.id ${DOOMED})`).bind(userId)] : []),
     db.prepare(`DELETE FROM ngo_photos WHERE id IN (SELECT p.id ${PHOTOS})`).bind(userId),
+    db.prepare("DELETE FROM media_upload_intents WHERE uploaded_by=?").bind(userId),
   ];
 }

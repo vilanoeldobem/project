@@ -1,4 +1,4 @@
-/** Institutional gallery (IMPL-0021, PROPOSTA), distinct from the application's single logo. */
+/** Institutional gallery (IMPL-0018, PROPOSTA), distinct from the application's single logo. */
 import { cleanImage, type FileCheck, sniffFileType } from "./files";
 
 export function checkPhoto(type: string, bytes: Uint8Array): FileCheck {

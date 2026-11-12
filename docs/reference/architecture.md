@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -21,7 +21,7 @@ server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server
 dash.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem-dash"   (apps/dash: Static Assets, SPA, _headers por build)
                                  — painel administrativo, IMPL-0015 (publicado em 2026-11-12)
 
-navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment
+navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment, /ngos/:id
                      ── fetch (CORS + cookie __Host-vila_session) ──▶ api.*  /auth/*, /me, /progress*, /ngo/*, /admin/*
                                                               (só com ACCOUNTS_ENABLED, IMPL-0011)
                      ── WebSocket    ──▶ server.*   /room?i=N
@@ -129,7 +129,7 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | Módulo | Responsabilidade |
 |---|---|
 | `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
-| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment` e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
+| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
 | `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
 | `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
@@ -137,7 +137,10 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
 | `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
-| `files.ts` | Arquivos da candidatura no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA, bandeira `NGO_FILES_ENABLED`): envio com conferência do conteúdo, leitura por quem enviou e por admins (auditada), logo público da ONG publicada, limpeza na exclusão da conta |
+| `files.ts` | Arquivos da candidatura no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA, bandeira `NGO_FILES_ENABLED`): envio com conferência do conteúdo, leitura por quem enviou e por admins (auditada), logo público da ONG publicada; `media_upload_intents` rastreia envio/limpeza, recuperável por responsável/admin em `files/recover`, inclusive com envio desligado; exclusão de conta inclui intenções |
+| `media-storage.ts` | Primitiva comum de logo/documentos e galeria: reserva vazia, releitura de autorização, PUT condicionado ao ETag e uma repetição limitada em throttling; impede escrita tardia de bytes pessoais após remoção da reserva |
+| `public-ngo.ts` | Perfil aprovado com lista explícita de campos públicos, tolerante ao schema v3; só ONG com terreno publicado |
+| `ngo-photos.ts` | Galeria institucional separada de comprovantes, aprovação por foto, bytes privados em `FILES` e publicação condicionada |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
 | `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
 
@@ -339,7 +342,7 @@ de sanção (regras não definidas, DEC-037).
 - Contas, XP no servidor e candidatura de ONG implementados, mas desligados em produção (`ACCOUNTS_ENABLED`) até a
   revisão LGPD / ECA Digital, a verificação do domínio no Resend e a chave `RESEND_API_KEY`.
 - Envio de logo e documentos implementado, mas desligado em produção (`NGO_FILES_ENABLED`): falta criar o bucket,
-  aplicar a migration 0006, definir a lista de documentos (PEN-019) e o prazo de retenção (OQ-12). PDF não é
+  aplicar as migrations 0006/0007, definir a lista de documentos (PEN-019) e o prazo de retenção (OQ-12). PDF não é
   inspecionado.
 - Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
