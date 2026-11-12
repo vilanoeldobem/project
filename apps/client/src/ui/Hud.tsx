@@ -1,11 +1,36 @@
 import { useEffect } from "react";
 
 import { MISSIONS } from "@vila/shared/game/progress";
-import { useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
+import { activeInventory, questState } from "@vila/shared/game/quests";
+import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
+import { useQuestsEnabled } from "../game/questsFlag";
+import { type Nearby, useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
 import { AccountChip } from "./Account";
 import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
 import { Wordmark } from "./Wordmark";
+
+/** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
+const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
+  "mailbox-open": { label: "📬 Abrir a caixa", done: "Caixa de correio destrancada! Volte a Seu Nivaldo." },
+  "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
+};
+
+/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1). */
+function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
+  switch (nearby.kind) {
+    case "npc":
+      return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
+    case "quest":
+      return INTERACTION_COPY[nearby.interactionId]?.label ?? "Interagir";
+    case "donation-panel":
+      return readActive ? "📖 Ler a promessa" : "🎄 Doação global";
+    case "tree":
+      return "🎄 Doação global";
+    case "lot":
+      return "🏡 Ver terreno";
+  }
+}
 
 /** One zoom button/key press: 15% closer or farther. */
 const ZOOM_STEP = 1.15;
@@ -15,23 +40,51 @@ export function Hud() {
   const open = useVila((s) => s.open);
   const nearby = useVila((s) => s.nearby);
   const panel = useVila((s) => s.panel);
-  const done = useVila((s) => Object.keys(s.progress.completed).length);
+  const progress = useVila((s) => s.progress);
+  const record = useVila((s) => s.record);
+  const notify = useVila((s) => s.notify);
+  const done = MISSIONS.filter((m) => progress.completed[m.id]).length;
   const toast = useVila((s) => s.toast);
+  const quests = useQuestsEnabled();
+  const readActive = quests && questState(progress, "donation-promise-reading") === "active";
+  const bag = quests ? activeInventory(progress) : [];
   const zoom = useVila((s) => s.zoom);
   const zoomBy = useVila((s) => s.zoomBy);
+
+  const activate = (n: NonNullable<Nearby>) => {
+    switch (n.kind) {
+      case "npc":
+        open({ kind: "npc", npcId: n.npcId });
+        return;
+      case "quest": {
+        // The quest and the event come from the interaction itself; an unknown id records nothing.
+        const interaction = QUEST_INTERACTIONS.find((i) => i.id === n.interactionId);
+        if (!interaction) return;
+        record(interaction.questId, interaction.id);
+        const done = INTERACTION_COPY[interaction.id]?.done;
+        if (done) notify(done);
+        return;
+      }
+      case "donation-panel":
+      case "tree":
+        open({ kind: "donation" });
+        return;
+      case "lot":
+        open({ kind: "lot", lotId: n.lotId });
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (useVila.getState().panel.kind !== "none") return;
       if (e.key === "+" || e.key === "=") return zoomBy(1 / ZOOM_STEP);
       if (e.key === "-") return zoomBy(ZOOM_STEP);
-      if ((e.key === "e" || e.key === "Enter") && nearby) {
-        open(nearby.kind === "tree" ? { kind: "donation" } : { kind: "lot", lotId: nearby.lotId });
-      }
+      const n = useVila.getState().nearby;
+      if ((e.key === "e" || e.key === "E" || e.key === "Enter") && n) activate(n);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [nearby, open, zoomBy]);
+  }, [nearby, open, record, notify, zoomBy]);
 
   return (
     <div className="hud">
@@ -41,6 +94,15 @@ export function Hud() {
             <Wordmark />
           </button>
           <EnvironmentChip />
+          {bag.length > 0 && (
+            <div className="hud__bag" role="status" aria-label="Bolsa de missão">
+              {bag.map((item) => (
+                <span key={item.questId}>
+                  {item.name} {item.count}/{item.target}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <nav className="hud__nav">
           <AccountChip />
@@ -65,11 +127,8 @@ export function Hud() {
       </button>
 
       {panel.kind === "none" && nearby && (
-        <button
-          className="btn btn--primary hud__action"
-          onClick={() => open(nearby.kind === "tree" ? { kind: "donation" } : { kind: "lot", lotId: nearby.lotId })}
-        >
-          {nearby.kind === "tree" ? "🎄 Doação global" : "🏡 Ver terreno"} <kbd>E</kbd>
+        <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
+          {actionLabel(nearby, readActive)} <kbd>E</kbd>
         </button>
       )}
 

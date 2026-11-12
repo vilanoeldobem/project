@@ -230,10 +230,9 @@ um Custom Domain com DNS e certificado: exige autorização humana explícita (A
 
 ### 8.1 Antes de publicar
 
-1. **Decidir o Cloudflare Access (OQ-09).** Recomendado: uma aplicação de Zero Trust em `dash.vilanoeldobem.com.br`
-   com a lista de e-mails dos administradores, criada **antes** do primeiro deploy, para o painel nunca ficar aberto
-   na internet. É uma segunda barreira: a API continua exigindo sessão e papel `admin` em cada rota. O código não
-   depende do Access.
+1. **Acesso.** O painel fica aberto na internet como qualquer site estático e não usa Cloudflare Access (OQ-10):
+   quem protege os dados é a API, que exige sessão e papel `admin` em cada rota. O HTML e o JavaScript não contêm
+   dado nenhum.
 2. **Excluir `dash.*` do Cloudflare Web Analytics** (injeção automática da zona). A CSP do painel bloqueia o script
    de medição; se ele for injetado, aparece erro de CSP no console e o `verify.mjs` do painel falha.
 3. **Contas.** O painel só tem utilidade com `ACCOUNTS_ENABLED = "true"` ([§7.3](#73-ligar-as-contas)). Com a

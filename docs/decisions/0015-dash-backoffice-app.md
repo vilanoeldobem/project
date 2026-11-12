@@ -59,7 +59,7 @@ confirmou: só um admin autorizado publica ou remove ONGs e aplica sanções, e 
    e-mail. O painel não guarda nada no navegador (nem `localStorage`).
 8. **Ler não gera auditoria.** Consultar as listas não grava `audit_events`: a regra do projeto é auditar
    **mutações** de admin (DEC-037, AGENTS.md), e as únicas mutações do painel são as decisões de análise, que já
-   eram auditadas. Se o dono quiser registrar também leituras (quem viu o quê), é decisão dele (OQ-10).
+   eram auditadas. Se o dono quiser registrar também leituras (quem viu o quê), é decisão dele (OQ-11).
 9. **Cabeçalhos gerados por build** (`apps/dash/security-headers.ts`, como no jogo): CSP `default-src 'self'`, sem
    script ou estilo inline, sem nenhum terceiro, `connect-src 'self'` + exatamente a origem da API da build,
    `frame-ancestors 'none'`; `X-Robots-Tag: noindex, nofollow` (e `<meta name="robots">`), `Referrer-Policy:
@@ -114,14 +114,13 @@ confirmou: só um admin autorizado publica ou remove ONGs e aplica sanções, e 
   `apps/dash/src/lib/endpoints.ts` ([architecture.md §7](../reference/architecture.md#7-limites-entre-apps)).
 - **O painel é público na rede** (como qualquer site estático): o que protege os dados é a API (sessão + papel
   `admin` + origem exata + auditoria). O HTML e o JavaScript do painel não contêm dado nenhum.
-- **Endurecimento recomendado, a decidir pelo dono (OQ-09): Cloudflare Access na frente de `dash.*`.** Uma política
-  de Zero Trust com a lista de e-mails dos administradores faria a borda da Cloudflare recusar qualquer outra pessoa
-  antes mesmo de servir o painel. É uma segunda barreira (não substitui a sessão nem o papel na API, que continua
-  acessível em `api.*`). Custo: configuração na conta, um segundo login para os admins e a decisão de quem mantém a
-  lista. **Recomendação:** ligar antes de publicar o painel; o código não depende disso.
+- **Sem Cloudflare Access na frente de `dash.*` (OQ-10, respondida pelo responsável técnico em 2026-11-11).** O
+  painel usa só o login próprio; a API continua sendo a única barreira (sessão, papel `admin`, origem exata,
+  auditoria). Uma política de Zero Trust com a lista de e-mails dos administradores seria uma segunda barreira na
+  borda e pode ser ligada depois sem mudar o código. O Zero Trust foi reservado ao site interno `docs.*`.
 - **Outros pontos a decidir antes de ligar as contas com o painel no ar:** sessão de admin com a mesma duração da de
   jogador (30 dias; uma duração menor ou reautenticação para decidir é PROPOSTA em aberto); regras de sanção
-  (OQ-10); se leituras devem ser auditadas (OQ-10).
+  (OQ-11); se leituras devem ser auditadas (OQ-11).
 - **Web Analytics da zona:** a zona injeta o script do Cloudflare Web Analytics nas páginas. A CSP do painel o
   bloqueia, e o `no-transform` do HTML pede que a borda não altere a página (**HIPÓTESE** a confirmar no primeiro
   deploy: se o script ainda for injetado, aparece um erro de CSP no console e o `verify.mjs` do painel falha). O
@@ -145,6 +144,6 @@ confirmou: só um admin autorizado publica ou remove ONGs e aplica sanções, e 
 ## Relacionados
 
 [architecture.md](../reference/architecture.md) · [api.md](../reference/api.md) · [deploy.md](../guides/deploy.md) ·
-[open-questions.md](open-questions.md) (OQ-09, OQ-10) · [IMPL-0002](0002-donations-disabled-until-partner-contract.md) ·
+[open-questions.md](open-questions.md) (OQ-10, OQ-11) · [IMPL-0002](0002-donations-disabled-until-partner-contract.md) ·
 [IMPL-0009](0009-split-client-api-server-shared.md) · [IMPL-0011](0011-accounts-magic-link-ngo-review.md) ·
 [IMPL-0012](0012-resend-transactional-email.md) · DEC-015 · DEC-027 · DEC-028 · DEC-037 · DEC-038

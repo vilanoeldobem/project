@@ -22,6 +22,8 @@
     "ENVIRONMENT": "production",
     // Accounts, server XP, NGO applications and admin (IMPL-0011). Off until the LGPD / ECA Digital review.
     "ACCOUNTS_ENABLED": "false",
+    // Quests-v1 events (PROPOSTA, DEC-039..042, PEN-025). Off until the owner approves the catalog.
+    "QUESTS_V1_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -48,6 +50,7 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "ACCOUNTS_ENABLED": "false",
+        "QUESTS_V1_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

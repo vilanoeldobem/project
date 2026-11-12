@@ -4,10 +4,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MISSIONS } from "@vila/shared/game/progress";
+import { QUESTS } from "@vila/shared/game/quests";
+
 import { devVar, productionVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
 import { loginEmail } from "./mail";
+import { KNOWN_EVENTS } from "./progress";
 
 const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
@@ -62,7 +66,7 @@ const APP = {
 
 beforeEach(() => {
   db = createD1();
-  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
+  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", QUESTS_V1_ENABLED: "true" };
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -81,7 +85,10 @@ function stubResend(respond: () => Response | Promise<Response> = () => Response
 describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {
     env.ACCOUNTS_ENABLED = "false";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false });
+    env.QUESTS_V1_ENABLED = "false";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false });
+    env.QUESTS_V1_ENABLED = "true";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true });
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });
@@ -261,10 +268,115 @@ describe("server XP (P14, DEC-042)", () => {
       expect((await events(a, [{ missionId, eventId }])).status).toBe(200);
   });
 
-  it("knows the event ids of every mission", async () => {
-    const { MISSIONS } = await import("@vila/shared/game/progress");
-    const { KNOWN_EVENTS } = await import("./progress");
-    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual(MISSIONS.map((m) => m.id).sort());
+  it("knows the event ids of every mission and quest", () => {
+    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual([...MISSIONS, ...QUESTS].map((m) => m.id).sort());
+  });
+
+  it("accepts a full quest chain once and replays it without extra XP", async () => {
+    const a = await signUp();
+    const flightNight = [
+      { missionId: "harness-bells", eventId: "accept" },
+      { missionId: "harness-bells", eventId: "bell-pine-north" },
+      { missionId: "harness-bells", eventId: "bell-pine-east" },
+      { missionId: "harness-bells", eventId: "turn-in" },
+      { missionId: "route-memory-game", eventId: "accept" },
+      { missionId: "route-memory-game", eventId: "memory-win" },
+      { missionId: "route-memory-game", eventId: "turn-in" },
+      { missionId: "charm-for-the-flight", eventId: "accept" },
+      { missionId: "charm-for-the-flight", eventId: "turn-in" },
+    ];
+    const first = await events(a, flightNight);
+    expect(first.status).toBe(200);
+    expect(first.body.progress.xp).toBe(100);
+    expect(first.body.progress.completed["charm-for-the-flight"]).toBe(true);
+    const replay = await events(a, flightNight);
+    expect(replay.status).toBe(200);
+    expect(replay.body.progress.xp).toBe(100);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(100);
+  });
+
+  it("rejects an unknown quest event id", async () => {
+    const a = await signUp();
+    expect((await events(a, [{ missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "charm-for-the-flight", eventId: "memory-win" }])).status).toBe(400);
+  });
+
+  it("skips quest events while the flag is off and still stores the missions of the same batch", async () => {
+    env.QUESTS_V1_ENABLED = "false";
+    const a = await signUp();
+    const alone = await events(a, [{ missionId: "harness-bells", eventId: "accept" }]);
+    expect([alone.status, alone.body.progress.seen]).toEqual([200, {}]);
+    const mixed = await events(a, [
+      { missionId: "harness-bells", eventId: "accept" },
+      { missionId: "causes-global-donation", eventId: "panel" },
+      { missionId: "harness-bells", eventId: "bell-pine-north" },
+    ]);
+    expect(mixed.status).toBe(200);
+    expect(mixed.body.progress.xp).toBe(20);
+    expect(mixed.body.progress.seen).toEqual({ "causes-global-donation:panel": true });
+    expect(db.sql("SELECT mission_id, event_id FROM progress_events")).toEqual([{ mission_id: "causes-global-donation", event_id: "panel" }]);
+    // Ids the game cannot produce still fail the whole batch, quest or not.
+    expect((await events(a, [{ missionId: "play-memory", eventId: "win" }, { missionId: "donate-1000", eventId: "x" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "play-memory", eventId: "win" }, { missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(1);
+    // Flag back on: the skipped quest event was never stored, so it can be sent again and applies.
+    env.QUESTS_V1_ENABLED = "true";
+    const again = await events(a, [{ missionId: "harness-bells", eventId: "accept" }]);
+    expect(again.body.progress.seen["harness-bells:accept"]).toBe(true);
+  });
+
+  it("does not store an accept sent while another quest is active, so it applies later (stale tab)", async () => {
+    const a = await signUp();
+    const q = (missionId: string, eventId: string) => ({ missionId, eventId });
+    await events(a, [q("harness-bells", "accept")]);
+    // A stale tab still offers lake-lanterns: answered 200, ignored, and not stored.
+    const stale = await events(a, [q("lake-lanterns", "accept")]);
+    expect(stale.status).toBe(200);
+    expect(stale.body.progress.seen["lake-lanterns:accept"]).toBeUndefined();
+    expect(db.sql("SELECT mission_id, event_id FROM progress_events")).toEqual([{ mission_id: "harness-bells", event_id: "accept" }]);
+    await events(a, [q("harness-bells", "bell-pine-north"), q("harness-bells", "bell-pine-east"), q("harness-bells", "turn-in")]);
+    // With harness-bells finished, the very same event id is now a valid transition.
+    const later = await events(a, [q("lake-lanterns", "accept"), q("lake-lanterns", "lantern-lake-1"), q("lake-lanterns", "lantern-lake-2"), q("lake-lanterns", "turn-in")]);
+    expect(later.body.progress.completed["lake-lanterns"]).toBe(true);
+    expect(later.body.progress.xp).toBe(40);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(40);
+  });
+
+  it("does not store an objective that arrives before its accept, so it can be sent again", async () => {
+    const a = await signUp();
+    const q = (eventId: string) => ({ missionId: "harness-bells", eventId });
+    const early = await events(a, [q("bell-pine-north")]);
+    expect([early.status, early.body.progress.seen]).toEqual([200, {}]);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(0);
+    // Out of order inside one batch: the objective before the accept is skipped, the one after it counts.
+    const mixed = await events(a, [q("bell-pine-east"), q("accept"), q("bell-pine-north")]);
+    expect(mixed.body.progress.counters["harness-bells"]).toBe(1);
+    const done = await events(a, [q("bell-pine-east"), q("turn-in")]);
+    expect(done.body.progress.completed["harness-bells"]).toBe(true);
+    expect(done.body.progress.xp).toBe(20);
+  });
+
+  it("re-applies a quest event whose stored row was never a valid transition (older rows, concurrent tabs)", async () => {
+    const a = await signUp();
+    const q = (missionId: string, eventId: string) => ({ missionId, eventId });
+    await events(a, [q("harness-bells", "accept")]);
+    // What the previous rule (or two requests racing) leaves behind: a stored accept that replays as a no-op.
+    db.sql("INSERT INTO progress_events (user_id, mission_id, event_id) VALUES (?, 'lake-lanterns', 'accept')", a.user.id);
+    await events(a, [q("harness-bells", "bell-pine-north"), q("harness-bells", "bell-pine-east"), q("harness-bells", "turn-in")]);
+    const later = await events(a, [q("lake-lanterns", "accept")]);
+    expect(later.body.progress.seen["lake-lanterns:accept"]).toBe(true);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE mission_id = 'lake-lanterns'")[0].n).toBe(1);
+  });
+
+  it("keeps mission events idempotent next to quest events (same rows, same response shape)", async () => {
+    const a = await signUp();
+    const gift = (eventId: string) => ({ missionId: "explore-gifts", eventId });
+    const r = await events(a, [gift("gift-bench"), gift("gift-palm"), gift("gift-street"), gift("gift-bench")]);
+    expect(Object.keys(r.body)).toEqual(["progress"]);
+    expect(Object.keys(r.body.progress).sort()).toEqual(["completed", "counters", "seen", "xp"]);
+    expect(r.body.progress.xp).toBe(30);
+    // Every whitelisted mission event is stored once, even past the mission's target.
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(3);
   });
 });
 

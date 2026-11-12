@@ -1,14 +1,20 @@
 import { Html } from "@react-three/drei";
 import { type ThreeEvent, useFrame } from "@react-three/fiber";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
-import { GIFTS, LAMPS, type LotDef, LOTS, PALETTE as P } from "@vila/shared/game/world";
+import { GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
+import type { Progress } from "@vila/shared/game/progress";
+import { QUESTS, questState } from "@vila/shared/game/quests";
 import { useVila } from "../game/store";
+import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
-import { gift as generateGift } from "./gen/props";
+import { villager } from "./gen/characters";
+import { donationPanel, ornamentCrate, reindeerBell } from "./gen/quest-items";
+import type { GenModel } from "./gen/types";
+import { gift as generateGift, lantern as generateLantern } from "./gen/props";
 import { house } from "./gen/houses";
 import { bench, BULBS, lamp, lotMarker, tree } from "./models";
 
@@ -148,10 +154,122 @@ function Gift({ id, x, z }: { id: string; x: number; z: number }) {
   );
 }
 
-export function Label({ y, text }: { y: number; text: string }) {
+/**
+ * Distance limit (world units) for NPC and lectern DOM labels: `@react-three/drei`'s `Html` projects every
+ * mounted label on the main thread each frame, so labels on the far side of the village are pure DOM cost.
+ * 24 u covers the plaza (radius 12) plus the camera's 21 u reach and the 4.5 u interaction distance.
+ */
+const LABEL_RADIUS = 24;
+
+/**
+ * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within
+ * `LABEL_RADIUS`; the check runs each frame but only changes state when the boolean flips.
+ */
+export function Label({ y, text, x, z }: { y: number; text: string; x?: number; z?: number }) {
+  const [near, setNear] = useState(() => x === undefined || z === undefined || Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS);
+  const prev = useRef(near);
+  useFrame(() => {
+    if (x === undefined || z === undefined) return;
+    const next = Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS;
+    if (next === prev.current) return;
+    prev.current = next;
+    setNear(next);
+  });
+  if (!near) return null;
   return (
     <Html position={[0, y, 0]} center distanceFactor={28} zIndexRange={[10, 0]} className="label3d">
       {text}
     </Html>
+  );
+}
+
+/** Symbol + name marker over a quest NPC: never colour alone (PROPOSTA quests-v1). */
+function npcMarker(npc: NpcPlacement, progress: Progress): string {
+  const states = QUESTS.map((q) => ({ q, state: questState(progress, q.id) }));
+  if (states.some(({ q, state }) => q.turnInNpcId === npc.id && state === "ready_to_turn_in")) return `? ${npc.name}`;
+  if (states.some(({ q, state }) => q.giverNpcId === npc.id && state === "available")) return `! ${npc.name}`;
+  if (states.some(({ q, state }) => (q.giverNpcId === npc.id || q.turnInNpcId === npc.id) && state === "active")) return `... ${npc.name}`;
+  return npc.name;
+}
+
+/**
+ * The five fictional quest NPCs (PROPOSTA quests-v1): seeded villagers that block the avatar and carry a
+ * short symbol + name label. A click opens the dialogue only from talking distance (the same reach as the
+ * action button); from farther away it walks the avatar up to the NPC. Mounted only with the quests flag.
+ */
+export function QuestNpcs() {
+  const progress = useVila((s) => s.progress);
+  const open = useVila((s) => s.open);
+  const setTarget = useVila((s) => s.setTarget);
+  const models = useMemo(() => NPCS.map((npc) => ({ npc, m: villager(npc.seed) })), []);
+  return (
+    <>
+      {models.map(({ npc, m }) => (
+        <group
+          key={npc.id}
+          position={[npc.x, 0, npc.z]}
+          rotation-y={npc.rot}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (Math.hypot(npc.x - sim.pose.x, npc.z - sim.pose.z) < INTERACT_DISTANCE) open({ kind: "npc", npcId: npc.id });
+            // Too far to talk: walk there instead. The NPC's collider stops the avatar next to it.
+            else setTarget({ x: npc.x, z: npc.z });
+          }}
+        >
+          <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow />
+          <Label y={4.2} text={npcMarker(npc, progress)} x={npc.x} z={npc.z} />
+        </group>
+      ))}
+    </>
+  );
+}
+
+const QUEST_ITEM_GEN: Record<string, (seed: string) => GenModel> = {
+  "reindeer-bell": reindeerBell,
+  "ornament-crate": ornamentCrate,
+  "lake-lantern": generateLantern,
+};
+
+/** Item of an active collect quest: floats and turns like a hidden gift, so it reads as pickable. */
+function QuestItem({ x, z, model }: { x: number; z: number; model: GenModel }) {
+  const ref = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    if (!ref.current) return;
+    ref.current.rotation.y = clock.elapsedTime;
+    ref.current.position.y = 0.2 + Math.sin(clock.elapsedTime * 2 + x) * 0.15;
+  });
+  return (
+    <group ref={ref} position={[x, 0, z]}>
+      <Voxels voxels={model.voxels} size={model.size} emissive={model.emissive ?? GLOW} />
+    </group>
+  );
+}
+
+/** Quest pickups of the active collect quest; a collected id stops being drawn (PROPOSTA quests-v1). */
+export function QuestItems() {
+  const progress = useVila((s) => s.progress);
+  return (
+    <>
+      {QUEST_SPAWNS.map((spawn) => {
+        if (progress.seen[`${spawn.questId}:${spawn.id}`] || questState(progress, spawn.questId) !== "active") return null;
+        const gen = QUEST_ITEM_GEN[spawn.objectId];
+        return gen ? <QuestItem key={spawn.id} x={spawn.x} z={spawn.z} model={gen(spawn.id)} /> : null;
+      })}
+    </>
+  );
+}
+
+/**
+ * Global donation lectern next to the tree (DEC-026; PROPOSTA quests-v1): the 3D reading panel and the tree
+ * both open the same donation modal. A proposal like the NPCs, so it is mounted only with the quests flag.
+ */
+export function DonationLectern() {
+  const open = useVila((s) => s.open);
+  const m = useMemo(() => donationPanel("donation-panel"), []);
+  return (
+    <group position={[DONATION_PANEL.x, 0, DONATION_PANEL.z]} rotation-y={DONATION_PANEL.rot} onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
+      <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} castShadow />
+      <Label y={2.2} text="Doação global" x={DONATION_PANEL.x} z={DONATION_PANEL.z} />
+    </group>
   );
 }

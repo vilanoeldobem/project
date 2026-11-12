@@ -6,7 +6,17 @@
  * - levels are reachable without donating.
  * The mission set and the XP curve are a PROPOSAL (doc 22; PEN-025).
  * `title`, `unit` and track labels are user-facing copy and stay in pt-BR.
+ *
+ * `applyEvent` has two paths that share `Progress`: the four quick missions below (unchanged behaviour)
+ * and the quest catalog in `./quests` (accept → objectives → turn-in). The server and the client both
+ * replay events through this function. What replay guarantees: the same list in the same order always
+ * gives the same progress, and repeating an event changes nothing. The four missions do not depend on the
+ * order. Quests do: an event that is not a valid transition at its position in the list is ignored, so
+ * another order can leave a quest behind, never ahead (no order grants more XP than the catalog holds).
+ * For that reason the API stores a quest event only when it is a valid transition (IMPL-0013).
  */
+import type { Quest } from "./quests";
+import { canAccept, QUESTS, questState } from "./quests";
 
 export type Track = "explore" | "play" | "causes";
 
@@ -52,11 +62,48 @@ export interface ApplyResult {
   completed?: Mission;
 }
 
-/** Applies a mission event. Pure and idempotent per `eventId`. */
+const questById = new Map(QUESTS.map((q) => [q.id, q]));
+
+/** Quest path: only a valid transition stores its event; anything else leaves progress untouched. */
+function applyQuestEvent(p: Progress, quest: Quest, eventId: string): ApplyResult {
+  if (eventId === "accept") {
+    if (questState(p, quest.id) !== "available" || !canAccept(p, quest.id)) return { progress: p };
+    return {
+      progress: {
+        ...p,
+        counters: { ...p.counters, [quest.id]: quest.objectiveType === "deliver" ? 1 : 0 },
+        seen: { ...p.seen, [`${quest.id}:accept`]: true },
+      },
+    };
+  }
+  if (eventId === "turn-in") {
+    if (questState(p, quest.id) !== "ready_to_turn_in") return { progress: p };
+    return {
+      progress: {
+        xp: p.xp + quest.xp,
+        counters: { ...p.counters, [quest.id]: quest.target },
+        completed: { ...p.completed, [quest.id]: true },
+        seen: { ...p.seen, [`${quest.id}:turn-in`]: true },
+      },
+      completed: quest,
+    };
+  }
+  if (!quest.objectiveEventIds.includes(eventId) || questState(p, quest.id) !== "active") return { progress: p };
+  const seen: Record<string, true> = { ...p.seen, [`${quest.id}:${eventId}`]: true };
+  const count = Math.min(quest.objectiveEventIds.filter((id) => seen[`${quest.id}:${id}`]).length, quest.target);
+  return { progress: { ...p, counters: { ...p.counters, [quest.id]: count }, seen } };
+}
+
+/** Applies a mission or quest event. Pure and idempotent per `eventId`. */
 export function applyEvent(p: Progress, missionId: string, eventId: string): ApplyResult {
   const mission = MISSIONS.find((m) => m.id === missionId);
   const key = `${missionId}:${eventId}`;
-  if (!mission || p.seen[key] || p.completed[missionId]) return { progress: p };
+  if (!mission) {
+    const quest = questById.get(missionId);
+    if (!quest || p.seen[key] || p.completed[missionId]) return { progress: p };
+    return applyQuestEvent(p, quest, eventId);
+  }
+  if (p.seen[key] || p.completed[missionId]) return { progress: p };
   const count = Math.min((p.counters[missionId] ?? 0) + 1, mission.target);
   const done = count >= mission.target;
   return {

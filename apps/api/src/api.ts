@@ -3,7 +3,7 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db, mail }
- *   GET /config      → { accounts }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
@@ -44,6 +44,8 @@ export interface Env {
   DASH_ORIGIN?: string;
   /** "true" turns on accounts, server XP, NGO applications and admin (IMPL-0011). */
   ACCOUNTS_ENABLED?: string;
+  /** "true" accepts quests-v1 events (PROPOSTA; DEC-039..042, PEN-025). Off in production. */
+  QUESTS_V1_ENABLED?: string;
   /** Resend API key (Worker secret, never a `var`), see mail.ts. Without it sign-in e-mails fail closed. */
   RESEND_API_KEY?: string;
   /** Sender address of the sign-in e-mail; its domain must be verified in Resend. */
@@ -119,10 +121,11 @@ export function corsHeaders(origin: string | null, env: Env): Record<string, str
 }
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
+  // Every route builds its own Response (json(), errorResponse(), the empty preflight), so the CORS
+  // headers are set on it in place. Re-wrapping `res.body` would turn a fixed-length body into a stream.
   const res = await route(request, env);
-  const headers = new Headers(res.headers);
-  for (const [k, v] of Object.entries(corsHeaders(request.headers.get("Origin"), env))) headers.set(k, v);
-  return new Response(res.body, { status: res.status, headers });
+  for (const [k, v] of Object.entries(corsHeaders(request.headers.get("Origin"), env))) res.headers.set(k, v);
+  return res;
 }
 
 const ACCOUNT_PREFIXES = ["/auth/", "/me", "/progress", "/ngo/", "/admin/"];
@@ -142,7 +145,7 @@ async function route(request: Request, env: Env): Promise<Response> {
       case "/health":
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env) }, { headers: NO_STORE });
       case "/config":
-        return json({ accounts: env.ACCOUNTS_ENABLED === "true" }, { headers: NO_STORE });
+        return json({ accounts: env.ACCOUNTS_ENABLED === "true", quests: env.QUESTS_V1_ENABLED === "true" }, { headers: NO_STORE });
       case "/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });
       case "/environment":

@@ -11,6 +11,7 @@ import { ApiError } from "@vila/shared/accounts/errors";
 import type { NgoApplication } from "@vila/shared/accounts/validate";
 import type { Progress } from "@vila/shared/game/progress";
 
+import { sendableEvents, setServerQuests } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { SERVICES } from "./services";
 
@@ -44,7 +45,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 const accountId = () => useAccount.getState().user?.id ?? "";
 
 export const api = {
-  config: () => call<{ accounts: boolean }>("GET", "/config"),
+  config: () => call<{ accounts: boolean; quests?: boolean }>("GET", "/config"),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -103,8 +104,12 @@ function savePending(owner: string, events: Event[]) {
   }
 }
 
-/** Sends events in chunks (idempotent on the server) and returns the server's progress. */
-async function send(owner: string, events: Event[]): Promise<Progress> {
+/**
+ * Sends events in chunks (idempotent on the server) and returns the server's progress. With quests off
+ * (IMPL-0013) quest events are left out: the API would skip them, so they are not retried either.
+ */
+async function send(owner: string, all: Event[]): Promise<Progress> {
+  const events = sendableEvents(all);
   let server = (await api.progress()).progress;
   for (let i = 0; i < events.length; i += 50) server = (await api.postEvents(owner, events.slice(i, i + 50))).progress;
   return server;
@@ -158,7 +163,7 @@ function followProgress() {
   const onUpdate = useVila.subscribe((s, prev) => {
     const owner = s.progressOwner;
     if (s.progress === prev.progress || !owner || owner !== prev.progressOwner) return;
-    const fresh = seenEvents(s.progress).filter((e) => !prev.progress.seen[`${e.missionId}:${e.eventId}`]);
+    const fresh = sendableEvents(seenEvents(s.progress).filter((e) => !prev.progress.seen[`${e.missionId}:${e.eventId}`]));
     if (!fresh.length) return;
     savePending(owner, [...loadPending(owner), ...fresh]);
     void flushPending();
@@ -239,13 +244,15 @@ function takeLoginToken(): string | null {
 }
 
 /**
- * Startup: reads the flag, consumes a `#login=` link (then removes it from the address bar) or restores
- * the session. The token travels in the fragment, which the browser never sends to any server (so it is
- * in no access log). Never throws; without the API the game stays fully playable.
+ * Startup: reads the flags (accounts, quests), consumes a `#login=` link (then removes it from the address
+ * bar) or restores the session. The token travels in the fragment, which the browser never sends to any
+ * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
+ * which need the API's flag, stay off).
  */
 export async function initAccount() {
   try {
-    const { accounts } = await api.config();
+    const { accounts, quests } = await api.config();
+    setServerQuests(quests === true);
     useAccount.setState({ enabled: accounts });
     if (!accounts) return;
     const token = takeLoginToken();

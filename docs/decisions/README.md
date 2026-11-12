@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 11 ADRs · **Atualizado em:** 2026-11-11
+> **Status:** 14 ADRs · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -31,6 +31,7 @@
 | [IMPL-0010](0010-seeded-procedural-voxel-content.md) | Conteúdo voxel procedural por semente (geradores, orçamentos, galeria) | Proposta — fases 0–5 implementadas |
 | [IMPL-0011](0011-accounts-magic-link-ngo-review.md) | Contas, link mágico, candidatura e análise de ONGs | Proposta — implementada, desligada em produção (`ACCOUNTS_ENABLED`); item 4 substituído por IMPL-0012 |
 | [IMPL-0012](0012-resend-transactional-email.md) | E-mail transacional pelo Resend | Aceita (2026-11-11) — implementada; aguarda chave e domínio verificado |
+| [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção (`QUESTS_V1_ENABLED`, `VITE_QUESTS_V1_ENABLED`); conteúdo PROPOSTA (PEN-025) |
 | [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — implementada, não publicada; menu PROPOSTA |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

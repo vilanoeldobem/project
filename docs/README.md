@@ -30,6 +30,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [reference/architecture.md](reference/architecture.md) — apps, subdomínios, componentes, limites entre apps.
 - [reference/api.md](reference/api.md) — rotas da API (`api.*`) e do servidor de tempo real (`server.*`), CORS e erros.
 - [reference/environment.md](reference/environment.md) — hora real de São Paulo, clima procedural, efeitos e presets.
+- [reference/quests.md](reference/quests.md) — missões narrativas `quests-v1` (PROPOSTA): estados, eventos, flags, NPCs, painel de doação e portão da casa publicada.
 - [reference/storage.md](reference/storage.md) — schema D1, migrations, estados.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
 
@@ -51,7 +52,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Terrenos e casas de ONG | Parcial — candidatura e análise implementadas, desligadas em produção (IMPL-0011) | [api](reference/api.md#candidatura-de-ong-p12-dec-015-dec-037) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
 | Painel administrativo (`apps/dash`, `dash.*`) | Implementado, **não publicado** (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |
-| Missões e XP | Parcial (local; no servidor só com conta) | [domain-model](explanation/domain-model.md) |
+| Missões e XP | Parcial (local; no servidor só com conta); `quests-v1` atrás de flags, conteúdo PROPOSTA (PEN-025) | [quests](reference/quests.md) · [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |
 | Chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
 
