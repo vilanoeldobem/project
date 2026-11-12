@@ -118,14 +118,18 @@ recusado no motor e a interface explica **Conclua a missão atual primeiro**.
 | Aurora (`pond-keeper`) | Vigia do lago congelado | `(24.5, -2.5)` | `pond-keeper` |
 | Dona Guida (`storyteller`) | Contadora de histórias | `(5, 4)` | `storyteller` |
 
-- Os cinco usam o gerador `villager` com semente igual ao `npc_id` e colidem com raio `0.5`, como os moradores
-  decorativos. Posições são sugestão PROPOSTA (layout final em PEN-017/PEN-023).
+- Os cinco usam o gerador `villager` com semente igual ao `npc_id` e bloqueiam o avatar com a mesma pegada dos
+  moradores decorativos: uma cápsula de 1,5 u (braços) por 0,9 u, girada com o NPC
+  ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)). Posições são sugestão PROPOSTA (layout final
+  em PEN-017/PEN-023).
 - Os obstáculos dos NPCs e do atril ficam em `QUEST_OBSTACLES`, **fora** de `OBSTACLES`: o cliente só os soma aos
   colisores do avatar quando as quests estão ligadas, junto com os modelos. Sem as flags, `OBSTACLES` é o mesmo de
   antes e nada invisível bloqueia o caminho.
 - Clicar num NPC abre o diálogo só a até `INTERACT_DISTANCE` (`4.5`), o mesmo alcance do botão de ação; de mais
-  longe, o clique faz o avatar andar até o NPC.
+  longe, o clique faz o avatar andar até o NPC e parar ao lado dele, do lado de quem chega (a rota contorna o que
+  estiver no caminho).
 - `QUEST_SPAWNS` (coleta por proximidade, raio `1.4`): dois sinos, duas caixas de enfeites, duas lanternas do lago.
+  Todos ficam em chão livre, a pelo menos 0,25 u de qualquer colisor: o avatar chega em cima do item.
 - `QUEST_INTERACTIONS`: `mailbox-open` (raio `3.5`) e `sled-ride` (raio `3.5`).
 - A câmera faz `-z` ser o topo da tela (norte) e `+z` a base (sul): o trenó e o trenó pequeno estão **ao sul**, e a
   copy foi corrigida para "ao sul". Mover as peças continua sendo PEN-017/PEN-023.
@@ -138,7 +142,7 @@ As tabelas abaixo repetem `world.ts` e são conferidas por um teste de coordenad
 `packages/shared/src/game/motion.test.ts`, ao lado das folgas. Mudar uma peça de lugar passa a exigir uma alteração
 deliberada no teste, não pode ser um deslize.
 
-| NPC (`NPCS`, colisão `r: 0.5` em `QUEST_OBSTACLES`) | `id` | `x` | `z` | `rot` |
+| NPC (`NPCS`, pegada de morador em `QUEST_OBSTACLES`) | `id` | `x` | `z` | `rot` |
 |---|---|---:|---:|---|
 | Baltazar | `sleigh-keeper` | `-2.5` | `28.5` | `Math.atan2(2.5, -28.5)` |
 | Dona Filó | `market-keeper` | `-18.6` | `0` | `Math.atan2(18.6, 0)` |
@@ -148,12 +152,17 @@ deliberada no teste, não pode ser um deslize.
 
 | Coleta (`QUEST_SPAWNS`, raio de coleta `1.4`, sem colisor) | `questId` | `objectId` | `x` | `z` |
 |---|---|---|---:|---:|
-| `bell-pine-north` | `harness-bells` | `reindeer-bell` | `-10` | `-12.4` |
-| `bell-pine-east` | `harness-bells` | `reindeer-bell` | `12.2` | `9.5` |
+| `bell-pine-north` | `harness-bells` | `reindeer-bell` | `-10` | `-13.2` |
+| `bell-pine-east` | `harness-bells` | `reindeer-bell` | `12.9` | `9.2` |
 | `crate-street` | `ornament-crates` | `ornament-crate` | `-14.5` | `8.6` |
 | `crate-market` | `ornament-crates` | `ornament-crate` | `-16.8` | `-3.6` |
-| `lantern-lake-1` | `lake-lanterns` | `lake-lantern` | `23.5` | `17` |
+| `lantern-lake-1` | `lake-lanterns` | `lake-lantern` | `23.2` | `17` |
 | `lantern-lake-2` | `lake-lanterns` | `lake-lantern` | `30.5` | `10` |
+
+Os dois sinos e a primeira lanterna foram afastados dos pinheiros (antes `(-10, -12.4)`, `(12.2, 9.5)` e
+`(23.5, 17)`): com o colisor do pinheiro do tamanho das ramas desenhadas
+([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)), os pontos antigos ficavam dentro dele. Os ids
+não mudaram.
 
 | Interação (`QUEST_INTERACTIONS`) | `questId` | `x` | `z` | `radius` |
 |---|---|---:|---:|---:|
@@ -167,8 +176,9 @@ deliberada no teste, não pode ser um deslize.
 O layout final continua com **PEN-017** e **PEN-023**; nada aqui é decisão de produto. A copy **"ao sul"** pressupõe
 o `+z` atual do trenó (`SLEIGH`) e do trenó pequeno (`kids-sled`). Mover qualquer peça exige, na mesma mudança:
 (1) atualizar `packages/shared/src/game/world.ts`; (2) atualizar o teste de coordenadas exatas em
-`packages/shared/src/game/motion.test.ts`; (3) atualizar os trajetos de aproximação em
-`apps/client/scripts/verify-quests.mjs` (coletas atrás de pinheiros precisam de rota em etapas); e (4) rodar de novo
+`packages/shared/src/game/motion.test.ts`; (3) atualizar os pontos de aproximação em
+`apps/client/scripts/verify-quests.mjs` (a rota contorna os obstáculos sozinha; o ponto precisa ser chão livre ou
+ficar a menos de 0,9 u dele); e (4) rodar de novo
 `content/proposals/quests-v1/validate-quests.mjs` (guarda cardinal) e decidir se a copy deve voltar a ser
 **"ao norte"**.
 
@@ -221,6 +231,8 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
   missão ativa, roteamento do minijogo, 465 XP e teto de 465 XP em qualquer ordem de replay.
 - `packages/shared/src/game/motion.test.ts`: folgas de NPCs, pontos de coleta e atril contra obstáculos, terrenos,
   lago, árvore e entre si; `OBSTACLES` sem nenhuma entrada na posição de um NPC ou do atril.
+- `packages/shared/src/game/navigation.test.ts`: com as quests ligadas, o avatar chega a cada ponto de coleta e para
+  ao lado de cada NPC, do atril, da caixa de correio e do trenó pequeno, dentro do alcance da interação.
 - `apps/api/src/accounts.test.ts`: cadeia completa no servidor (100 XP), replay idempotente, evento desconhecido,
   bandeira desligada (quests ignoradas, missões gravadas), `accept` de aba desatualizada que volta a valer, objetivo
   antes do `accept` e linha gravada antes da hora.

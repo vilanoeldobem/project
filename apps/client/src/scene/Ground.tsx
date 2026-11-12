@@ -39,7 +39,9 @@ export function Ground() {
           if (e.button !== 0 || !e.nativeEvent.isPrimary) return;
           e.stopPropagation();
           setTarget({ x: e.point.x, z: e.point.z });
-          events.emit({ type: "tap", x: e.point.x, z: e.point.z });
+          // Feedback goes where the avatar will end up, which is not always where the click landed.
+          const to = useVila.getState().target;
+          if (to) events.emit({ type: "tap", x: to.x, z: to.z });
         }}
       >
         <circleGeometry args={[WORLD_RADIUS + 3, 48]} />

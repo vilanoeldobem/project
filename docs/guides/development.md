@@ -27,6 +27,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
+  scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
 apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*; não publicado) — IMPL-0015
   src/
     main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
@@ -42,7 +43,8 @@ apps/api/test/d1.mjs        D1 de teste sobre node:sqlite com as migrations reai
 apps/server/src/            index.ts, handler.ts, room.ts (lógica pura), room-do.ts (VillageRoom) — server.*
 apps/site/                  site público — www.vilanoeldobem.com.br
 packages/shared/src/        lógica pura (@vila/shared/…), sem DOM, three.js ou runtime da Cloudflare
-  game/                     world.ts (layout), motion.ts (movimento), progress.ts (missões/XP)
+  game/                     world.ts (layout e colisores), collision.ts (formato do colisor), motion.ts (movimento),
+                            navigation.ts (rota do clique), progress.ts (missões/XP)
   environment/              config, time, random, weather, events, keyframes, network-clock, frame
   net/protocol.ts           mensagens de presença
   accounts/validate.ts      validação do cadastro (P13) e da candidatura de ONG (P12)
@@ -200,7 +202,8 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 - [ ] Três gates verdes, com saída real.
 - [ ] `verify.mjs` rodado se a interface mudou (desktop e celular; o do app que mudou: jogo, site ou painel);
-      `verify-accounts.mjs` se mexeu em conta, ONG ou admin.
+      `verify-accounts.mjs` se mexeu em conta, ONG ou admin;
+      `verify-collisions.mjs` se mexeu em movimento, colisores ou no lugar das peças do mapa.
 - [ ] Nenhuma migration existente alterada.
 - [ ] Nenhum log novo com dados pessoais ou segredos.
 - [ ] `CHANGELOG.md` e docs atualizados; ADR se a decisão for estrutural.

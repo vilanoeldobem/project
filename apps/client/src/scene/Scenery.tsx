@@ -11,8 +11,11 @@ import {
   FOREST_OUTER,
   LAMPS,
   PALETTE as P,
+  pineAt,
+  pineIsTall,
   PINES,
   POND,
+  REINDEER,
   SLEIGH,
   SNOWMEN,
 } from "@vila/shared/game/world";
@@ -37,8 +40,8 @@ export function Pines() {
   const voxels = useMemo(() => {
     const small = pine(false), tall = pine(true);
     const out: Voxel[] = [];
-    // The three pines by the plaza stay small so they never hide the avatar from the camera.
-    PINES.forEach(([x, z], i) => out.push(...place(i < 3 || i % 3 === 0 ? small : tall, Math.round(x), Math.round(z), i)));
+    // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
+    PINES.forEach((p, i) => out.push(...place(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i)));
     const rnd = mulberry32(0xf0e57);
     for (let i = 0; i < 90; i++) {
       const a = rnd() * Math.PI * 2;
@@ -174,14 +177,16 @@ export function Sleigh() {
     });
   });
   return (
-    <group position={[SLEIGH.x, 0, SLEIGH.z]}>
-      <Voxels voxels={s} size={0.5} emissive={[P.gold]} />
-      {[0, 1].map((i) => (
-        <group key={i} position={[4.8 + i * 3, 0, i ? 0.9 : -0.9]} ref={(g) => void (g && (deer.current[i] = g))}>
+    <>
+      <group position={[SLEIGH.x, 0, SLEIGH.z]}>
+        <Voxels voxels={s} size={0.5} emissive={[P.gold]} />
+      </group>
+      {REINDEER.map((d, i) => (
+        <group key={i} position={[d.x, 0, d.z]} ref={(g) => void (g && (deer.current[i] = g))}>
           <Voxels voxels={r} size={0.35} />
         </group>
       ))}
-    </group>
+    </>
   );
 }
 

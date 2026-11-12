@@ -75,10 +75,14 @@ export function house(seed: Seed): GenModel {
   const chimneyTop = peak + 1;
   for (let y = base; y <= chimneyTop; y++) v.push([cx, y, cz, P.stoneDark]);
 
+  // What blocks the avatar: the walls and, when there is one, the porch slab (voxel n spans n ± 0.5).
+  const solid: GenModel["solid"] = [[-hx - 0.5, hx + 0.5, -hz - 0.5, hz + 0.5]];
+
   // Porch: slab, two posts, a small roof.
   if (r.chance(0.55)) {
     // Ends at most 5 voxels from the centre (the street's outer edge when the lot faces the plaza).
     const pw = Math.min(2, hx), depth = hz === 3 ? 1 : 2;
+    solid.push([-pw - 0.5, pw + 0.5, hz + 0.5, hz + depth + 0.5]);
     box(v, -pw, pw, 0, 0, hz + 1, hz + depth, V.woodDark);
     for (const x of [-pw, pw]) box(v, x, x, 1, 2, hz + depth, hz + depth, trim);
     box(v, -pw - 1, pw + 1, 3, 3, hz + 1, hz + depth + 1, roofColor);
@@ -89,7 +93,7 @@ export function house(seed: Seed): GenModel {
   if (r.chance(0.5)) for (let z = -hz; z <= hz; z += 2) v.push([-hx - 1, top, z, P.ice], [hx + 1, top, z, P.ice]);
 
   const snowy = snowCap(dedupe(v), P.snow, (x, z) => (x * 3 + z * 5) % 4 !== 0 && !(x === cx && z === cz));
-  return { voxels: dedupe(snowy), size: 1, glow: [P.window], anchors: { chimney: [cx, chimneyTop + 0.5, cz] } };
+  return { voxels: dedupe(snowy), size: 1, glow: [P.window], anchors: { chimney: [cx, chimneyTop + 0.5, cz] }, solid };
 }
 
 export const HOUSES: Generator[] = [{ id: "house", category: "houses", name: "Chalé", generate: house }];
