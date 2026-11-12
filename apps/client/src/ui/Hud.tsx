@@ -2,13 +2,19 @@ import { useEffect } from "react";
 
 import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
-import { NPCS } from "@vila/shared/game/world";
-import { questsEnabled } from "../game/questsFlag";
+import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
+import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
 import { AccountChip } from "./Account";
 import { EnvironmentChip } from "./Environment";
 import { XpBar } from "./Missions";
 import { Wordmark } from "./Wordmark";
+
+/** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
+const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
+  "mailbox-open": { label: "📬 Abrir a caixa", done: "Caixa de correio destrancada! Volte a Seu Nivaldo." },
+  "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
+};
 
 /** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1). */
 function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
@@ -16,7 +22,7 @@ function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
     case "npc":
       return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
     case "quest":
-      return nearby.interactionId === "mailbox-open" ? "📬 Abrir a caixa" : "🛷 Dar uma volta";
+      return INTERACTION_COPY[nearby.interactionId]?.label ?? "Interagir";
     case "donation-panel":
       return readActive ? "📖 Ler a promessa" : "🎄 Doação global";
     case "tree":
@@ -39,7 +45,7 @@ export function Hud() {
   const notify = useVila((s) => s.notify);
   const done = MISSIONS.filter((m) => progress.completed[m.id]).length;
   const toast = useVila((s) => s.toast);
-  const quests = questsEnabled();
+  const quests = useQuestsEnabled();
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
   const bag = quests ? activeInventory(progress) : [];
   const zoom = useVila((s) => s.zoom);
@@ -50,15 +56,15 @@ export function Hud() {
       case "npc":
         open({ kind: "npc", npcId: n.npcId });
         return;
-      case "quest":
-        if (n.interactionId === "mailbox-open") {
-          record("frozen-mailbox", "mailbox-open");
-          notify("Caixa de correio destrancada! Volte a Seu Nivaldo.");
-        } else {
-          record("kids-sled-run", "sled-ride");
-          notify("Você deu uma volta no trenó pequeno! Volte a Aurora.");
-        }
+      case "quest": {
+        // The quest and the event come from the interaction itself; an unknown id records nothing.
+        const interaction = QUEST_INTERACTIONS.find((i) => i.id === n.interactionId);
+        if (!interaction) return;
+        record(interaction.questId, interaction.id);
+        const done = INTERACTION_COPY[interaction.id]?.done;
+        if (done) notify(done);
         return;
+      }
       case "donation-panel":
       case "tree":
         open({ kind: "donation" });

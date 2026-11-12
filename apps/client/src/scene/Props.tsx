@@ -3,7 +3,7 @@ import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
-import { GIFTS, DONATION_PANEL, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
+import { GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 import { useVila } from "../game/store";
@@ -193,12 +193,14 @@ function npcMarker(npc: NpcPlacement, progress: Progress): string {
 }
 
 /**
- * The five fictional quest NPCs (PROPOSTA quests-v1): seeded villagers that block the avatar, open the
- * dialogue panel on click and carry a short symbol + name label. Mounted only with the quests flag.
+ * The five fictional quest NPCs (PROPOSTA quests-v1): seeded villagers that block the avatar and carry a
+ * short symbol + name label. A click opens the dialogue only from talking distance (the same reach as the
+ * action button); from farther away it walks the avatar up to the NPC. Mounted only with the quests flag.
  */
 export function QuestNpcs() {
   const progress = useVila((s) => s.progress);
   const open = useVila((s) => s.open);
+  const setTarget = useVila((s) => s.setTarget);
   const models = useMemo(() => NPCS.map((npc) => ({ npc, m: villager(npc.seed) })), []);
   return (
     <>
@@ -207,7 +209,12 @@ export function QuestNpcs() {
           key={npc.id}
           position={[npc.x, 0, npc.z]}
           rotation-y={npc.rot}
-          onClick={(e) => (e.stopPropagation(), open({ kind: "npc", npcId: npc.id }))}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (Math.hypot(npc.x - sim.pose.x, npc.z - sim.pose.z) < INTERACT_DISTANCE) open({ kind: "npc", npcId: npc.id });
+            // Too far to talk: walk there instead. The NPC's collider stops the avatar next to it.
+            else setTarget({ x: npc.x, z: npc.z });
+          }}
         >
           <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow />
           <Label y={4.2} text={npcMarker(npc, progress)} x={npc.x} z={npc.z} />
@@ -253,8 +260,8 @@ export function QuestItems() {
 }
 
 /**
- * Permanent global donation lectern next to the tree (DEC-026; PROPOSTA quests-v1): the 3D reading panel
- * and the tree both open the same donation modal. Always mounted, never gated by the quests flag.
+ * Global donation lectern next to the tree (DEC-026; PROPOSTA quests-v1): the 3D reading panel and the tree
+ * both open the same donation modal. A proposal like the NPCs, so it is mounted only with the quests flag.
  */
 export function DonationLectern() {
   const open = useVila((s) => s.open);

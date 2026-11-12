@@ -5,13 +5,14 @@ import { useAccount } from "../lib/account";
 import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Progress, type Track } from "@vila/shared/game/progress";
 import { activeInventory, CHAIN_TITLES, type NpcId, QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { NPCS } from "@vila/shared/game/world";
-import { questsEnabled } from "../game/questsFlag";
+import { useQuestsEnabled } from "../game/questsFlag";
 import type { LotInfo } from "../lib/api";
 import { Panel } from "./Panel";
 
 /** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
 export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
   const p = useVila((s) => s.progress);
+  const quests = useQuestsEnabled();
   return (
     <Panel kicker="Missões da Vila" title="Caderno de Missões">
       <XpBar />
@@ -37,7 +38,7 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
           </ul>
         </section>
       ))}
-      {questsEnabled() && <QuestBook progress={p} lots={lots} />}
+      {quests && <QuestBook progress={p} lots={lots} />}
       <LookPicker />
       <SavedWhere />
     </Panel>

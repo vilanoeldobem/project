@@ -5,7 +5,7 @@ import { usePreset } from "../environment/settings";
 import type { Collider } from "@vila/shared/game/motion";
 import { HOUSE_RADIUS, LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
-import { questsEnabled } from "../game/questsFlag";
+import { useQuestsEnabled } from "../game/questsFlag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
 import { Lighting } from "./environment/Lighting";
 import { Footprints, GameplayBursts, Sparkles } from "./environment/Particles";
@@ -28,6 +28,8 @@ const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default:
  */
 export function World({ lots }: { lots: Record<string, LotInfo> }) {
   const preset = usePreset();
+  // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
+  const quests = useQuestsEnabled();
   // Published chalets block the avatar; available lots stay walkable.
   const houses = useMemo(
     (): Collider[] =>
@@ -53,9 +55,9 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Pines />
         <Pond />
         <ChristmasTree />
-        <DonationLectern />
-        {questsEnabled() && <QuestNpcs />}
-        {questsEnabled() && <QuestItems />}
+        {quests && <DonationLectern />}
+        {quests && <QuestNpcs />}
+        {quests && <QuestItems />}
         <Lamps />
         <LightStrings />
         <Snowmen />

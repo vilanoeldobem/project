@@ -8,9 +8,22 @@ const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:n
 /**
  * Flat, readable modal panel over the scene (doc 17: long text never lives in 3D). Follows the APG modal
  * dialog pattern: focus moves into the dialog, Tab cycles inside it, Escape closes and focus returns to
- * the element that opened it.
+ * the element that opened it. A panel that swaps its content in place passes a `contentKey`: when it
+ * changes and the focused control is gone, focus goes back to the dialog instead of falling to `<body>`.
  */
-export function Panel({ title, kicker, children, wide }: { title: string; kicker?: string; children: ReactNode; wide?: boolean }) {
+export function Panel({
+  title,
+  kicker,
+  children,
+  wide,
+  contentKey,
+}: {
+  title: string;
+  kicker?: string;
+  children: ReactNode;
+  wide?: boolean;
+  contentKey?: string;
+}) {
   const close = useVila((s) => s.close);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -47,6 +60,9 @@ export function Panel({ title, kicker, children, wide }: { title: string; kicker
       previous?.focus();
     };
   }, [close]);
+  useEffect(() => {
+    if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
+  }, [contentKey]);
   return (
     <div className="backdrop" onPointerDown={(e) => e.target === e.currentTarget && close()}>
       <div className={`panel${wide ? " panel--wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}>

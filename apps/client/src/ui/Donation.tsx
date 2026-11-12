@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { questState } from "@vila/shared/game/quests";
-import { questsEnabled } from "../game/questsFlag";
+import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { Panel, Status } from "./Panel";
 
@@ -16,7 +16,7 @@ export function Donation() {
   const notify = useVila((s) => s.notify);
   const progress = useVila((s) => s.progress);
   useEffect(() => record("causes-global-donation", "panel"), [record]);
-  const reading = questsEnabled() ? questState(progress, "donation-promise-reading") : "locked";
+  const reading = useQuestsEnabled() ? questState(progress, "donation-promise-reading") : "locked";
   return (
     <Panel kicker="Praça da Vila" title="Doação global">
       <p className="lead">Doar sem escolher uma ONG específica.</p>

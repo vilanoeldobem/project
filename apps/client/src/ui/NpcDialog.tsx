@@ -130,7 +130,8 @@ export function NpcDialog({ npcId, lots }: { npcId: NpcId; lots: Record<string, 
   );
 
   return (
-    <Panel kicker={npc.role} title={npc.name}>
+    // After a turn-in the next offer replaces the button that had focus: the key sends focus back to the dialog.
+    <Panel kicker={npc.role} title={npc.name} contentKey={talked ? "talked" : (turnIn ?? offer ?? running)?.id ?? "greeting"}>
       {body}
     </Panel>
   );
