@@ -9,8 +9,31 @@ export const ACTION_LABEL: Record<string, string> = {
   "ngo.approve": "Aprovada e publicada",
   "ngo.request_changes": "Ajustes solicitados",
   "ngo.reject": "Não aprovada",
+  "ngo.file_add": "Arquivo enviado",
+  "ngo.file_remove": "Arquivo removido",
+  "ngo.file_read": "Documento baixado pela administração",
   "user.delete": "Conta excluída pela própria pessoa",
 };
+
+const FILE_KIND_LABEL = new Map([
+  ["logo", "logo"],
+  ["document", "documento"],
+]);
+
+/**
+ * How an audit row reads. A file sent or removed (IMPL-0017) also says which kind of file it was, taken from the
+ * detail `{kind, file, revision?}`; the file id there is not a name and is never printed as one.
+ */
+export function actionText(action: string, detail: string | null): string {
+  const label = ACTION_LABEL[action] ?? action;
+  if (action !== "ngo.file_add" && action !== "ngo.file_remove") return label;
+  try {
+    const kind = FILE_KIND_LABEL.get((JSON.parse(detail ?? "") as { kind?: unknown } | null)?.kind as string);
+    return kind ? `${label} (${kind})` : label;
+  } catch {
+    return label;
+  }
+}
 
 /** Lot states (DEC-028); unknown ones are shown by their code. */
 export const LOT_STATE_LABEL: Record<string, string> = {
@@ -26,7 +49,18 @@ export const ROLE_LABEL: Record<string, string> = { player: "Jogador", admin: "A
 export const FLAG_LABEL: Record<string, string> = {
   accounts: "Contas, XP no servidor, candidaturas e análise",
   quests: "Missões narrativas quests-v1 (PROPOSTA)",
+  files: "Logo e documentos nas candidaturas (PROPOSTA)",
 };
+
+/** File formats the API accepts (IMPL-0017); an unknown one is shown by its media type. */
+export const FILE_TYPE_LABEL: Record<string, string> = { "image/png": "PNG", "image/jpeg": "JPEG", "application/pdf": "PDF" };
+
+/** File size for people: "734 bytes", "182 KB", "1,5 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+}
 
 export const dateTime = (iso: string): string => {
   const d = new Date(iso);

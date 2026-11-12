@@ -2,7 +2,8 @@
  * verify.mjs — opens the backoffice dashboard in a real Chrome (playwright-core + system Chrome) at desktop and
  * phone sizes, saves screenshots to verify-output/ and fails on console/page errors. It checks:
  *
- *   1. the response headers of the HTML (strict CSP with exactly the API origin, noindex, no-store, no-referrer);
+ *   1. the response headers of the HTML (strict CSP with exactly the API origin, `blob:` for images only, noindex,
+ *      no-store, no-referrer);
  *   2. the signed-out screen (sign-in form, nothing else), when the API has accounts on;
  *   3. every section's honest state with accounts off: "contas desligadas" where an admin session is needed,
  *      real public data for lots and system status, labelled placeholders for the pending areas.
@@ -47,6 +48,11 @@ const [config, health, lots] = await Promise.all([getJson("/config"), getJson("/
   const csp = header("content-security-policy");
   const connect = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("connect-src")) ?? "";
   if (connect !== `connect-src 'self' ${apiOrigin}`) errors.push(`headers: connect-src must list exactly the API origin (got "${connect}")`);
+  // Images: the dashboard itself and object URLs (the logo preview of an application, IMPL-0017); nothing remote.
+  const directives = csp.split(";").map((d) => d.trim());
+  const img = directives.find((d) => d.startsWith("img-src")) ?? "";
+  if (img !== "img-src 'self' blob:") errors.push(`headers: img-src must be exactly 'self' blob: (got "${img}")`);
+  if (directives.some((d) => d !== img && /blob:|data:/.test(d))) errors.push("headers: blob: or data: allowed outside img-src");
   for (const directive of ["default-src 'self'", "script-src 'self'", "style-src 'self'", "frame-ancestors 'none'"])
     if (!csp.includes(directive)) errors.push(`headers: CSP misses "${directive}"`);
   if (/unsafe-inline|unsafe-eval/.test(csp)) errors.push("headers: CSP allows inline or eval code");

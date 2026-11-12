@@ -2,7 +2,7 @@
  * Audit trail (`audit_events`, DEC-037): read-only, newest first, page by page. Rows never carry e-mails, names
  * or the text of review messages (the API writes ids and state changes only); the actor shows by nickname.
  */
-import { ACTION_LABEL, applicationIdOf, dateTime, prettyJson } from "../lib/format";
+import { actionText, applicationIdOf, dateTime, prettyJson } from "../lib/format";
 import { usePaged } from "../lib/hooks";
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
@@ -39,7 +39,7 @@ function AuditTable() {
                 cells: [
                   dateTime(e.at),
                   <>
-                    {ACTION_LABEL[e.action] ?? e.action} <code className="muted">{e.action}</code>
+                    {actionText(e.action, e.detail)} <code className="muted">{e.action}</code>
                   </>,
                   e.actor ? `@${e.actor}` : "—",
                   application ? <a href={hrefOf({ section: "applications", id: application })}>Candidatura {application.slice(0, 8)}</a> : <code>{e.subject}</code>,

@@ -3,17 +3,22 @@
  * server-side). Wireframe P12 "Análise administrativa": evidence, the three DEC-015 checks, decision history,
  * "Aprovar / Pedir ajustes / Rejeitar". The applicant appears only by nickname (no personal data here).
  * Moved from the game (`apps/client/src/ui/Admin.tsx`) in IMPL-0015 with the same API calls and messages.
+ *
+ * Files (IMPL-0017, PROPOSTA): the logo is previewed; documents are only downloaded, one audited read per click.
  */
 import { useCallback, useEffect, useState } from "react";
 
 import { APPLICATION_STATUSES, type ApplicationDetail, type ApplicationStatus, type ApplicationSummary, lotNumber, type ReviewAction, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
+import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { NGO_TAGS, type NgoTag } from "@vila/shared/accounts/validate";
 
-import { ACTION_LABEL, dateTime } from "../lib/format";
+import { downloadDocument } from "../lib/files";
+import { actionText, dateTime, FILE_TYPE_LABEL, fileSize } from "../lib/format";
+import { sendDecision } from "../lib/review";
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
-import { AccountsOff, Field, PageHead, Status } from "./common";
+import { AccountsOff, Field, Notice, PageHead, Status } from "./common";
 
 export function Applications({ id, locked }: { id?: string; locked: boolean }) {
   // Lives here (not in the list) so the chosen filter survives opening an application and coming back.
@@ -95,15 +100,27 @@ const BackToList = () => (
 
 function ReviewDetail({ id }: { id: string }) {
   const [d, setD] = useState<ApplicationDetail | null>(null);
+  /** `GET /config` says whether uploads work in this API; an older API does not send the flag (= off). */
+  const [filesOn, setFilesOn] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => void api.adminGet(id).then(setD, (e) => setError(errorText(e))), [id]);
+  useEffect(
+    () =>
+      void Promise.all([api.adminGet(id), api.config()]).then(
+        ([detail, config]) => {
+          setFilesOn(config.files === true);
+          setD(detail);
+        },
+        (e) => setError(errorText(e))
+      ),
+    [id]
+  );
   // One outer structure while loading and once loaded, so the heading (which holds the focus after navigating) stays.
   return (
     <article className="detail">
       <p className="kicker">Análise administrativa · apenas administradores</p>
       <PageHead title={d ? d.application.name : error ? "Candidatura indisponível" : "Carregando…"} />
       {d ? (
-        <Review id={id} d={d} onDetail={setD} />
+        <Review id={id} d={d} filesOn={filesOn} onDetail={setD} />
       ) : (
         <>
           {error && (
@@ -118,8 +135,11 @@ function ReviewDetail({ id }: { id: string }) {
   );
 }
 
-/** The review of one loaded application: evidence, checks, decision and history. `onDetail` receives each fresh copy. */
-export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; onDetail: (d: ApplicationDetail) => void }) {
+/**
+ * The review of one loaded application: evidence, files, checks, decision and history. `onDetail` receives each
+ * fresh copy; `filesOn` is the API's `files` flag.
+ */
+export function Review({ id, d, filesOn, onDetail }: { id: string; d: ApplicationDetail; filesOn: boolean; onDetail: (d: ApplicationDetail) => void }) {
   const [note, setNote] = useState("");
   const [checks, setChecks] = useState({ cnpj: false, year: false, funds: false });
   const [error, setError] = useState("");
@@ -132,24 +152,22 @@ export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; 
     setError("");
     setFieldError("");
     setDone("");
-    try {
-      const ticked = { activeCnpj: checks.cnpj, oneYear: checks.year, fundsConfirmable: checks.funds };
-      const { application } = await api.adminDecide(id, action, a.revision, note || undefined, action === "approve" ? ticked : undefined);
-      // The decision is recorded: show it even if re-reading the history fails (it is only stale then).
-      onDetail(await api.adminGet(id).catch(() => ({ ...d, application })));
+    const result = await sendDecision(api, id, d, action, note, { activeCnpj: checks.cnpj, oneYear: checks.year, fundsConfirmable: checks.funds });
+    if (result.ok) {
+      onDetail(result.detail);
       setNote("");
-      setDone(`Decisão registrada: ${STATUS_LABEL[application.status]}.`);
-    } catch (e) {
-      // The applicant resubmitted while this screen was open: show the new version, untick the checks.
-      if ((e as { code?: string }).code === "stale_revision") {
-        onDetail(await api.adminGet(id).catch(() => d));
+      setDone(`Decisão registrada: ${STATUS_LABEL[result.status]}.`);
+    } else {
+      // The application changed while this screen was open (resubmitted, or a file sent or removed): show the
+      // current version, files included, and untick the checks.
+      if (result.stale) {
+        onDetail(result.detail);
         setChecks({ cnpj: false, year: false, funds: false });
       }
-      setFieldError((e as { fields?: Record<string, string> }).fields?.note ?? "");
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
+      setFieldError((result.error as { fields?: Record<string, string> }).fields?.note ?? "");
+      setError(errorText(result.error));
     }
+    setBusy(false);
   };
   const open = a.status === "submitted" || a.status === "under_review";
   const verified = checks.cnpj && checks.year && checks.funds;
@@ -181,6 +199,8 @@ export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; 
           </>
         )}
       </dl>
+      {/* An API older than IMPL-0017 sends no `files`. */}
+      <Files applicationId={id} files={d.files ?? []} enabled={filesOn} />
       <fieldset className="checks">
         <legend>Verificação dos 3 requisitos (DEC-015)</legend>
         {(
@@ -241,7 +261,7 @@ export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; 
       <ol className="history">
         {d.history.map((h, i) => (
           <li key={i}>
-            {dateTime(h.at)} · {ACTION_LABEL[h.action] ?? h.action}
+            {dateTime(h.at)} · {actionText(h.action, h.detail)}
             {h.actor ? ` · @${h.actor}` : ""}
           </li>
         ))}
@@ -254,5 +274,126 @@ export function Review({ id, d, onDetail }: { id: string; d: ApplicationDetail; 
       )}
       <BackToList />
     </>
+  );
+}
+
+/** A file that was listed when the screen loaded may be gone by the time it is read (replaced or removed). */
+const readError = (e: unknown): string =>
+  (e as { code?: string }).code === "not_found"
+    ? "Este arquivo não está mais disponível: a organização pode ter trocado ou removido. Recarregue a página para ver os arquivos atuais."
+    : errorText(e);
+
+const fileFacts = (file: ApplicationFile): string =>
+  `${FILE_TYPE_LABEL[file.contentType] ?? file.contentType} · ${fileSize(file.size)} · enviado em ${dateTime(file.createdAt)}`;
+
+/**
+ * Logo and supporting documents of the application (IMPL-0017). Which documents an NGO must send is PENDENTE
+ * (PEN-019), so they are only numbered: there is no file name (it may carry personal data) and no expected list.
+ */
+function Files({ applicationId, files, enabled }: { applicationId: string; files: ApplicationFile[]; enabled: boolean }) {
+  const logo = files.find((f) => f.kind === "logo");
+  const documents = files.filter((f) => f.kind === "document");
+  return (
+    <>
+      <h2>Arquivos</h2>
+      {!enabled ? (
+        <Notice state="files-off" title="Envio de arquivos desligado" tone="warn">
+          <p>
+            O envio de arquivos está desligado nesta API (<code>NGO_FILES_ENABLED</code>, ou o armazenamento não está configurado), então não é
+            possível enviar nem ler logo e documentos das candidaturas. Nada aqui é dado de exemplo: os arquivos aparecem quando o envio for
+            ligado.
+          </p>
+        </Notice>
+      ) : files.length === 0 ? (
+        <p className="muted" data-state="empty">
+          Nenhum arquivo enviado.
+        </p>
+      ) : (
+        <>
+          <h3>Logo</h3>
+          {logo ? <LogoPreview key={logo.id} applicationId={applicationId} file={logo} /> : <p className="muted">Nenhum logo enviado.</p>}
+          <h3>Documentos</h3>
+          {documents.length === 0 ? (
+            <p className="muted">Nenhum documento enviado.</p>
+          ) : (
+            <>
+              <p className="muted">Os documentos não abrem no painel: são apenas baixados. Cada download de documento fica registrado na auditoria.</p>
+              <ul className="files">
+                {documents.map((file, i) => (
+                  <DocumentRow key={file.id} applicationId={applicationId} file={file} position={i + 1} />
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** The only file read without being asked: the logo becomes public once the NGO is published, and its read is not audited. */
+function LogoPreview({ applicationId, file }: { applicationId: string; file: ApplicationFile }) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    let made = "";
+    api.fileBytes(applicationId, file.id).then(
+      (blob) => {
+        if (!live) return;
+        made = URL.createObjectURL(blob);
+        setUrl(made);
+      },
+      (e) => live && setError(readError(e))
+    );
+    return () => {
+      live = false;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [applicationId, file.id]);
+  return (
+    <div className="logo" data-file="logo">
+      {url ? (
+        <img src={url} alt="Logo enviado pela organização" />
+      ) : error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="muted">Carregando o logo…</p>
+      )}
+      <p className="muted">{fileFacts(file)}</p>
+    </div>
+  );
+}
+
+function DocumentRow({ applicationId, file, position }: { applicationId: string; file: ApplicationFile; position: number }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const download = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await downloadDocument(api, applicationId, file, position);
+    } catch (e) {
+      setError(readError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li data-file="document">
+      <span>
+        <strong>Documento {position}</strong> <span className="muted">{fileFacts(file)}</span>
+      </span>
+      <button className="btn btn--small" disabled={busy} aria-label={`Baixar documento ${position}`} onClick={() => void download()}>
+        {busy ? "Baixando…" : "Baixar"}
+      </button>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
   );
 }
