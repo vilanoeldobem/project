@@ -12,8 +12,11 @@
  *   pnpm --filter @vila/dash dev:worker    (:8797)
  * The admin role is granted with `wrangler d1 execute --local` (never remote).
  *
- * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 9 of them.
- * Wait 60 s between runs; a run that hits the limit stops with "rate limited: wait 60 s and run again".
+ * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 11 of them
+ * (3 sign-ups, 4 link confirmations, 2 link requests, 2 sign-outs). The run paces itself: before each of those it
+ * waits until fewer than 9 fell in the last 60 s, so one pause of up to a minute is normal. It cannot see requests
+ * of an earlier run: wait 60 s between runs. A run that still hits the limit stops with "rate limited: wait 60 s
+ * and run again" instead of a locator timeout.
  *
  * Usage: node scripts/verify-accounts.mjs [client=http://localhost:8799] [api=http://localhost:8787] [dash=http://localhost:8797]
  */
@@ -35,6 +38,23 @@ const errors = [];
 const API_WAIT = 30000;
 /** Set when the API answers 429: the auth rate limit was hit (see the header). */
 let rateLimited = false;
+/** When this run sent each `/auth/*` request (preflights are not rate limited). */
+const authCalls = [];
+
+/**
+ * Before a step that sends `n` requests to `/auth/*`: waits until at most 9 of them (the limit is 10) fall in any
+ * 60 s, whichever way the limiter cuts its windows.
+ */
+async function authBudget(n = 1) {
+  for (;;) {
+    const now = Date.now();
+    const recent = authCalls.filter((t) => now - t < 61000);
+    if (recent.length + n <= 9) return;
+    const wait = recent[0] + 61000 - now;
+    console.log(`pacing: ${recent.length} /auth requests in the last minute; waiting ${Math.ceil(wait / 1000)} s (rate limit)`);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+  }
+}
 
 /** A valid CNPJ unique to this run (check digits computed). */
 function cnpj() {
@@ -84,6 +104,10 @@ process.on("unhandledRejection", (e) => void fail(e));
 function watch(page, name) {
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  page.on("request", (r) => {
+    const target = new URL(r.url());
+    if (r.method() !== "OPTIONS" && target.origin === new URL(apiUrl).origin && target.pathname.startsWith("/auth/")) authCalls.push(Date.now());
+  });
   page.on("response", (r) => {
     if (r.status() === 429 && new URL(r.url()).pathname.startsWith("/auth/")) rateLimited = true;
   });
@@ -147,6 +171,7 @@ async function devLink(page, who) {
 async function openLink(page, link, signedIn, who) {
   // Same URL apart from the fragment would not reload the page: open it fresh.
   await page.goto("about:blank");
+  await authBudget();
   await page.goto(link, { waitUntil: "load" });
   await authStep(`${who}: sign-in with the link`, () => signedIn.waitFor({ timeout: API_WAIT }));
   if (new URL(page.url()).hash.includes("login")) errors.push(`${who}: login token left in the address bar`);
@@ -159,6 +184,7 @@ async function register(page, nickname, email) {
   await page.getByLabel("Nickname *").fill(nickname);
   await page.getByLabel("Cidade *").fill("Recife");
   await page.getByLabel("E-mail *").fill(email);
+  await authBudget();
   await click(page.getByRole("button", { name: "Criar conta", exact: true }));
   const link = await devLink(page, nickname);
   if (new URL(link).origin !== new URL(url).origin) errors.push(`${nickname}: the game's sign-up link opens ${new URL(link).origin}, not the game`);
@@ -188,6 +214,7 @@ await a.screenshot({ path: `${out}accounts-1-signed-in.png` });
 // 1b. Shared browser: after signing out, the guest starts empty and the next account inherits nothing.
 const serverXp = (page) => page.evaluate(async (api) => (await (await fetch(`${api}/progress`, { credentials: "include" })).json()).progress, apiUrl);
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
+await authBudget();
 await click(a.getByRole("button", { name: "Sair" }));
 await a.getByRole("button", { name: "Entrar ou criar conta" }).waitFor({ timeout: API_WAIT });
 if (Object.keys(await a.evaluate(() => window.__vila.progress().seen)).length) errors.push("shared browser: guest progress kept the account's events after sign-out");
@@ -198,10 +225,12 @@ const otherProgress = await serverXp(a);
 if (otherProgress?.seen?.["explore-gifts:gift-bench"] || otherProgress?.xp) errors.push(`shared browser: second account inherited progress (${JSON.stringify(otherProgress)})`);
 // Back to the applicant (sign in with a fresh link).
 await click(a.getByRole("button", { name: `Sua conta: ${other}` }));
+await authBudget();
 await click(a.getByRole("button", { name: "Sair" }));
 await click(a.getByRole("button", { name: "Entrar ou criar conta" }));
 await click(a.getByRole("tab", { name: "Já tenho conta" }));
 await a.getByLabel("E-mail da sua conta").fill(`${nick}@example.com`);
+await authBudget();
 await click(a.getByRole("button", { name: "Enviar link de acesso" }));
 await openLink(a, await devLink(a, `${nick} (again)`), a.getByRole("button", { name: `Sua conta: ${nick}` }), `${nick} (again)`);
 if (!(await serverXp(a))?.seen?.["explore-gifts:gift-bench"]) errors.push("applicant: progress lost after signing in again");
@@ -240,6 +269,7 @@ await g.context().close();
 
 const b = await newDashPage("admin (dashboard)");
 await b.getByLabel("E-mail da sua conta").fill(`${admin}@example.com`);
+await authBudget();
 await b.getByRole("button", { name: "Enviar link de acesso" }).click();
 const dashLink = await devLink(b, "admin (dashboard)");
 if (new URL(dashLink).origin !== new URL(dashUrl).origin)
