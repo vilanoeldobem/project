@@ -1,3 +1,3 @@
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({ test: { include: ["src/**/*.test.ts"], environment: "node" } });
+export default defineConfig({ test: { include: ["src/**/*.test.ts", "../../tests/progress-account.test.mjs"], environment: "node" } });

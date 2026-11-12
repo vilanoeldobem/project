@@ -545,7 +545,6 @@ Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote inf
 - [ ] Image rights/consent policy and its approval/version record remain unresolved (review #29.3, OQ-15); production flags stay off.
 - [ ] Augusto review; passing CI does not approve merge or activation.
 
-
 ### Direct PR35 review — second correction round
 
 - [x] Pending erasure exposed in owner/admin contracts and UI; retry retained, admin rejection can release an open application's lot, other decisions blocked explicitly.
@@ -571,3 +570,32 @@ Each finding was re-checked against the code, not the commit messages. Already c
 - [ ] Not run locally: the Chromium flow (`verify-media-local.mjs --browser`), which needs the CI environment.
 - [ ] Still the owner's call: the gallery exception in `AGENTS.md`, OQ-15, and applying migration 0007 before this
   API serves signed-in accounts.
+
+## Reliable saved progress — D12 — 2026-11-12
+
+Scope: preserve missions, XP and levels across sessions and concurrent writes; load authoritative account
+progress when guest quest state conflicts. PR #30 follows the canonical files/gallery base (#32 then #35).
+
+- [x] Reuse shared reducer, session/account assertions and the SQL adapter; no dependencies or game rules added.
+- [x] Per-account revision/token guard, consistent snapshot, atomic batch and bounded jittered retries.
+- [x] Preserve accepted event order, unique-key cap and guarded recovery of ignored legacy rows.
+- [x] Omit inapplicable quest events and return authoritative 200; remove permanent progress_pending errors.
+- [x] Add root integration regression using real client modules, actual API handler and D1 SQLite: account40XP/harness-bells, guest lake-lanterns, pending queue, signin and reload.
+- [x] Sequence migration0008 and ADR0019 after canonical file/gallery changes; no reserved parallel identifiers.
+- [x] Update references/error table, OQ-09, changelog and indexed delivery record; use neutral role names.
+- [x] Negative control reproduced the old pending-login bug; [CI on `3e7a82c`](https://github.com/vilanoeldobem/project/actions/runs/43272723857/job/131373129051) passed typecheck, 608 tests, build, real workerd/D1 media + two-session progress smoke and Chromium account/file/disclosure flow (GTM stubbed).
+- [x] Existing PR #30 updated on #35 and review requested again from Augusto; no main merge, deploy, remote migration or flag activation.
+- [ ] Augusto review; OQ-09 quest policy remains a product decision.
+
+### Final check before merge (review of `51480aa`, six findings)
+
+- [x] 1 fixed at `41993c4` (inapplicable quest events answer 200 with the account state); negative control repeated: `tests/progress-account.test.mjs` fails on the `51480aa` handler (`sync` stays `pending`) and passes now.
+- [x] 2 sequence 0006/0007/0008 and IMPL-0017/0018/0019; "números sequenciais" kept; schema headers of the current docs and the deploy guide now say v8 / 0008.
+- [x] 3 branch-state wording removed from `docs/reference/{api,versioning}.md`, IMPL-0013 and the delivery record; 4 error table lists `progress_conflict` and `too_many_events`; 5 no external tool name left; 6 jittered wait between attempts, now asserted by a test.
+- [x] New tests: retry waits (20–39 ms, 40–59 ms) and account deleted while a request waits to commit (401, nothing written). A seeded interleaving run (150 seeds, three sessions) lost no acknowledged event on this handler and fails on `main` at seed 1; it was a one-off check, not committed.
+- [ ] Left to OQ-09: guest quest progress that conflicts with the account's active quest is dropped at sign-in; a stale tab keeps showing local progress until the next load.
+
+Reuse: the reducer, request/session guards, D1 adapter and client synchronization contract. Integration
+imports live at repository-root tests, never in production app code. The 608-test and runtime evidence above supersedes the earlier 440-test baseline, which predates these review fixes.
+
+Reproduction and limits: [delivery record](../docs/implementation/progress-persistence-report.md).

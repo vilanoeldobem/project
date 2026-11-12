@@ -9,6 +9,17 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — persistência de progresso entre sessões (D12)
+
+- Gravações de missões/XP usam revisão por conta e token exclusivo no D1, evitando que pedidos simultâneos
+  reposicionem eventos já aceitos ou gravem quests incompatíveis. Reenvios não consomem vagas adicionais no limite.
+- Eventos de quest incompatíveis com o estado salvo são omitidos e a resposta devolve o progresso da conta,
+  preservando o login quando o visitante tinha outra quest ativa. Contenção após três tentativas com jitter
+  retorna `409 progress_conflict`. Regressão conecta cliente real à API real e confere proprietário, XP e reload.
+- Nova migration `0008_progress_write_guard.sql` (schema D1 v8), após arquivos e galeria; nenhuma migration remota ou flag foi ativada.
+  Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
+  duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0019](docs/decisions/0019-progress-concurrency-and-acknowledgment.md)).
+
 ### Fixed
 - Revisão de mídias: revalidação de logo/fotos com ETag, leitura pública tolerante a schemas antigos e FK de galeria sem cascata para preservar a referência aos arquivos.
 - Exclusão de conta recusada por falta do bucket (`503 files_unavailable`), antes de apagar qualquer objeto, não

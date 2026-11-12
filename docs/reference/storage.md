@@ -1,12 +1,13 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin,files,ngo-photos,media-storage}.ts`
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v7 no código**; último estado registrado de produção: v3). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(**v8 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
 Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucket R2 privado: ver
@@ -23,11 +24,13 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
 | `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
+| `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 
-Esta versão contém 0001–0007, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
-galeria e os guardas de conciliação. A 0007 chamava-se 0010 enquanto esta entrega estava em revisão: nunca foi
-aplicada no remoto e recebeu o próximo número livre antes de integrar. Simuladores locais com a antiga 0010 são
-bases alternativas: usar nova base isolada, sem renomear seu histórico ou apagá-los.
+Esta versão contém 0001–0008, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso. A 0007 chamava-se 0010
+enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
+Simuladores locais com a antiga 0010 são bases alternativas: usar nova base isolada, sem renomear seu histórico
+ou apagá-los.
 A 0007 é pré-requisito do código conciliado mesmo com flags desligadas (sessão e decisões leem colunas novas).
 Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` responde sem logo e a rota de logo
 responde 404. Eles não dispensam a migration 0007 para usar as rotas privadas conciliadas.
@@ -153,7 +156,26 @@ o metadado antigo. `DELETE /me` limpa as chaves e depois apaga as intenções da
 | `event_id` | TEXT | id estável do evento (`/^[A-Za-z0-9:_.-]{1,64}$/`) |
 | `created_at` | TEXT | ordem de repetição |
 
-Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nada (DEC-042).
+Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nada (DEC-042). Replay usa
+`ORDER BY created_at,rowid`. Novas gravações usam timestamp igual ou maior que o último da conta; empates preservam
+a ordem de inserção. Eventos de quest já aceitos não são substituídos; apenas linha legada ignorada pelo replay pode
+ser reposicionada após reenvio agora válido. Essa recuperação não concede XP extra nem muda o catálogo.
+
+### progress_writes (0008)
+
+`user_id` (PK e FK → users, `ON DELETE CASCADE`), `revision` (inteiro ≥ 0) e `write_token` (UUID da última gravação).
+A linha é criada sob demanda, sem duplicar dados pessoais. Uma consulta única lê revisão e eventos. A transação
+D1 só troca a revisão esperada; todos os eventos do lote exigem o token exclusivo da tentativa vencedora. Uma
+tentativa que perde a corrida não grava eventos, e uma falha de SQL desfaz tanto a revisão quanto o lote inteiro.
+
+Não há mutex em memória nem estado persistido em Durable Object. Todos os escritores de progresso precisam passar
+pelo protocolo; escrita manual em `progress_events` ou execução concorrente do Worker antigo não recebe essa
+garantia. Antes de ativar, aplicar a migration autorizada e garantir que não há escritores legados ativos.
+
+Limite de 500 eventos considera novas chaves distintas, sem cobrar reenvios ou reposicionamento de linha legada.
+A API tenta novamente até três vezes após conflito de revisão, com jitter curto entre tentativas. Eventos de quest
+inaplicáveis são omitidos; a resposta `200` devolve o progresso autoritativo para não impedir o login por um
+conflito com progresso de visitante. Contenção persistente retorna `409 progress_conflict`; contrato em [api.md](api.md).
 
 ### audit_events
 

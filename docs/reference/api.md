@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v7 · **Atualizado em:** 2026-11-12
+> **Schema D1:** v8 · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
@@ -277,16 +277,54 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
 - Quests dependem de ordem ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)): um evento de quest só é gravado se
   for uma transição válida sobre o progresso já gravado (o lote é aplicado na ordem recebida). Evento ainda inválido
-  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `200`, nada gravado para ele; o mesmo id pode
-  ser reenviado depois. Eventos das quatro missões rápidas são sempre gravados (`INSERT OR IGNORE`).
+  (`accept` com outra missão em andamento, objetivo antes do `accept`) é omitido. Os eventos válidos do mesmo lote
+  são gravados e a resposta `200 {progress}` permite ao cliente carregar o progresso da conta. Isso preserva a
+  regra anterior de IMPL-0013; não enfileira automaticamente uma segunda quest. Eventos das quatro missões rápidas continuam armazenados
+  uma vez, inclusive além da meta; o limite de 500 linhas por conta conta somente chaves novas e únicas.
+- A gravação usa revisão por conta e token exclusivo em uma transação D1 ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)).
+  Duas sessões que leem o mesmo progresso não podem gravar decisões incompatíveis: a perdedora relê e revalida o
+  lote, até três tentativas, com espera aleatória curta entre elas (20–39 ms e 40–59 ms). Contenção persistente →
+  `409 progress_conflict`, sem confirmar o lote perdedor. Eventos
+  de quest já aceitos mantêm sua posição; um registro legado que nunca foi uma transição válida pode ser reposicionado
+  somente quando seu reenvio for válido, sob a mesma proteção. O timestamp de novas linhas não retrocede em relação
+  ao histórico da conta, preservando a ordem mesmo com diferença de relógio entre Workers.
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
-  são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
+  são reenviados quando a conexão volta, em novo evento ou na próxima entrada. `409 progress_conflict` preserva
+  essa fila; não existe atualização instantânea da tela entre dispositivos nem nova tentativa por temporizador.
+  Um evento que o servidor omite sai da fila (a resposta foi `200`), e a tela só troca o progresso local pelo da
+  conta na próxima entrada ou ao recarregar a página.
+  `GET /progress` recupera o estado persistido pela sessão da conta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
 - Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
   ordem das transições; não prova que o presente foi achado nem que o NPC foi visitado na cena. Uma conta consegue
   forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
   dá XP.
+
+O formato de sucesso é sempre `{progress}`, o estado autoritativo da conta. Exemplo: um visitante com
+`lake-lanterns` aceita entra na conta que tem `harness-bells` ativa e 40 XP; o `accept` incompatível é omitido, o
+cliente adota o estado da conta e limpa a fila enviada. O progresso de visitante dessa quest não é levado para a conta.
+Não existe abandono, substituição automática da quest ativa ou fila de futuras quests; essa decisão continua em
+[OQ-09](../decisions/open-questions.md). Com quests desligadas os eventos são omitidos; o cliente usa `/config`
+para não enviá-los.
+
+Prova local com duas sessões e dados sintéticos: `apps/api/scripts/verify-progress.mjs` (somente localhost), incluindo
+concorrência, reenvio, novo login, XP/nível e isolamento de contas. O script não publica recursos nem aplica migrations
+remotas; aplicar `0008_progress_write_guard.sql` no banco local antes de iniciar o Worker.
+
+Na raiz do checkout, com Node 24 e pnpm 10, usar somente o simulador local:
+
+```bash
+pnpm db:migrate:local
+node apps/api/scripts/verify-progress.mjs --seed > .progress-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute DB --local --file ../../.progress-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --local --port 8795 --inspector-port 9245 --var ACCOUNTS_ENABLED:true --var QUESTS_V1_ENABLED:true --var ALLOWED_ORIGINS:http://localhost:8799 --var ACCOUNT_ORIGINS:http://localhost:8799 --var ENVIRONMENT:development
+# Em outro terminal, depois de o Worker ficar pronto:
+node apps/api/scripts/verify-progress.mjs http://127.0.0.1:8795
+```
+
+O seed reinicia somente as duas contas sintéticas identificadas no script. Não executar esse SQL remotamente;
+apagar `.progress-smoke-seed.sql` e encerrar o Worker após a prova. As flags acima valem só para esse processo local.
 
 ### Candidatura de ONG (P12, DEC-015, DEC-037)
 
@@ -637,6 +675,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |
 | API | 403 | `admin_only` | rota `/admin/*` sem papel `admin` |
 | API | 400 | `bad_events` | `/progress/events` vazio, com mais de 50 ou com missão/evento desconhecido |
+| API | 409 | `progress_conflict` | três tentativas de gravação perderam a revisão; a fila pode ser reenviada |
+| API | 429 | `too_many_events` | novas chaves de evento excederiam o limite de 500 por conta |
 | API | 403 | `not_verified` | candidatura de conta não verificada |
 | API | 409 | `application_active` | já existe candidatura `submitted`, `under_review` ou `published` |
 | API | 409 | `lot_unavailable` (+ `fields.lotId`) | terreno ocupado (inclusive por corrida) |
