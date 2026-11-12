@@ -9,6 +9,16 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — perfil público das ONGs
+
+- `GET /ngos/:id`: conteúdo institucional aprovado para a casa da ONG (D09, P03/P04), com descrição, cidade,
+  tags e projetos. Só responde quando ONG e terreno estão publicados, sem campos privados da candidatura.
+  A rota pública funciona sem sessão e sem ligar contas; usa o schema v5 existente, sem migration nova.
+- `/lots` passa a incluir `ngo_id` para consultar o perfil; identificador, nome e resumo ficam ocultos se a ONG
+  ou o terreno não estiverem publicados. As respostas do perfil não são armazenadas em cache.
+- Testes da rota sobre SQLite com migrations reais: estados de publicação, vínculo com terreno, campos públicos,
+  JSON legado/inválido, erros, CORS e leitura anônima. Fotos e integração visual ao game ficam para entregas próprias.
+
 ### Added — painel administrativo (`apps/dash`, não publicado)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em

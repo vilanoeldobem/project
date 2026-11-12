@@ -1,8 +1,8 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v5 · **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
+> **Schema D1:** v5 · **Atualizado em:** 2026-11-12
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `packages/shared/src/accounts/validate.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
 > `packages/shared/src/net/protocol.ts`
@@ -94,13 +94,58 @@ Cache 30 s.
 
 ### GET /lots
 
-Terrenos e, só quando a ONG está `published`, nome e resumo dela. `Cache-Control: no-store`. Candidaturas em
+Terrenos e, só quando **a ONG e o terreno** estão `published`, identificador, nome e resumo dela.
+`ngo_id` é o identificador para consultar `GET /ngos/:id`; nos demais estados ele é `null`.
+`Cache-Control: no-store`. Candidaturas em
 andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas nunca expõem dados da organização.
 
 ```json
 { "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 20.33, "z": 8.42,
-              "state": "available", "ngo_name": null, "ngo_summary": null } ] }
+              "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null } ] }
 ```
+
+### GET /ngos/:id
+
+Perfil público da ONG que ocupa uma casa publicada (D09, P03/P04, DEC-028/037). A rota é pública: não exige
+sessão e funciona mesmo com `ACCOUNTS_ENABLED = "false"`. Ela não permite criar, editar nem aprovar uma ONG.
+O game encontra `ngo_id` em `/lots` e usa esse valor no caminho. As rotas privadas `/ngo/application` e
+`/admin/applications` continuam com seus contratos e permissões atuais.
+
+Exemplo sintético do contrato, não um registro de produção:
+
+```json
+{
+  "ngo": {
+    "id": "a0000000-0000-4000-8000-000000000001",
+    "name": "Associação Exemplo",
+    "summary": "Apresentação curta aprovada.",
+    "description": "Descrição institucional aprovada.",
+    "city": "Recife",
+    "tags": ["education"],
+    "projects": [{ "title": "Leitura", "description": "Projeto aprovado." }],
+    "lotId": "plaza-01"
+  }
+}
+```
+
+- Somente retorna a ONG com `ngos.status = 'published'`, ligada por `lots.ngo_id` a um terreno também
+  `published`. O terreno retornado é o vínculo real, não `requested_lot_id` da candidatura.
+- Identificador inválido, organização inexistente, não publicada ou sem terreno publicado → a mesma resposta
+  `404 {"error":"not_found"}`. Sem binding D1 → `503 db_unavailable`.
+- `Cache-Control: no-store` em sucesso e erros de leitura: a próxima consulta após despublicação deixa de retornar
+  o perfil. CORS segue as origens exatas da API; métodos seguem `GET`/`HEAD`/`OPTIONS`.
+- A resposta contém **somente** os campos do exemplo. Não inclui CNPJ, dados de quem se candidatou, declarações,
+  comprovação de recursos, notas de revisão ou histórico administrativo. Cada projeto contém somente `title` e
+  `description`, mesmo se o JSON armazenado trouxer campos adicionais.
+- Registros antigos podem ter `summary`, `description` e `city` nulos. `tags` e `projects` ausentes, JSON inválido
+  ou com formato diferente de lista resultam em `[]`. Tags fora do catálogo atual e projetos sem título/descrição
+  textuais são omitidos; o catálogo de tags permanece **PROPOSTA**.
+- Fotos, documentos e indicadores novos não fazem parte deste incremento; não há campos ou valores simulados.
+
+Usa o schema existente, sem migration nova. **Antes de publicar a API com essa rota, o banco de destino precisa
+ter as migrations 0004–0005 da `main` aplicadas**, conforme o procedimento autorizado de publicação. Não aplicar
+as migrations da antiga linha paralela de contas. A integração visual ao HUD é uma entrega separada do game;
+o contrato e os testes de API estão disponíveis neste incremento.
 
 ### GET /environment
 

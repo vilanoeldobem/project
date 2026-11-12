@@ -1,5 +1,10 @@
 # Armazenamento (D1)
 
+O perfil público `GET /ngos/:id` (D09) reutiliza `ngos` e `lots`, sem tabela ou migration nova. A leitura seleciona
+somente os campos institucionais e exige publicação tanto da ONG quanto do terreno ligado por `lots.ngo_id`.
+JSONs de tags/projetos são convertidos para a forma pública, sem repassar campos extras. Contrato e pré-requisito
+de schema para publicação em [api.md](api.md#get-ngosid).
+
 > **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin}.ts`

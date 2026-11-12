@@ -6,6 +6,7 @@
  *   GET /config      → { accounts, quests }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
+ *   GET /ngos/:id    → published NGO content for a published house (D09, P03/P04)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *
  * Accounts, server XP, NGO applications and admin review (IMPL-0011; only when ACCOUNTS_ENABLED = "true"):
@@ -26,6 +27,7 @@ import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } fro
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
+import { publicNgo } from "./public-ngo";
 
 export interface Env {
   DB?: D1Database;
@@ -63,6 +65,7 @@ export interface LotRow {
   x: number;
   z: number;
   state: string;
+  ngo_id: string | null;
   ngo_name: string | null;
   ngo_summary: string | null;
 }
@@ -94,8 +97,9 @@ async function lots(env: Env): Promise<LotRow[] | null> {
   if (!env.DB) return null;
   const { results } = await env.DB.prepare(
     `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
-            CASE WHEN n.status = 'published' THEN n.name END AS ngo_name,
-            CASE WHEN n.status = 'published' THEN n.summary END AS ngo_summary
+            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
+            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
+            CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary
        FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
       ORDER BY l.street, l.slot`
   ).all<LotRow>();
@@ -141,6 +145,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }
+    if (pathname.startsWith("/ngos/")) return await publicNgo(env, pathname.slice("/ngos/".length));
     switch (pathname) {
       case "/health":
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env) }, { headers: NO_STORE });

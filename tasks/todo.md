@@ -504,3 +504,45 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - Worktrees share remote-tracking refs: `origin/main` moved under this branch while other sessions fetched.
   Check `git log origin/main` again before the last commit and rebase the work onto it.
 - The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.
+
+---
+
+# Public NGO profile — D09 backend increment — 2026-11-12
+
+Owner authorised the AIOX team to complete the NGO backend and publish a PR for Augusto's review. The game
+continues to own the house/HUD presentation. Source: official development plan D09 and functional specification
+items 3, 4 and 12 (DEC-028/037). Product scope: expose already-approved institutional content, not another
+application workflow.
+
+## Acceptance criteria
+
+- A visitor can discover a published NGO identifier in `/lots` and read its name, summary, description, city,
+  tags, projects and actual lot through `GET /ngos/:id`, without creating an account.
+- Both NGO and linked lot must be published; missing, invalid, unpublished and unlinked profiles return the
+  same 404. Profiles and their read errors are not cached.
+- CNPJ, applicant information, financial declarations, review notes and nested extra JSON fields never appear.
+- Existing account/admin contracts remain unchanged. No game UI, photos, uploads, new migration or remote writes.
+
+## Work
+
+- [x] Reuse the current `ngos`/`lots` schema and public route/CORS helpers.
+- [x] Add explicit public projection, safe JSON arrays and publication guards.
+- [x] Add `ngo_id` discovery and consistent publication checks to `/lots`.
+- [x] Add SQL-backed route regressions using the existing D1 test adapter.
+- [x] Document the contract, schema prerequisite and deferred game/photo integration.
+- [x] Run typecheck, tests and builds under the machine's shared resource limits (lead coordinates).
+- [ ] Publish the reviewed branch as a PR for Augusto; no merge or deployment.
+
+## IDS / review record
+
+Search found `ngo.ts`'s application projection includes private fields, so it is intentionally not reused for public
+output. `public-ngo.ts` owns the small explicit projection; it reuses `NGO_TAGS`, `NgoProject`, HTTP helpers and
+the real-migration test adapter. No new dependency, store or duplicated application model. Development checks
+are recorded by the lead after execution; no lint command exists in the repository.
+
+Validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): all six package typechecks and builds passed; Worker builds
+used `wrangler deploy --dry-run` only. All 447 tests passed (shared 127, API 91, client 164, dash 33, server 23,
+site 9), including 21 public-profile route cases using SQLite and the real migrations. Static QA found no
+remaining P1/P2 issues. Commands: `pnpm --workspace-concurrency=1 -r run typecheck`,
+`pnpm --workspace-concurrency=1 -r run test --maxWorkers=2`, `pnpm --workspace-concurrency=1 -r run build`.
+No browser suite was rerun because this increment changes no UI; no remote data was written or deployment made.
