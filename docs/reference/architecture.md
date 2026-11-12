@@ -12,6 +12,7 @@ Um Worker por app, cada um no seu subdomínio ([IMPL-0009](../decisions/0009-spl
 ```
 www.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-site"   (apps/site: Static Assets; raiz → 301 www)
 play.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem"        (apps/client: Static Assets, SPA, _headers por build)
+client.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem"        → 302 play.vilanoeldobem.com.br (apelido)
 app.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem"        → 301 play.vilanoeldobem.com.br
 api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) ──▶ D1 "vilanoeldobem" (binding DB)
                                  └─ arquivos de ONG ──▶ R2 "vilanoeldobem-files" (binding FILES; privado; IMPL-0017,
