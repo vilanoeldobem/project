@@ -1,6 +1,6 @@
 # Registro da persistência de progresso — D12
 
-> **Status:** Implementado no código; validação da revisão final pendente · **Versão do software:** 0.4.0 ·
+> **Status:** Correções implementadas e validadas no CI; revisão do PR pendente · **Versão do software:** 0.4.0 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/api/src/progress.ts`, `tests/progress-account.test.mjs`,
 > [PR #30](https://github.com/vilanoeldobem/project/pull/30), [IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md).
@@ -29,11 +29,29 @@ A suíte inclui testes SQL de concorrência, replay, rollback, limite, isolament
 `apps/api/scripts/verify-progress.mjs` exercita o Worker e D1 locais com dados sintéticos e dois tokens de sessão.
 O novo teste integrado entra na suíte da API via `apps/api/vitest.config.ts`.
 
-**Execuções da revisão atual:** pendentes da coordenação; resultados anteriores não comprovam esta árvore.
-Os comandos e resultados finais serão registrados no PR e em `tasks/todo.md` depois da validação.
+**Controle negativo local:** o teste `tests/progress-account.test.mjs`, executado com o `progress.ts` anterior
+(`51480aa`), falhou com sincronização `pending` onde exigia `saved`. O arquivo corrigido foi restaurado após
+a prova; o controle confirma que a regressão detecta o defeito apontado pelo revisor.
+
+**CI da correção integrada:** [commit `26c9553`](https://github.com/vilanoeldobem/project/actions/runs/43272075449/job/131370948005),
+Linux / Node 24.22.2 / pnpm 10.32.1: `pnpm typecheck`, **608 testes** (shared 146, API 197, client 180,
+dash 53, server 23, site 9), `pnpm build` e smoke real de mídia passaram. O teste integrado de login/reload
+faz parte dos 197 testes da API e passou com o cliente e o handler reais.
+
+**Prova adicional de progresso no Worker:** `node scripts/verify-media-local.mjs --progress` aplica a sequência
+0001–0008 num D1 local novo, executa as fixtures sintéticas e `verify-progress.mjs`. A opção ativa quests
+somente na configuração temporária do simulador; os arquivos de produção permanecem inalterados. O teste
+confere duas sessões concorrentes, replay sem XP duplicado, 100 XP/nível 2, leitura entre sessões e isolamento
+de conta. [CI do commit `3e7a82c`](https://github.com/vilanoeldobem/project/actions/runs/43272723857/job/131373129051)
+passou novamente typecheck, os **608 testes**, build e ambos os smokes (mídia e progresso).
+
+O mesmo CI também passou `node scripts/verify-media-local.mjs --browser`, com Chromium real, jogo/painel
+em modo local e o fluxo de candidatura/arquivos/avisos de publicação. GTM foi substituído: analytics e envio
+real de e-mail não fazem parte dessa evidência. `git diff --check` e revisão estática passaram. A execução
+remota no CI evitou acrescentar carga ao host local; todos os dados eram sintéticos, em recursos locais do runner.
 
 ## Limites
 
 Contas e quests permanecem desligadas em produção. O servidor valida IDs e transições, sem provar ações na
 cena 3D. Não há sincronização visual instantânea entre abas, abandono automático ou substituição de quest ativa.
-OQ-09/PEN-025 continuam pendentes. Nenhum merge, deploy, migration remota ou recurso Cloudflare é executado.
+OQ-09/PEN-025 continuam pendentes. Nenhum merge na main, deploy, migration remota ou alteração de recurso Cloudflare foi executado.

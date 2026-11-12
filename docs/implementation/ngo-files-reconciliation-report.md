@@ -33,25 +33,25 @@ continuam bloqueando ativação, mesmo com o mecanismo técnico pronto.
 | #28.4 — plano / nomes externos | Plano substituído por este registro indexado; papéis neutros | Índice de docs e `tasks/todo.md` |
 | #28.5 — referências | Arquitetura inclui rota e módulo; erro D1 ampliado; cabeçalhos alinhados | API, arquitetura, armazenamento, versionamento |
 | #29.1, #29.6 — EXIF / JPEG final | Um sanitizador PNG/JPEG compartilhado com #32; nenhuma cópia base64/WebP | `accounts/files.ts`, `accounts/photos.ts` e testes |
-| #29.2 — remoção pelo responsável | Retirada autenticada e repetível pelo responsável implementada; validação atual pendente | `ngo-photos.ts` e regressões |
+| #29.2 — remoção pelo responsável | Retirada autenticada e repetível pelo responsável implementada; validado no CI desta rodada | `ngo-photos.ts` e regressões |
 | #29.2 — exclusão da conta | Toda galeria, inclusive aprovada, deve ser apagada; logo canônico conserva regra própria | `auth.ts`, `files.ts`, regressões de exclusão |
-| #29.2 — rejeição/cota/repetição/status | Rejeição libera cota, limpeza retomável e estados de envio explícitos implementados; validação atual pendente | `ngo-photos.ts`, migration 0007, testes |
+| #29.2 — rejeição/cota/repetição/status | Rejeição libera cota, limpeza retomável e estados de envio explícitos implementados; validado no CI desta rodada | `ngo-photos.ts`, migration 0007, testes |
 | #29.3 — direitos / consentimentos | Decisão operacional pendente em OQ-15; não registrar uma política como aprovada por inferência | Esquema/mecanismo devem registrar versão, responsável e conferência, sem documentos de crianças |
 | #29.4 — colisão com #32 | `FILES`, bytes crus e sanitizador canônicos; `ngo_photos` só para ciclo editorial; sequência sem lacunas | IMPL-0018 e migrations 0006/0007 |
 | #29.5 — falha da galeria derruba perfil | Perfil degrada para `photos: []` se binding/tabela indisponíveis | `public-ngo.test.ts`, `ngo-photos.ts` |
-| #29.7 — órfãos sem rastreio | Intenção de upload/limpeza durável antes dos bytes, identificador interno auditável implementados; validação atual pendente | migration 0007, `ngo-photos.ts`, testes de falha |
+| #29.7 — órfãos sem rastreio | Intenção de upload/limpeza durável antes dos bytes, identificador interno auditável implementados; validado no CI desta rodada | migration 0007, `ngo-photos.ts`, testes de falha |
 | #29.8 — limite de envio | Reutiliza limitador canônico, bytes limitados durante leitura e sem base64 | `ngo-photos.ts`, `accounts/photos.ts` |
-| #29.9 — auditoria e revisão visual | Envio/leitura auditados, aprovação requer leitura registrada e fila administrativa implementados; validação atual pendente | `ngo-photos.ts`, testes; leitura registrada não prova compreensão humana |
+| #29.9 — auditoria e revisão visual | Envio/leitura auditados, aprovação requer leitura registrada e fila administrativa implementados; validado no CI desta rodada | `ngo-photos.ts`, testes; leitura registrada não prova compreensão humana |
 | #29.10 — ambiente local no deploy | Configuração local separada, sem conta/recursos de produção, chamada por `-c` | `wrangler.reconciliation-local.jsonc`, guia de desenvolvimento |
 | #29.11 — nomes externos | Registro e tarefas usam papéis neutros | Este registro, `tasks/todo.md` |
 | #29.12 — HEAD abre corpo | Leitura HEAD usa metadados do bucket | `ngo-photos.ts` e teste |
-| #29.13 — lacunas de teste | Casos pedidos incluídos na rodada de correção; resultado final ainda deve ser registrado | testes de galeria, perfil e exclusão |
+| #29.13 — lacunas de teste | Casos pedidos incluídos na rodada de correção; resultado registrado abaixo | testes de galeria, perfil e exclusão |
 | #31.1 — leitura de comprovante auditada | Preservada no fluxo canônico #32 | `files.ts`, `files.test.ts` |
 | #31.2 — apagamento | Documentos removidos na exclusão da conta, inclusive após publicação; limpeza retomável | `files.ts`, `auth.ts`, testes |
 | #31.3 — evidências não vistas | Snapshot único com arquivos e UI de análise do #32; bloqueio durante análise | `ngo.ts`, `admin.ts`, painel; não afirma comprovação legal automática |
 | #31.4 — duplicação | Pipeline de #31 não importado; sem labels livres, tabela ou bucket paralelo | IMPL-0018 |
-| #31.5 — put/commit incerto | Registro durável antes de R2, escrita condicional, releitura após confirmação incerta e recuperação autenticada implementados; prova em runtime da árvore atual pendente | `media_upload_intents` (0007), `files.ts`, `media-storage.ts`, `files-reconciliation.test.ts` |
-| #31.6 — testes frágeis | Regressões no fluxo canônico para revisão, bytes, exclusão e streaming; verificar resultado final | `files.test.ts`, `files-reconciliation.test.ts` |
+| #31.5 — put/commit incerto | Registro durável antes de R2, escrita condicional, releitura após confirmação incerta e recuperação autenticada implementados; validado no CI desta rodada | `media_upload_intents` (0007), `files.ts`, `media-storage.ts`, `files-reconciliation.test.ts` |
+| #31.6 — testes frágeis | Regressões no fluxo canônico para revisão, bytes, exclusão e streaming; resultado registrado abaixo | `files.test.ts`, `files-reconciliation.test.ts` |
 | #31.7 — churn | Limites do #32: 20 alterações/minuto/conta, 60/dia/candidatura; bloqueio em análise | `files.ts`, testes |
 | #31.8 — limites / EXIF | Limites do #32 mantidos: documentos 5 MiB, lados até 8192; sanitizador compartilhado | `accounts/files.ts` |
 | #31.9 — docs / seed | Contratos unificados, specs já permitem arquivos; comandos locais em guia; fixtures só no simulador novo | API/storage/specs; scripts locais |
@@ -73,14 +73,19 @@ A árvore anterior `0921674` passou typecheck, 569 testes, build, smoke local e 
 substituído por causa da OQ-13. Esse histórico antecede as correções desta revisão, a nova numeração e o novo
 simulador; não comprova a árvore atual. Nenhuma migration ou ativação remota ocorreu.
 
-**Rodada atual:** pendente da execução coordenada de typecheck, testes, build, smoke e fluxo de candidatura.
-Preencher os comandos e resultados efetivos após a execução. Procedimento local em
+**Rodada atual:** [CI no commit `bb1c813`](https://github.com/vilanoeldobem/project/actions/runs/43272168427/job/131371240921), em Linux, Node 24.22.2 e pnpm 10.32.1:
+
+- `pnpm typecheck`, `pnpm test` e `pnpm build`: aprovados. **593 testes** (shared 146, API 183, client 179, dash 53, server 23, site 9).
+- `node scripts/verify-media-local.mjs`: aprovado com banco/bucket novos no simulador workerd/D1/R2, migrations 0001–0007 e dados sintéticos. Inclui escrita condicional, remoção pelo responsável, auditoria de leitura/aprovação e exclusão de conta.
+- Builds `build:local` do jogo/painel e `node scripts/verify-media-local.mjs --browser`: aprovados. Chromium executa o fluxo real existente de conta/candidatura/arquivos, análise, publicação do logo e os avisos de campos públicos/cidade privada; não é teste só de componentes.
+- `git diff --check` e revisão estática: aprovados, sem P1/P2 aberto.
+
+O navegador usa GTM substituído (OQ-13); analytics, e-mail real, outros navegadores e infraestrutura remota não foram validados. A execução foi feita no CI para respeitar a carga do host local. Procedimento e limites em
 [desenvolvimento](../guides/development.md#conciliação-local-de-arquivos-e-galeria).
 
 A revisão operacional de direitos de imagem, consentimentos e ativação continua pendente em OQ-15.
 O pipeline canônico agora registra a intenção antes de gravar bytes: uploads interrompidos e exclusões físicas
 pendentes ficam recuperáveis pelo responsável ou por admin. Os casos de regressão incluem confirmação incerta,
-substituição de logo, falha de limpeza e escrita atrasada depois de `DELETE /me` ou recuperação. A execução dessa
-rodada continua pendente; existência do código/teste não comprova o resultado. D1/R2 não têm transação conjunta:
+substituição de logo, falha de limpeza e escrita atrasada depois de `DELETE /me` ou recuperação. Os testes dessa rodada passaram no CI acima. D1/R2 não têm transação conjunta:
 uma queda logo após recriar uma reserva vazia já cancelada ainda pode deixar um objeto de zero bytes, sem
 documento/foto. A correção não promete ausência absoluta de objetos órfãos nem dispensa a recuperação operacional.

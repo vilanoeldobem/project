@@ -247,3 +247,9 @@ node apps/client/scripts/verify-accounts.mjs http://localhost:8799 http://localh
 
 A variável de analytics substitui o carregamento da tag só no teste, conforme OQ-13; não valida medição real.
 Resultados e limites da execução ficam no [registro de entrega](../implementation/ngo-files-reconciliation-report.md).
+
+
+A validação de conciliação também roda isolada no CI: `node scripts/verify-media-local.mjs` cria configuração,
+banco e bucket temporários, aplica migrations e fixtures sintéticas, espera o Worker responder e executa o
+smoke de arquivos. `--browser` é reservado ao CI com Chromium instalado e assets `build:local`; reutiliza
+`verify-accounts.mjs`, substitui GTM (não valida analytics) e encerra apenas os processos criados pelo runner.
