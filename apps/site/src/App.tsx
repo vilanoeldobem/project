@@ -165,7 +165,7 @@ export function App() {
     setSnow(next);
     store(SNOW_KEY, next ? "on" : "off");
     setAnnouncement(
-      next ? "Neve ligada." : reduced ? "Neve desligada. Com movimento reduzido, a neve fica parada." : "Neve desligada.",
+      !next ? "Neve desligada." : reduced ? "Neve ligada. Com movimento reduzido, a neve fica parada." : "Neve ligada.",
     );
   };
 
@@ -193,7 +193,8 @@ export function App() {
 
   return (
     <>
-      <VoxelSnow active={snow && !reduced} />
+      {/* Snow off: no canvas at all. Snow on with reduced motion: one still frost frame. */}
+      {snow ? <VoxelSnow animated={!reduced} /> : null}
       <a className="skip-link" href="#conteudo">
         Pular para o conteúdo
       </a>

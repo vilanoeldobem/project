@@ -3,11 +3,12 @@ import { useEffect, useRef } from "react";
 /**
  * Lightweight voxel snowfall for the public site (no Three.js: the site must stay fast and
  * indexable, IMPL-0005). Flakes are integer-aligned squares — and a few 5-block "cross" flakes —
- * on a fixed canvas above the page, so they never move layout.
+ * on a fixed full-viewport canvas above the page, so they never move layout.
  *
- * Comfort rules: the visitor can switch the snow off; `prefers-reduced-motion: reduce` keeps a calm
- * static frost instead of falling flakes; the loop stops when the tab is hidden or the canvas is
- * off screen. Motion is written directly to the canvas, never to layout properties.
+ * Comfort rules: the visitor can switch the snow off, which unmounts this component (no canvas, no
+ * flakes over the text); with `animated={false}` (`prefers-reduced-motion: reduce`) one static
+ * frost frame is painted and nothing moves; the animation loop pauses while the page is hidden.
+ * Motion is written directly to the canvas, never to layout properties.
  */
 
 export interface Snowflake {
@@ -72,7 +73,25 @@ function safeColor(value: string, fallback: string): string {
   return typeof CSS !== "undefined" && CSS.supports?.("color", value) ? value : fallback;
 }
 
-export function VoxelSnow({ active }: { active: boolean }) {
+interface Palette {
+  flake: string;
+  sparkle: string;
+}
+
+/** Reads the theme tokens once; callers cache the result and refresh it when the theme changes. */
+function readPalette(): Palette {
+  const styles = getComputedStyle(document.documentElement);
+  return {
+    flake: safeColor(styles.getPropertyValue("--flake").trim(), FALLBACK_FLAKE),
+    sparkle: safeColor(styles.getPropertyValue("--sparkle").trim(), FALLBACK_SPARKLE),
+  };
+}
+
+/**
+ * Mounted only while the snow is switched on. `animated` is false under reduced motion: the flake
+ * field is painted once and stays still.
+ */
+export function VoxelSnow({ animated }: { animated: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -82,35 +101,24 @@ export function VoxelSnow({ active }: { active: boolean }) {
     if (!context) return;
     const ctx = context;
 
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let width = 0;
     let height = 0;
     let flakes: Snowflake[] = [];
+    let palette = readPalette();
     let frame = 0;
     let last = 0;
     let clock = 0;
     let resizeTimer = 0;
     let running = false;
 
-    const palette = () => {
-      const styles = getComputedStyle(document.documentElement);
-      return {
-        flake: safeColor(styles.getPropertyValue("--flake").trim(), FALLBACK_FLAKE),
-        sparkle: safeColor(styles.getPropertyValue("--sparkle").trim(), FALLBACK_SPARKLE),
-      };
-    };
-
     const paint = () => {
-      const { flake, sparkle } = palette();
       ctx.clearRect(0, 0, width, height);
       for (const snow of flakes) {
         const x = Math.round(snow.x);
         const y = Math.round(snow.y);
         const size = snow.size;
-        const rgb = snow.sparkle ? sparkle : flake;
-        // Soft colour wash first, then the block itself: keeps flakes readable on cream and on pine.
         ctx.globalAlpha = snow.alpha;
-        ctx.fillStyle = rgb;
+        ctx.fillStyle = snow.sparkle ? palette.sparkle : palette.flake;
         if (snow.cross) {
           ctx.fillRect(x, y - size, size, size * 3);
           ctx.fillRect(x - size, y, size * 3, size);
@@ -164,9 +172,9 @@ export function VoxelSnow({ active }: { active: boolean }) {
       frame = window.requestAnimationFrame(tick);
     };
 
+    /** Runs the loop only when it may move and the page is visible; otherwise leaves one still frame. */
     const sync = () => {
-      const shouldMove = active && !reducedMotion.matches && !document.hidden;
-      if (shouldMove) start();
+      if (animated && !document.hidden) start();
       else {
         stop();
         paint();
@@ -181,14 +189,19 @@ export function VoxelSnow({ active }: { active: boolean }) {
       }, 100);
     };
 
+    // Tokens change with the theme: refresh the cached palette, and repaint the still frame (a
+    // running loop picks the new colours up on its next frame).
+    const onThemeChange = () => {
+      palette = readPalette();
+      if (!running) paint();
+    };
+
     measure();
     sync();
 
     window.addEventListener("resize", onResize, { passive: true });
     document.addEventListener("visibilitychange", sync);
-    reducedMotion.addEventListener("change", sync);
-    // Tokens change with the theme; repaint so flakes keep contrast on the new canvas.
-    const themeObserver = new MutationObserver(paint);
+    const themeObserver = new MutationObserver(onThemeChange);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
     return () => {
@@ -196,10 +209,9 @@ export function VoxelSnow({ active }: { active: boolean }) {
       window.clearTimeout(resizeTimer);
       window.removeEventListener("resize", onResize);
       document.removeEventListener("visibilitychange", sync);
-      reducedMotion.removeEventListener("change", sync);
       themeObserver.disconnect();
     };
-  }, [active]);
+  }, [animated]);
 
   return <canvas ref={canvasRef} className="voxel-snow" aria-hidden="true" />;
 }
