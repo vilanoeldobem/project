@@ -77,7 +77,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me` |
 | `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
-| `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pelo Cloudflare Email Service (binding `EMAIL`); `devLink` fora de produção |
+| `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
 | `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico, decisões auditadas |
@@ -87,10 +87,10 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 ### 3.1 Fluxo de entrada (link mágico)
 
 ```
-jogo (play.*)                     API (api.*)                          D1 / Email Service
+jogo (play.*)                     API (api.*)                          D1 / Resend
  │ POST /auth/register ou /link ─▶ valida, limita (IP e 3 links/15 min)
  │                                 token aleatório ──────────────────▶ login_tokens (SHA-256, 15 min)
- │                                 envia e-mail ─────────────────────▶ EMAIL.send (só o link)
+ │                                 envia e-mail ─────────────────────▶ Resend (só o link)
  │ ◀── 202 {ok} (+ devLink fora de produção)
  │ pessoa abre <origin>/#login=<token>   (fragmento: nunca chega a servidor)
  │ POST /auth/verify {token} ────▶ marca used_at (uso único), verified_at
@@ -100,7 +100,7 @@ jogo (play.*)                     API (api.*)                          D1 / Emai
  │ apaga o progresso de visitante do navegador e mostra o da conta; cada evento novo é enviado
 ```
 
-O token sai da barra de endereço logo ao ser lido. O link aponta para o jogo, não para a API, para que scanners de
+O token sai da barra de endereço antes de qualquer script de terceiros: `public/login-fragment.js` roda antes do Google Tag Manager, guarda o token só em memória e `initAccount` o consome uma vez. O link aponta para o jogo, não para a API, para que scanners de
 e-mail que "clicam" links não consumam o token.
 
 ## 4. Servidor de tempo real (`apps/server/src`)
@@ -156,7 +156,7 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 | api | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br` | CORS por origem exata |
 | api | `vars.ACCOUNTS_ENABLED` | `"false"` | Contas desligadas até a revisão LGPD / ECA Digital (IMPL-0011) |
 | api | `vars.MAIL_FROM` | `acesso@vilanoeldobem.com.br` | Remetente do link de acesso |
-| api | `send_email` | binding `EMAIL` | Cloudflare Email Service (só o link de acesso) |
+| api | segredo `RESEND_API_KEY` | fora do `wrangler.jsonc` (`wrangler secret put`) | Chave do Resend (só o link de acesso, IMPL-0012) |
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
@@ -164,8 +164,8 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 ## 9. Segurança
 
 `_headers` do jogo, gerado a cada build por `apps/client/security-headers.ts` (via `vite.config.ts`): CSP
-`default-src 'self'`, `connect-src` com exatamente a API e o servidor da build (fontes do Google e Cloudflare Web
-Analytics liberados), `X-Frame-Options: DENY`, `Permissions-Policy` negando câmera, microfone, localização e
+`default-src 'self'`, `connect-src` com exatamente a API e o servidor da build (fontes do Google, Cloudflare Web
+Analytics e Google Tag Manager / GA4 liberados), `X-Frame-Options: DENY`, `Permissions-Policy` negando câmera, microfone, localização e
 pagamento; `/assets/*` com cache imutável de 1 ano. O HTML faz `preconnect` para a API. A API manda CORS só para
 origens exatas; o servidor recusa WebSocket de outra origem (`403`), o que bloqueia sequestro de WebSocket.
 
@@ -194,7 +194,7 @@ chamadas e triângulos independem da GPU.
 ## Limitações conhecidas
 
 - Contas, XP no servidor e candidatura de ONG implementados, mas desligados em produção (`ACCOUNTS_ENABLED`) até a
-  revisão LGPD / ECA Digital e o cadastro do domínio no Email Service.
+  revisão LGPD / ECA Digital, a verificação do domínio no Resend e a chave `RESEND_API_KEY`.
 - Candidatura sem upload de documentos; nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo

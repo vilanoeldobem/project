@@ -77,9 +77,9 @@ atrás da bandeira `ACCOUNTS_ENABLED`, que fica `"false"` em produção até a r
 | 4 | **Missões e XP no servidor** | P14, DEC-039/040/042 | Eventos idempotentes `(conta, missão, evento)` no D1; progresso local migrado ao entrar; mesmo `applyEvent` de `progress.ts` no cliente e na API. | Ligar em produção (depende da revisão LGPD / ECA Digital). |
 
 **Decidido:** visitante livre, conta opcional (OQ-02, 2026-11-09); login por link mágico no e-mail (OQ-03,
-2026-11-09); envio pelo Cloudflare Email Service (OQ-08, 2026-11-11).
-**Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio cadastrado no
-Email Service ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
+2026-11-09); envio pelo Resend (OQ-08 revista em 2026-11-11, IMPL-0012).
+**Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio verificado no
+Resend, com a chave `RESEND_API_KEY` no Worker ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
 
 ### HUD da ONG e segundo jogo (0.5.0)
 

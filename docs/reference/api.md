@@ -49,10 +49,11 @@ do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
 `Cache-Control: no-store`.
 
 ```json
-{ "ok": true, "version": "0.4.0", "environment": "production", "db": true }
+{ "ok": true, "version": "0.4.0", "environment": "production", "db": true, "mail": false }
 ```
 
-`version` vem da constante `VERSION` em `apps/api/src/api.ts`.
+`version` vem da constante `VERSION` em `apps/api/src/api.ts`. `mail` diz se o segredo `RESEND_API_KEY` existe no
+Worker (nunca o valor).
 
 ### GET /config
 
@@ -201,17 +202,21 @@ feito por outra pessoa com este e-mail antes do dono entrar). O e-mail não é e
 candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vira `NULL`). Grava `audit_events`
 `user.delete` (ator e assunto pelo id, sem dados pessoais).
 
-### E-mail (Cloudflare Email Service, OQ-08)
+### E-mail (Resend, IMPL-0012)
 
-`apps/api/src/mail.ts`. Binding `send_email` `EMAIL`, remetente `MAIL_FROM` (`acesso@vilanoeldobem.com.br`, nome
-"Vila Noel do Bem"). Uma única mensagem: o link de acesso, em pt-BR, texto e HTML, sem rastreio nem marketing.
+`apps/api/src/mail.ts`. `POST https://api.resend.com/emails` com o segredo `RESEND_API_KEY`, remetente `MAIL_FROM`
+(`acesso@vilanoeldobem.com.br`, nome "Vila Noel do Bem"), limite de 8 s. Uma única mensagem: o link de acesso, em
+pt-BR, texto e HTML, sem rastreio nem marketing.
 
 | Situação | Resultado |
 |---|---|
-| Produção sem binding `EMAIL` | `503 mail_unavailable` |
-| Falha no envio | `503 mail_unavailable`; log `mail_error <código>` (nunca endereço nem link) |
-| `ENVIRONMENT` = `development` ou `test` | envia se houver binding e devolve `devLink` |
-| Qualquer outro ambiente sem binding | `503 mail_unavailable` (nunca devolve o link) |
+| Produção sem `RESEND_API_KEY` | `503 mail_unavailable` |
+| Resend recusa o envio (status ≠ 2xx) | `503 mail_unavailable`; log `mail_error <status> <nome do erro>` |
+| Falha de rede ou tempo esgotado | `503 mail_unavailable`; log `mail_error network <classe do erro>` |
+| `ENVIRONMENT` = `development` ou `test` | envia se houver chave e devolve `devLink` |
+| Qualquer outro ambiente sem chave | `503 mail_unavailable` (nunca devolve o link) |
+
+O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 
 ### Missões e XP no servidor (P14, DEC-040, DEC-042)
 
@@ -385,7 +390,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 400 | `invalid` (+ `fields`) | cadastro ou candidatura com campo inválido |
 | API | 409 | `nickname_taken` (+ `fields.nickname`) | nickname já usado |
 | API | 400 | `invalid_token` | link desconhecido, expirado ou já usado |
-| API | 503 | `mail_unavailable` | produção sem binding `EMAIL` ou falha no envio |
+| API | 503 | `mail_unavailable` | produção sem `RESEND_API_KEY` ou falha no envio |
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |
 | API | 403 | `admin_only` | rota `/admin/*` sem papel `admin` |
 | API | 400 | `bad_events` | `/progress/events` vazio, com mais de 50 ou com missão/evento desconhecido |

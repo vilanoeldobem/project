@@ -17,10 +17,10 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 
 ## Resolvidas
 
-- **OQ-08** (2026-11-11, Augusto): **Cloudflare Email Service** envia o link de acesso (binding `send_email`
-  `EMAIL`, remetente `acesso@vilanoeldobem.com.br`, só a mensagem do link). Implementado em
-  [IMPL-0011](0011-accounts-magic-link-ngo-review.md). Falta cadastrar o domínio no serviço (beta; verificar
-  plano). **Continua pendente** a revisão LGPD / ECA Digital (idade mínima, consentimentos, retenção): até ela ser
+- **OQ-08** (2026-11-11, Augusto): o **Resend** envia o link de acesso (segredo `RESEND_API_KEY`, remetente
+  `acesso@vilanoeldobem.com.br`, só a mensagem do link), conforme [IMPL-0012](0012-resend-transactional-email.md).
+  A resposta anterior do mesmo dia (Cloudflare Email Service, [IMPL-0011](0011-accounts-magic-link-ngo-review.md))
+  foi revista. Falta verificar o domínio no Resend e gravar a chave no Worker. **Continua pendente** a revisão LGPD / ECA Digital (idade mínima, consentimentos, retenção): até ela ser
   registrada, as contas ficam desligadas em produção (`ACCOUNTS_ENABLED = "false"`).
 
 - **OQ-02** (2026-11-09, Augusto): **explorar a Vila não exige conta.** Visitante anda, joga e faz missões com
