@@ -2,7 +2,7 @@
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
 > **Schema D1:** v5 · **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,http}.ts`, `apps/api/src/api.test.ts`,
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `packages/shared/src/accounts/validate.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
 > `packages/shared/src/net/protocol.ts`
@@ -27,14 +27,16 @@ bandeira `ACCOUNTS_ENABLED` ligada ([§ Contas](#contas-impl-0011)).
 
 ### CORS
 
-A página do jogo e a do site estão em outra origem, então a API responde com CORS **só** para origens exatas da lista
-`ALLOWED_ORIGINS` (`apps/api/wrangler.jsonc`): `https://play.vilanoeldobem.com.br` e
-`https://www.vilanoeldobem.com.br`. Sem curingas: um host parecido nunca passa. Em desenvolvimento local a lista vem
-do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
+As páginas do jogo, do site e do painel administrativo estão em outra origem, então a API responde com CORS **só**
+para origens exatas da lista `ALLOWED_ORIGINS` (`apps/api/wrangler.jsonc`): `https://play.vilanoeldobem.com.br`,
+`https://www.vilanoeldobem.com.br` e `https://dash.vilanoeldobem.com.br`. Sem curingas: um host parecido nunca
+passa. `Access-Control-Allow-Credentials` só vai para as origens de `ACCOUNT_ORIGINS` (o jogo e o painel); o site lê
+dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do script `dev` (`http://localhost:5173` e
+`http://localhost:8799` do jogo, `http://localhost:5175` e `http://localhost:8797` do painel).
 
 | Requisição | Resposta |
 |---|---|
-| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true`, `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
+| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
 | `Origin` ausente ou fora da lista | só `Vary: Origin` (o navegador bloqueia a leitura; `curl` e servidores continuam lendo as rotas públicas) |
 | `OPTIONS` (preflight) | `204` sem corpo, com os cabeçalhos acima quando a origem é permitida |
 
@@ -64,8 +66,9 @@ Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control
 { "accounts": false, "quests": false }
 ```
 
-`accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o cliente esconde toda a interface de conta
-(chip "Entrar", candidatura de ONG, painel de análise) e a Vila segue jogável sem conta (OQ-02).
+`accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
+(chip "Entrar", candidatura de ONG) e a Vila segue jogável sem conta (OQ-02); o painel administrativo mostra o
+aviso "Contas desligadas" e só dados públicos. O painel lista todas as chaves que esta rota devolver.
 
 `quests` é `true` só quando `QUESTS_V1_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
 staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
@@ -128,8 +131,8 @@ Avaliadas nesta ordem, para toda rota de conta:
 
 1. `ACCOUNTS_ENABLED` diferente de `"true"` → `404 {"error":"accounts_disabled"}`.
 2. Sem binding D1 → `503 db_unavailable`.
-3. `Origin` ausente ou fora de `ALLOWED_ORIGINS` → `403 forbidden_origin` (inclusive em `GET`; `curl` sem `Origin`
-   não chega às rotas de conta).
+3. `Origin` ausente ou fora de `ACCOUNT_ORIGINS` (o jogo e o painel administrativo; sem essa variável, vale
+   `ALLOWED_ORIGINS`) → `403 forbidden_origin` (inclusive em `GET`; `curl` sem `Origin` não chega às rotas de conta).
 4. `/auth/*`: limite por IP com o binding `AUTH_LIMITER` (10 requisições a cada 60 s por `CF-Connecting-IP`; o IP é
    só a chave do limite, nunca gravado) → `429 too_many_requests`.
 5. Corpo (`POST`): exige `Content-Type: application/json` (`415 json_required`; também força o preflight de CORS),
@@ -145,14 +148,15 @@ espaços repetidos são juntados. Erros de validação vêm como
 `{"error":"invalid","fields":{"campo":"mensagem em pt-BR"}}`.
 
 **Sessão:** cookie `__Host-vila_session` (`HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`, 30 dias) no host da
-API. O D1 guarda só o SHA-256 do valor. `play.*` e `api.*` são o mesmo site, então o navegador envia o cookie nas
-chamadas com `credentials: "include"`. Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
+API. O D1 guarda só o SHA-256 do valor. `play.*`, `dash.*` e `api.*` são o mesmo site, então o navegador envia o
+cookie nas chamadas com `credentials: "include"`: a sessão criada no jogo vale no painel administrativo e vice-versa.
+Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
 
 ### Cadastro e link mágico (P13, OQ-03)
 
 | Método e rota | Corpo | Resposta |
 |---|---|---|
-| `POST /auth/register` | `{name, nickname, city, email}` | `202 {"ok":true}` e envia o link |
+| `POST /auth/register` | `{name, nickname, city, email}` | `202 {"ok":true}` e envia o link. Só o jogo: vindo do painel (`Origin` = `DASH_ORIGIN`) → `403 forbidden_origin` |
 | `POST /auth/link` | `{email}` | `202 {"ok":true}` (sempre a mesma resposta) |
 | `POST /auth/verify` | `{token}` | `200 {user}` + `Set-Cookie: __Host-vila_session=…` |
 | `POST /auth/logout` | — | `204`, apaga a sessão e o cookie |
@@ -189,8 +193,13 @@ com e-mail já cadastrado responde `202` como um cadastro novo (e reenvia o link
 (ausente, `production`, `staging`…) nunca devolve o link: ele só vai por e-mail (falha fechada — devolver o link
 permitiria entrar na conta de qualquer pessoa).
 
-**Link sempre para o jogo:** a base do link é `GAME_ORIGIN` (`https://play.vilanoeldobem.com.br`), nunca o site
-que fez o pedido. **Limites por conta:** 3 links a cada 15 minutos e 10 por dia, contados e gravados num único
+**Destino do link:** a base do link é `GAME_ORIGIN` (`https://play.vilanoeldobem.com.br`), nunca o site que fez o
+pedido. Uma única exceção ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)): em `POST /auth/link`, quando o
+cabeçalho `Origin` é **exatamente** igual a `DASH_ORIGIN` (`https://dash.vilanoeldobem.com.br`), o link abre o painel
+administrativo (`https://dash.vilanoeldobem.com.br/#login=<token>`) e o e-mail diz isso. A comparação é de texto
+(sem curinga, prefixo ou barra final); nada no corpo, na query ou em outros cabeçalhos muda o destino, e sem
+`DASH_ORIGIN` configurado vale sempre o jogo. `POST /auth/register` nunca aponta para o painel.
+**Limites por conta:** 3 links a cada 15 minutos e 10 por dia, contados e gravados num único
 comando (pedidos em paralelo não passam do limite). Acima do limite a resposta continua `202`, sem envio.
 
 **Sem enumeração:** o nickname é conferido antes do e-mail (mesma resposta com ou sem conta); `/auth/link` responde
@@ -333,6 +342,31 @@ histórico é o nickname do admin.
 - A aprovação publica a casa: `/lots` passa a trazer nome e resumo, e o jogo desenha o chalé gerado pela semente do
   terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
 
+A tela dessas rotas é a seção "Candidaturas" do painel administrativo (`apps/dash`); o jogo não as chama mais.
+
+### Listas do painel administrativo (IMPL-0015)
+
+Só leitura, só `role = 'admin'` (`401 not_signed_in` sem sessão, `403 admin_only` sem o papel), `Cache-Control:
+no-store`. Mais recentes primeiro. Consultar não grava `audit_events` (só mutações são auditadas).
+
+| Método e rota | Resposta |
+|---|---|
+| `GET /admin/audit[?before=<ISO>&limit=<1..100>]` | `{events: [{at, action, subject, detail, actor}], next}` |
+| `GET /admin/users[?before=<ISO>&limit=<1..100>]` | `{users: [{id, nickname, role, city, createdAt, verified}], next}` |
+
+- `limit`: inteiro de 1 a 100 (padrão 50); fora disso → `400 bad_limit`.
+- `before`: instante UTC em ISO 8601 terminado em `Z`, com ou sem milissegundos (`2026-11-11T12:00:00.000Z`); só
+  vêm linhas **estritamente anteriores**. Outro formato → `400 bad_before`.
+- `next`: o `before` da página seguinte, ou `null` na última. Linhas com o mesmo instante da última linha da página
+  vêm todas juntas, então a página pode passar um pouco de `limit` (sem isso, a página seguinte as pularia).
+- `events`: `actor` é o **nickname** de quem agiu (`null` se a conta foi excluída), nunca id ou e-mail; `subject` é
+  `ngo:<id>` ou `user:<id>`; `detail` é o texto JSON gravado (sem dados pessoais) ou `null`. Ações e detalhes em
+  [storage.md](storage.md#audit_events).
+- `users`: **sem e-mail e sem nome** (só o nickname é público; o painel guarda o mínimo — LGPD, ECA Digital).
+  `verified` diz se a conta já confirmou um link; cadastros não confirmados aparecem com `false` até expirarem.
+- Não existe rota que conceda papel, altere ou apague contas de terceiros, nem ação de sanção (regras não
+  definidas, DEC-037).
+
 ## Servidor de tempo real (`server.vilanoeldobem.com.br`)
 
 Só `GET`; outros métodos → `405`. Respostas HTTP com `Cache-Control: no-store`.
@@ -401,7 +435,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
 | API | 503 | `db_unavailable` | `/lots` ou rota de conta sem binding D1 |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
-| API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
+| API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ACCOUNT_ORIGINS`; `POST /auth/register` vindo do painel administrativo |
 | API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP |
 | API | 415 | `json_required` | `POST` de conta sem `Content-Type: application/json` |
 | API | 413 | `too_large` | corpo acima de 16 000 bytes (32 000 na candidatura) |
@@ -424,6 +458,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `stale_revision` | decisão sobre versão que já não é a atual |
 | API | 400 | `revision_required` | decisão sem `revision` inteiro |
 | API | 400 | `checks_required` | aprovação sem as três verificações do DEC-015 |
+| API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
+| API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |
 | servidor | 403 | `forbidden_origin` | `/room` com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
 | servidor | 400 | `bad_room` | `/room` com `i` fora de `0…7` |
@@ -433,4 +469,5 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 ## Ver também
 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
-[IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
+[IMPL-0015](../decisions/0015-dash-backoffice-app.md)

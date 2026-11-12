@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 14 ADRs · **Atualizado em:** 2026-11-11
+> **Status:** 15 ADRs · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -33,5 +33,6 @@
 | [IMPL-0012](0012-resend-transactional-email.md) | E-mail transacional pelo Resend | Aceita (2026-11-11) — implementada; aguarda chave e domínio verificado |
 | [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção (`QUESTS_V1_ENABLED`, `VITE_QUESTS_V1_ENABLED`); conteúdo PROPOSTA (PEN-025) |
 | [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; aguarda deploy) |
+| [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — implementada, não publicada; menu PROPOSTA |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

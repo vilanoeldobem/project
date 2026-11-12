@@ -34,7 +34,7 @@ Caminhos relativos a `apps/client/src/`, salvo indicação.
 | P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
 | P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx` ("Candidatar minha ONG" em terreno disponível), `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |
-| P12 | `ui/NgoApplication.tsx` (4 etapas, situação), `ui/Admin.tsx` ("Análise de ONGs"), `apps/api/src/{ngo,admin}.ts`, `packages/shared/src/accounts/validate.ts` | Implementado, desligado em produção (IMPL-0011); campos PROPOSTA, sem upload de documentos |
+| P12 | `ui/NgoApplication.tsx` (4 etapas, situação), `apps/dash/src/ui/Applications.tsx` (análise administrativa, no painel `dash.*`, IMPL-0015), `apps/api/src/{ngo,admin}.ts`, `packages/shared/src/accounts/{validate,contract}.ts` | Implementado, desligado em produção (IMPL-0011); campos PROPOSTA, sem upload de documentos |
 | P13 | `ui/Account.tsx` (chip "Entrar"/"@nickname", painel da conta), `lib/account.ts`, `apps/api/src/{auth,session,mail}.ts` | Implementado, desligado em produção (IMPL-0011); campos CONFIRMADOS (DEC-038), regras de formato PROPOSTA |
 | P14 | `packages/shared/src/game/progress.ts`, `ui/Missions.tsx`, `apps/api/src/progress.ts` (XP no servidor) | Parcial — XP no servidor só com conta (desligado em produção) |
 | demais | — | Planejado |

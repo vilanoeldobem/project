@@ -26,9 +26,11 @@
     "QUESTS_V1_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
-    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br",
-    // Only the game may use account routes and send the session cookie; sign-in links always open the game.
-    "ACCOUNT_ORIGINS": "https://play.vilanoeldobem.com.br",
+    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
+    // Only the game and the backoffice dashboard may use account routes and send the session cookie.
+    "ACCOUNT_ORIGINS": "https://play.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
+    // Sign-in links open the game, except a link asked from exactly DASH_ORIGIN, which opens the dashboard (IMPL-0015).
+    "DASH_ORIGIN": "https://dash.vilanoeldobem.com.br",
     "GAME_ORIGIN": "https://play.vilanoeldobem.com.br"
   },
   "routes": [{ "pattern": "api.vilanoeldobem.com.br", "custom_domain": true }],
@@ -52,6 +54,7 @@
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",
+        "DASH_ORIGIN": "",
         "GAME_ORIGIN": ""
       },
       "d1_databases": [

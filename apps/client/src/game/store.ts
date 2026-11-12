@@ -17,8 +17,7 @@ export type Panel =
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
-  | { kind: "npc"; npcId: NpcId }
-  | { kind: "admin" };
+  | { kind: "npc"; npcId: NpcId };
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby =

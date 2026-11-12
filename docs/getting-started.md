@@ -2,7 +2,8 @@
 
 > **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
 > **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `package.json`, `apps/{client,api,server}/package.json`, `apps/{client,api,server}/wrangler.jsonc`
+> **Fonte de verdade:** `package.json`, `apps/{client,api,server,dash}/package.json`,
+> `apps/{client,api,server,dash}/wrangler.jsonc`
 
 Ao final você terá a praça 3D rodando em `http://localhost:8799`, servida pelo mesmo Worker do jogo que vai para
 produção, falando com a API (D1 local) em `:8787` e com o servidor de presença em `:8788`
@@ -52,6 +53,17 @@ curl -s localhost:8788/health
 # {"ok":true,"service":"server","rooms":true}
 ```
 
+O painel administrativo ([IMPL-0015](decisions/0015-dash-backoffice-app.md)) é um quarto processo, só para quem vai
+analisar candidaturas ou mexer nele:
+
+```bash
+pnpm --filter @vila/dash dev:worker    # painel → http://localhost:8797 (vite build --mode workers + wrangler dev)
+```
+
+Com recarga instantânea: `pnpm dev:dash` (Vite em `http://localhost:5175`, sem os cabeçalhos de segurança do
+Worker). O link de acesso pedido em `:5175` abre o jogo (só `:8797` é o `DASH_ORIGIN` local), mas a sessão é a mesma:
+depois de entrar pelo jogo, recarregue o painel.
+
 > Para iterar só na interface com recarga instantânea use `pnpm dev`: sobe o Vite em `http://localhost:5173` junto
 > com a API e o servidor. Se a API não estiver de pé, a interface mostra terrenos disponíveis e "Indicadores
 > indisponíveis"; sem o servidor, o jogo segue solo.
@@ -79,7 +91,8 @@ desligadas ([IMPL-0011](decisions/0011-accounts-magic-link-ngo-review.md)).
 3. Perto de um terreno disponível, "Ver terreno" → **"Candidatar minha ONG"**: quatro etapas, terreno reservado ao
    enviar. A situação fica em "Minha candidatura de ONG", no painel da conta.
 4. Para analisar, conceda `admin` à sua conta local (ver [development §4.5](guides/development.md#45-testar-contas-localmente))
-   e abra **"Análise de ONGs"**.
+   e abra o painel administrativo em `http://localhost:8797` (ou o link **"Abrir painel administrativo"** no painel
+   da conta do jogo): seção **"Candidaturas"**.
 
 ## 6. Verificar antes de entregar
 
@@ -87,10 +100,14 @@ desligadas ([IMPL-0011](decisions/0011-accounts-magic-link-ngo-review.md)).
 pnpm check                                         # typecheck + testes + build
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
-node apps/client/scripts/verify-accounts.mjs       # contas, candidatura e análise (só local)
+node apps/dash/scripts/verify.mjs                  # painel: cabeçalhos, tela de entrada e estados com contas desligadas
+node apps/client/scripts/verify-accounts.mjs       # contas e candidatura no jogo, análise no painel (só local)
 ```
 
-As capturas ficam em `apps/client/verify-output/`. Sem argumentos, `smoke-api.sh` confere a produção.
+Os dois últimos precisam do painel em `:8797`. O `verify-accounts.mjs` faz 11 chamadas a `/auth/*` e a API aceita 10
+por minuto por IP: o script se regula sozinho (uma pausa de até um minuto é normal), mas espere 60 s entre duas
+execuções. As capturas ficam em `apps/client/verify-output/` e
+`apps/dash/verify-output/`. Sem argumentos, `smoke-api.sh` confere a produção.
 
 ## 7. Próximos passos
 

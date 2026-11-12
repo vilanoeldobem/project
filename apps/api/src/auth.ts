@@ -12,6 +12,10 @@
  * Links: 256-bit random token, stored hashed, valid 15 minutes, single use (OQ-03; durations PROPOSTA). The token
  * travels in the URL fragment (`/#login=…`), which browsers never send to a server, so it reaches no access log.
  * At most 3 links per account per 15 minutes and 10 per day; unverified registrations expire after 24 hours.
+ *
+ * Link target: the game (GAME_ORIGIN), except for `POST /auth/link` asked by the backoffice dashboard — the
+ * request `Origin` equal to DASH_ORIGIN, exact match — whose link opens the dashboard (IMPL-0015). Nothing else in
+ * the request chooses where a link points. Registration is game-only: the dashboard creates no accounts.
  */
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
 
@@ -32,9 +36,10 @@ const accepted = (devLink?: string) => json({ ok: true, ...(devLink ? { devLink 
  * Creates a link token for `user` unless a limit is reached (3 per 15 minutes, 10 per day per account),
  * atomically (the count and the insert are one statement, so parallel requests cannot overshoot). Returns
  * the link in development/test, undefined otherwise or when limited (the answer to the caller never changes).
- * The link always points at the game (GAME_ORIGIN), never at whichever allowed site made the request.
+ * The link points at the game (GAME_ORIGIN), never at whichever allowed site made the request; `dash` (decided by
+ * `fromDash`, never by request data) is the single exception and points it at DASH_ORIGIN.
  */
-async function issueLink(env: Env, user: Pick<User, "id" | "email" | "nickname">, origin: string): Promise<string | undefined> {
+async function issueLink(env: Env, user: Pick<User, "id" | "email" | "nickname">, origin: string, dash = false): Promise<string | undefined> {
   const db = env.DB!;
   const token = randomToken();
   const now = Date.now();
@@ -51,11 +56,16 @@ async function issueLink(env: Env, user: Pick<User, "id" | "email" | "nickname">
     )
     .run();
   if (!inserted.meta.changes) return undefined;
-  const base = env.GAME_ORIGIN ?? origin;
-  return sendLoginLink(env, user.email, user.nickname, `${base}/#login=${encodeURIComponent(token)}`);
+  const base = dash ? env.DASH_ORIGIN! : (env.GAME_ORIGIN ?? origin);
+  return sendLoginLink(env, user.email, user.nickname, `${base}/#login=${encodeURIComponent(token)}`, dash ? "dash" : "game");
 }
 
+/** True only when the request comes from the configured dashboard origin (exact string match, no patterns). */
+const fromDash = (env: Env, origin: string) => Boolean(env.DASH_ORIGIN) && origin === env.DASH_ORIGIN;
+
 export async function register(request: Request, env: Env, origin: string): Promise<Response> {
+  // Accounts are created in the game only; the dashboard signs existing admins in (IMPL-0015).
+  if (fromDash(env, origin)) throw new HttpError(403, "forbidden_origin");
   const { value, errors } = validateRegistration(await readJson(request));
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
@@ -86,7 +96,7 @@ export async function requestLink(request: Request, env: Env, origin: string): P
   const user = email ? await env.DB!.prepare("SELECT id, email, nickname FROM users WHERE email = ?").bind(email).first<User>() : null;
   if (!user) return accepted();
   try {
-    return accepted(await issueLink(env, user, origin));
+    return accepted(await issueLink(env, user, origin, fromDash(env, origin)));
   } catch {
     // A send failure only happens for existing accounts: answering 503 here would reveal them.
     return accepted();

@@ -5,24 +5,18 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
+import { type Application, lotNumber, STATUS_LABEL } from "@vila/shared/accounts/contract";
+import { errorText } from "@vila/shared/accounts/errors";
 import { APPLICATION_STEP, NGO_TAGS, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
 import { LOTS } from "@vila/shared/game/world";
 
 import { useVila } from "../game/store";
-import { api, ApiError, type Application, type ApplicationStatus, useAccount } from "../lib/account";
+import { api, ApiError, useAccount } from "../lib/account";
 import { fetchLots, type LotInfo } from "../lib/api";
-import { errorText, Field } from "./Account";
+import { Field } from "./Account";
 import { Panel, Status } from "./Panel";
 
 const STEPS = ["Dados da organização", "Documentos e comprovações", "Apresentação e projetos", "Revisão e envio"] as const;
-
-export const STATUS_LABEL: Record<ApplicationStatus, string> = {
-  submitted: "Candidatura enviada",
-  under_review: "Em análise",
-  changes_requested: "Ajustes solicitados",
-  published: "Aprovada e publicada",
-  rejected: "Não aprovada",
-};
 
 const EMPTY: NgoApplication = {
   name: "",
@@ -37,8 +31,6 @@ const EMPTY: NgoApplication = {
   projects: [],
   lotId: "",
 };
-
-const lotNumber = (id: string) => Number(id.split("-")[1]);
 
 export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
   const user = useAccount((s) => s.user);

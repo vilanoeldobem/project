@@ -2,7 +2,7 @@
 
 > **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
 > **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site}/wrangler.jsonc`,
+> **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
 
 Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
@@ -16,8 +16,10 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 | https://server.vilanoeldobem.com.br | `vilanoeldobem-server` | `apps/server` (presença, Durable Object `VillageRoom`) |
 | https://www.vilanoeldobem.com.br | `vilanoeldobem-site` | `apps/site` (site público) |
 | https://vilanoeldobem.com.br | `vilanoeldobem-site` | 301 → `www` |
+| https://dash.vilanoeldobem.com.br | `vilanoeldobem-dash` | `apps/dash` (painel administrativo) — **ainda não publicado**, ver [§8](#8-painel-administrativo-appsdash) |
 
-Os endereços `*.workers.dev` continuam ativos para diagnóstico.
+Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não terá um:
+`workers_dev: false`).
 
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
 ([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1.
@@ -63,6 +65,7 @@ pnpm deploy:api        # api.vilanoeldobem.com.br
 pnpm deploy:server     # server.vilanoeldobem.com.br
 pnpm deploy:client     # play.vilanoeldobem.com.br (+ redirecionamento de app.*)
 pnpm deploy:site       # www.vilanoeldobem.com.br
+pnpm deploy:dash       # dash.vilanoeldobem.com.br — só depois da autorização do §8 (cria Worker e domínio)
 sh scripts/smoke-api.sh                                   # padrão: api.*, server.* e play.* de produção
 node apps/client/scripts/verify.mjs https://play.vilanoeldobem.com.br
 ```
@@ -132,7 +135,7 @@ Manager** (`GTM-MQP2RVMB`, iniciado por `public/gtag-init.js`). A CSP libera `ht
 `public/login-fragment.js` roda antes do GTM e tira o token `#login=` da URL. Tags HTML personalizadas do GTM ficam bloqueadas (sem
 `unsafe-inline`). O
 `connect-src` do jogo lista exatamente `api.*` e `server.*` da build. Ao mudar a CSP, rode `verify.mjs` — erros de
-CSP aparecem como erro de console. Trocar um host exige mudar três lugares
+CSP aparecem como erro de console. Trocar um host exige mudar todos os lugares que o citam
 ([architecture.md §7](../reference/architecture.md#7-limites-entre-apps)).
 
 ## 6. Reverter
@@ -140,7 +143,7 @@ CSP aparecem como erro de console. Trocar um host exige mudar três lugares
 Cada Worker reverte sozinho, a partir da pasta do app:
 
 ```bash
-cd apps/<client|api|server|site>
+cd apps/<client|api|server|site|dash>
 pnpm exec wrangler deployments list
 pnpm exec wrangler rollback <version-id>
 ```
@@ -223,8 +226,10 @@ conta Cloudflare roda, em `apps/api`:
 pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET role='admin' WHERE nickname='...'"
 ```
 
-É uma escrita remota no D1: **proibida para agentes sem autorização humana explícita** (AGENTS.md). O painel
-"Análise de ONGs" aparece no painel da conta depois de recarregar o jogo. Para retirar, `role='player'`.
+É uma escrita remota no D1: **proibida para agentes sem autorização humana explícita** (AGENTS.md). Com o papel, a
+pessoa entra no painel administrativo (`dash.*`, [§8](#8-painel-administrativo-appsdash)); no jogo, o painel da conta
+ganha o link "Abrir painel administrativo" depois de recarregar. Para retirar, `role='player'`. Nenhuma rota da API
+concede ou retira papel.
 
 ### 7.5 Reverter
 
@@ -235,8 +240,53 @@ pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET
 - Se as contas já tiverem sido ligadas, desligar a bandeira esconde tudo sem apagar contas, candidaturas nem
   `audit_events`; terrenos reservados continuam reservados.
 
+## 8. Painel administrativo (`apps/dash`)
+
+Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)): app estático
+(Static Assets, sem script de Worker, sem bindings e sem segredos) que fala só com a API. **Nada disso foi
+publicado.** O primeiro `pnpm deploy:dash` **cria um recurso novo na Cloudflare** (o Worker `vilanoeldobem-dash`) e
+um Custom Domain com DNS e certificado: exige autorização humana explícita (AGENTS.md).
+
+### 8.1 Antes de publicar
+
+1. **Acesso.** O painel fica aberto na internet como qualquer site estático e não usa Cloudflare Access (OQ-10):
+   quem protege os dados é a API, que exige sessão e papel `admin` em cada rota. O HTML e o JavaScript não contêm
+   dado nenhum.
+2. **Excluir `dash.*` do Cloudflare Web Analytics** (injeção automática da zona). A CSP do painel bloqueia o script
+   de medição; se ele for injetado, aparece erro de CSP no console e o `verify.mjs` do painel falha.
+3. **Contas.** O painel só tem utilidade com `ACCOUNTS_ENABLED = "true"` ([§7.3](#73-ligar-as-contas)). Com a
+   bandeira desligada ele abre, mostra "Contas desligadas" e só dados públicos.
+
+### 8.2 Ordem
+
+1. **API primeiro** (`pnpm deploy:api`): ela precisa conhecer a origem do painel (`ALLOWED_ORIGINS`,
+   `ACCOUNT_ORIGINS` e `DASH_ORIGIN` em `apps/api/wrangler.jsonc`, já no repositório). Sem isso o navegador bloqueia
+   as chamadas do painel por CORS. Publicar a API com essas variáveis antes de o painel existir é seguro: são só
+   textos de configuração.
+2. **Painel** (`pnpm deploy:dash`): cria o Worker `vilanoeldobem-dash` e o Custom Domain `dash.*` (a Cloudflare
+   cria o registro DNS e o certificado; o host pode responder 522 por alguns minutos).
+3. **Jogo** (`pnpm deploy:client`): a versão nova troca o painel "Análise de ONGs" pelo link "Abrir painel
+   administrativo". Publicar o jogo **antes** do painel deixa os admins sem tela de análise: publique na ordem.
+4. Conferir:
+
+   ```bash
+   curl -sI https://dash.vilanoeldobem.com.br | grep -iE "content-security-policy|x-robots-tag|cache-control|referrer-policy"
+   node apps/dash/scripts/verify.mjs https://dash.vilanoeldobem.com.br https://api.vilanoeldobem.com.br
+   ```
+
+   O `verify.mjs` confere os cabeçalhos, a tela de entrada (se as contas estiverem ligadas) e o estado de cada seção
+   com as contas desligadas; não entra em conta nenhuma.
+
+### 8.3 Reverter
+
+`wrangler rollback` em `apps/dash` ([§6](#6-reverter)). O painel não tem dados nem migrations. Para tirá-lo do ar
+sem apagar o Worker, remova a rota (ou bloqueie no Access); apagar o Worker ou o domínio é mudança de recurso e
+exige autorização. Se o jogo novo já estiver publicado, reverter o painel deixa os admins sem tela de análise:
+reverta o jogo junto ou mantenha o painel.
+
 ## Limitações conhecidas
 
+- Painel administrativo (`apps/dash`): implementado, **não publicado**; Access e exclusão do Web Analytics por decidir.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
@@ -245,4 +295,5 @@ pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET
 
 ## Ver também
 
-[reference/architecture.md](../reference/architecture.md) · [reference/storage.md](../reference/storage.md)
+[reference/architecture.md](../reference/architecture.md) · [reference/storage.md](../reference/storage.md) ·
+[IMPL-0015](../decisions/0015-dash-backoffice-app.md)

@@ -26,9 +26,18 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   worker/                   index.ts (entrada) + handle.ts (redireciona app.* → play.*)
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
-  scripts/verify-accounts.mjs  fluxo de contas, candidatura e análise em Chrome real (só local)
+  scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
+apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*; não publicado) — IMPL-0015
+  src/
+    main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
+    lib/                    api.ts (cliente da API), session.ts, login-token.ts, router.ts (hash), hooks.ts,
+                            format.ts, theme.ts (cores de PALETTE), endpoints.ts, services.ts
+    ui/                     SignIn, Shell, Applications (análise de ONGs), Lots, Audit, Users, System, Pending
+  security-headers.ts       _headers gerado no build (CSP estrita, noindex, no-store)
+  scripts/verify.mjs        verificação em Chrome real (cabeçalhos, entrada, estados com contas desligadas)
 apps/api/src/               index.ts (entrada) + api.ts (rotas, CORS, testável) — api.vilanoeldobem.com.br
                             auth, session, mail, progress, ngo, admin, http, crypto (contas, IMPL-0011)
+                            backoffice (listas só de leitura do painel, IMPL-0015)
 apps/api/test/d1.mjs        D1 de teste sobre node:sqlite com as migrations reais
 apps/server/src/            index.ts, handler.ts, room.ts (lógica pura), room-do.ts (VillageRoom) — server.*
 apps/site/                  site público — www.vilanoeldobem.com.br
@@ -37,6 +46,8 @@ packages/shared/src/        lógica pura (@vila/shared/…), sem DOM, three.js o
   environment/              config, time, random, weather, events, keyframes, network-clock, frame
   net/protocol.ts           mensagens de presença
   accounts/validate.ts      validação do cadastro (P13) e da candidatura de ONG (P12)
+  accounts/contract.ts      formas das respostas de conta e de análise (jogo e painel)
+  accounts/errors.ts        ApiError e a frase em pt-BR de cada código de erro (jogo e painel)
 migrations/                 SQL do D1
 ```
 
@@ -120,15 +131,22 @@ desenvolvimento)": não é preciso e-mail de verdade.
    pnpm exec wrangler d1 execute vilanoeldobem --local --command "UPDATE users SET role='admin' WHERE nickname='seu_nick'"
    ```
 
-   Recarregue o jogo: o painel da conta ganha "Análise de ONGs".
-4. Fluxo completo automatizado (cadastro, migração do progresso, candidatura, pedido de ajustes, reenvio, aprovação
-   e casa publicada), só contra `localhost`:
+   Suba o painel administrativo (`pnpm --filter @vila/dash dev:worker`, `http://localhost:8797`) e entre com o
+   mesmo e-mail: o link "Abrir link (só em desenvolvimento)" pedido ali abre o próprio painel. Quem já entrou no
+   jogo neste navegador abre o painel já autenticado (o cookie é o mesmo), e o painel da conta do jogo ganha o link
+   "Abrir painel administrativo". A análise fica na seção "Candidaturas".
+4. Fluxo completo automatizado (cadastro, migração do progresso e candidatura no jogo; entrada, pedido de ajustes,
+   aprovação, auditoria e contas no painel; reenvio e casa publicada no jogo), só contra `localhost`, com os quatro
+   Workers de pé (API, servidor, jogo e painel):
 
    ```bash
-   node apps/client/scripts/verify-accounts.mjs    # padrão: jogo :8799, API :8787
+   node apps/client/scripts/verify-accounts.mjs    # padrão: jogo :8799, API :8787, painel :8797
    ```
 
    Ele cria contas e concede `admin` com `wrangler d1 execute --local`; capturas em `apps/client/verify-output/`.
+   Cada execução faz 11 chamadas a `/auth/*` e a API aceita 10 por minuto por IP (`AUTH_LIMITER`): o script se
+   regula sozinho (uma pausa de até um minuto no meio é normal), mas não enxerga a execução anterior — **espere 60 s
+   entre duas execuções**. Se o limite for atingido, ele para com "rate limited: wait 60 s and run again".
 
 Se `wrangler dev` falhar com "Address already in use", um `workerd` antigo pode estar segurando a porta do
 inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o comando do script `dev` com outra
@@ -138,6 +156,18 @@ inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o c
 
 1. Componente em `apps/client/src/ui/` usando `<Panel>`; novo `kind` em `Panel` (`game/store.ts`) e no `App.tsx`.
 2. Texto em pt-BR, botões com nome acessível (`aria-label` quando o rótulo some no celular).
+
+### 4.7 Adicionar uma seção ao painel administrativo
+
+1. Nova entrada em `SECTIONS` e no tipo `Section` (`apps/dash/src/lib/router.ts`); componente em
+   `apps/dash/src/ui/`; uma linha no `App.tsx`. Chamadas novas entram em `apps/dash/src/lib/api.ts`.
+2. Só dados reais da API ou um estado vazio/pendente dito com todas as letras (`<Notice state="…">`): nada de linha
+   de exemplo, número inventado ou botão que finge funcionar. Seção que precisa de sessão recebe `locked` e mostra
+   `<AccountsOff>` com as contas desligadas, sem chamar a API.
+3. Sem estilo inline, script externo ou fonte externa: a CSP do painel (`security-headers.ts`) bloqueia. Cores só de
+   `lib/theme.ts`.
+4. Rota nova de admin: `requireAdmin`, `no-store`, sem e-mail nem nome na resposta; mutação grava `audit_events`.
+5. Rode `node apps/dash/scripts/verify.mjs` e acrescente a seção nova à lista `SECTIONS` do script.
 
 ## 5. Regras não negociáveis (resumo de AGENTS.md)
 
@@ -169,7 +199,8 @@ Toda mudança de comportamento atualiza: `CHANGELOG.md` (`[Unreleased]`), `docs/
 O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 - [ ] Três gates verdes, com saída real.
-- [ ] `verify.mjs` rodado se a interface mudou (desktop e celular); `verify-accounts.mjs` se mexeu em conta, ONG ou admin.
+- [ ] `verify.mjs` rodado se a interface mudou (desktop e celular; o do app que mudou: jogo, site ou painel);
+      `verify-accounts.mjs` se mexeu em conta, ONG ou admin.
 - [ ] Nenhuma migration existente alterada.
 - [ ] Nenhum log novo com dados pessoais ou segredos.
 - [ ] `CHANGELOG.md` e docs atualizados; ADR se a decisão for estrutural.

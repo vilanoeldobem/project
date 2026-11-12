@@ -4,7 +4,6 @@ import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { Account } from "./ui/Account";
-import { AdminPanel } from "./ui/Admin";
 import { Donation } from "./ui/Donation";
 import { EnvironmentDebug, EnvironmentPanel, GameSound, Presence } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
@@ -47,7 +46,6 @@ export function App() {
       {panel.kind === "environment" && <EnvironmentPanel />}
       {panel.kind === "account" && <Account then={panel.then} />}
       {panel.kind === "ngo" && <NgoApplicationPanel lotId={panel.lotId} />}
-      {panel.kind === "admin" && <AdminPanel />}
       <GameSound />
       <Presence />
       <EnvironmentDebug />

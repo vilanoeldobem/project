@@ -9,7 +9,7 @@
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *
  * Accounts, server XP, NGO applications and admin review (IMPL-0011; only when ACCOUNTS_ENABLED = "true"):
- * see auth.ts, progress.ts, ngo.ts, admin.ts. Mutations require an allowed `Origin` and a JSON body (which
+ * see auth.ts, progress.ts, ngo.ts, admin.ts, backoffice.ts. Mutations require an allowed `Origin` and a JSON body (which
  * forces a CORS preflight); the session cookie is HttpOnly, Secure, SameSite=Lax.
  *
  * CORS: `Access-Control-Allow-Origin` (+ credentials) only for exact origins on ALLOWED_ORIGINS.
@@ -21,6 +21,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
+import { listAudit, listUsers } from "./backoffice";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
@@ -32,12 +33,15 @@ export interface Env {
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
   /**
-   * Exact origins allowed on account routes and to receive credentialed CORS (the game only; the public
-   * website does not need the session). Defaults to ALLOWED_ORIGINS when unset (local development).
+   * Exact origins allowed on account routes and to receive credentialed CORS (the game and the backoffice
+   * dashboard; the public website does not need the session). Defaults to ALLOWED_ORIGINS when unset (local
+   * development).
    */
   ACCOUNT_ORIGINS?: string;
   /** Base URL of sign-in links (the game). Defaults to the request origin (local development). */
   GAME_ORIGIN?: string;
+  /** Origin of the backoffice dashboard (apps/dash). A sign-in link asked from exactly this origin opens it (IMPL-0015). */
+  DASH_ORIGIN?: string;
   /** "true" turns on accounts, server XP, NGO applications and admin (IMPL-0011). */
   ACCOUNTS_ENABLED?: string;
   /** "true" accepts quests-v1 events (PROPOSTA; DEC-039..042, PEN-025). Off in production. */
@@ -189,6 +193,8 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/ngo/application")) return getApplication(request, env);
   if (is("POST", "/ngo/application")) return submitApplication(request, env);
   if (is("GET", "/admin/applications")) return listApplications(request, env);
+  if (is("GET", "/admin/audit")) return listAudit(request, env);
+  if (is("GET", "/admin/users")) return listUsers(request, env);
   const m = ADMIN_APP.exec(pathname);
   if (m && method === "GET" && !m[2]) return getApplicationAdmin(request, env, m[1]);
   if (m && method === "POST" && m[2]) return decide(request, env, m[1]);
