@@ -4,7 +4,8 @@ import { CircleGeometry, type Group, type Mesh, ShaderMaterial, Vector3 } from "
 
 import { U } from "./environment/materials";
 import { events } from "../game/events";
-import { type Collider, type Intent, MOTION, STEP, stepBody } from "@vila/shared/game/motion";
+import { type Collider, MOTION, STEP } from "@vila/shared/game/motion";
+import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
@@ -13,6 +14,7 @@ import {
   DONATION_PANEL,
   GIFTS,
   INTERACT_DISTANCE,
+  LOT_INTERACT_DISTANCE,
   LOTS,
   NPCS,
   OBSTACLES,
@@ -64,10 +66,11 @@ void main() {
 `;
 
 /**
- * The avatar: click/tap target → fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk
- * animation, contact shadow and camera. Gameplay facts (footsteps, gifts) go out on the event bus.
+ * The avatar: click/tap target → route around the colliders (`navigation.ts`, planned once per click) →
+ * fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk animation, contact shadow and
+ * camera. Gameplay facts (footsteps, gifts) go out on the event bus. `lots` = colliders of the eight lots.
  */
-export function Player({ houses }: { houses: Collider[] }) {
+export function Player({ lots }: { lots: Collider[] }) {
   const root = useRef<Group>(null);
   const rig = useRef<Group>(null);
   const torso = useRef<Group>(null);
@@ -87,7 +90,19 @@ export function Player({ houses }: { houses: Collider[] }) {
   const { shadows } = usePreset();
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
-  const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...houses], [houses, questsOn]);
+  const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...lots], [lots, questsOn]);
+  // The navigation field follows the collider set (rebuilt only when a house or the quests flag changes).
+  const field = useMemo(() => createNavField(colliders), [colliders]);
+  useEffect(() => {
+    sim.nav = field;
+    const { body, route } = sim;
+    if (route.active) {
+      // The scenery changed under a walk in progress: plan it again and move the marker with it.
+      planRoute(field, route, body.x, body.z, route.x, route.z);
+      useVila.setState({ target: { x: route.x, z: route.z } });
+    }
+    return () => void (sim.nav === field && (sim.nav = null));
+  }, [field]);
   const blobMaterial = useMemo(
     () => new ShaderMaterial({ vertexShader: blobVertex, fragmentShader: blobFragment, transparent: true, depthWrite: false, uniforms: { uOpacity: { value: 0.3 } } }),
     []
@@ -150,19 +165,16 @@ export function Player({ houses }: { houses: Collider[] }) {
     const b = sim.body;
     const quests = questsEnabled();
 
-    // ---- simulation: fixed steps, independent of the display refresh rate.
-    const intent: Intent = { moveX: 0, moveZ: 0, target: s.panel.kind === "none" ? s.target : null };
+    // ---- simulation: fixed steps, independent of the display refresh rate. An open panel pauses the walk.
+    const route = s.panel.kind === "none" ? sim.route : null;
     c.acc += Math.min(frameDt, 0.1);
     while (c.acc >= STEP) {
       c.acc -= STEP;
       c.px = b.x;
       c.pz = b.z;
       c.pyaw = b.yaw;
-      const r = stepBody(b, intent, colliders);
-      if (r.targetDone && intent.target) {
-        s.setTarget(null);
-        intent.target = null;
-      }
+      const r = stepWalk(b, route, field, colliders);
+      if (r.targetDone) s.setTarget(null);
       if (r.step) {
         events.emit({ type: "step", x: b.x, z: b.z, yaw: b.yaw, left: b.leftFoot, surface: surfaceAt(b.x, b.z), speed: Math.hypot(b.vx, b.vz) });
       }
@@ -277,7 +289,7 @@ export function Player({ houses }: { houses: Collider[] }) {
     // Lots are far apart: at most one is within reach, and the first match is enough.
     for (let i = 0; i < LOTS.length; i++) {
       const dist = Math.hypot(LOTS[i].x - pose.x, LOTS[i].z - pose.z);
-      if (dist >= INTERACT_DISTANCE) continue;
+      if (dist >= LOT_INTERACT_DISTANCE) continue;
       if (beats(dist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[i];
       break;
     }

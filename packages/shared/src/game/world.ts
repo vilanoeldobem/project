@@ -346,9 +346,6 @@ export function lotColliders(lot: LotDef, house: readonly Rect[] | null): Obstac
   ];
 }
 
-/** Old circle around a chalet. Unused once the client blocks with `lotColliders`; removed with its last use. */
-export const HOUSE_RADIUS = 3;
-
 export type Surface = "stone" | "packed" | "snow" | "ice";
 
 /** Ground material under a point (footstep sound, snow kick-up). Mirrors the ground layout. */

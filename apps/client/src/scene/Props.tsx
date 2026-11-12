@@ -3,7 +3,7 @@ import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
-import { GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
+import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 import { useVila } from "../game/store";
@@ -36,14 +36,10 @@ export function Lamps() {
   const v = useMemo(lamp, []);
   const b = useMemo(bench, []);
   const lamps = useMemo(() => LAMPS.map(([x, z]): Placement => ({ x, z })), []);
-  const benches = useMemo(
-    () => LAMPS.filter((_, i) => i % 2 === 1).map(([x, z]): Placement => ({ x: x * 0.92, z: z * 0.92, rot: Math.atan2(x, z) })),
-    []
-  );
   return (
     <>
       <Voxels voxels={v} size={0.5} emissive={GLOW} placements={lamps} />
-      <Voxels voxels={b} size={0.5} placements={benches} />
+      <Voxels voxels={b} size={0.5} placements={BENCHES} />
     </>
   );
 }
@@ -212,7 +208,7 @@ export function QuestNpcs() {
           onClick={(e) => {
             e.stopPropagation();
             if (Math.hypot(npc.x - sim.pose.x, npc.z - sim.pose.z) < INTERACT_DISTANCE) open({ kind: "npc", npcId: npc.id });
-            // Too far to talk: walk there instead. The NPC's collider stops the avatar next to it.
+            // Too far to talk: walk there instead. The walk ends next to the NPC, on the avatar's side.
             else setTarget({ x: npc.x, z: npc.z });
           }}
         >

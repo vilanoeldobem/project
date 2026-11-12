@@ -15,6 +15,12 @@ export interface GenModel {
   idle?: boolean;
   /** Named points in voxel units (e.g. chimney top for smoke). */
   anchors?: Record<string, [number, number, number]>;
+  /**
+   * Ground footprint that blocks the avatar, as model-local rectangles `[x0, x1, z0, z1]` in world units
+   * (IMPL-0016). Set by generators whose footprint varies with the seed (houses); fixed props keep theirs
+   * next to their placement in `world.ts`.
+   */
+  solid?: Array<[number, number, number, number]>;
 }
 
 export interface Generator {

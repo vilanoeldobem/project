@@ -38,6 +38,10 @@ export function installDevtools() {
     events: log,
     extra: {
       remotes: () => [...remotes.values()].map((r) => ({ id: r.id, x: r.x, z: r.z })),
+      /** Resolved walk destination, or null once the avatar arrived or gave up (verify-collisions.mjs). */
+      target: () => useVila.getState().target,
+      /** Cost of the last planned walk: waypoints, grid nodes expanded and replans after getting stuck. */
+      route: () => ({ waypoints: sim.route.count, expanded: sim.route.expanded, replans: sim.route.replans, direct: sim.route.direct }),
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
     },
