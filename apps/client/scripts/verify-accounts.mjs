@@ -25,6 +25,8 @@
  * give the same directory in VILA_API_PERSIST_TO, so the admin role is granted in its database:
  *   VILA_API_PERSIST_TO=/path/to/state node scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8791
  * Without the variable, wrangler's default local state of apps/api is used.
+ * An isolated config environment can also set VILA_API_ENV and VILA_API_DB. CHROMIUM_PATH selects the local
+ * Chromium executable. VILA_STUB_ANALYTICS=1 stubs GTM only (OQ-13); that run does not validate analytics.
  *
  * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 11 of them
  * (3 sign-ups, 4 link confirmations, 2 link requests, 2 sign-outs). The run paces itself: before each of those it
@@ -118,9 +120,11 @@ const upload = (extension, mimeType, buffer) => ({ name: `${FILE_NAME}.${extensi
 const apiDir = new URL("../../api/", import.meta.url).pathname;
 /** Where the API under test keeps its local data, when not in wrangler's default place (see the header). */
 const persistTo = process.env.VILA_API_PERSIST_TO;
+const apiEnvironment = process.env.VILA_API_ENV;
+const apiDatabase = process.env.VILA_API_DB ?? "vilanoeldobem";
 /** Runs SQL on the LOCAL D1 of the API (never remote). */
 const localSql = (command) =>
-  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
+  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", apiDatabase, "--local", ...(apiEnvironment ? ["--env", apiEnvironment] : []), ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
     cwd: apiDir,
     stdio: "pipe",
   });
@@ -142,7 +146,12 @@ localSql(
     "DELETE FROM ngos WHERE name LIKE 'Associação Teste %';"
 );
 
-const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chrome" }),
+  env: { ...process.env, TMPDIR: "/tmp" },
+  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--renderer-process-limit=2"],
+});
+if (process.env.VILA_STUB_ANALYTICS === "1") console.log("note: GTM stubbed for local account/file verification; analytics not tested (OQ-13)");
 
 /** Stops the run: screenshots of every open page, the reason, exit 1. */
 let failing = false;
@@ -167,6 +176,7 @@ process.on("unhandledRejection", (e) => void fail(e));
  */
 async function newContext() {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  if (process.env.VILA_STUB_ANALYTICS === "1") await ctx.route("https://www.googletagmanager.com/**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
   if (apiOrigin !== BUILD_API) await ctx.route(`${BUILD_API}/**`, (route) => route.continue({ url: apiOrigin + route.request().url().slice(BUILD_API.length) }));
   return ctx;
 }

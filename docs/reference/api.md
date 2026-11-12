@@ -1,8 +1,8 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v6 · **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
+> **Schema D1:** v10 (branch de conciliação, pendente de revisão) · **Atualizado em:** 2026-11-12
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
 > `packages/shared/src/net/protocol.ts`
@@ -36,7 +36,7 @@ dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do scri
 
 | Requisição | Resposta |
 |---|---|
-| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type, X-Vila-Account`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
+| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type, X-Vila-Account, X-Vila-Caption`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
 | `Origin` ausente ou fora da lista | só `Vary: Origin` (o navegador bloqueia a leitura; `curl` e servidores continuam lendo as rotas públicas) |
 | `OPTIONS` (preflight) | `204` sem corpo, com os cabeçalhos acima quando a origem é permitida |
 
@@ -105,19 +105,21 @@ andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas n
 
 ```json
 { "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 20.33, "z": 8.42,
-              "state": "available", "ngo_name": null, "ngo_summary": null, "ngo_logo": null } ] }
+              "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null, "ngo_logo": null } ] }
 ```
+
+`ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 
 `ngo_logo` é o caminho do logo nesta API (`/ngos/<id>/logo?v=<versão>`) quando a ONG publicada tem um; senão
 `null`. Com o envio de arquivos desligado é sempre `null` (e a tabela `ngo_files` nem é lida).
 
 ### GET /ngos/:id/logo
 
-Logo de uma ONG **publicada** ([IMPL-0017](../decisions/0017-ngo-files-r2.md)); só existe com
+Logo de uma ONG **publicada e ligada a um terreno publicado** ([IMPL-0017](../decisions/0017-ngo-files-r2.md)); só existe com
 `NGO_FILES_ENABLED = "true"` e o bucket ligado (senão `404 files_disabled`). ONG não publicada, sem logo ou
 inexistente → `404 not_found`. É a única rota pública que entrega um arquivo: documentos nunca saem por aqui.
 
-Cabeçalhos: `Content-Type` do arquivo (`image/png` ou `image/jpeg`), `Cache-Control: public, max-age=300`, `ETag`
+Cabeçalhos: `Content-Type` do arquivo (`image/png` ou `image/jpeg`), `Cache-Control: no-store`, `ETag`
 (com `If-None-Match` igual → `304`), `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: cross-origin`.
 
@@ -350,7 +352,8 @@ Os limites vêm de `FILE_RULES` em `packages/shared/src/accounts/files.ts`, usad
 `file` é `{id, kind, contentType, size, createdAt}`. **Não existe nome de arquivo**: o nome original não é enviado,
 guardado nem devolvido (costuma trazer nome de pessoa); as telas chamam os downloads de `logo.png` e
 `documento-N.pdf`. `GET /ngo/application` e `GET /admin/applications/:id` trazem a lista em `files` (logo primeiro,
-documentos na ordem de envio).
+documentos na ordem de envio). A candidatura, sua revisão e `files` são lidos na mesma instrução SQL,
+para que a lista corresponda à revisão mostrada ao administrador.
 
 - **Quem pode enviar:** conta logada e verificada, com candidatura, de uma origem de `ACCOUNT_ORIGINS`.
   `X-Vila-Account` tem o mesmo papel do `accountId` das escritas em JSON (`409 account_changed` se outra aba trocou
@@ -366,7 +369,10 @@ documentos na ordem de envio).
   bytes depois do fim da imagem); do EXIF do JPEG fica só a orientação. Os pixels não mudam. PDF é guardado como veio.
 - **Revisão:** cada envio ou remoção soma 1 em `revision` (devolvido na resposta). Uma decisão do admin feita sobre
   a revisão anterior é recusada com `409 stale_revision`. Se a candidatura mudar enquanto o arquivo chega, o envio
-  responde `409 application_changed` e nada fica guardado.
+  responde `409 application_changed` e o objeto recém-enviado é removido (falha nessa compensação deixa apenas um órfão privado).
+  A comparação considera **estado e revisão exatos**: a troca para `under_review` durante o envio perde; um novo
+  envio feito já em `under_review` continua permitido. O token de escrita exclusivo impede auditoria duplicada
+  quando duas operações disputam a mesma revisão.
 - **Como os bytes são servidos:** `Content-Type` do arquivo, `X-Content-Type-Options: nosniff`,
   `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control: no-store`; documento sempre com
   `Content-Disposition: attachment`, logo com `inline`. As rotas conferem `Origin`, então um link direto ou um
@@ -374,7 +380,57 @@ documentos na ordem de envio).
 - **Auditoria:** `ngo.file_add` e `ngo.file_remove` (quem enviou), `ngo.file_read` (admin que baixou um
   **documento**; ver o logo não grava nada). `detail` é `{kind, file, revision?}`: sem nome de arquivo.
 - **Exclusão de conta:** `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não
-  publicada; o logo de uma ONG publicada fica. Se o R2 falhar, a conta não é excluída (`500`) e a pessoa tenta de novo.
+  publicada; o logo de uma ONG publicada fica. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
+  de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas. Se R2 falhar, a conta e
+  sessão continuam (`500`); se houver metadados sem binding `FILES`, responde `503 files_unavailable`. O usuário
+  repete **o mesmo `DELETE /me`** após a recuperação. A marca não expira nem é desfeita automaticamente, pois
+  parte dos bytes pode já ter sido removida. Escritas novas recebem `409 account_deleting`; leitura e sessão
+  continuam disponíveis para repetir a exclusão. A transação final incrementa as revisões das candidaturas antes
+  de remover a conta: uma revisão antiga não pode aprovar evidências que foram apagadas.
+
+### Perfil público e galeria institucional (IMPL-0021, PROPOSTA)
+
+Conciliação sobre o PR #32: reutiliza `FILES` e o sanitizador de imagens da IMPL-0017. Galeria é conteúdo
+institucional; logo e documentos continuam no fluxo e nas telas existentes. Não há nova tela de galeria neste PR.
+As fotos dependem de `NGO_PHOTOS_ENABLED="true"`, desligada em produção e staging. Escritas/leitura privada também
+precisam de `ACCOUNTS_ENABLED`; conteúdo já aprovado pode ser lido sem conta. Sem `FILES`, fotos retornam `503`.
+
+| Rota | Contrato |
+|---|---|
+| `GET /ngos/:id` | `{ngo: {id, name, summary, description, city, tags, projects, lotId, photos}}` |
+| `POST /ngo/photos?ngoId=:id&position=0` | bytes crus PNG/JPEG, `Content-Type`, `X-Vila-Account`, `X-Vila-Caption: encodeURIComponent(legenda)`; `201 {photo}` pendente |
+| `GET /ngo/photos?ngoId=:id` | `{photos}` só da própria ONG |
+| `GET /admin/ngos/:id/photos` | `{photos}` para admin |
+| `GET`/`HEAD /ngo/photos/:id/content` | bytes privados para responsável |
+| `GET`/`HEAD /admin/ngo-photos/:id/content` | bytes privados para admin |
+| `POST /admin/ngo-photos/:id/decision` | JSON `{accountId, revision, action: "approve" | "reject" | "remove"}`; `200 {photo}` |
+| `GET`/`HEAD /ngos/:ngoId/photos/:photoId` | bytes apenas da foto aprovada, ONG publicada e terreno realmente publicado |
+
+O perfil público retorna `404` sem a associação publicada, mesmo que `requested_lot_id` exista. Expõe só campos
+públicos e projetos `{title, description}`; nunca CNPJ, contato, declarações, documentos, revisão, parecer ou chave
+R2. `photos` é `[]` com galeria desligada; quando ligada contém apenas `{id, url, caption, position}` aprovados,
+ordenados por posição e id. Perfil, fotos e logo público usam `no-store` e revogam a próxima leitura após retirada
+ou despublicação dos dados. A conciliação da operação de retirada do PR #33 é uma próxima entrega separada.
+
+Upload: responsável verificado; até 10 fotos não removidas; posição inteira 0–9; legenda opcional com até 240
+pontos de código Unicode, enviada no cabeçalho (máximo 3000 caracteres codificados), **nunca na URL**. PNG/JPEG
+até 2 MiB, 4096 px por lado e 16 milhões de pixels. WebP e SVG não são aceitos. Assinatura e estrutura são
+verificadas; EXIF/XMP/comentários/texto são removidos pelo sanitizador compartilhado. Isso não é antivírus nem
+uma decodificação completa da imagem. A API não aceita o antigo corpo JSON/base64 do PR #29.
+
+A resposta privada `photo` contém `{id, ngoId, caption, position, status, revision, contentType, byteSize,
+previewUrl}`. Revisão própria da foto, separada da candidatura. Admin não revisa sua própria ONG; só `pending`
+pode ser aprovada/rejeitada, `remove` torna a foto inacessível antes de tentar apagar os bytes. Decisões usam
+revisão e token exclusivo e gravam `ngo.photo.approve|reject|remove`. Não são exigidos documentos adicionais.
+
+Erros: `400 invalid_photo_metadata` (posição/legenda), `400 file_type|file_mismatch|file_invalid|image_too_large`,
+`413 too_large` (limite de corpo), `409 photo_limit_or_owner_changed`, `409 stale_revision`,
+`409 photo_object_missing`, `403 self_review`, além dos erros comuns de sessão/origem. A mesma cota
+`FILE_LIMITER` do envio canônico se aplica. Imagens de outra ONG, pendentes ou removidas retornam `404` ao público.
+
+Ao excluir a conta, fotos aprovadas de ONG `published` permanecem como conteúdo institucional, assim como o
+logo; as demais são removidas. Retenção por status é distinta de visibilidade: sem terreno publicado nenhum
+conteúdo institucional é servido. Essa retenção é PROPOSTA operacional, pendente de validação em OQ-15.
 
 ### Análise administrativa (DEC-037)
 

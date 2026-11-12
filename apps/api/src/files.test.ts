@@ -141,10 +141,10 @@ describe("feature flag", () => {
     expect(r.body.lots[0]).toMatchObject({ id: "plaza-01", ngo_logo: null });
   });
 
-  it("lets the browser send the account header (CORS preflight)", async () => {
-    const res = await send("OPTIONS", "/ngo/application/files?kind=logo", { headers: { "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,x-vila-account" } });
+  it("lets the browser send account and gallery caption headers (CORS preflight)", async () => {
+    const res = await send("OPTIONS", "/ngo/application/files?kind=logo", { headers: { "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,x-vila-account,x-vila-caption" } });
     expect(res.status).toBe(204);
-    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, X-Vila-Account");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, X-Vila-Account, X-Vila-Caption");
     expect(res.headers.get("Access-Control-Allow-Methods")).toContain("DELETE");
   });
 });
@@ -345,7 +345,7 @@ describe("review and publication", () => {
       "content-disposition": "inline",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
-      "cache-control": "public, max-age=300",
+      "cache-control": "no-store",
       "cross-origin-resource-policy": "cross-origin",
       etag: `"${logo.id}"`,
     });

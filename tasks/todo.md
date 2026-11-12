@@ -504,3 +504,15 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - Worktrees share remote-tracking refs: `origin/main` moved under this branch while other sessions fetched.
   Check `git log origin/main` again before the last commit and rebase the work onto it.
 - The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.
+
+
+## Conciliação de arquivos de ONG — 2026-11-12 (IMPL-0021, PR para Augusto)
+
+- [x] Reutilizar pipeline/UI do #32 e preservar migration 0006; não portar pipeline privado duplicado do #31.
+- [x] Adaptar perfil/galeria do #28/#29 ao mesmo FILES, sanitizador compartilhado e upload cru.
+- [x] CAS por estado/revisão, auditoria por token, snapshot candidatura+arquivos e exclusão retomável de conta.
+- [x] Migration 0010, ambiente local isolado, testes de concorrência/galeria e contrato API/storage documentados.
+- [ ] Executar gates locais e smoke integrado; evidência pelo coordenador antes do PR.
+- [ ] Revisão do Augusto e decisão operacional sobre galeria/retenção (OQ-15).
+- [ ] Conciliar retirada do #33 numa próxima entrega; compatibilidade ainda não declarada.
+- [ ] Provisionamento/ativação remota somente em entrega autorizada após revisão.

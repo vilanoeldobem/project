@@ -57,7 +57,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   ECA Digital review. Never flip it, grant `admin` remotely or apply remote migrations without explicit approval.
 - NGO files (IMPL-0017) stay behind `NGO_FILES_ENABLED` ("false" in production): the list of required documents is
   PENDENTE (PEN-019), so no document is required or named. Never flip the flag or create the bucket without explicit
-  approval. Only the logo of a published NGO is ever public.
+  approval. The logo requires a published NGO and actual published lot. Institutional gallery photos are a
+  separate reviewed type: read [IMPL-0021](docs/decisions/0021-ngo-files-reconciliation.md) before changing their
+  storage or access. Only individually approved gallery photos of a published NGO/lot may also be public;
+  documents remain private. `NGO_PHOTOS_ENABLED` stays off until its operational review.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -75,9 +78,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
-- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
-  application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket
-  never gets a public URL, no file name is stored, and `ngo_files` in D1 decides who may read what. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
+- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds the bytes of NGO
+  application files (IMPL-0017, behind `NGO_FILES_ENABLED`) and separately reviewed gallery photos (IMPL-0021,
+  behind `NGO_PHOTOS_ENABLED`), both PROPOSTA: every read goes through the API, the bucket
+  never gets a public URL, no file name is stored, and `ngo_files` / `ngo_photos` in D1 decide who may read what. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay

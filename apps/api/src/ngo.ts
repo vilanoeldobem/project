@@ -11,7 +11,8 @@
 import { validateApplication, type NgoApplication } from "@vila/shared/accounts/validate";
 
 import { newId } from "./crypto";
-import { listFiles } from "./files";
+import { filesBucket } from "./files";
+import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { assertAccount, requireUser } from "./session";
 import type { Env } from "./api";
@@ -63,15 +64,27 @@ export async function myApplication(env: Env, userId: string): Promise<NgoRow | 
   return env.DB!.prepare("SELECT * FROM ngos WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1").bind(userId).first<NgoRow>();
 }
 
+/** Application and file list share one SQL snapshot, so the admin cannot approve mismatched evidence. */
+export async function applicationSnapshot(env: Env, value: string, byOwner = false) {
+  const fileList = filesBucket(env) ? `COALESCE((SELECT json_group_array(json_object(
+    'id',id,'kind',kind,'contentType',content_type,'size',size,'createdAt',created_at))
+    FROM (SELECT * FROM ngo_files WHERE ngo_id = n.id ORDER BY kind = 'logo' DESC,created_at,id)), '[]')` : "'[]'";
+  const row = await env.DB!.prepare(`SELECT n.*, ${fileList} AS file_snapshot FROM ngos n
+    WHERE ${byOwner ? "n.applicant_id" : "n.id"} = ? ORDER BY n.created_at DESC LIMIT 1`)
+    .bind(value).first<NgoRow & { file_snapshot: string }>();
+  return { row, files: row ? JSON.parse(row.file_snapshot) as ApplicationFile[] : [] };
+}
+
 export async function getApplication(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
-  const row = await myApplication(env, user.id);
-  return json({ application: row ? applicationView(row) : null, files: row ? await listFiles(env, row.id) : [] }, { headers: NO_STORE });
+  const { row, files } = await applicationSnapshot(env, user.id, true);
+  return json({ application: row ? applicationView(row) : null, files }, { headers: NO_STORE });
 }
 
 export async function submitApplication(request: Request, env: Env, today = new Date()): Promise<Response> {
   const user = await requireUser(request, env);
   if (!user.verified_at) throw new HttpError(403, "not_verified");
+  if (user.files_deleting) throw new HttpError(409, "account_deleting");
   const body = await readJson(request, 32_000);
   assertAccount(body, user);
   const { value, errors } = validateApplication(body, today);
@@ -93,7 +106,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
   const now = new Date().toISOString();
   const revision = current ? current.revision + 1 : 1;
   const LOT_HELD = "EXISTS (SELECT 1 FROM lots WHERE id = ? AND ngo_id = ?)";
-  const EDITABLE = "status IN ('changes_requested', 'rejected')";
+  const EDITABLE = "status IN ('changes_requested', 'rejected') AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)";
   /*
    * One transaction where every write is guarded by the previous one: reserve the lot (only if the lot is
    * free and the application is still in the state we read) → write the application (only if the lot is
@@ -125,8 +138,9 @@ export async function submitApplication(request: Request, env: Env, today = new 
     statements.push(
       db.prepare(
         `UPDATE lots SET state = 'application_sent', ngo_id = ? WHERE id = ? AND state = 'available'
-           AND NOT EXISTS (SELECT 1 FROM ngos WHERE applicant_id = ? AND status IN ('submitted', 'under_review', 'changes_requested', 'published'))`
-      ).bind(ngoId, value.lotId, user.id),
+           AND NOT EXISTS (SELECT 1 FROM ngos WHERE applicant_id = ? AND status IN ('submitted', 'under_review', 'changes_requested', 'published'))
+           AND EXISTS (SELECT 1 FROM users WHERE id = ? AND files_deleting = 0)`
+      ).bind(ngoId, value.lotId, user.id, user.id),
       db.prepare(
         `INSERT INTO ngos (name, cnpj, cnpj_opened_on, city, summary, description, funds_confirmation, declarations, tags, projects,
                            requested_lot_id, id, applicant_id, status)
@@ -155,6 +169,6 @@ export async function submitApplication(request: Request, env: Env, today = new 
     if (dup) throw new HttpError(409, "cnpj_in_use", { cnpj: "Já existe uma candidatura com esse CNPJ." });
     throw new HttpError(409, "lot_unavailable", { lotId: "Esse terreno acabou de ser escolhido. Escolha outro." });
   }
-  const row = await myApplication(env, user.id);
-  return json({ application: applicationView(row!), files: await listFiles(env, row!.id) }, { status: current ? 200 : 201, headers: NO_STORE });
+  const { row, files } = await applicationSnapshot(env, ngoId);
+  return json({ application: applicationView(row!), files }, { status: current ? 200 : 201, headers: NO_STORE });
 }

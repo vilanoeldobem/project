@@ -60,7 +60,7 @@ export async function listFiles(env: Env, ngoId: string): Promise<ApplicationFil
 }
 
 /** Same guard as `assertAccount`, for writes whose body is the file itself. */
-function assertAccountHeader(request: Request, user: User): void {
+export function assertAccountHeader(request: Request, user: User): void {
   if (request.headers.get("X-Vila-Account") !== user.id) throw new HttpError(409, "account_changed");
 }
 
@@ -74,13 +74,14 @@ async function discard(bucket: R2Bucket, keys: string | string[]): Promise<void>
   }
 }
 
-const OPEN = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ? AND status != 'published')";
+const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)";
 
 export async function uploadFile(request: Request, env: Env, url: URL): Promise<Response> {
   const bucket = requireBucket(env);
   const user = await requireUser(request, env);
   if (!user.verified_at) throw new HttpError(403, "not_verified");
   assertAccountHeader(request, user);
+  if (user.files_deleting) throw new HttpError(409, "account_deleting");
   if (env.FILE_LIMITER && !(await env.FILE_LIMITER.limit({ key: user.id })).success) throw new HttpError(429, "too_many_requests");
 
   const kind = url.searchParams.get("kind");
@@ -115,27 +116,24 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
   const previousLogo = kind === "logo" ? await db.prepare("SELECT id FROM ngo_files WHERE ngo_id = ? AND kind = 'logo'").bind(app.id).first<{ id: string }>() : null;
   await bucket.put(key, check.bytes, { httpMetadata: { contentType: check.type } });
 
-  const now = new Date().toISOString();
-  const ADDED = "EXISTS (SELECT 1 FROM ngo_files WHERE id = ?)";
-  const insertAt = kind === "logo" ? 1 : 0;
+  const now = new Date().toISOString(), token = newId();
   const statements = [
-    // Each write happens only if the application is still the revision we read and not published; the
-    // revision bump and the audit row happen only if the file row was written.
-    ...(kind === "logo" ? [db.prepare(`DELETE FROM ngo_files WHERE ngo_id = ? AND kind = 'logo' AND ${OPEN}`).bind(app.id, app.id, app.revision)] : []),
-    db
-      .prepare(
-        `INSERT INTO ngo_files (id, ngo_id, kind, content_type, size, uploaded_by, created_at)
-         SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${OPEN} AND (SELECT COUNT(*) FROM ngo_files WHERE ngo_id = ? AND kind = ?) < ?`
-      )
-      .bind(id, app.id, kind, check.type, check.bytes.length, user.id, now, app.id, app.revision, app.id, kind, rule.maxCount),
-    db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND ${ADDED}`).bind(now, app.id, app.revision, id),
-    db
-      .prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_add', ?, ? WHERE ${ADDED}`)
-      .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind, file: id, revision: app.revision + 1 }), id),
+    // Claim the exact application snapshot before replacing anything. Only this operation's token may write.
+    db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
+      WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND (? = 'logo' OR (SELECT COUNT(*) FROM ngo_files WHERE ngo_id = ? AND kind = ?) < ?)`)
+      .bind(now, token, app.id, user.id, app.revision, app.status, kind, app.id, kind, rule.maxCount),
+    ...(kind === "logo" ? [db.prepare(`DELETE FROM ngo_files WHERE ngo_id = ? AND kind = 'logo' AND ${MINE}`).bind(app.id, app.id, token)] : []),
+    db.prepare(`INSERT INTO ngo_files (id, ngo_id, kind, content_type, size, uploaded_by, created_at)
+      SELECT ?, ?, ?, ?, ?, ?, ? WHERE ${MINE}`)
+      .bind(id, app.id, kind, check.type, check.bytes.length, user.id, now, app.id, token),
+    db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_add', ?, ? WHERE ${MINE}`)
+      .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind, file: id, revision: app.revision + 1 }), app.id, token),
   ];
   let written = 0;
   try {
-    written = (await db.batch(statements))[insertAt].meta.changes;
+    written = (await db.batch(statements))[0].meta.changes;
   } catch (e) {
     await discard(bucket, key);
     throw e;
@@ -154,20 +152,23 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
   const bucket = requireBucket(env);
   const user = await requireUser(request, env);
   assertAccountHeader(request, user);
+  if (user.files_deleting) throw new HttpError(409, "account_deleting");
   const db = env.DB!;
   const app = await myApplication(env, user.id);
   const row = app ? await db.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE id = ? AND ngo_id = ?`).bind(fileId, app.id).first<FileRow>() : null;
   if (!app || !row) throw new HttpError(404, "not_found");
   if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
 
-  const now = new Date().toISOString();
-  const GONE = "NOT EXISTS (SELECT 1 FROM ngo_files WHERE id = ?)";
+  const now = new Date().toISOString(), token = newId();
   const [removed] = await db.batch([
-    db.prepare(`DELETE FROM ngo_files WHERE id = ? AND ngo_id = ? AND ${OPEN}`).bind(fileId, app.id, app.id, app.revision),
-    db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ? WHERE id = ? AND revision = ? AND ${GONE}`).bind(now, app.id, app.revision, fileId),
-    db
-      .prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_remove', ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ?)`)
-      .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind: row.kind, file: fileId, revision: app.revision + 1 }), app.id, app.revision + 1),
+    db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
+      WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ?)`)
+      .bind(now, token, app.id, user.id, app.revision, app.status, fileId, app.id),
+    db.prepare(`DELETE FROM ngo_files WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(fileId, app.id, app.id, token),
+    db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_remove', ?, ? WHERE ${MINE}`)
+      .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind: row.kind, file: fileId, revision: app.revision + 1 }), app.id, token),
   ]);
   if (!removed.meta.changes) throw new HttpError(409, "application_changed");
   await discard(bucket, objectKey(app.id, fileId));
@@ -234,14 +235,15 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
   if (!env.DB) throw new HttpError(503, "db_unavailable");
   const row = await env.DB.prepare(
     `SELECT f.id, f.ngo_id, f.kind, f.content_type, f.size, f.created_at FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id
-      WHERE n.id = ? AND n.status = 'published' AND f.kind = 'logo'`
+      WHERE n.id = ? AND n.status = 'published' AND f.kind = 'logo'
+        AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')`
   )
     .bind(ngoId)
     .first<FileRow>();
   if (!row) throw new HttpError(404, "not_found");
   const etag = `"${row.id}"`;
   // Other sites may show the logo (the game is another origin); it is public by definition.
-  const shared = { "Cache-Control": "public, max-age=300", ETag: etag, "Cross-Origin-Resource-Policy": "cross-origin" };
+  const shared = { ...NO_STORE, ETag: etag, "Cross-Origin-Resource-Policy": "cross-origin" };
   if (request.headers.get("If-None-Match") === etag) return new Response(null, { status: 304, headers: shared });
   return serve(await load(bucket, row), row, shared);
 }
@@ -249,16 +251,23 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
 /**
  * Account deletion (LGPD): the applicant's documents go with the account, and so does the logo of an
  * application that was never published. The logo of a published NGO stays, like the NGO itself.
- * Runs whenever the bucket is bound, even with the feature switched off later: deletion must still reach R2.
+ * Approved gallery photos of a published NGO also stay; other gallery photos are removed.
+ * Runs even with feature flags off. Missing storage with owned metadata fails closed, preserving the account.
  * The objects are removed before the rows: if the request dies in between, bytes are gone and rows are not,
  * never the opposite. Returns the statements that drop the rows, for the caller's transaction.
  */
 export async function removeFilesOfAccount(env: Env, userId: string): Promise<D1PreparedStatement[]> {
-  if (!env.FILES) return [];
   const db = env.DB!;
+  // DELETE /me has already frozen owner mutations and administrative decisions with files_deleting.
   const DOOMED = "FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id WHERE n.applicant_id = ? AND (f.kind = 'document' OR n.status != 'published')";
+  const PHOTOS = "FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE n.applicant_id = ? AND (n.status != 'published' OR p.status != 'approved')";
   const { results } = await db.prepare(`SELECT f.id, f.ngo_id ${DOOMED}`).bind(userId).all<{ id: string; ngo_id: string }>();
-  if (!results.length) return [];
-  await env.FILES.delete(results.map((r) => objectKey(r.ngo_id, r.id)));
-  return [db.prepare(`DELETE FROM ngo_files WHERE id IN (SELECT f.id ${DOOMED})`).bind(userId)];
+  const { results: photos } = await db.prepare(`SELECT p.id, p.object_key ${PHOTOS}`).bind(userId).all<{ id: string; object_key: string }>();
+  if (!results.length && !photos.length) return [];
+  if (!env.FILES) throw new HttpError(503, "files_unavailable");
+  await env.FILES.delete([...results.map((r) => objectKey(r.ngo_id, r.id)), ...photos.map((p) => p.object_key)]);
+  return [
+    db.prepare(`DELETE FROM ngo_files WHERE id IN (SELECT f.id ${DOOMED})`).bind(userId),
+    db.prepare(`DELETE FROM ngo_photos WHERE id IN (SELECT p.id ${PHOTOS})`).bind(userId),
+  ];
 }

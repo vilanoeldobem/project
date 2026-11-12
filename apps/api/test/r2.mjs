@@ -27,6 +27,10 @@ export function createR2() {
       if (!object) return null;
       return { key, size: object.bytes.length, httpMetadata: object.httpMetadata, body: new Response(object.bytes).body };
     },
+    async head(key) {
+      const object = objects.get(key);
+      return object ? { key, size: object.bytes.length, httpMetadata: object.httpMetadata } : null;
+    },
     async delete(keys) {
       maybeFail("delete");
       for (const key of [].concat(keys)) objects.delete(key);

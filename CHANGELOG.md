@@ -9,6 +9,20 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — conciliação dos arquivos e galeria de ONGs (PR, PROPOSTA)
+
+- Reaproveita o PR #32: `FILES`, `ngo_files`, uploads crus, sanitizador e telas de logo/documentos permanecem
+  canônicos. Perfil público e galeria dos PRs #28/#29 são adaptados a esse bucket, sem o pipeline concorrente
+  de documentos do #31. Galeria PNG/JPEG com aprovação individual, desligada em produção/staging (IMPL-0021).
+- Migration 0010 preserva 0006; acrescenta galeria, token exclusivo de escrita e intenção durável de exclusão.
+  Requer revisão do histórico antes de aplicar; não importa migrations 0007–0009 nem a retirada do PR #33.
+- Candidatura e arquivos compartilham snapshot SQL. Estado/revisão exatos e token exclusivo impedem escrita
+  atrasada e auditoria duplicada; edição em `under_review` continua permitida como no #32.
+- Exclusão de conta congela as evidências antes da limpeza R2 e permite retomar em falha. Incrementa a revisão
+  final para invalidar decisões antigas; mantém política de conservar logo e fotos aprovadas de ONG publicada.
+- Logo público passa a exigir terreno publicado e `no-store`, como o perfil e a galeria. Nenhuma alteração de jogo,
+  deploy, migration remota ou ativação pública faz parte desta entrega.
+
 ### Changed — deploy de 2026-11-12
 
 - Os cinco Workers foram publicados a partir da `main` (`e2fa200`): API, servidor, painel administrativo
