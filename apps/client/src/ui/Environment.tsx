@@ -24,6 +24,9 @@ function useFrameSample(ms: number) {
   return frame;
 }
 
+/** Shown (and read aloud) while the presence connection is paused for inactivity (IMPL-0014). */
+const IDLE_NOTICE = "Outros visitantes em pausa por inatividade. A conexão volta no seu próximo toque, clique ou tecla.";
+
 /** HUD chip: São Paulo time + shared weather; opens the "Ambiente" panel. Also the sky-view toggle. */
 export function EnvironmentChip() {
   const f = useFrameSample(1000);
@@ -47,6 +50,12 @@ export function EnvironmentChip() {
       {net.status === "online" && (
         <span className="btn btn--chip env-chip__people" role="status" aria-label={`${net.others + 1} ${net.others ? "visitantes" : "visitante"} nesta praça agora`}>
           👥 {net.others + 1}
+        </span>
+      )}
+      {/* Paused for inactivity (IMPL-0014): a plain statement, no call to action; any input reconnects. */}
+      {net.status === "idle" && (
+        <span className="btn btn--chip env-chip__people" role="status" aria-label={IDLE_NOTICE} title={IDLE_NOTICE}>
+          👥 em pausa
         </span>
       )}
       <button
@@ -75,6 +84,7 @@ const NET_NOTE: Record<NetStatus, string> = {
   online: "Conectado.",
   full: "Todas as praças estão cheias agora; tentamos de novo em instantes.",
   offline: "Sem conexão com a Vila; tentando de novo.",
+  idle: "Em pausa por inatividade; a conexão volta no seu próximo toque, clique ou tecla.",
 };
 
 const QUALITY_NAME = { low: "Baixa", medium: "Média", high: "Alta", ultra: "Ultra" } as const;
