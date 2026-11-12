@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -56,8 +56,11 @@ região na América do Sul; `enam` é a mais próxima).
 pnpm --filter @vila/api db:migrate:remote
 ```
 
-Exige autorização humana explícita. Aplique **junto** com o deploy da API que usa o schema novo (na 0.4.0, a
-migration `0004_accounts_ngo_applications.sql`; ver [§7](#7-contas-e-ongs-040)).
+Exige autorização humana explícita. Confira o histórico remoto e aplique a sequência efetiva antes de
+disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007;
+operações que encontrem colunas novas ausentes retornam `503 schema_outdated`. As rotas públicas continuam
+tolerantes à v3, inclusive `/ngos/:id`; isso não dispensa o upgrade antes de ativar as contas. O último estado
+registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
 
 ## 4. Publicar
 
@@ -174,17 +177,19 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 
 ### 7.1 Ordem do deploy da 0.4.0
 
-1. **Migration remota 0004 + API, juntas** (ambas exigem autorização):
+1. **Migrations sequenciais até 0007 + API** (ambas exigem autorização):
 
    ```bash
-   pnpm --filter @vila/api db:migrate:remote     # aplica 0004_accounts_ngo_applications.sql
+   pnpm --filter @vila/api db:migrate:remote     # aplica somente as migrations pendentes da sequência revisada
    pnpm deploy:api
    curl -s https://api.vilanoeldobem.com.br/health    # "db":true
    curl -s https://api.vilanoeldobem.com.br/config    # {"accounts":false}
    ```
 
-   A 0004 só cria tabelas e acrescenta colunas em `ngos`: a API anterior continua funcionando com ela, então a
-   migration pode ir um pouco antes do deploy, nunca depois.
+   Aplique a sequência revisada antes de ativar o fluxo de contas. 0006 contém os arquivos canônicos e 0007
+   contém a galeria e guardas. O perfil público funciona na v3 com campos opcionais ausentes tratados como
+   vazios; teste uma ONG inexistente em `GET /ngos/00000000-0000-4000-8000-000000000000` → 404. Isso não afirma
+   que o banco remoto já recebeu as migrations.
 2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
 3. Smoke e `verify.mjs` como em [§4](#4-publicar).
 
@@ -321,10 +326,12 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
    `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
    já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
-2. **Migration 0006 + API**, como no [§7.1](#71-ordem-do-deploy-da-040): `pnpm --filter @vila/api db:migrate:remote`
-   (aplica também a 0004 e a 0005, se ainda faltarem) e `pnpm deploy:api`. A 0006 só cria a tabela `ngo_files`: a
-   API anterior continua funcionando com ela. Com as contas desligadas a API nova não lê essa tabela, mas ela tem
-   de existir **antes** de ligar as contas (`DELETE /me` a consulta sempre que o bucket está ligado).
+2. **Migrations sequenciais até 0007 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
+   explícita. A 0006 contém arquivos canônicos; a 0007 contém galeria e guardas usados em todas as rotas de
+   sessão. **Se contas já estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado**
+   com `503 schema_outdated`, mesmo com fotos desligadas. Cadastro/link/logout não provam que a sessão funciona.
+   Aplicar a sequência antes da API e conferir `/me` com sessão sintética de homologação. O código anterior é
+   compatível com as colunas/tabelas adicionais. Esta orientação não afirma aplicação no banco remoto.
 3. **Conferir:**
 
    ```bash
@@ -350,6 +357,16 @@ logos das ONGs publicadas deixam de aparecer e a exclusão de conta continua apa
 `wrangler rollback` da API ([§6](#6-reverter)) é seguro **enquanto o envio nunca tiver sido ligado**: a versão
 anterior ignora a tabela e o bucket. Depois de ligado, uma versão anterior a esta não apaga os documentos do R2 na
 exclusão de conta: não reverta para antes dela; desligue a bandeira. A migration 0006 não é revertida. Apagar o bucket apaga os arquivos de todas as ONGs e é mudança de recurso: exige autorização.
+
+### 9.4 Galeria institucional — ainda desligada
+
+`NGO_PHOTOS_ENABLED` permanece `"false"` em produção. A galeria usa o mesmo `FILES` privado e exige a
+migration 0007, contas operacionais, aceite explícito do responsável técnico à exceção proposta na regra de
+publicação e as decisões da OQ-15 (direitos de imagem, registro de autorização e retenção após rejeitar a ONG).
+Uma implementação testada não autoriza ligar a bandeira nem criar recursos. Conferir remoção pelo responsável,
+rejeição individual, recuperação de falhas de limpeza e exclusão de conta em homologação antes de pedir ativação.
+A interface de edição/revisão da galeria é outra entrega. Desligar a bandeira interrompe upload/publicação,
+preservando operações autenticadas de remoção e recuperação.
 
 ## Limitações conhecidas
 

@@ -30,3 +30,16 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Local media lifecycle (workerd, D1, R2)
+        run: node scripts/verify-media-local.mjs
+        timeout-minutes: 3
+      - name: Install pinned Chromium for the existing account flow
+        run: pnpm --filter @vila/client exec playwright-core install --with-deps chromium
+      - name: Build loopback game and dashboard assets
+        run: |
+          pnpm --filter @vila/client run build:local
+          pnpm --filter @vila/dash run build:local
+      - name: Browser account and file flow (analytics stubbed)
+        run: |
+          CHROMIUM_PATH="$(pnpm --filter @vila/client exec node -p 'require("playwright-core").chromium.executablePath()')" node scripts/verify-media-local.mjs --browser
+        timeout-minutes: 9

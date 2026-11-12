@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Local simulator only. Use --local -c wrangler.reconciliation-local.jsonc; never deploy this config.
+  // Standalone: no production account, domains, database IDs, bucket names, mail or rate-limit bindings.
+  "name": "vilanoeldobem-api-reconciliation-local",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "routes": [],
+  "workers_dev": false,
+  "preview_urls": false,
+  "ratelimits": [],
+  "vars": {
+    "ENVIRONMENT": "development",
+    "ACCOUNTS_ENABLED": "true",
+    "NGO_FILES_ENABLED": "true",
+    "NGO_PHOTOS_ENABLED": "true",
+    "QUESTS_V1_ENABLED": "false",
+    "MAIL_FROM": "",
+    "ALLOWED_ORIGINS": "http://localhost:8799,http://localhost:8797,http://localhost:5173",
+    "ACCOUNT_ORIGINS": "http://localhost:8799,http://localhost:8797,http://localhost:5173",
+    "GAME_ORIGIN": "http://localhost:8799",
+    "DASH_ORIGIN": "http://localhost:8797"
+  },
+  "d1_databases": [{
+    "binding": "DB", "database_name": "ngo-media-review-local",
+    "database_id": "00000000-0000-0000-0000-000000000007",
+    "migrations_dir": "../../migrations", "remote": false
+  }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "ngo-media-review-local", "remote": false }]
+}

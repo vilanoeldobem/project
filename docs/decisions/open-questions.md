@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 7 abertas · **Atualizado em:** 2026-11-12
+> **Status:** 8 abertas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -14,9 +14,25 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-04 | Rota de entrega: A (integral) ou B (núcleo)? | A / B | Implementar B primeiro | ROADMAP | doc 23, M01 |
 | OQ-05 | Ângulo, zoom e controles finais da câmera; orçamento de desempenho em celular | — | Diagonal de cima, deslocamento (0,24,21) com zoom do jogador 0,55–1,6×; andar só por clique/toque; vista opcional "Olhar o céu" (IMPL-0006) | G12 | doc 17, G12 |
 | OQ-09 | Uma missão aceita pode ser abandonada? Hoje não há essa transição. `newest-house-visit` pede a visita a uma casa publicada: se a única ONG publicada sair da Vila depois do `accept`, a missão não termina e, como só há uma missão ativa por vez, nenhuma outra pode ser aceita | permitir abandonar (volta a "disponível") / concluir ou liberar a missão automaticamente quando o objetivo deixa de existir / manter como está | Sem transição de abandono; a missão só é oferecida enquanto existe uma casa publicada; `quests-v1` desligada em produção (IMPL-0013) | Ligar `quests-v1` em produção (PEN-025) | revisão do PR #19; [IMPL-0013](0013-quests-v1-runtime.md) |
-| OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); só mutações gravam `audit_events`; menu atual como PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), DEC-037 |
-| OQ-12 | Arquivos das candidaturas de ONG: quais documentos a organização deve enviar (PEN-019)? Por quanto tempo ficam guardados depois da decisão (aprovação ou rejeição)? Quem, além dos admins, pode lê-los? | lista fechada de documentos / só opcionais; prazo fixo depois da decisão / até a exclusão da conta | Nenhum documento obrigatório nem nomeado; até 5 opcionais; ficam até a pessoa remover ou excluir a conta; só quem enviou e admins leem, com leitura auditada; envio desligado em produção (`NGO_FILES_ENABLED`) | ligar o envio de arquivos; revisão LGPD / ECA Digital | [IMPL-0017](0017-ngo-files-r2.md), PEN-019 |
+| OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); mutações gravam `audit_events`, e a leitura de comprovantes já é auditada conforme IMPL-0017; demais consultas e menu seguem PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), [IMPL-0017](0017-ngo-files-r2.md), DEC-037 |
+| OQ-12 | Arquivos das candidaturas de ONG: quais documentos a organização deve enviar (PEN-019)? Por quanto tempo ficam guardados depois da decisão (aprovação ou rejeição)? Quem, além dos admins, pode lê-los? | lista fechada de documentos / só opcionais; prazo fixo depois da decisão / até a exclusão da conta | Nenhum documento obrigatório nem nomeado; até 5 opcionais; ficam até a pessoa remover (fora de análise/publicação) ou excluir a conta; só quem enviou e admins leem, com leitura administrativa auditada e disponível com bucket ligado mesmo se o envio estiver desligado; envio desligado em produção (`NGO_FILES_ENABLED`) | ligar o envio de arquivos; revisão LGPD / ECA Digital | [IMPL-0017](0017-ngo-files-r2.md), PEN-019 |
 | OQ-13 | Medição com Google: desde 2026-11-12 a tag do Google (GTM) tenta enviar dados também para `analytics.google.com`, `www.google.com`, `stats.g.doubleclick.net` e `google.com.br/ads/ga-audiences` (Google Signals / públicos de anúncios). A CSP do jogo bloqueia esses destinos: cada bloqueio é um erro de console, parte da medição se perde e `verify.mjs` / `verify-live.mjs` falham. O que fazer? | desligar o Google Signals e os recursos de publicidade na propriedade do Google Analytics / liberar esses hosts na CSP | **Não liberar**: menores são público provável (ECA Digital, LGPD) e esses destinos servem a publicidade. Desligar Google Signals e personalização de anúncios no Google Analytics; a CSP fica como está | medição confiável; `verify.mjs` e `verify-live.mjs` voltarem a passar | conferência em produção de 2026-11-12; [deploy §5](../guides/deploy.md#5-site-público-e-domínios) |
+| OQ-15 | Galeria institucional conciliada: ratificar quantidade, tamanho, PNG/JPEG, dimensões, direitos de imagem, consentimentos, retenção e procedimento para órfãos? Como tratar fotos depois da exclusão da conta? | Ratificar a proposta ou ajustar antes de receber arquivos reais; definir retenção por estado editorial | Galeria com revisão individual, no bucket privado `FILES`, separada de logo/comprovantes; PNG/JPEG tratados pelo parser compartilhado; `NGO_PHOTOS_ENABLED` desligada. Sem WebP nesta versão. Exclusão da conta remove toda a galeria, inclusive fotos aprovadas; leitura pública exige terreno publicado. Texto/versionamento da declaração e conferência de direitos de imagem aguardam decisão operacional | Ativar galeria e receber fotos reais; integração visual posterior | [IMPL-0018](0018-ngo-files-reconciliation.md), DEC-028/037, PEN-019 |
+
+**OQ-15, o que só o dono do produto responde (revisão do PR #35).** O código da galeria é PROPOSTA e não decide
+nenhum destes pontos; **`NGO_PHOTOS_ENABLED` fica `"false"` até a resposta**:
+
+1. **Direitos de imagem e consentimento:** hoje o envio de uma foto **não pede nem registra** declaração de
+   direitos de imagem ou de consentimento das pessoas retratadas (menores são público provável: ECA Digital,
+   LGPD). Qual é o texto, quem declara, e como a declaração é versionada e guardada?
+2. **Retenção depois de rejeitar a candidatura da ONG:** a rejeição bloqueia novos envios e mantém as fotos
+   privadas, mas **não apaga** os bytes (a rejeição individual de uma foto apaga). Por quanto tempo ficam, e quem
+   descarta? Até a resposta, só o responsável (remoção foto a foto ou exclusão da conta) ou um admin as remove;
+   não se presume retenção indefinida aprovada.
+3. **Retenção dos registros** de fotos rejeitadas ou removidas (linhas sem legenda nem bytes, mantidas para a
+   auditoria): prazo e descarte.
+
+OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo a questão de analytics do PR #32.
 
 ## Resolvidas
 

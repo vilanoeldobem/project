@@ -504,3 +504,70 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - Worktrees share remote-tracking refs: `origin/main` moved under this branch while other sessions fetched.
   Check `git log origin/main` again before the last commit and rebase the work onto it.
 - The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.
+
+
+## NGO files reconciliation — 2026-11-12 (IMPL-0018, PR for Augusto)
+
+- [x] Reuse PR #32 pipeline/UI at `49db536` (0.4.0), preserve migration 0006; do not port the duplicate PR #31 pipeline.
+- [x] Adapt PR #28/#29 profile/gallery to the same FILES bucket, shared sanitizer and raw uploads.
+- [x] Preserve current upstream locks during under_review, server-read revision for start_review, admin reads with uploads disabled, file-change limits and missing-0006 public fallbacks.
+- [x] Exact state/revision CAS, operation-token audit, application+files snapshot and resumable account deletion with final revision bump.
+- [x] Migration 0007, isolated local environment, concurrency/gallery tests and API/storage contract documented.
+- [x] Rerun local gates and integrated smoke on the updated PR #32 base; evidence below.
+- [ ] Augusto review and operational decision on gallery/retention (OQ-15).
+- [ ] Port PR #33 withdrawal in a separate delivery; compatibility is not claimed yet.
+- [ ] Remote provisioning/activation only in an authorised delivery after review.
+
+### Historical validation — before review corrections (`0921674`)
+
+Base: `49db536a50c96f66e49c982d920b9624bc014306`; Node 24.22.2 / pnpm 10.32.1 on Linux.
+Serial commands with low priority, two CPU threads and at most two Vitest workers:
+
+- `pnpm --workspace-concurrency=1 -r run typecheck`: all 6 packages passed.
+- `pnpm --workspace-concurrency=1 -r run test --maxWorkers=2`: 569 passed (shared 146, API 159, client 179, dash 53, server 23, site 9).
+- `pnpm --workspace-concurrency=1 -r run build`: passed; Worker builds use dry-run, no deploy.
+- Local migrations 0001–0006 plus the then-numbered 0010; `verify-files-reconciliation.mjs`: passed against isolated workerd/D1/R2. The revised sequence is validated separately below.
+- `sh scripts/smoke-api.sh http://localhost:8792 http://localhost:8788 http://localhost:8799`: 14 checks passed.
+- `verify-accounts.mjs` with the isolated API, Linux Chromium and GTM stub: passed; actual PNG/JPEG, private document upload/download/removal, changes requested/resubmission, admin approval/audit and public logo.
+- First browser attempt timed out with two active software-rendered scenes; parking the unused page (same context/cookies) allowed the complete rerun to pass. Product UI unchanged.
+- `git diff --check`: passed. Source review gate approved with no open P1/P2.
+
+Reproduction and limits: [delivery record](../docs/implementation/ngo-files-reconciliation-report.md).
+Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote infrastructure. Gallery UI remains a separate increment.
+
+### Review corrections — validated in CI; operational policy pending
+
+- [x] Separate local config and new synthetic database/bucket; production config has no local account-enabled environment.
+- [x] Sequential migration0007/ADR0018 for the agreed #32→#35→#30 merge order; old local state preserved.
+- [x] Indexed delivery record, neutral roles, public-field/privacy and schema reference fixes.
+- [x] Gallery removal/retry, account erasure, read audit, review receipts and durable canonical/gallery upload cleanup implemented and tested.
+- [x] Typecheck, 593 tests, build, real workerd/D1/R2 lifecycle and Chromium account/file/disclosure flow passed on `bb1c813` in [CI](https://github.com/vilanoeldobem/project/actions/runs/43272168427/job/131371240921).
+- [ ] Image rights/consent policy and its approval/version record remain unresolved (review #29.3, OQ-15); production flags stay off.
+- [ ] Augusto review; passing CI does not approve merge or activation.
+
+
+### Direct PR35 review — second correction round
+
+- [x] Pending erasure exposed in owner/admin contracts and UI; retry retained, admin rejection can release an open application's lot, other decisions blocked explicitly.
+- [x] Public ETag/no-cache revalidation, legacy public-photo404,16 profile flag/bucket combinations and gallery FK without cascade.
+- [x] Types,621 unit/integration/render tests and static review passed locally with bounded resources.
+- Build and real Worker/browser results for this revision are recorded in the [PR checks](https://github.com/vilanoeldobem/project/pull/35/checks).
+- [ ] Technical-owner sign-off for the proposed gallery exception; OQ-15 consent and application-rejection retention; no activation authorised.
+
+### Pre-merge pass on the 12 findings of the PR35 review (after `fa65004`)
+
+Each finding was re-checked against the code, not the commit messages. Already closed at `fa65004`: 1, 5, 6, 7, 8,
+9, 10, 11 and the cheap parts of 3. Closed in this pass:
+
+- [x] Finding 2: a deletion refused for lack of the bucket, before any object is touched, no longer leaves the
+  account frozen (`auth.ts`); a freeze after an R2 failure stays, visible and retryable.
+- [x] Finding 4: `AGENTS.md` and `storage.md` carry the original rule sentences again; the gallery is a narrow,
+  explicit PROPOSTA exception.
+- [x] Findings 1, 7, 12: every always-on public route is tested on schemas v3 to v6 in all 16 flag/bucket
+  combinations (`public-ngo.test.ts`).
+- [x] Finding 3: what only the product owner can answer is listed under OQ-15 and labelled in `ngo-photos.ts`.
+- [x] `pnpm typecheck`, `pnpm test` (626: shared 146, API 212, client 181, dash 55, server 23, site 9),
+  `pnpm build`, and `node scripts/verify-media-local.mjs` (local workerd, D1, R2) passed.
+- [ ] Not run locally: the Chromium flow (`verify-media-local.mjs --browser`), which needs the CI environment.
+- [ ] Still the owner's call: the gallery exception in `AGENTS.md`, OQ-15, and applying migration 0007 before this
+  API serves signed-in accounts.

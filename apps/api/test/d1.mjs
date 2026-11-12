@@ -8,11 +8,11 @@ import { DatabaseSync } from "node:sqlite";
 
 const MIGRATIONS = new URL("../../../migrations/", import.meta.url);
 
-/** `upTo`: apply only migrations numbered up to it (production may be behind the code: `createD1({ upTo: 3 })`). */
-export function createD1({ upTo = Infinity } = {}) {
+/** `upTo` models an older database; `additionalMigrations` tests upgrades while leaving a prior feature absent. */
+export function createD1({ upTo = Infinity, additionalMigrations = [] } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
-  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && Number(f.slice(0, 4)) <= upTo).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
+  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && (Number(f.slice(0, 4)) <= upTo || additionalMigrations.includes(Number(f.slice(0, 4))))).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
 
   const statement = (sql, params = []) => ({
     sql,

@@ -224,27 +224,36 @@ export async function signOut() {
 /** Deletes the account on the server, then forgets it here (pending events included). */
 export async function deleteAccount() {
   const owner = useAccount.getState().user?.id;
-  await api.deleteMe();
+  try { await api.deleteMe(); }
+  catch (error) {
+    // A failed storage operation may already have started irreversible erasure; show the server's state.
+    await refreshing; // Finish any read started before deletion, then request the post-failure state.
+    await refreshAccount();
+    throw error;
+  }
   if (owner) savePending(owner, []);
   signedOutHere();
 }
 
 /** The account changed in another tab (409 account_changed): follow the cookie, never write across accounts. */
-let refreshing = false;
-async function refreshAccount() {
-  if (refreshing) return;
-  refreshing = true;
-  try {
-    const { user } = await api.me();
-    if (user?.id === useAccount.getState().user?.id) return;
-    signedOutHere();
-    if (user) await signedIn(user);
-    useVila.getState().notify(user ? `Você está como @${user.nickname} (a conta mudou em outra aba).` : "Você saiu da conta em outra aba.");
-  } catch {
-    /* offline: try again on the next write */
-  } finally {
-    refreshing = false;
-  }
+let refreshing: Promise<void> | null = null;
+function refreshAccount(): Promise<void> {
+  if (refreshing) return refreshing;
+  refreshing = (async () => {
+    try {
+      const { user } = await api.me();
+      if (user?.id === useAccount.getState().user?.id) {
+        useAccount.getState().setUser(user);
+        return;
+      }
+      signedOutHere();
+      if (user) await signedIn(user);
+      useVila.getState().notify(user ? `Você está como @${user.nickname} (a conta mudou em outra aba).` : "Você saiu da conta em outra aba.");
+    } catch {
+      /* offline: try again on the next write */
+    }
+  })().finally(() => { refreshing = null; });
+  return refreshing;
 }
 
 /**

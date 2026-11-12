@@ -26,6 +26,9 @@
  * give the same directory in VILA_API_PERSIST_TO, so the admin role is granted in its database:
  *   VILA_API_PERSIST_TO=/path/to/state node scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8791
  * Without the variable, wrangler's default local state of apps/api is used.
+ * An isolated config can set VILA_API_CONFIG (relative to apps/api); VILA_API_ENV and VILA_API_DB remain optional.
+ * CHROMIUM_PATH selects the local
+ * Chromium executable. VILA_STUB_ANALYTICS=1 stubs GTM only (OQ-13); that run does not validate analytics.
  *
  * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 11 of them
  * (3 sign-ups, 4 link confirmations, 2 link requests, 2 sign-outs). The run paces itself: before each of those it
@@ -119,9 +122,12 @@ const upload = (extension, mimeType, buffer) => ({ name: `${FILE_NAME}.${extensi
 const apiDir = new URL("../../api/", import.meta.url).pathname;
 /** Where the API under test keeps its local data, when not in wrangler's default place (see the header). */
 const persistTo = process.env.VILA_API_PERSIST_TO;
+const apiEnvironment = process.env.VILA_API_ENV;
+const apiConfig = process.env.VILA_API_CONFIG;
+const apiDatabase = process.env.VILA_API_DB ?? "vilanoeldobem";
 /** Runs SQL on the LOCAL D1 of the API (never remote). */
 const localSql = (command) =>
-  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
+  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", apiDatabase, "--local", ...(apiConfig ? ["--config", apiConfig] : []), ...(apiEnvironment ? ["--env", apiEnvironment] : []), ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
     cwd: apiDir,
     stdio: "pipe",
   });
@@ -171,10 +177,12 @@ if (!filesOn) console.log("note: /config says files are off in this API; the upl
 
 // Local only: drop applications left by earlier runs of this script (they would use up the 8 lots). Their file
 // rows go first (the table exists from migration 0006 on); the bytes stay, unreachable, in the local bucket.
-try {
-  localSql("DELETE FROM ngo_files WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %')");
-} catch {
-  /* a local database without the ngo_files table */
+for (const table of ["ngo_files", "ngo_photos", "media_upload_intents"]) {
+  try {
+    localSql(`DELETE FROM ${table} WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %')`);
+  } catch {
+    /* A local database may predate the optional file/gallery tables. */
+  }
 }
 localSql(
   "UPDATE lots SET state = 'available', ngo_id = NULL WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %'); " +
@@ -182,7 +190,12 @@ localSql(
     "DELETE FROM ngos WHERE name LIKE 'Associação Teste %';"
 );
 
-const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chrome" }),
+  env: { ...process.env, TMPDIR: "/tmp" },
+  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--renderer-process-limit=2"],
+});
+if (process.env.VILA_STUB_ANALYTICS === "1") console.log("note: GTM stubbed for local account/file verification; analytics not tested (OQ-13)");
 
 /** Stops the run: screenshots of every open page, the reason, exit 1. */
 let failing = false;
@@ -207,6 +220,7 @@ process.on("unhandledRejection", (e) => void fail(e));
  */
 async function newContext() {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  if (process.env.VILA_STUB_ANALYTICS === "1") await ctx.route("https://www.googletagmanager.com/**", (route) => route.fulfill({ status: 200, contentType: "application/javascript", body: "" }));
   if (apiOrigin !== BUILD_API) await ctx.route(`${BUILD_API}/**`, (route) => route.continue({ url: apiOrigin + route.request().url().slice(BUILD_API.length) }));
   return ctx;
 }
@@ -359,6 +373,7 @@ await a.getByLabel("Nome da organização *").fill(`Associação Teste ${run}`);
 await a.getByLabel(/^CNPJ \*/).fill(cnpj());
 await a.getByLabel("Data de abertura do CNPJ *").fill("2019-05-20");
 await a.getByLabel("Cidade da sede *").fill("Olinda");
+if (!(await visible(a.getByText("Usada na análise da candidatura; não aparece no perfil público."), API_WAIT))) errors.push("applicant: private-city explanation missing");
 await click(a.getByRole("button", { name: "Continuar" }));
 // Step 2 must refuse to continue without the three declarations.
 await click(a.getByRole("button", { name: "Continuar" }));
@@ -366,7 +381,8 @@ if (!(await visible(a.getByText("Confirme os três requisitos"), 10000))) errors
 for (const label of ["CNPJ ativo", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos recebidos"]) await a.getByLabel(label).check();
 await a.getByLabel("Como os recursos podem ser confirmados? *").fill("Extratos mensais da conta da organização e relatório conciliável.");
 await click(a.getByRole("button", { name: "Continuar" }));
-await a.getByLabel("Resumo (aparece na casa) *").fill("Oficinas de leitura para crianças do bairro.");
+await a.getByLabel("Resumo (público após aprovação) *").fill("Oficinas de leitura para crianças do bairro.");
+if (!(await visible(a.getByText("Após a aprovação, nome, resumo, descrição, áreas de atuação e projetos ficarão públicos na Vila. Não inclua dados pessoais nesses textos."), API_WAIT))) errors.push("applicant: public-content disclosure missing");
 await a.getByLabel("Sobre a organização *").fill("Atendemos crianças de 6 a 12 anos com reforço escolar, leitura e atividades culturais no contraturno escolar.");
 await click(a.getByRole("button", { name: "Crianças" }));
 await click(a.getByRole("button", { name: "Educação" }));
@@ -426,7 +442,15 @@ if (filesOn) {
   const [download] = await Promise.all([a.waitForEvent("download", { timeout: API_WAIT }), click(files.getByRole("button", { name: "Baixar documento 2" }))]);
   if (download.suggestedFilename() !== "documento-2.png") errors.push(`files: document 2 downloads as "${download.suggestedFilename()}"`);
   await download.cancel();
-  await click(files.getByRole("button", { name: "Remover documento 1" }));
+  // Download starts before the UI finishes its busy state. A real click waits for enabled controls;
+  // dispatchEvent could be ignored by React here and never send a DELETE.
+  const firstDocument = JSON.parse(before).find((file) => file.kind === "document");
+  const [removal] = await Promise.all([
+    a.waitForResponse((response) => response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/ngo/application/files/${firstDocument.id}`, { timeout: API_WAIT }),
+    files.getByRole("button", { name: "Remover documento 1" }).click({ timeout: API_WAIT }),
+  ]);
+  if (removal.status() !== 200) throw new Error(`files: removal returned ${removal.status()}: ${await removal.text()}`);
   if (!(await said("Documento 1 removido."))) errors.push("files: the removal was not confirmed");
   if ((await storedFiles(a)) !== "logo:image/png document:image/png") errors.push(`files: after removing document 1 the API holds "${await storedFiles(a)}"`);
   if ((await files.getByRole("listitem").count()) !== 1 || !(await files.getByRole("listitem").innerText()).includes("PNG")) errors.push("files: the list does not show the one document left");
@@ -437,6 +461,8 @@ if (filesOn) {
 
 // 2. Admin. The account is created in the game (the dashboard has no sign-up); its link is left unused, because
 // the admin signs in on the dashboard, whose link must open the dashboard.
+// Suspend the unused WebGL scene while creating the second account; keep its page/context and cookies.
+await a.goto("about:blank");
 const admin = `adm_${run}`;
 const g = await newPage("admin (game sign-up)");
 await register(g, admin, `${admin}@example.com`);
@@ -470,7 +496,7 @@ await b.getByRole("button", { name: "Pedir ajustes" }).click();
 await reviewStatus("changes_requested");
 
 // 3. Applicant (game) sees the note and resubmits.
-await a.reload({ waitUntil: "load" });
+await a.goto(url, { waitUntil: "load" });
 await click(a.getByRole("button", { name: "Entrar na Vila" }));
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await click(a.getByRole("button", { name: "Minha candidatura de ONG" }));
@@ -499,6 +525,28 @@ if (filesOn) {
   if ((await b.locator(".detail").innerText()).includes(FILE_NAME)) errors.push("admin: a file name is shown in the review");
   await b.screenshot({ path: `${out}accounts-4a-admin-files.png`, fullPage: true });
 } else if (!(await b.locator('[data-state="files-off"]').count())) errors.push("admin: no notice that file uploads are off in this API");
+// Synthetic UI fixture only: no deletion is executed and no bytes are erased in this interval.
+// API race/failure tests cover the irreversible transition; here both real browser surfaces must explain it.
+localSql(`UPDATE users SET files_deleting=1 WHERE nickname='${nick}'`);
+try {
+  await b.reload({ waitUntil: "load" });
+  await b.locator('[data-state="deletion-pending"]').waitFor({ timeout: API_WAIT });
+  for (const name of ["Iniciar análise", "Aprovar", "Pedir ajustes"]) {
+    if (!(await b.getByRole("button", { name, exact: true }).isDisabled())) errors.push(`admin: ${name} enabled during pending erasure`);
+  }
+  if (!(await b.getByRole("button", { name: "Rejeitar", exact: true }).isEnabled())) errors.push("admin: pending erasure prevents rejecting the application");
+  await a.reload({ waitUntil: "load" });
+  await click(a.getByRole("button", { name: "Entrar na Vila" }));
+  await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
+  await a.locator('[data-state="deletion-pending"]').waitFor({ timeout: API_WAIT });
+  if (!(await a.getByRole("button", { name: "Tentar concluir exclusão", exact: true }).isEnabled())) errors.push("applicant: deletion retry unavailable");
+  await a.screenshot({ path: `${out}accounts-erasure-pending.png`, fullPage: true });
+} finally {
+  localSql(`UPDATE users SET files_deleting=0 WHERE nickname='${nick}'`);
+}
+await a.goto("about:blank");
+await b.reload({ waitUntil: "load" });
+await reviewStatus("submitted");
 const approve = b.getByRole("button", { name: "Aprovar", exact: true });
 if (!(await approve.isDisabled({ timeout: API_WAIT }))) errors.push("admin: approve enabled before the checks");
 for (const label of ["CNPJ ativo (consultado na Receita Federal)", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos"]) await b.getByLabel(label).check();

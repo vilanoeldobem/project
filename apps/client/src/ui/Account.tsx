@@ -167,18 +167,33 @@ function SignedIn({ then }: { then?: PanelState }) {
   const close = useVila((s) => s.close);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const remove = async () => {
+    setBusy(true);
+    setError("");
     try {
       await deleteAccount();
       useVila.getState().notify("Sua conta foi excluída. Seu progresso continua só neste navegador.");
       close();
     } catch (err) {
       setError(errorText(err));
+    } finally {
+      setBusy(false);
     }
   };
   return (
     <Panel kicker="Conta" title={`@${user.nickname}`}>
-      {then && (
+      {user.deletionPending && (
+        <div className="callout" role="status" data-state="deletion-pending">
+          <strong>Exclusão da conta pendente</strong>
+          <p>A remoção dos seus arquivos ainda não terminou. Sua sessão continua disponível para tentar concluir. Candidatura e arquivos ficam bloqueados; a exclusão não pode ser cancelada porque alguns dados já podem ter sido apagados.</p>
+          <button className="btn btn--primary" disabled={busy} onClick={() => void remove()}>
+            {busy ? "Concluindo exclusão…" : "Tentar concluir exclusão"}
+          </button>
+          {error && <p className="form__error" role="alert">Não foi possível concluir agora. Tente novamente mais tarde.</p>}
+        </div>
+      )}
+      {then && !user.deletionPending && (
         <p>
           <button className="btn btn--primary" onClick={() => open(then)}>
             Continuar
@@ -194,7 +209,7 @@ function SignedIn({ then }: { then?: PanelState }) {
         <dd>{user.email}</dd>
       </dl>
       <p className="note">Só o seu nickname aparece para outras pessoas. Seu progresso de missões fica salvo nesta conta.</p>
-      <EditProfile />
+      {!user.deletionPending && <EditProfile />}
       <div className="actions">
         {user.role === "admin" && (
           // The review of NGO applications lives in the backoffice dashboard (IMPL-0015): a plain link, new tab.
@@ -209,7 +224,7 @@ function SignedIn({ then }: { then?: PanelState }) {
           Sair
         </button>
       </div>
-      <details className="danger">
+      {!user.deletionPending && <details className="danger">
         <summary>Excluir minha conta</summary>
         <p>Apaga seu nome, nickname, cidade, e-mail e o progresso salvo na conta. Não dá para desfazer.</p>
         {!confirm ? (
@@ -217,12 +232,12 @@ function SignedIn({ then }: { then?: PanelState }) {
             Quero excluir
           </button>
         ) : (
-          <button className="btn btn--small btn--primary" onClick={() => void remove()}>
-            Confirmar exclusão
+          <button className="btn btn--small btn--primary" disabled={busy} onClick={() => void remove()}>
+            {busy ? "Excluindo…" : "Confirmar exclusão"}
           </button>
         )}
         {error && <p className="form__error">{error}</p>}
-      </details>
+      </details>}
     </Panel>
   );
 }

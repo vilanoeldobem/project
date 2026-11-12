@@ -1,12 +1,12 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
 > **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin,files}.ts`
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin,files,ngo-photos,media-storage}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v6**; em produção estão aplicadas até a v3). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(**v7 no código**; último estado registrado de produção: v3). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
 Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucket R2 privado: ver
@@ -22,6 +22,17 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0004_accounts_ngo_applications.sql` | contas (`users`), links (`login_tokens`), `sessions`, `progress_events` e colunas da candidatura em `ngos` ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) |
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
 | `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
+| `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
+
+Esta versão contém 0001–0007, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+galeria e os guardas de conciliação. A 0007 chamava-se 0010 enquanto esta entrega estava em revisão: nunca foi
+aplicada no remoto e recebeu o próximo número livre antes de integrar. Simuladores locais com a antiga 0010 são
+bases alternativas: usar nova base isolada, sem renomear seu histórico ou apagá-los.
+A 0007 é pré-requisito do código conciliado mesmo com flags desligadas (sessão e decisões leem colunas novas).
+Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` responde sem logo e a rota de logo
+responde 404. Eles não dispensam a migration 0007 para usar as rotas privadas conciliadas.
+Operações de conta que encontrem ausência das novas colunas retornam `503 schema_outdated`; isso não substitui
+a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -37,7 +48,8 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 | `cnpj_opened_on` | TEXT | `YYYY-MM-DD` (critério 2, ≥ 1 ano; medida PROPOSTA, PEN-013) |
 | `summary` | TEXT | aparece na casa publicada |
 | `status` | TEXT | `submitted` → `under_review` → (`changes_requested`) → `published` \| `rejected` |
-| `revision` | INTEGER > 0 | sobe a cada reenvio da candidatura e a cada arquivo enviado ou removido (v6) |
+| `revision` | INTEGER > 0 | sobe a cada reenvio, envio/remoção de arquivo e exclusão da conta responsável |
+| `file_write_token` | TEXT | v7; token exclusivo da escrita/decisão vencedora, usado para condicionar efeitos e auditoria |
 | `created_at`, `updated_at` | TEXT | RFC 3339 UTC com milissegundos |
 | `applicant_id` | TEXT FK → users, `ON DELETE SET NULL` | v4; conta que enviou; some se a conta for excluída |
 | `city` | TEXT | v4; cidade da sede |
@@ -68,6 +80,35 @@ Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-fil
 Índices: `idx_ngo_files_ngo (ngo_id, kind, created_at)`; `idx_ngo_files_one_logo`, único parcial em `ngo_id` onde
 `kind = 'logo'` (um logo por ONG). **Não há coluna de nome de arquivo.**
 
+### ngo_photos (v7, PROPOSTA)
+
+Galeria institucional no **mesmo bucket `FILES`**, com chave `ngo-photos/<ngo_id>/<photo_id>`; não substitui o
+logo em `ngo_files`. Colunas: `id`, `ngo_id` (FK sem cascata, como `ngo_files`), `object_key` único, `content_type` PNG/JPEG,
+`byte_size` (1–2097152), `caption` (até 240), `position` (0–9), `status` (`pending|approved|rejected|removed`),
+`revision`, `decision_token` único, `upload_pending`, `cleanup_pending`, `created_at`, `updated_at`.
+Índice `(ngo_id,status,position,id)`. A intenção de upload existe antes dos bytes; `upload_pending=1` não pode
+ser publicado. Remoção/rejeição limpa legenda e revoga acesso antes da limpeza R2; falha mantém
+`cleanup_pending=1` para nova tentativa. Limite de 10 pendentes/aprovadas é conferido no INSERT; rejeitadas não
+consomem cota. Nenhuma chave contém nome/legenda. A FK impede apagar a ONG enquanto houver metadados
+de fotos: remover bytes e registros explicitamente antes de excluir uma ONG evita perder a referência ao R2.
+
+### media_upload_intents (v7)
+
+Registro de upload/limpeza de logo e comprovantes; a galeria usa os marcadores na própria `ngo_photos`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | TEXT PK | id gerado para o arquivo; chave R2 derivada `ngo/<ngo_id>/<id>` |
+| `ngo_id` | TEXT FK → ngos | impede apagar a ONG enquanto houver intenção pendente |
+| `uploaded_by` | TEXT NOT NULL | id interno da conta; sem cascade que apague o rastro antes da limpeza |
+| `created_at` | TEXT | RFC 3339 UTC; instante usado para recuperar uploads abandonados |
+| `cleanup_pending` | INTEGER 0/1 | 0 durante envio; 1 impede finalização e solicita limpeza |
+
+Índice `idx_media_upload_intents_ngo (ngo_id,cleanup_pending,created_at)`. Sem nomes, chaves redundantes ou
+metadados duplicados do arquivo. A intenção precede R2 e é apagada na transação que publica os metadados em
+`ngo_files`, ou depois de excluir o objeto. Remoção/substituição cria a intenção na mesma transação que remove
+o metadado antigo. `DELETE /me` limpa as chaves e depois apaga as intenções da conta.
+
 ### lots
 
 | Coluna | Tipo | Notas |
@@ -90,6 +131,7 @@ Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-fil
 | `email` | TEXT UNIQUE | E-mail em minúsculas; nunca público, nunca em log |
 | `role` | TEXT | `player` (padrão) ou `admin` (concedido à mão, DEC-037) |
 | `verified_at` | TEXT | preenchido pelo primeiro link confirmado |
+| `files_deleting` | INTEGER 0/1 | v7; intenção durável de exclusão, impede alterações de evidências durante limpeza R2 |
 | `created_at` | TEXT | RFC 3339 UTC |
 
 ### login_tokens (v4)
@@ -123,6 +165,7 @@ Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nad
 | `ngo.start_review`, `ngo.approve`, `ngo.request_changes`, `ngo.reject` | admin | `ngo:<id>` | `{from, to, lot, revision, hasNote}` (sem o texto da mensagem) |
 | `ngo.file_add`, `ngo.file_remove` | quem enviou | `ngo:<id>` | `{kind, file, revision}` (ids; sem nome de arquivo) |
 | `ngo.file_read` | admin que baixou um **documento** | `ngo:<id>` | `{kind, file}` |
+| `ngo.file_cleanup` | admin que iniciou recuperação | `ngo:<id>` | `{requested}`; quantidade selecionada, registrada antes de excluir bytes; não prova sucesso |
 | `user.delete` | a própria conta | `user:<id>` | `NULL` |
 
 Lida pelo painel administrativo em `GET /admin/audit` (o autor aparece pelo nickname; consultar não grava nada
@@ -147,6 +190,8 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
 | Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
 | Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
+| Galeria (R2) | todas as fotos são removidas ao excluir a conta, inclusive as aprovadas; falha de limpeza permite repetição |
+| Intenção de arquivo (D1) | até finalizar o upload ou confirmar a limpeza; cancelamento de envio abandonado pode ser solicitado após 15 min, sem prazo automático de retenção |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
 
@@ -167,12 +212,52 @@ Bucket `vilanoeldobem-files`, binding `FILES`, ligado só ao Worker da API. **PR
 | Metadado do objeto | só `contentType` |
 | Conteúdo | logo (PNG/JPEG, até 512 KB) e até 5 documentos (PDF/PNG/JPEG, até 5 MB) por candidatura |
 | Imagens | guardadas sem EXIF, XMP, IPTC, comentários, miniaturas e blocos de texto (fica só a orientação do JPEG); só recodificar removeria tudo |
-| Quem lê | logo: público só com a ONG `published`; documento: quem enviou e admins (leitura de admin auditada). Admins leem sempre que o bucket está ligado, mesmo com o envio desligado |
+| Quem lê | logo: público só com ONG e terreno realmente `published`; documento: quem enviou e admins (leitura de admin auditada). Admins leem sempre que o bucket está ligado, mesmo com o envio desligado |
 | Localização | dica `enam`, como o D1 (o R2 não tem região na América do Sul) |
 | Homologação | `env.staging` não tem bucket: as rotas respondem `404 files_disabled` |
 
-D1 e R2 não dividem transação: a ordem das escritas e o que sobra numa falha estão em
-[IMPL-0017](../decisions/0017-ngo-files-r2.md). Rotas e limites: [api.md](api.md#arquivos-da-candidatura-impl-0017).
+D1 e R2 não dividem transação: o contrato de arquivos vem da
+[IMPL-0017](../decisions/0017-ngo-files-r2.md), com recuperação de falhas na
+[IMPL-0018](../decisions/0018-ngo-files-reconciliation.md). Rotas e limites: [api.md](api.md#arquivos-da-candidatura-impl-0017).
+
+## 6. Conciliação e exclusão concorrente (IMPL-0018)
+
+Há um mecanismo de bytes/sanitização (`FILES`, `checkFile`/`cleanImage`), dois propósitos de metadados
+(`ngo_files` para logo/evidências; `ngo_photos` para galeria) e nenhuma tabela/rota `ngo_documents` paralela.
+`NGO_FILES_ENABLED` e `NGO_PHOTOS_ENABLED` continuam `false` em produção/staging; não houve provisionamento remoto.
+O arquivo separado `apps/api/wrangler.reconciliation-local.jsonc` usa D1/R2 sintéticos `ngo-media-review-local`,
+com `remote:false`, sem conta remota, limitadores remotos ou envio de e-mail. Use sempre `--local -c`; ele não
+integra a configuração de deploy. A base antiga do simulador é preservada.
+
+Logo/comprovantes gravam `media_upload_intents` antes de R2. `media-storage.ts`, compartilhado com a galeria,
+cria reserva vazia e condiciona a escrita ao ETag: apagar a reserva impede que uma escrita atrasada recrie
+bytes pessoais. O commit canônico exige intenção ativa; confirmação incerta exige reler metadados antes de
+compensar. Falha ao remover/substituir um arquivo mantém uma intenção de limpeza privada.
+
+Recuperação explícita: `POST /ngo/application/files/recover` (responsável) ou
+`POST /admin/applications/:id/files/recover` (admin), ambos com `X-Vila-Account`. Funciona com envio desligado,
+exige sessão/contas e bucket, trata até 50 registros por chamada e responde `{cleaned, remaining}`. Seleciona
+`cleanup_pending=1` ou uploads com mais de 15 minutos; não cancela envios recentes. Falha de limpeza responde
+`503 file_cleanup_pending` e preserva a intenção para repetição. O prazo é de recuperação de upload, não uma
+política de retenção de documentos. Não há cron; operação e testes ainda dependem da validação registrada na
+entrega. Uma queda na criação tardia de reserva já cancelada pode deixar um objeto vazio; não contém foto/documento.
+
+Antes de limpar R2, `DELETE /me` marca `files_deleting=1`. Os guards de candidatura, arquivos, fotos e revisão
+administrativa recusam novas mutações enquanto essa marca existe. O conjunto a apagar não pode virar conteúdo
+publicado durante a limpeza. R2 falhou: mantém conta/sessão/intenção; repetir `DELETE /me` retoma a limpeza.
+`GET /me` e o responsável no detalhe administrativo expõem `deletionPending`. As telas explicam a pendência e
+o caminho de repetição. Rejeitar uma candidatura ainda aberta é a exceção ao bloqueio administrativo: libera o
+terreno, preserva a intenção e não pode publicar evidências. Estado/revisão exatos e auditoria continuam exigidos.
+Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta e sem tocar em nenhum objeto; como
+nada foi apagado, o próprio pedido desfaz a marca que acabou de pôr e a conta não fica congelada. Fora desse caso
+não se deve zerar a marca para "destravar" uma conta: depois de uma falha do R2, ou quando a marca veio de uma
+tentativa anterior, alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
+as revisões das candidaturas, remove as intenções de upload/limpeza da conta, registra uma única auditoria e apaga o usuário. A revisão invalida decisões antigas
+mesmo depois que o vínculo e a linha do usuário desaparecerem.
+
+O logo institucional segue a retenção canônica por status da ONG. A galeria é apagada com a conta em qualquer
+estado; antes da exclusão, leitura pública exige foto aprovada e terreno publicado. Direitos de imagem e
+consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da ONG é uma entrega separada.
 
 ## Ver também
 
