@@ -1,6 +1,6 @@
 # D07 — Documentos privados da candidatura de ONG
 
-> **Status:** Em implementação para revisão de Augusto; regras PROPOSTA, ativação desligada.
+> **Status:** Publicado no [PR #31](https://github.com/vilanoeldobem/project/pull/31), sobre o PR #29, para revisão de Augusto; regras PROPOSTA, ativação desligada.
 > **Data:** 2026-11-12 · **Decisão técnica:** [IMPL-0019](../decisions/0019-private-ngo-documents.md)
 
 ## Entrega e limite da frente

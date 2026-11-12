@@ -591,7 +591,7 @@ Contract: [IMPL-0019](../docs/decisions/0019-private-ngo-documents.md) and
 - [x] Document API/storage, proposed limits, absence of sanitization/AV and unresolved activation policy.
 - [x] Lead ran API typecheck and real local workerd D1/R2 smoke; no remote resource was changed.
 - [x] Lead completed workspace typecheck, 481 tests and all builds; final AIOX QA has no remaining P1/P2.
-- [ ] Publish branch PR for Augusto; no merge or deployment.
+- [x] Published [PR #31](https://github.com/vilanoeldobem/project/pull/31), stacked on PR #29; review requested from `augustobr1to`. No merge or deployment.
 
 IDS: SEARCH found reusable photoBytes, readJson, account/session helpers and audit_events. ADAPT wraps the raster
 parser for the document error contract and adds bounded PDF headers. CREATE adds only private document routes,
