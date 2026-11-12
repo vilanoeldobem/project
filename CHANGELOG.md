@@ -14,6 +14,8 @@ Cada versão indica o schema D1 que entrega.
 - Exclusão de conta recusada por falta do bucket (`503 files_unavailable`), antes de apagar qualquer objeto, não
   deixa mais a conta congelada: a marca posta pelo próprio pedido é desfeita. Falha do R2 continua mantendo a
   exclusão pendente, visível e repetível.
+- Rotas públicas sempre ligadas (`/lots`, `/indicators`, `/ngos/:id`, logo e foto) cobertas por teste nos schemas
+  v3 a v6, em todas as combinações de bandeiras e bucket.
 
 ### Added — conciliação dos arquivos e galeria de ONGs (PR, PROPOSTA)
 

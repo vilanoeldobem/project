@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createD1 } from "../test/d1.mjs";
 import { createR2 } from "../test/r2.mjs";
@@ -132,4 +132,36 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ ngo: { id: NGO_ID, name: "Public NGO", summary: "Public summary", description: null, tags: [], projects: [], lotId: "plaza-01", photos: [] } });
   expect((await get(`/ngos/${UNKNOWN_ID}`)).status).toBe(404);
+});
+
+// Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
+// on any schema the code may meet (v3 to v6), whatever the flags and the bucket, and never with a 500.
+it.each([3, 4, 5, 6])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+  const wrong: string[] = [];
+  for (let flags = 0; flags < 16; flags++) for (const published of [true, false]) {
+    db = createD1({ upTo });
+    env = {
+      DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: flags & 1 ? "true" : "false",
+      NGO_FILES_ENABLED: flags & 2 ? "true" : "false", NGO_PHOTOS_ENABLED: flags & 4 ? "true" : "false",
+      FILES: flags & 8 ? createR2() as unknown as R2Bucket : undefined,
+    };
+    await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', ?)").bind(NGO_ID, published ? "published" : "submitted").run();
+    await db.prepare("UPDATE lots SET ngo_id=?,state=? WHERE id='plaza-01'").bind(NGO_ID, published ? "published" : "application_sent").run();
+    const expected: Record<string, number> = {
+      "/health": 200, "/config": 200, "/indicators": 200, "/lots": 200, "/environment": 200,
+      [PATH]: published ? 200 : 404, [`/ngos/${UNKNOWN_ID}`]: 404, [`${PATH}/logo`]: 404, [`${PATH}/photos/${UNKNOWN_ID}`]: 404,
+    };
+    for (const [path, status] of Object.entries(expected)) {
+      const response = await get(path);
+      if (response.status !== status) wrong.push(`flags=${flags} published=${published} ${path}: ${response.status}`);
+    }
+    const { lots } = await (await get("/lots")).json() as { lots: Array<Record<string, unknown>> };
+    expect(lots.find((lot) => lot.id === "plaza-01")).toMatchObject(published
+      ? { ngo_id: NGO_ID, ngo_name: "Public NGO", ngo_summary: "Public summary", ngo_logo: null }
+      : { ngo_id: null, ngo_name: null, ngo_summary: null, ngo_logo: null });
+  }
+  expect(wrong).toEqual([]);
+  expect(errors).not.toHaveBeenCalled();
+  errors.mockRestore();
 });
