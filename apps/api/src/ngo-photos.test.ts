@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
 import { sha256Hex } from "./crypto";
@@ -12,7 +12,8 @@ const ORIGIN = "https://play.example";
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC";
 let db: ReturnType<typeof createD1>, env: Env;
 let objects: Map<string, Uint8Array>;
-let bucket: { put: ReturnType<typeof vi.fn>; get: ReturnType<typeof vi.fn>; head: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
+type PhotoPut = (key: string, value: Uint8Array, options?: R2PutOptions) => Promise<{ etag: string } | null>;
+let bucket: { put: Mock<PhotoPut>; get: ReturnType<typeof vi.fn>; head: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
 const call = (method: string, path: string, body?: unknown, user = "owner", origin: string | null = ORIGIN) => handleApi(new Request(`https://api.example${path}`, {
   method, headers: { ...(origin ? { Origin: origin } : {}), ...(user ? { Cookie: `__Host-vila_session=${user}` } : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
   body: body === undefined ? undefined : JSON.stringify(body),
@@ -94,7 +95,8 @@ describe("private NGO photos and public approval", () => {
     expect((await decision(id, "approve", 1, "owner")).status).toBe(403);
     await db.prepare("UPDATE users SET role='admin' WHERE id='owner'").run();
     for (const action of ["approve", "reject", "remove"]) {
-      expect(await (await decision(id, action, 1, "owner")).json()).toEqual({ error: "self_review" });
+      // Call the forbidden mutation directly: the happy-path helper also reads the photo (audited).
+      expect(await (await call("POST", `/admin/ngo-photos/${id}/decision`, { accountId: "owner", action, revision: 1 }, "owner")).json()).toEqual({ error: "self_review" });
     }
     expect(db.sql("SELECT * FROM audit_events WHERE action!='ngo.photo.upload'")).toHaveLength(0);
   });
@@ -311,7 +313,7 @@ function photoGate() {
 
 it("owner deletion cancels an in-flight conditional put without recreating personal bytes", async () => {
   const gate=photoGate(),put=bucket.put.getMockImplementation()!;
-  bucket.put.mockImplementation(async (...args: Parameters<R2Bucket["put"]>) => {
+  bucket.put.mockImplementation(async (...args: Parameters<PhotoPut>) => {
     if(args[2]?.onlyIf){gate.enter();await gate.wait;}
     return put(...args);
   });
@@ -326,7 +328,7 @@ it("owner deletion cancels an in-flight conditional put without recreating perso
 
 it("account erasure cancels an in-flight conditional put and leaves no personal bytes", async () => {
   const gate=photoGate(),put=bucket.put.getMockImplementation()!;
-  bucket.put.mockImplementation(async (...args: Parameters<R2Bucket["put"]>) => {
+  bucket.put.mockImplementation(async (...args: Parameters<PhotoPut>) => {
     if(args[2]?.onlyIf){gate.enter();await gate.wait;}
     return put(...args);
   });
