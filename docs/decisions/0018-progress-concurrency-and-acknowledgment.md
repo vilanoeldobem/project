@@ -1,7 +1,7 @@
 # IMPL-0018: Concorrência e confirmação da persistência de progresso
 
-**Status:** Proposta — implementação para revisão; bandeiras de produção inalteradas  
-**Data:** 2026-11-12  
+**Status:** Proposta — implementação para revisão; bandeiras de produção inalteradas
+**Data:** 2026-11-12
 **Fontes:** autorização de Nicolas para D12; DEC-038/040/042, PEN-025;
 [IMPL-0013](0013-quests-v1-runtime.md); `apps/api/src/progress.ts` e sincronização existente em
 `apps/client/src/lib/account.ts`.

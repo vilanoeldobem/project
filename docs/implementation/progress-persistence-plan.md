@@ -1,8 +1,8 @@
 # Persistência de progresso — D12
 
-**Status:** implementação para revisão em PR; sem ativação remota  
-**Data:** 12/11/2026  
-**Base:** `main` em `e2fa200`; branch `fix/progress-persistence`  
+**Status:** implementação para revisão em PR; sem ativação remota
+**Data:** 12/11/2026
+**Base:** `main` em `e2fa200`; branch `fix/progress-persistence`
 **Fontes:** D12 do plano de acompanhamento; DEC-038/040/042, PEN-025;
 [IMPL-0018](../decisions/0018-progress-concurrency-and-acknowledgment.md).
 
