@@ -442,7 +442,15 @@ if (filesOn) {
   const [download] = await Promise.all([a.waitForEvent("download", { timeout: API_WAIT }), click(files.getByRole("button", { name: "Baixar documento 2" }))]);
   if (download.suggestedFilename() !== "documento-2.png") errors.push(`files: document 2 downloads as "${download.suggestedFilename()}"`);
   await download.cancel();
-  await click(files.getByRole("button", { name: "Remover documento 1" }));
+  // Download starts before the UI finishes its busy state. A real click waits for enabled controls;
+  // dispatchEvent could be ignored by React here and never send a DELETE.
+  const firstDocument = JSON.parse(before).find((file) => file.kind === "document");
+  const [removal] = await Promise.all([
+    a.waitForResponse((response) => response.request().method() === "DELETE" &&
+      new URL(response.url()).pathname === `/ngo/application/files/${firstDocument.id}`, { timeout: API_WAIT }),
+    files.getByRole("button", { name: "Remover documento 1" }).click({ timeout: API_WAIT }),
+  ]);
+  if (removal.status() !== 200) throw new Error(`files: removal returned ${removal.status()}: ${await removal.text()}`);
   if (!(await said("Documento 1 removido."))) errors.push("files: the removal was not confirmed");
   if ((await storedFiles(a)) !== "logo:image/png document:image/png") errors.push(`files: after removing document 1 the API holds "${await storedFiles(a)}"`);
   if ((await files.getByRole("listitem").count()) !== 1 || !(await files.getByRole("listitem").innerText()).includes("PNG")) errors.push("files: the list does not show the one document left");
