@@ -40,6 +40,10 @@ do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
 `Access-Control-Allow-Credentials` existe por causa do cookie de sessão das rotas de conta; o cliente chama com
 `credentials: "include"`.
 
+`handleApi` aplica esses cabeçalhos na própria resposta devolvida pelo roteador (`res.headers.set`) e devolve a mesma
+`Response`, em vez de reembrulhar `res.body` num `Response` novo: reembrulhar transforma um corpo de tamanho fixo
+(`Content-Length`) em fluxo, e o navegador local podia ficar esperando o fim do corpo depois de um `POST`.
+
 ### GET /health
 
 `Cache-Control: no-store`.
@@ -56,11 +60,16 @@ Worker (nunca o valor).
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false }
+{ "accounts": false, "quests": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o cliente esconde toda a interface de conta
 (chip "Entrar", candidatura de ONG, painel de análise) e a Vila segue jogável sem conta (OQ-02).
+
+`quests` é `true` só quando `QUESTS_V1_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
+staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
+`quests` é `true` **e** a bandeira dele também está ligada (`VITE_QUESTS_V1_ENABLED=true` no build ou `?quests=1` em
+localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
 
 ### GET /indicators
 
@@ -216,18 +225,28 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 | `GET /progress` | — | `{progress}` |
 | `POST /progress/events` | `{accountId, events: [{missionId, eventId}]}` (1 a 50) | `{progress}` |
 
-- `missionId` precisa existir em `MISSIONS` (`packages/shared/src/game/progress.ts`) e `eventId` precisa ser um que
-  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`) ou `panel`
-  (`KNOWN_EVENTS` em `apps/api/src/progress.ts`). Qualquer item inválido → `400 bad_events` (nada é gravado).
-- Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo
-  (`INSERT OR IGNORE`). O progresso é refeito repetindo os eventos pelo mesmo `applyEvent` do cliente: cada missão dá
-  XP uma vez.
+- `missionId` precisa existir em `MISSIONS` ou em `QUESTS` (`packages/shared/src/game/`); `eventId` precisa ser um que
+  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`), `panel`, ou, nas quests,
+  `accept`, `turn-in` e os ids de objetivo de `objectiveEventIds` (`KNOWN_EVENTS` em `apps/api/src/progress.ts`).
+  Qualquer item inválido → `400 bad_events` (nada é gravado).
+- Eventos de quest só são gravados com `QUESTS_V1_ENABLED = "true"`. Com a flag desligada eles são ignorados (o lote
+  responde `200` e os demais eventos são gravados); as quatro missões rápidas valem sempre. A flag é exposta em
+  `GET /config` (`quests`). O conteúdo e os valores de XP são PROPOSTA (PEN-025); ver [quests.md](quests.md).
+- Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo. O progresso é
+  refeito repetindo os eventos gravados, na ordem em que foram gravados, pelo mesmo `applyEvent` do cliente: cada
+  missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
+- Quests dependem de ordem ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)): um evento de quest só é gravado se
+  for uma transição válida sobre o progresso já gravado (o lote é aplicado na ordem recebida). Evento ainda inválido
+  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `200`, nada gravado para ele; o mesmo id pode
+  ser reenviado depois. Eventos das quatro missões rápidas são sempre gravados (`INSERT OR IGNORE`).
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
   são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
-- Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos e idempotência; não prova que o
-  presente foi achado na cena. XP não dá nada que dinheiro compre, e doação não dá XP.
+- Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
+  ordem das transições; não prova que o presente foi achado nem que o NPC foi visitado na cena. Uma conta consegue
+  forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
+  dá XP.
 
 ### Candidatura de ONG (P12, DEC-015, DEC-037)
 

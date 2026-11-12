@@ -5,9 +5,23 @@ import { CircleGeometry, type Group, type Mesh, ShaderMaterial, Vector3 } from "
 import { U } from "./environment/materials";
 import { events } from "../game/events";
 import { type Collider, type Intent, MOTION, STEP, stepBody } from "@vila/shared/game/motion";
+import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim } from "../game/sim";
-import { useVila } from "../game/store";
-import { GIFTS, INTERACT_DISTANCE, LOTS, OBSTACLES, surfaceAt, TREE_RADIUS } from "@vila/shared/game/world";
+import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
+import { type Nearby, useVila } from "../game/store";
+import {
+  DONATION_PANEL,
+  GIFTS,
+  INTERACT_DISTANCE,
+  LOTS,
+  NPCS,
+  OBSTACLES,
+  QUEST_INTERACTIONS,
+  QUEST_OBSTACLES,
+  QUEST_SPAWNS,
+  surfaceAt,
+  TREE_RADIUS,
+} from "@vila/shared/game/world";
 import { usePreset } from "../environment/settings";
 import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
 import { Voxels } from "./Voxels";
@@ -20,6 +34,15 @@ const SKY_LOOK = new Vector3(0, 30, -40);
 /** The camera leads the avatar slightly in the walking direction (seconds of velocity). */
 const LOOK_AHEAD = 0.22;
 const GIFT_RADIUS = 1.4;
+/** Interaction targets, built once: the frame loop only picks one of them (no per-frame allocation). */
+const NEAR_NPC: Nearby[] = NPCS.map((n) => ({ kind: "npc", npcId: n.id }));
+const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", interactionId: i.id }));
+const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
+const NEAR_PANEL: Nearby = { kind: "donation-panel" };
+const NEAR_TREE: Nearby = { kind: "tree" };
+/** Smallest centre distance wins; targets within 0.5 of each other fall back to the priority order. */
+const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestPrio: number) =>
+  !best || dist < bestDist - 0.5 || (dist - bestDist <= 0.5 && prio < bestPrio);
 /** Mouse wheel and pinch sensitivity (zoom factor per pixel of wheel delta). */
 const WHEEL_ZOOM = 0.0015;
 
@@ -62,7 +85,9 @@ export function Player({ houses }: { houses: Collider[] }) {
   const avatarLook = useVila((s) => s.look);
   const parts = useMemo(() => avatarParts(avatarLook), [avatarLook]);
   const { shadows } = usePreset();
-  const colliders = useMemo(() => [...OBSTACLES, ...houses], [houses]);
+  // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
+  const questsOn = useQuestsEnabled();
+  const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...houses], [houses, questsOn]);
   const blobMaterial = useMemo(
     () => new ShaderMaterial({ vertexShader: blobVertex, fragmentShader: blobFragment, transparent: true, depthWrite: false, uniforms: { uOpacity: { value: 0.3 } } }),
     []
@@ -123,6 +148,7 @@ export function Player({ houses }: { houses: Collider[] }) {
     const s = useVila.getState();
     const c = clock.current;
     const b = sim.body;
+    const quests = questsEnabled();
 
     // ---- simulation: fixed steps, independent of the display refresh rate.
     const intent: Intent = { moveX: 0, moveZ: 0, target: s.panel.kind === "none" ? s.target : null };
@@ -148,6 +174,25 @@ export function Player({ houses }: { houses: Collider[] }) {
           if (Math.hypot(gift.x - b.x, gift.z - b.z) >= GIFT_RADIUS) continue;
           events.emit({ type: "gift", x: gift.x, z: gift.z });
           s.record("explore-gifts", gift.id);
+        }
+      }
+      // Quest pickups and the tree visit (PROPOSTA quests-v1): only while their quest is active.
+      if (quests) {
+        for (const spawn of QUEST_SPAWNS) {
+          if (progress.seen[`${spawn.questId}:${spawn.id}`] || questState(progress, spawn.questId) !== "active") continue;
+          if (Math.hypot(spawn.x - b.x, spawn.z - b.z) >= GIFT_RADIUS) continue;
+          events.emit({ type: "gift", x: spawn.x, z: spawn.z });
+          s.record(spawn.questId, spawn.id);
+          const { count, target } = questProgress(useVila.getState().progress, spawn.questId);
+          s.notify(`${QUESTS.find((q) => q.id === spawn.questId)?.objectName ?? "Item"} recolhido (${count}/${target})`);
+        }
+        if (
+          questState(progress, "tree-promise-visit") === "active" &&
+          !progress.seen["tree-promise-visit:tree"] &&
+          Math.hypot(b.x, b.z) < TREE_RADIUS + INTERACT_DISTANCE
+        ) {
+          s.record("tree-promise-visit", "tree");
+          s.notify("Você visitou a grande árvore · Volte a Dona Guida.");
         }
       }
     }
@@ -192,12 +237,51 @@ export function Player({ houses }: { houses: Collider[] }) {
       blobMaterial.uniforms.uOpacity.value = (shadows ? 0.2 : 0.34) * (1 - lift * 2);
     }
 
-    // ---- closest interaction (tree or lot).
-    if (Math.hypot(pose.x, pose.z) < TREE_RADIUS + INTERACT_DISTANCE) s.setNearby({ kind: "tree" });
-    else {
-      const lot = LOTS.find((l) => Math.hypot(l.x - pose.x, l.z - pose.z) < INTERACT_DISTANCE);
-      s.setNearby(lot ? { kind: "lot", lotId: lot.id } : null);
+    // ---- closest interaction: NPC, quest interaction, donation lectern, tree, then lot (see `beats`).
+    let best: Nearby = null;
+    let bestDist = 0;
+    let bestPrio = 0;
+    if (quests) {
+      const live = useVila.getState().progress;
+      for (let i = 0; i < NPCS.length; i++) {
+        const dist = Math.hypot(NPCS[i].x - pose.x, NPCS[i].z - pose.z);
+        if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) {
+          best = NEAR_NPC[i];
+          bestDist = dist;
+          bestPrio = 1;
+        }
+      }
+      for (let i = 0; i < QUEST_INTERACTIONS.length; i++) {
+        const ia = QUEST_INTERACTIONS[i];
+        if (live.seen[`${ia.questId}:${ia.id}`] || questState(live, ia.questId) !== "active") continue;
+        const dist = Math.hypot(ia.x - pose.x, ia.z - pose.z);
+        if (dist < ia.radius && beats(dist, 2, best, bestDist, bestPrio)) {
+          best = NEAR_QUEST[i];
+          bestDist = dist;
+          bestPrio = 2;
+        }
+      }
+      const panelDist = Math.hypot(DONATION_PANEL.x - pose.x, DONATION_PANEL.z - pose.z);
+      if (panelDist < INTERACT_DISTANCE && beats(panelDist, 3, best, bestDist, bestPrio)) {
+        best = NEAR_PANEL;
+        bestDist = panelDist;
+        bestPrio = 3;
+      }
     }
+    const treeDist = Math.hypot(pose.x, pose.z);
+    if (treeDist < TREE_RADIUS + INTERACT_DISTANCE && beats(treeDist, 4, best, bestDist, bestPrio)) {
+      best = NEAR_TREE;
+      bestDist = treeDist;
+      bestPrio = 4;
+    }
+    // Lots are far apart: at most one is within reach, and the first match is enough.
+    for (let i = 0; i < LOTS.length; i++) {
+      const dist = Math.hypot(LOTS[i].x - pose.x, LOTS[i].z - pose.z);
+      if (dist >= INTERACT_DISTANCE) continue;
+      if (beats(dist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[i];
+      break;
+    }
+    s.setNearby(best);
 
     // ---- camera: eased follow with a small look-ahead along the velocity.
     ahead.lerp(goal.set(b.vx, 0, b.vz).multiplyScalar(LOOK_AHEAD * U.uMotion.value), 1 - Math.exp(-3 * dt));
