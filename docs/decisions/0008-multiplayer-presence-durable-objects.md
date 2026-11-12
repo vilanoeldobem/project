@@ -64,3 +64,7 @@ mínimo e não abrir canal de contato.
 [IMPL-0009](0009-split-client-api-server-shared.md): as salas ficam no Worker `vilanoeldobem-server`
 (`server.vilanoeldobem.com.br/room?i=N`), que aceita só origens exatas de `ALLOWED_ORIGINS`. Protocolo, limites e
 Durable Object `VillageRoom` não mudaram.
+
+**Adendo (2026-11-11):** "salas vazias hibernam" não bastava para o custo: uma única aba esquecida aberta mantinha a
+sala acordada. [IMPL-0014](0014-realtime-idle-timeout.md) acrescenta o limite de inatividade (fechamento `4002`), a
+mensagem `["a"]` e a pausa do cliente; o resto do protocolo não mudou.

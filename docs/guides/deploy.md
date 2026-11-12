@@ -96,6 +96,25 @@ o smoke diário de produção falha (já aponta para os hosts novos).
   Paulo) e manualmente em **Actions → smoke → Run workflow** logo depois de cada deploy.
 - O deploy continua manual (`pnpm deploy:*`), feito por quem tem acesso à conta Cloudflare.
 
+### 4.3 Limite de inatividade da presença (IMPL-0014)
+
+`IDLE_TIMEOUT_SECONDS` em `vars` de `apps/server/wrangler.jsonc` (padrão `"300"`): segundos sem atividade real até a
+sala fechar a conexão com o código `4002` ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)). Aceita inteiro
+de `60` a `86400`; qualquer outro valor vale `300`. É variável de texto, não segredo; mudar o valor exige novo
+`pnpm deploy:server`.
+
+Ordem do deploy que introduz o limite: **servidor antes do cliente**.
+
+- Servidor novo com cliente antigo: funciona, mas o cliente antigo trata o `4002` como queda e reconecta sozinho
+  depois de 1 s. Abas antigas esquecidas abertas continuam ocupando a sala, em janelas de 5 minutos, até serem
+  recarregadas ou fechadas; a economia só fica completa quando essas abas somem.
+- Cliente novo com servidor antigo: o `["a"]` é descartado como mensagem inválida e conta para o limite de abuso
+  (`1008` depois de 200 descartes, mais de uma hora de uso sem andar). Por isso o servidor vai primeiro.
+
+Conferência depois do deploy: abrir o jogo, não tocar em nada por pouco mais de 5 minutos e ver o chip "👥 N" virar
+"👥 em pausa"; um clique no chão deve trazer "👥 N" de volta. No painel da Cloudflare, a duração (GB-s) do Durable
+Object `VillageRoom` deve parar de crescer nos períodos sem ninguém ativo.
+
 ## 5. Site público e domínios
 
 ```bash
