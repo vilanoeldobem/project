@@ -531,7 +531,7 @@ application workflow.
 - [x] Add SQL-backed route regressions using the existing D1 test adapter.
 - [x] Document the contract, schema prerequisite and deferred game/photo integration.
 - [x] Run typecheck, tests and builds under the machine's shared resource limits (lead coordinates).
-- [ ] Publish the reviewed branch as a PR for Augusto; no merge or deployment.
+- [x] Published [PR #28](https://github.com/vilanoeldobem/project/pull/28) against main; review requested from `augustobr1to`. No merge or deployment.
 
 ## IDS / review record
 
