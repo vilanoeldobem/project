@@ -354,19 +354,28 @@ documentos na ordem de envio).
 
 - **Quem pode enviar:** conta logada e verificada, com candidatura, de uma origem de `ACCOUNT_ORIGINS`.
   `X-Vila-Account` tem o mesmo papel do `accountId` das escritas em JSON (`409 account_changed` se outra aba trocou
-  de conta). Limite de 20 envios por minuto por conta (`429 too_many_requests`).
-- **Quando:** em `submitted`, `under_review`, `changes_requested` e `rejected`. Depois de `published` os arquivos
-  ficam congelados (`409 application_locked`).
+  de conta). Limites: 20 envios ou remoções por minuto por conta (`429 too_many_requests`) e 60 mudanças de
+  arquivo por candidatura a cada 24 horas (`429 too_many_file_changes`, com `fields.file`).
+- **Quando:** em `submitted`, `changes_requested` e `rejected`. Durante a análise (`under_review`) os arquivos ficam
+  travados, para que seja decidido exatamente o que foi visto, e depois de `published` ficam congelados (nos dois
+  casos `409 application_locked`).
 - **O que a API confere:** formato aceito para o tipo (`415 file_type`); tamanho, no cabeçalho e de novo enquanto os
   bytes chegam (`413 file_too_large`); formato real, lido da assinatura dos bytes, igual ao `Content-Type`
   (`400 file_mismatch`: uma página HTML ou um PDF chamado de PNG não passa; SVG nunca é aceito); imagem bem formada
   (`400 file_invalid`) e dentro dos limites de pixels (`400 image_too_small`, `400 image_too_large`); arquivo vazio
   (`400 file_empty`). Todos trazem `fields.file` com a frase em pt-BR.
-- **O que é guardado:** imagens sem metadados (EXIF com GPS e aparelho, XMP, comentários, blocos de texto do PNG,
-  bytes depois do fim da imagem); do EXIF do JPEG fica só a orientação. Os pixels não mudam. PDF é guardado como veio.
+- **O que é guardado:** imagens sem os metadados conhecidos (EXIF com GPS e aparelho, XMP, IPTC, comentários,
+  miniaturas, blocos de texto do PNG, bytes depois do fim da imagem); do EXIF do JPEG fica só a orientação. Os
+  pixels e o perfil de cor não mudam. Só recodificar a imagem removeria tudo; PDF é guardado como veio. Um JPEG com
+  mais de um cabeçalho de tamanho, ou um arquivo feito de centenas de milhares de pedaços, é recusado
+  (`400 file_invalid`).
 - **Revisão:** cada envio ou remoção soma 1 em `revision` (devolvido na resposta). Uma decisão do admin feita sobre
-  a revisão anterior é recusada com `409 stale_revision`. Se a candidatura mudar enquanto o arquivo chega, o envio
-  responde `409 application_changed` e nada fica guardado.
+  a revisão anterior é recusada com `409 stale_revision` (menos `start_review`, que vale para a versão atual e trava
+  os arquivos). Se a candidatura mudar enquanto o arquivo chega ou é removido, a resposta é
+  `409 application_changed` e nada muda; um reenvio da candidatura que perde para uma mudança de arquivo responde o
+  mesmo.
+- **Leitura por admin:** `GET /admin/applications/:id` lista os arquivos e `GET /admin/applications/:id/files/:fileId`
+  os entrega sempre que o bucket está ligado, mesmo com `NGO_FILES_ENABLED` desligado: quem aprova vê o que existe.
 - **Como os bytes são servidos:** `Content-Type` do arquivo, `X-Content-Type-Options: nosniff`,
   `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control: no-store`; documento sempre com
   `Content-Disposition: attachment`, logo com `inline`. As rotas conferem `Origin`, então um link direto ou um
@@ -399,8 +408,9 @@ histórico é o nickname do admin.
 | `reject` | `submitted`, `under_review`, `changes_requested` | `rejected` / `available` | obrigatória, ≥ 10 caracteres |
 
 - `note` (até 1000 caracteres) é a mensagem à organização; fica em `ngos.review_note` e aparece para quem enviou.
-- `revision` (obrigatório, inteiro) é a versão que o admin está vendo. Se a organização reenviou ou mudou um arquivo
-  ([§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017)) enquanto a tela estava aberta, a decisão é recusada (`409 stale_revision`, nada é gravado) em vez de valer para um conteúdo que
+- `revision` (obrigatório, inteiro) é a versão que o admin está vendo. `start_review` não a confere: inicia a
+  análise da versão atual, qualquer que seja, e trava os arquivos. Nas outras ações, se a organização reenviou ou
+  mudou um arquivo ([§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017)) enquanto a tela estava aberta, a decisão é recusada (`409 stale_revision`, nada é gravado) em vez de valer para um conteúdo que
   ninguém analisou.
 - `approve` exige `checks: {activeCnpj, oneYear, fundsConfirmable}`, os três `true` (as verificações do DEC-015);
   senão `400 checks_required`.
@@ -506,7 +516,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 503 | `db_unavailable` | `/lots` ou rota de conta sem binding D1 |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
 | API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ACCOUNT_ORIGINS`; `POST /auth/register` vindo do painel administrativo |
-| API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP; envio de arquivo acima de 20/60 s pela mesma conta |
+| API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP; envio ou remoção de arquivo acima de 20/60 s pela mesma conta |
 | API | 415 | `json_required` | `POST` de conta sem `Content-Type: application/json` |
 | API | 413 | `too_large` | corpo acima de 16 000 bytes (32 000 na candidatura) |
 | API | 400 | `bad_json` | corpo não é um objeto JSON |
@@ -534,8 +544,9 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 413 | `file_too_large` (+ `fields.file`) | arquivo acima do limite do tipo |
 | API | 400 | `file_mismatch`, `file_invalid`, `file_empty`, `image_too_small`, `image_too_large` (+ `fields.file`) | conteúdo diferente do formato informado, imagem ilegível, arquivo vazio, imagem fora dos limites de pixels |
 | API | 409 | `no_application` | envio de arquivo por conta sem candidatura |
-| API | 409 | `application_locked` | envio ou remoção de arquivo com a ONG já publicada |
+| API | 409 | `application_locked` | envio ou remoção de arquivo com a candidatura em análise ou a ONG já publicada |
 | API | 409 | `too_many_files` (+ `fields.file`) | sexto documento |
+| API | 429 | `too_many_file_changes` (+ `fields.file`) | mais de 60 envios e remoções de arquivo na mesma candidatura em 24 horas |
 | API | 409 | `application_changed` | a candidatura mudou enquanto o arquivo era enviado ou removido |
 | API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
 | API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |

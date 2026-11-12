@@ -50,7 +50,7 @@ Resultados são relatados como são: se algo falhou, diga o quê e com que saíd
 - Indicador sem fonte verificável é `null` na API e "—" na tela (DEC-027).
 - Missões e XP idempotentes por id de evento; doação sozinha não dá XP (DEC-042).
 - Um Worker por app ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md)); apps nunca importam uns
-  dos outros e o código comum fica em `packages/shared` (puro). D1 é o único armazenamento persistente do servidor.
+  dos outros e o código comum fica em `packages/shared` (puro). D1 é o único banco persistente do servidor; os bytes dos arquivos de ONG ficam num bucket R2 privado (IMPL-0017).
 - Migrations em `migrations/NNNN_nome.sql` são imutáveis depois de aplicadas no remoto.
 - Nunca registrar em log dados pessoais, e-mails, tokens ou documentos de ONGs. Nada de credenciais no repositório.
 

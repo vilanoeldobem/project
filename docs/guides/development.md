@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 

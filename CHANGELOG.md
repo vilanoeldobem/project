@@ -31,7 +31,11 @@ Cada versão indica o schema D1 que entrega.
   conferido pelos bytes (SVG e HTML recusados) e o tamanho é conferido de novo enquanto o arquivo chega.
 - Imagens são guardadas sem metadados (EXIF com GPS, XMP, comentários); o nome original do arquivo não é guardado.
 - Enviar ou remover arquivo muda a `revision` da candidatura: decisão do admin sobre a versão anterior é recusada.
-  Depois de publicada, a ONG não troca mais arquivo.
+  Durante a análise (`under_review`) os arquivos ficam travados e, depois de publicada, a ONG não troca mais
+  arquivo. `start_review` passa a valer para a versão atual, sem conferir a revisão vista.
+- Limites: 20 envios ou remoções por minuto por conta e 60 mudanças de arquivo por candidatura a cada 24 horas.
+- Admins leem os arquivos existentes sempre que o bucket está ligado, mesmo com o envio desligado.
+- `pnpm deploy:api` passa `--x-provision=false`: o wrangler não cria mais sozinho um bucket que falta.
 - Leitura de documento por admin gravada em `audit_events` (`ngo.file_read`), além de `ngo.file_add` e
   `ngo.file_remove`.
 - `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não publicada.

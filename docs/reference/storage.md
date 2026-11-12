@@ -61,7 +61,7 @@ Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-fil
 | `ngo_id` | TEXT FK → ngos | sem `ON DELETE`: uma ONG com arquivos não pode ser apagada |
 | `kind` | TEXT | `logo` ou `document` |
 | `content_type` | TEXT | `image/png`, `image/jpeg` ou `application/pdf` |
-| `size` | INTEGER > 0 | bytes guardados (imagens já sem metadados) |
+| `size` | INTEGER > 0 | bytes guardados (imagens já sem os metadados conhecidos) |
 | `uploaded_by` | TEXT FK → users, `ON DELETE SET NULL` | conta que enviou |
 | `created_at` | TEXT | RFC 3339 UTC com milissegundos |
 
@@ -145,7 +145,7 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
-| Documentos da candidatura (R2) | até a pessoa removê-los ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
+| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
 | Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
@@ -166,8 +166,8 @@ Bucket `vilanoeldobem-files`, binding `FILES`, ligado só ao Worker da API. **PR
 | Chave | `ngo/<id da ONG>/<id do arquivo>` (dois UUIDs; nenhum nome) |
 | Metadado do objeto | só `contentType` |
 | Conteúdo | logo (PNG/JPEG, até 512 KB) e até 5 documentos (PDF/PNG/JPEG, até 5 MB) por candidatura |
-| Imagens | guardadas sem EXIF, XMP, comentários e blocos de texto (fica só a orientação do JPEG) |
-| Quem lê | logo: público só com a ONG `published`; documento: quem enviou e admins (leitura de admin auditada) |
+| Imagens | guardadas sem EXIF, XMP, IPTC, comentários, miniaturas e blocos de texto (fica só a orientação do JPEG); só recodificar removeria tudo |
+| Quem lê | logo: público só com a ONG `published`; documento: quem enviou e admins (leitura de admin auditada). Admins leem sempre que o bucket está ligado, mesmo com o envio desligado |
 | Localização | dica `enam`, como o D1 (o R2 não tem região na América do Sul) |
 | Homologação | `env.staging` não tem bucket: as rotas respondem `404 files_disabled` |
 

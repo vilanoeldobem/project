@@ -25,7 +25,7 @@ prazo oficial **30/11/2026** (DEC-043)
 | P03 Terrenos | 8 terrenos ao redor da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
-| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel **não publicado** ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |
+| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel publicado em 2026-11-12 ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |
 | P13 Cadastro de usuário | Nome, Nickname, Cidade e E-mail; entrada por link mágico; só o nickname é público | **Implementado, desligado em produção** (aguarda revisão LGPD / ECA Digital) |
 | P14 Missões / XP / níveis | Caderno de Missões, 4 missões em 3 trilhas, XP local e, com conta, no servidor | **Parcial** — sem conta, progresso só no navegador |
 | P05–P08, P10, P11, P15 | Chat, emotes, avatar, skins, expansão, indicação, badges | Planejado ([roadmap](ROADMAP.md)) |
