@@ -145,6 +145,11 @@ Cada versão indica o schema D1 que entrega.
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
 
+### Fixed — verificação
+
+- `apps/client/scripts/verify.mjs`: o toque de teste no celular caía na árvore (abria o painel de doação e escondia
+  os botões de zoom); agora toca no chão da praça, ao lado do avatar.
+
 ## [0.3.0] - 2026-11-08
 
 **Site público e domínio oficial** ([IMPL-0005](docs/decisions/0005-public-site-and-domains.md)). Schema D1 **v3**

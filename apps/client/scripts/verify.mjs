@@ -24,8 +24,9 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${out}${name}-1-welcome.png` });
   await page.getByRole("button", { name: "Entrar na Vila" }).click();
-  // Movement is click/tap only (WASD removed): click the ground ahead, towards the tree.
-  await page.mouse.click(viewport.width / 2, viewport.height * 0.4);
+  // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar. Not straight ahead:
+  // in portrait the tree fills that spot, and a click on the tree opens the donation panel (hiding the zoom HUD).
+  await page.mouse.click(viewport.width * 0.3, viewport.height * 0.47);
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${out}${name}-2a-clique.png` });
   await page.waitForTimeout(800);
