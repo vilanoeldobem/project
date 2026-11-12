@@ -135,18 +135,20 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 });
 
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
-// on any schema the code may meet (v3 to v9), whatever the flags and the bucket, and never with a 500. None of them
-// may read a table from a later migration: the withdrawal ledger (0009, IMPL-0020) is not part of any public read.
-it.each([3, 4, 5, 6, 7, 8, 9])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+// on any schema the code may meet (v3 to v10), whatever the flags and the bucket, and never with a 500. None of them
+// may read a table from a later migration: neither the withdrawal ledger (0009, IMPL-0020) nor anything 0010 adds
+// (the account block and the moderation tickets, IMPL-0021) is part of any public read.
+it.each([3, 4, 5, 6, 7, 8, 9, 10])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   const wrong: string[] = [];
-  for (let flags = 0; flags < 32; flags++) for (const published of [true, false]) {
+  for (let flags = 0; flags < 128; flags++) for (const published of [true, false]) {
     db = createD1({ upTo });
     env = {
       DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: flags & 1 ? "true" : "false",
       NGO_FILES_ENABLED: flags & 2 ? "true" : "false", NGO_PHOTOS_ENABLED: flags & 4 ? "true" : "false",
       FILES: flags & 8 ? createR2() as unknown as R2Bucket : undefined,
       NGO_WITHDRAWAL_ENABLED: flags & 16 ? "true" : "false",
+      ACCOUNT_BLOCK_ENABLED: flags & 32 ? "true" : "false", PRESENCE_MODERATION_ENABLED: flags & 64 ? "true" : "false",
     };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', ?)").bind(NGO_ID, published ? "published" : "submitted").run();
     await db.prepare("UPDATE lots SET ngo_id=?,state=? WHERE id='plaza-01'").bind(NGO_ID, published ? "published" : "application_sent").run();
@@ -165,6 +167,12 @@ it.each([3, 4, 5, 6, 7, 8, 9])("answers every always-on public route on schema v
     const { indicators } = await (await get("/indicators")).json() as { indicators: Array<{ key: string; value: number | null }> };
     expect(indicators.find((indicator) => indicator.key === "approved_ngos")?.value).toBe(published ? 1 : 0);
     if (published) expect(await (await get()).json()).toEqual({ ngo: { id: NGO_ID, name: "Public NGO", summary: "Public summary", description: null, tags: [], projects: [], lotId: "plaza-01", photos: [] } });
+    // `/config` is computed from the flags alone, on every schema.
+    const accounts = Boolean(flags & 1);
+    expect(await (await get("/config")).json()).toEqual({
+      accounts, quests: false, files: accounts && Boolean(flags & 2) && Boolean(flags & 8), withdrawal: accounts && Boolean(flags & 16),
+      moderation: { block: accounts && Boolean(flags & 32), presence: accounts && Boolean(flags & 64) },
+    });
   }
   expect(wrong).toEqual([]);
   expect(errors).not.toHaveBeenCalled();

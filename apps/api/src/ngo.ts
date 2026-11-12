@@ -128,7 +128,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
   const now = new Date().toISOString();
   const revision = current ? current.revision + 1 : 1;
   const LOT_HELD = "EXISTS (SELECT 1 FROM lots WHERE id = ? AND ngo_id = ?)";
-  const EDITABLE = "status IN ('changes_requested', 'rejected') AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)";
+  // The applicant is not erasing the account and was not blocked meanwhile (IMPL-0021): checked again in SQL.
+  const EDITABLE = "status IN ('changes_requested', 'rejected') AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND (u.files_deleting = 1 OR u.blocked = 1))";
   /*
    * One transaction where every write is guarded by the previous one: reserve the lot (only if the lot is
    * free and the application is still in the state we read) → write the application (only if the lot is
@@ -161,7 +162,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
       db.prepare(
         `UPDATE lots SET state = 'application_sent', ngo_id = ? WHERE id = ? AND state = 'available'
            AND NOT EXISTS (SELECT 1 FROM ngos WHERE applicant_id = ? AND status IN ('submitted', 'under_review', 'changes_requested', 'published'))
-           AND EXISTS (SELECT 1 FROM users WHERE id = ? AND files_deleting = 0)`
+           AND EXISTS (SELECT 1 FROM users WHERE id = ? AND files_deleting = 0 AND blocked = 0)`
       ).bind(ngoId, value.lotId, user.id, user.id),
       db.prepare(
         `INSERT INTO ngos (name, cnpj, cnpj_opened_on, city, summary, description, funds_confirmation, declarations, tags, projects,
@@ -185,6 +186,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
     written = 0;
   }
   if (!written) {
+    // Blocked while this was being sent (IMPL-0021): nothing was written, and the reason is not the lot.
+    if (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()) throw new HttpError(403, "session_blocked");
     const active = await myApplication(env, user.id);
     if (active && ACTIVE.includes(active.status) && active.revision !== revision) throw new HttpError(409, "application_active");
     const dup = await db.prepare("SELECT id FROM ngos WHERE cnpj = ? AND id != ?").bind(value.cnpj, ngoId).first();

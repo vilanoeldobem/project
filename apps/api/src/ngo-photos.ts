@@ -110,8 +110,9 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
         WHERE p.id=? AND p.status='pending' AND p.upload_pending=1 AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN}`
     ).bind(id,user.id).first()));
     const [changed] = await env.DB!.batch([
+      // The commit also refuses an owner who was blocked while the bytes were arriving (IMPL-0021).
       env.DB!.prepare(`UPDATE ngo_photos SET upload_pending=0,decision_token=? WHERE id=? AND status='pending' AND upload_pending=1
-        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})`)
+        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND u.blocked=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})`)
         .bind(token, id, user.id),
       env.DB!.prepare(`INSERT INTO audit_events(id,actor,action,subject,detail) SELECT ?,?,'ngo.photo.upload',?,? WHERE ${TOKEN}`)
         .bind(newId(), user.id, `ngo:${ngoId}`, JSON.stringify({photoId:id,revision:1}), id, token),

@@ -86,9 +86,10 @@ describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {
     env.ACCOUNTS_ENABLED = "false";
     env.QUESTS_V1_ENABLED = "false";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, files: false, withdrawal: false });
+    const moderation = { presence: false, block: false };
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, files: false, withdrawal: false, moderation });
     env.QUESTS_V1_ENABLED = "true";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, files: false, withdrawal: false });
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, files: false, withdrawal: false, moderation });
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });
@@ -905,11 +906,11 @@ describe("backoffice dashboard (IMPL-0015)", () => {
       const all = await call("GET", "/admin/users", undefined, admin.cookie);
       expect(all.body.next).toBeNull();
       expect(all.body.users).toEqual([
-        { id: admin.user.id, nickname: "admin_vila", role: "admin", city: "Recife", createdAt: "2026-01-03T00:00:00.000Z", verified: true },
-        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "bia_souza", role: "player", city: "Natal", createdAt: "2026-01-02T00:00:00.000Z", verified: false },
-        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "ana_lima", role: "player", city: "Recife", createdAt: "2026-01-01T00:00:00.000Z", verified: true },
+        { id: admin.user.id, nickname: "admin_vila", role: "admin", city: "Recife", createdAt: "2026-01-03T00:00:00.000Z", verified: true, blocked: false },
+        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "bia_souza", role: "player", city: "Natal", createdAt: "2026-01-02T00:00:00.000Z", verified: false, blocked: false },
+        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "ana_lima", role: "player", city: "Recife", createdAt: "2026-01-01T00:00:00.000Z", verified: true, blocked: false },
       ]);
-      for (const u of all.body.users) expect(Object.keys(u).sort()).toEqual(["city", "createdAt", "id", "nickname", "role", "verified"]);
+      for (const u of all.body.users) expect(Object.keys(u).sort()).toEqual(["blocked", "city", "createdAt", "id", "nickname", "role", "verified"]);
       expect(JSON.stringify(all.body)).not.toMatch(/@example\.com|Ana Lima|Bia Souza|email|"name"/);
 
       const first = await call("GET", "/admin/users?limit=2", undefined, admin.cookie);
@@ -920,12 +921,14 @@ describe("backoffice dashboard (IMPL-0015)", () => {
       expect(second.body.next).toBeNull();
     });
 
-    it("has no route that grants a role", async () => {
+    // The one route that changes a role is `POST /admin/users/:id/role` (IMPL-0021; account-moderation.test.ts).
+    it("has no other route that grants a role", async () => {
       const admin = await asAdmin();
       const player = await signUp();
       const body = { role: "admin", name: "Ana Lima", nickname: "ana_lima", city: "Recife" };
-      for (const path of ["/admin/users", `/admin/users/${player.user.id}`, `/admin/users/${player.user.id}/role`])
+      for (const path of ["/admin/users", `/admin/users/${player.user.id}`, `/admin/users/${player.user.id}/roles`, `/admin/users/${player.user.id}/role/admin`])
         expect([path, (await call("POST", path, body, admin.cookie)).status]).toEqual([path, 404]);
+      for (const method of ["GET", "DELETE"]) expect((await call(method, `/admin/users/${player.user.id}/role`, undefined, admin.cookie)).status).toBe(404);
       // The profile correction ignores a `role` field.
       expect((await call("POST", "/me", body, player.cookie)).body.user.role).toBe("player");
       expect(db.sql("SELECT role FROM users WHERE id = ?", player.user.id)[0].role).toBe("player");

@@ -535,10 +535,11 @@ describe("database without migration 0009", () => {
   const CHECKS = { activeCnpj: true, oneYear: true, fundsConfirmable: true };
 
   // Signed-in and admin routes join `ngo_withdrawals`: on an older database they follow the 503 schema_outdated
-  // convention (never a 500), with the withdrawal flag on or off, and write nothing.
+  // convention (never a 500), with the withdrawal flag on or off, and write nothing. 0010 is applied on top so
+  // that the session check itself works (IMPL-0021) and what is tested here is the missing ledger.
   it.each(["true", "false"])("answers 503 schema_outdated on the routes that read the ledger (NGO_WITHDRAWAL_ENABLED=%s)", async (flag) => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    db = createD1({ upTo: 8 }); await seed(db, 8);
+    db = createD1({ upTo: 8, additionalMigrations: [10] }); await seed(db, 8);
     env = { ...env, DB: db, NGO_WITHDRAWAL_ENABLED: flag };
     const before = ["ngos", "lots", "ngo_photos", "ngo_files", "audit_events", "media_upload_intents"].map((table) => db.sql(`SELECT * FROM ${table}`));
     const outdated: Array<[string, Promise<Response>]> = [
@@ -567,7 +568,7 @@ describe("database without migration 0009", () => {
 
   it("keeps the session, progress, public reads and account deletion working without the ledger", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    db = createD1({ upTo: 8 }); await seed(db, 8); env = { ...env, DB: db };
+    db = createD1({ upTo: 8, additionalMigrations: [10] }); await seed(db, 8); env = { ...env, DB: db };
     expect((await call("GET", "/me", undefined, "owner")).status).toBe(200);
     expect((await call("GET", "/progress", undefined, "owner")).status).toBe(200);
     for (const path of ["/lots", "/indicators", `/ngos/${NGO}`, `/ngos/${NGO}/logo`, `/ngos/${NGO}/photos/${PHOTO}`]) expect([path, (await publicGet(path)).status]).toEqual([path, 200]);

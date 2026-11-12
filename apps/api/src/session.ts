@@ -20,6 +20,8 @@ export interface User {
   role: "player" | "admin";
   verified_at: string | null;
   files_deleting?: number;
+  /** 1 while a block is in force (migration 0010; IMPL-0021, PROPOSTA). */
+  blocked?: number;
 }
 
 export function sessionCookie(token: string): string {
@@ -41,7 +43,8 @@ export async function currentUser(request: Request, env: Env): Promise<User | nu
   const token = readSessionToken(request);
   if (!token || !env.DB) return null;
   return env.DB.prepare(
-    `SELECT u.id, u.name, u.nickname, u.city, u.email, u.role, u.verified_at, u.files_deleting
+    // `blocked` is migration 0010: a database without it answers 503 schema_outdated on every signed-in route.
+    `SELECT u.id, u.name, u.nickname, u.city, u.email, u.role, u.verified_at, u.files_deleting, u.blocked
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.expires_at > ?`
   )
@@ -49,9 +52,20 @@ export async function currentUser(request: Request, env: Env): Promise<User | nu
     .first<User>();
 }
 
-export async function requireUser(request: Request, env: Env): Promise<User> {
+/** Signed in, blocked or not: only for what a blocked person keeps (reading `/me`, signing out, erasing the account). */
+export async function requireSession(request: Request, env: Env): Promise<User> {
   const user = await currentUser(request, env);
   if (!user) throw new HttpError(401, "not_signed_in");
+  return user;
+}
+
+/**
+ * Signed in and not blocked. A blocked account's session is restricted (IMPL-0021, PROPOSTA): it is refused on
+ * every route that asks for a user, on every request, so a block already recorded holds whatever the flag says.
+ */
+export async function requireUser(request: Request, env: Env): Promise<User> {
+  const user = await requireSession(request, env);
+  if (user.blocked) throw new HttpError(403, "session_blocked");
   return user;
 }
 
@@ -69,5 +83,11 @@ export function assertAccount(body: Record<string, unknown>, user: User): void {
   if (body.accountId !== user.id) throw new HttpError(409, "account_changed");
 }
 
-/** What the person's own client may see about themselves (e-mail included; never sent to anyone else). */
-export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role, deletionPending: Boolean(u.files_deleting) });
+/**
+ * What the person's own client may see about themselves (e-mail included; never sent to anyone else). `block` is
+ * the block in force, when there is one: the message the administration wrote to them, and when.
+ */
+export const meView = (u: User, block?: { message: string; at: string } | null) => ({
+  id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role, deletionPending: Boolean(u.files_deleting),
+  ...(block ? { blocked: block } : {}),
+});

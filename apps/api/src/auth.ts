@@ -5,7 +5,7 @@
  *   POST /auth/link     {email}                       → 202 (always the same answer: no account enumeration)
  *   POST /auth/verify   {token}                       → 200 {user} + session cookie
  *   POST /auth/logout                                 → 204
- *   GET  /me                                          → {user} | {user: null} when signed out
+ *   GET  /me                                          → {user} | {user: null} when signed out (`user.blocked` while blocked)
  *   POST /me            {name, nickname, city}        → {user}  (correction; the e-mail is not editable)
  *   DELETE /me                                        → 204 (account, sessions and mission events deleted)
  *
@@ -16,14 +16,21 @@
  * Link target: the game (GAME_ORIGIN), except for `POST /auth/link` asked by the backoffice dashboard — the
  * request `Origin` equal to DASH_ORIGIN, exact match — whose link opens the dashboard (IMPL-0015). Nothing else in
  * the request chooses where a link points. Registration is game-only: the dashboard creates no accounts.
+ *
+ * Blocked accounts (IMPL-0021, PROPOSTA; account-moderation.ts): the link routes answer a blocked e-mail exactly
+ * as any other (same code path), so nothing tells a third party that an e-mail is blocked. The link opens a
+ * restricted session: `GET /me` (with `blocked: {message, at}`), `POST /auth/logout` and `DELETE /me` work, every
+ * other signed-in route answers 403 session_blocked. Erasure is never taken away by a block; it removes the block
+ * ledger with the account, and nothing keeps the e-mail afterwards.
  */
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
 
+import { activeBlock } from "./account-moderation";
 import { isoIn, newId, randomToken, sha256Hex } from "./crypto";
 import { removeFilesOfAccount } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { sendLoginLink } from "./mail";
-import { clearCookie, currentUser, meView, readSessionToken, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
+import { clearCookie, currentUser, meView, readSessionToken, requireSession, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
 import type { Env } from "./api";
 
 export const LINK_TTL_MS = 15 * 60 * 1000;
@@ -70,7 +77,8 @@ export async function register(request: Request, env: Env, origin: string): Prom
   const { value, errors } = validateRegistration(await readJson(request));
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
-  await db.prepare("DELETE FROM users WHERE verified_at IS NULL AND created_at < ?").bind(new Date(Date.now() - UNVERIFIED_TTL_MS).toISOString()).run();
+  // A blocked registration is kept: expiring it would free the e-mail and the nickname for a new account.
+  await db.prepare("DELETE FROM users WHERE verified_at IS NULL AND blocked = 0 AND created_at < ?").bind(new Date(Date.now() - UNVERIFIED_TTL_MS).toISOString()).run();
 
   // Nickname first, for every e-mail: the answer must not depend on whether the e-mail has an account.
   const taken = await db.prepare("SELECT 1 AS x FROM users WHERE nickname_key = ?").bind(value.nickname.toLowerCase()).first();
@@ -130,9 +138,14 @@ export async function verify(request: Request, env: Env): Promise<Response> {
       row.user_id, now, new Date(Date.now() - 24 * 3600 * 1000).toISOString()
     ),
   ]);
-  const user = await db.prepare("SELECT id, name, nickname, city, email, role, verified_at, files_deleting FROM users WHERE id = ?").bind(row.user_id).first<User>();
+  const user = await db.prepare("SELECT id, name, nickname, city, email, role, verified_at, files_deleting, blocked FROM users WHERE id = ?").bind(row.user_id).first<User>();
   if (!user) throw new HttpError(400, "invalid_token");
-  return json({ user: meView(user) }, { headers: { ...NO_STORE, "Set-Cookie": sessionCookie(session) } });
+  return json({ user: await ownView(db, user) }, { headers: { ...NO_STORE, "Set-Cookie": sessionCookie(session) } });
+}
+
+/** `meView` with the block in force, for the person who proved they own the e-mail (the link or the session). */
+async function ownView(db: D1Database, user: User) {
+  return meView(user, user.blocked ? ((await activeBlock(db, user.id)) ?? { message: "", at: "" }) : null);
 }
 
 /**
@@ -164,12 +177,15 @@ export async function logout(request: Request, env: Env): Promise<Response> {
 /** Signed out is a normal state for visitors (OQ-02): `{user: null}`, not an error in every browser console. */
 export async function me(request: Request, env: Env): Promise<Response> {
   const user = await currentUser(request, env);
-  return json({ user: user ? meView(user) : null }, { headers: NO_STORE });
+  return json({ user: user ? await ownView(env.DB!, user) : null }, { headers: NO_STORE });
 }
 
-/** Deletes the account (sessions, links and mission events cascade; an NGO application keeps no link to it). */
+/**
+ * Deletes the account (sessions, links, mission events and the block ledger cascade; an NGO application keeps no
+ * link to it). A blocked account keeps this right (IMPL-0021): the only signed-in write its session may make.
+ */
 export async function deleteMe(request: Request, env: Env): Promise<Response> {
-  const user = await requireUser(request, env);
+  const user = await requireSession(request, env);
   const db = env.DB!;
   // Durable intent freezes NGO/file decisions while R2 cleanup runs. A failed cleanup is retried by DELETE /me.
   const frozen = await db.prepare("UPDATE users SET files_deleting = 1 WHERE id = ? AND files_deleting = 0").bind(user.id).run();
