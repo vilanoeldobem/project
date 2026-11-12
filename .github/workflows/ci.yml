@@ -30,8 +30,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
-      - name: Local media and progress lifecycle (workerd, D1, R2)
-        run: node scripts/verify-media-local.mjs --progress
+      - name: Local media, progress and withdrawal lifecycle (workerd, D1, R2)
+        run: node scripts/verify-media-local.mjs --progress --withdrawal
         timeout-minutes: 3
       - name: Install pinned Chromium for the existing account flow
         run: pnpm --filter @vila/client exec playwright-core install --with-deps chromium
