@@ -60,15 +60,20 @@ Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gi
 `gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
 casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
 fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua).
+`house()` devolve também `solid`: os retângulos das paredes e da varanda, que viram os colisores do chalé
+([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)).
 
 Moradores e animais (PROPOSTA de decoração, `CRITTERS` em `packages/shared/src/game/world.ts`): 3 moradores, um
 cachorro, um gato no banco, dois passarinhos nos postes, um coelho e uma coruja num pinheiro, cada um com semente
 fixa. Respiram e olham em volta pelo material `idle` (shader de vértice; "Menos movimento" desliga). A coruja só
-aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores e cachorro bloqueiam o avatar;
-animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
+aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores, cachorro, gato e coelho
+bloqueiam o avatar (pegada de cada um em `world.ts`); passarinhos e coruja, empoleirados, não. Os adereços colocados
+no mapa (`PLACED_PROPS`) trazem a própria pegada (`solid`), inclusive as cercas.
+Animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
 
 Os cinco moradores das quests narrativas (`NPCS`; PROPOSTA `quests-v1`, PEN-025) usam o mesmo gerador `villager` com
-semente igual ao `npc_id` (Baltazar, Dona Filó, Seu Nivaldo, Aurora, Dona Guida), colidem com raio `0,5` e carregam um
+semente igual ao `npc_id` (Baltazar, Dona Filó, Seu Nivaldo, Aurora, Dona Guida), bloqueiam o avatar com a pegada de
+morador (cápsula de 1,5 × 0,9 u) e carregam um
 rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitura da doação global
 (`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, com um rótulo curto
 "Doação global"; leva ao mesmo painel de doação da árvore (DEC-026). NPCs, atril, rótulos e obstáculos só existem com

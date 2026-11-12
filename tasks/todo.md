@@ -467,3 +467,40 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - [ ] Turnstile (CAPTCHA) on register and link (abusive e-mails to third parties)
 - [ ] Nickname moderation; e-mail on review decisions (rules PENDENTE); document upload (PEN-019)
 - [ ] Remote migrations 0004 + 0005 with the API deploy (needs authorisation)
+
+# Task: avatar collisions and click navigation (IMPL-0016; owner: "fix all game collisions") — 2026-11-11
+
+## Plan
+- [x] Reproduce: three chained clicks from the spawn stop 10–20 u short on main (straight line + give-up after 0.5 s)
+- [x] Collider audit against the drawn voxels (generators + placements), both ways; one collider shape (rounded
+      rectangle: circle / capsule / box) in `packages/shared/src/game/collision.ts`; footprints next to each
+      placement in `world.ts`; chalets from `GenModel.solid`; markers of available lots
+- [x] Navigation in `packages/shared/src/game/navigation.ts`: 0.25 u grid field per collider set, destination
+      resolved to the nearest walkable point, straight line when in sight, else A* + string pulling; `stepWalk`
+      follows the route in the fixed step, replans when stuck (give-up is the last resort)
+- [x] `stepBody`: boxes, up to three push-out passes, never squeezed through a gap narrower than the body
+- [x] Client: route planned in `setTarget` (`sim.planWalk`), marker and tap feedback at the resolved destination,
+      field rebuilt only when houses or the quests flag change; `LOT_INTERACT_DISTANCE = 6`
+- [x] Tests: collision, navigation (regressions, blocked / outside / unreachable targets, determinism, budget,
+      invariants, no-trap from every reachable touching position, random clicks), collider audit against the models
+- [x] `apps/client/scripts/verify-collisions.mjs` (not run here: browser checks belong to the coordinating session)
+- [x] Docs: ADR IMPL-0016, architecture §2.1–2.2, quests, content, guides, CHANGELOG, AGENTS
+
+## Review (2026-11-11)
+- Gates (on origin/main 35e07e8): typecheck clean; tests shared 127 (was 91), client 164 (was 160), api 70,
+  server 23, dash 33, site 2; build clean. Every commit of the branch passes typecheck and tests on its own.
+- In all three collider sets (quests off, quests on, every lot a chalet): every walk that starts pressed against a
+  collider the body can physically reach (500+ sampled spots per set) reaches its target with no replan.
+- Moved (ids unchanged, PROPOSTA layout): `bell-pine-north`, `bell-pine-east`, `lantern-lake-1` (they sat inside
+  the pines' new colliders). `verify-quests.mjs` adjusted to the new spots and to the chalet's porch.
+- Not run: any browser script. Left as layout notes (PEN-017): owl floats above a small pine, cat half off its
+  bench, the pine at (-11, 10) plus the lantern at 135° close the ring street for routes.
+
+## Lessons
+- `clampToWorld` keeps bodies out of the tree's keep-out: motion tests with made-up colliders must sit away from
+  the origin, or the clamp teleports the body.
+- A single push-out pass lets a body be squeezed through any gap it is pressed into; test with both collider orders.
+- Compound shell commands with heredocs are refused in an isolated worktree: write scripts with the Write tool.
+- Worktrees share remote-tracking refs: `origin/main` moved under this branch while other sessions fetched.
+  Check `git log origin/main` again before the last commit and rebase the work onto it.
+- The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.

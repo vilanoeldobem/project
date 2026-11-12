@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import seed from "../../../../migrations/0002_seed_lots.sql?raw";
 
 import { applyEvent, EMPTY_PROGRESS, levelOf, MISSIONS } from "./progress";
-import { clampToWorld, LOTS, TREE_RADIUS, WORLD_RADIUS } from "./world";
+import { clampToWorld, LOTS, TREE_KEEP_OUT, WORLD_RADIUS } from "./world";
 
 describe("missions (DEC-042)", () => {
   it("counts each event only once", () => {
@@ -45,6 +45,6 @@ describe("world", () => {
     const [x, z] = clampToWorld(100, 0);
     expect(Math.hypot(x, z)).toBeCloseTo(WORLD_RADIUS);
     const [a, b] = clampToWorld(0.5, 0);
-    expect(Math.hypot(a, b)).toBeCloseTo(TREE_RADIUS);
+    expect(Math.hypot(a, b)).toBeCloseTo(TREE_KEEP_OUT);
   });
 });

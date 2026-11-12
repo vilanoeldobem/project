@@ -155,7 +155,7 @@ async function walkTo(page, x, z, radius = 0.9) {
       }, [x, z, radius], { timeout: 60000 });
       return;
     } catch {
-      // A target can be dropped after a collision: re-issue it once before reporting a failure.
+      // Clicks are routed around obstacles (IMPL-0016); re-issue once anyway before reporting a failure.
       if (attempt === 1) {
         const p = await page.evaluate(() => window.__vila.pose());
         fail(`walk: did not reach (${x}, ${z}) — avatar at (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
@@ -289,7 +289,7 @@ await page.waitForFunction(() => window.__vila.progress().seen["harness-bells:be
 await page.waitForTimeout(400);
 await page.screenshot({ path: `${out}quests-2-bag.png` });
 await walkTo(page, 14.5, 3.5);
-await walkTo(page, 12.6, 9.2);
+await walkTo(page, 12.9, 9.2);
 await page.waitForFunction(() => window.__vila.progress().seen["harness-bells:bell-pine-east"], null, { timeout: 60000 }).catch(() => fail("harness-bells: east bell not collected"));
 await expectState(page, "harness-bells", "ready_to_turn_in");
 await walkTo(page, -2.5, 26.5);
@@ -359,17 +359,12 @@ await playMemory(page);
 await openNpc(page, "Seu Nivaldo");
 await dialogButton(page, /Concluir missão \(\+30 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
-// Reach the published lot along the street ring (radius 17.2) so the pine/bench cluster near the
-// plaza never sits between the avatar and the house; the last leg stops 4 u from the lot centre.
+// Walk to the front of the published lot: 5.5 u from its centre, outside the chalet's porch (the house
+// blocks the avatar up to 4.5 u in front, IMPL-0016) and inside the lot's reach (6 u). The route planner
+// goes around whatever stands in between, so no detour along the street is needed any more.
 const lotIndex = Number(publishedLot.split("-")[1]) - 1;
 const angle = (2 * Math.PI * lotIndex) / 8 + Math.PI / 8;
-await walkTo(page, 15, 0);
-await walkTo(page, 17.2, 0);
-for (let step = 1; step * (Math.PI / 8) <= angle + 1e-6; step++) {
-  const turn = step * (Math.PI / 8);
-  await walkTo(page, 17.2 * Math.cos(turn), 17.2 * Math.sin(turn));
-}
-await walkTo(page, 18 * Math.cos(angle), 18 * Math.sin(angle));
+await walkTo(page, 16.5 * Math.cos(angle), 16.5 * Math.sin(angle));
 await page.getByRole("button", { name: /Ver terreno/ }).click();
 await page.getByRole("dialog").getByText("Destinatário: esta ONG").waitFor({ timeout: 10000 });
 await page.waitForFunction((lot) => window.__vila.progress().seen[`newest-house-visit:${lot}`], publishedLot, { timeout: 15000 }).catch(() => fail("newest-house-visit: lot visit not recorded"));
@@ -383,7 +378,7 @@ await closePanel(page);
 await walkTo(page, 22.4, -2.5);
 await openNpc(page, "Aurora");
 await dialogButton(page, "Aceitar missão").click();
-await walkTo(page, 23.5, 17, 1.4);
+await walkTo(page, 23.2, 17, 1.4);
 await page.waitForFunction(() => window.__vila.progress().seen["lake-lanterns:lantern-lake-1"], null, { timeout: 60000 }).catch(() => fail("lake-lanterns: first lantern not collected"));
 await walkTo(page, 30.5, 10, 1.4);
 await page.waitForFunction(() => window.__vila.progress().seen["lake-lanterns:lantern-lake-2"], null, { timeout: 60000 }).catch(() => fail("lake-lanterns: second lantern not collected"));

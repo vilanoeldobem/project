@@ -64,6 +64,22 @@ Cada versão indica o schema D1 que entrega.
 - No jogo, o token do link mágico (`#login=`) sai da barra de endereço antes de o GTM carregar
   (`/login-fragment.js`, guardado só em memória), para nunca aparecer na URL medida.
 
+### Fixed — colisões e clique para andar
+
+- O avatar chega aonde se clica ([IMPL-0016](docs/decisions/0016-click-navigation-and-colliders.md)): a rota contorna
+  árvore, pinheiros, postes, bancos, barracas, trenó, moradores e casas, planejada uma vez por clique. Antes ele ia em
+  linha reta e desistia em 0,5 s no primeiro obstáculo (parava 10 a 20 u antes do destino). Clique em cima de um
+  obstáculo ou fora do mundo leva ao ponto caminhável mais próximo, e o marcador aparece onde o avatar vai parar.
+- Colisores do tamanho do que é desenhado: nada sólido é atravessado (cercas, extremidades das barracas, trenó,
+  renas, cachorro, gato, coelho, guirlanda dos postes, placa, caixa de correio, lanternas, estacas e placa dos
+  terrenos disponíveis, paredes e varanda dos chalés, ramas da árvore e dos pinheiros) e nada invisível bloqueia
+  (banco, trenó pequeno). Um teste compara cada modelo com o seu colisor.
+- O avatar não passa mais espremido por vãos menores que ele.
+- Terrenos: o botão de ação aparece a até 6 u do centro (antes 4,5 u), porque a varanda do chalé agora bloqueia.
+- Quests (PROPOSTA, desligadas em produção): dois sinos e uma lanterna do lago saíram de baixo das ramas dos
+  pinheiros (`bell-pine-north`, `bell-pine-east`, `lantern-lake-1`; ids inalterados).
+- `apps/client/scripts/verify-collisions.mjs`: verificação em navegador real do clique para andar (só local).
+
 ### Changed — controles
 
 - Andar é só por clique/toque no chão: WASD e setas foram removidos. O clique mostra um anel dourado que se expande,

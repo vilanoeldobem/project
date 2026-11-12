@@ -27,6 +27,7 @@ pnpm --filter @vila/server dev                                  # server → :87
 pnpm --filter @vila/client dev:worker                           # client → :8799 (build --mode workers)
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
+node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # movement, colliders, layout (local only)
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
 node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
 node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)
@@ -75,6 +76,9 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
   in sync (a test checks it).
+- Every solid thing drawn in the village has a collider sized from its voxels (IMPL-0016): add or move a prop and
+  its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
+  through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short.
 - Never log request bodies, e-mails, tokens, CNPJ documents or any personal data.
 

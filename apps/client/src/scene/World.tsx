@@ -3,7 +3,7 @@ import { lazy, Suspense, useMemo } from "react";
 
 import { usePreset } from "../environment/settings";
 import type { Collider } from "@vila/shared/game/motion";
-import { HOUSE_RADIUS, LOTS } from "@vila/shared/game/world";
+import { HOUSE_ENVELOPE, lotColliders, LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
@@ -18,6 +18,7 @@ import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
+import { house } from "./gen/houses";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
@@ -30,12 +31,14 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
   const preset = usePreset();
   // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
   const quests = useQuestsEnabled();
-  // Published chalets block the avatar; available lots stay walkable.
-  const houses = useMemo(
-    (): Collider[] =>
-      LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => ({ x: l.x, z: l.z, r: HOUSE_RADIUS })),
-    [lots]
-  );
+  // What blocks the avatar on each lot (IMPL-0016): the walls and porch of a published chalet (the footprint
+  // of the very model `Lots` draws), otherwise the corner posts and the sign of the "available" marker.
+  // Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
+  const published = LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => l.id).join();
+  const lotSolids = useMemo((): Collider[] => {
+    const ids = new Set(published.split(","));
+    return LOTS.flatMap((l) => lotColliders(l, ids.has(l.id) ? (house(l.id).solid ?? HOUSE_ENVELOPE) : null));
+  }, [published]);
   return (
     <Canvas
       shadows={preset.shadows}
@@ -68,7 +71,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Gifts />
         <Footprints />
         <ClickMarker />
-        <Player houses={houses} />
+        <Player lots={lotSolids} />
         <RemotePlayers />
         <Snow />
         <Sparkles />

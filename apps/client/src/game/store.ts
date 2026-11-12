@@ -4,6 +4,7 @@ import { COSMETICS, type Look, sanitizeLook, unlockedIds } from "@vila/shared/ga
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
 import type { NpcId } from "@vila/shared/game/quests";
 import { events } from "./events";
+import { planWalk, sim } from "./sim";
 
 export type Panel =
   | { kind: "none" }
@@ -79,7 +80,7 @@ function loadZoom(): number {
 interface VilaState {
   panel: Panel;
   nearby: Nearby;
-  /** Click/tap destination (the only way to walk); null when idle. */
+  /** Where the avatar is walking to (clicking is the only way to walk); null when idle. */
   target: { x: number; z: number } | null;
   progress: Progress;
   /** Whose progress is on screen: null = guest (saved in this browser), else the signed-in account id. */
@@ -93,6 +94,11 @@ interface VilaState {
   open: (panel: Panel) => void;
   close: () => void;
   setNearby: (n: Nearby) => void;
+  /**
+   * Walks to a point (null stops). The stored target is the resolved destination: the nearest walkable
+   * spot when the request lands on an obstacle or outside the world, so the marker shows where the avatar
+   * really ends (IMPL-0016).
+   */
   setTarget: (t: { x: number; z: number } | null) => void;
   /** Camera distance multiplier (1 = default; smaller = closer). Saved in this browser. */
   zoom: number;
@@ -143,7 +149,11 @@ export const useVila = create<VilaState>((set, get) => ({
     } else if (cur === nearby) return;
     set({ nearby });
   },
-  setTarget: (target) => set(target ? { target, skyView: false } : { target }),
+  setTarget: (target) => {
+    if (target) return set({ target: planWalk(target.x, target.z), skyView: false });
+    sim.route.active = false;
+    set({ target });
+  },
   zoom: loadZoom(),
   zoomBy: (factor) => {
     const zoom = clampZoom(get().zoom * factor);
