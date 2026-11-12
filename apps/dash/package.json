@@ -1,7 +1,7 @@
 {
   "name": "@vila/dash",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "type": "module",
   "description": "Vila Noel do Bem — backoffice dashboard (dash.vilanoeldobem.com.br), Workers Static Assets",

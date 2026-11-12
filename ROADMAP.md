@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-11 · **Versão atual:** 0.4.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-12 · **Versão atual:** 0.4.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
