@@ -127,7 +127,14 @@ confirmou: só um admin autorizado publica ou remove ONGs e aplica sanções, e 
   deploy: se o script ainda for injetado, aparece um erro de CSP no console e o `verify.mjs` do painel falha). O
   certo é excluir `dash.*` da injeção automática nas configurações do Web Analytics.
 - **Sem índice novo:** `audit_events.at` e `users.created_at` não têm índice; as listas ordenam a tabela inteira.
-  Aceito com o volume atual; quando crescer, uma migration nova cria os índices.
+  Aceito com o volume atual; quando crescer, uma migration nova cria os índices. Pelo mesmo motivo uma página não
+  tem teto rígido: muitas linhas gravadas no mesmo instante (uma carga em lote) vêm todas numa resposta. Um cursor
+  composto (`at`, `id`) resolve isso e entra junto com os índices.
+- **`GAME_ORIGIN` vazio:** a regra anterior (`GAME_ORIGIN ?? origem do pedido`) foi mantida como estava; um valor
+  `""` (homologação) geraria link relativo. Não acontece hoje (homologação tem as contas desligadas e nenhuma
+  origem), mas é um ponto a corrigir antes de ligar contas lá.
+- **Configuração conferida por teste:** `DASH_ORIGIN` precisa ser igual, caractere por caractere, à entrada do
+  painel em `ACCOUNT_ORIGINS` (em `wrangler.jsonc` e no script `dev`); um teste da API falha se divergirem.
 - **Limite de `/auth/*` compartilhado:** pedir link pelo painel conta no mesmo `AUTH_LIMITER` (10/min por IP) e nos
   mesmos limites por conta (3 a cada 15 minutos, 10 por dia).
 - **Testes:** API de ponta a ponta sobre SQLite real (destino do link, origens estranhas, cadastro recusado, listas,

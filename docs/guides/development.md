@@ -144,8 +144,9 @@ desenvolvimento)": não é preciso e-mail de verdade.
    ```
 
    Ele cria contas e concede `admin` com `wrangler d1 execute --local`; capturas em `apps/client/verify-output/`.
-   Cada execução faz 9 chamadas a `/auth/*` e a API aceita 10 por minuto por IP (`AUTH_LIMITER`): **espere 60 s
-   entre duas execuções**. Se o limite for atingido, o script para com "rate limited: wait 60 s and run again".
+   Cada execução faz 11 chamadas a `/auth/*` e a API aceita 10 por minuto por IP (`AUTH_LIMITER`): o script se
+   regula sozinho (uma pausa de até um minuto no meio é normal), mas não enxerga a execução anterior — **espere 60 s
+   entre duas execuções**. Se o limite for atingido, ele para com "rate limited: wait 60 s and run again".
 
 Se `wrangler dev` falhar com "Address already in use", um `workerd` antigo pode estar segurando a porta do
 inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o comando do script `dev` com outra

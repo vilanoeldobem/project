@@ -104,8 +104,9 @@ node apps/dash/scripts/verify.mjs                  # painel: cabeçalhos, tela d
 node apps/client/scripts/verify-accounts.mjs       # contas e candidatura no jogo, análise no painel (só local)
 ```
 
-Os dois últimos precisam do painel em `:8797`. O `verify-accounts.mjs` faz 9 chamadas a `/auth/*` e a API aceita 10
-por minuto por IP: espere 60 s entre duas execuções. As capturas ficam em `apps/client/verify-output/` e
+Os dois últimos precisam do painel em `:8797`. O `verify-accounts.mjs` faz 11 chamadas a `/auth/*` e a API aceita 10
+por minuto por IP: o script se regula sozinho (uma pausa de até um minuto é normal), mas espere 60 s entre duas
+execuções. As capturas ficam em `apps/client/verify-output/` e
 `apps/dash/verify-output/`. Sem argumentos, `smoke-api.sh` confere a produção.
 
 ## 7. Próximos passos
