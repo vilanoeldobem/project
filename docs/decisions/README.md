@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 11 ADRs · **Atualizado em:** 2026-11-11
+> **Status:** 13 ADRs (0013 reservado por outra frente) · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -31,5 +31,6 @@
 | [IMPL-0010](0010-seeded-procedural-voxel-content.md) | Conteúdo voxel procedural por semente (geradores, orçamentos, galeria) | Proposta — fases 0–5 implementadas |
 | [IMPL-0011](0011-accounts-magic-link-ngo-review.md) | Contas, link mágico, candidatura e análise de ONGs | Proposta — implementada, desligada em produção (`ACCOUNTS_ENABLED`); item 4 substituído por IMPL-0012 |
 | [IMPL-0012](0012-resend-transactional-email.md) | E-mail transacional pelo Resend | Aceita (2026-11-11) — implementada; aguarda chave e domínio verificado |
+| [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; aguarda deploy) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

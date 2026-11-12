@@ -45,7 +45,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
 | Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `ui/Admin.tsx`, `shared/accounts/validate.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso, candidatura de ONG em 4 etapas e painel "Análise de ONGs" ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada |
-| Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho |
+| Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla |
 | Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar `app.*` → `play.*` (301, mesmo caminho e query); o resto vai para os Static Assets |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
@@ -109,6 +109,11 @@ e-mail que "clicam" links não consumam o token.
 - `room.ts` (lógica pura, testada) e `room-do.ts` (Durable Object `VillageRoom`, API de hibernação de WebSocket):
   presença efêmera em memória, autoritativa para o que os outros veem (pose saneada, sem teletransporte, limite de
   mensagens), transmissão em lote a 10 Hz só enquanto há alguém; sala vazia hiberna. Nada é gravado no storage.
+- Inatividade ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)): `room.ts` guarda a hora da última atividade
+  real de cada conexão (`reapIdle`); o mesmo timer de 10 Hz de `room-do.ts` fecha com `4002` quem passou de
+  `IDLE_TIMEOUT_SECONDS` (`idleTimeoutMs` em `env.ts`, padrão 300 s). Sem alarme (alarme grava no storage): a hora
+  fica em memória, com uma cópia aproximada (a cada 30 s) no anexo do WebSocket, que o runtime guarda junto da
+  conexão e não no storage do objeto. Assim uma aba esquecida não mantém o timer, e a cobrança de duração, ligados.
 
 ## 5. Código compartilhado (`packages/shared/src`)
 
@@ -157,6 +162,7 @@ Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.m
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
+| server | `vars.IDLE_TIMEOUT_SECONDS` | `"300"` | Segundos sem atividade até a sala fechar a conexão (IMPL-0014); inteiro de 60 a 86400, senão vale 300 |
 
 ## 9. Segurança
 

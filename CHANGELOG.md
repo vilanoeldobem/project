@@ -16,6 +16,16 @@ Cada versão indica o schema D1 que entrega.
   chave o envio falha fechado (`503 mail_unavailable`), como antes. `GET /health` ganhou `mail` (se a chave existe).
 - Workflow manual `api-secrets` grava `RESEND_API_KEY` no Worker a partir dos segredos do GitHub.
 
+### Added — presença: limite de inatividade
+
+- A sala de presença fecha conexões sem atividade real por mais de `IDLE_TIMEOUT_SECONDS` (padrão 300 s; código de
+  fechamento `4002`, motivo `idle`), para que abas esquecidas não mantenham o Durable Object acordado e cobrando
+  duração ([IMPL-0014](docs/decisions/0014-realtime-idle-timeout.md)). O `"ping"` não conta como atividade; cliques,
+  toques e teclas contam, pela nova mensagem `["a"]` (no máximo uma a cada 20 s).
+- No jogo, a conexão com os outros visitantes entra em pausa (chip "👥 em pausa") e volta no próximo toque, clique
+  ou tecla, sem reconectar sozinha; aba oculta por 2 minutos também pausa. Quedas de rede seguem reconectando com
+  espera exponencial. Deploy: servidor antes do cliente.
+
 ### Added — medição
 
 - Google Tag Manager (`GTM-MQP2RVMB`) no site e no jogo. A inicialização do `dataLayer` fica em `/gtag-init.js`
