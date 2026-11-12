@@ -622,7 +622,7 @@ Contract: [IMPL-0020](../docs/decisions/0020-ngo-publication-withdrawal.md). Bra
 - [x] Final workspace typechecks and 500 tests passed (shared 127, API 144, client 164, dash 33, server 23, site 9).
 - [x] Lead completed builds, final API typecheck/146 tests, and desktop/mobile browser compatibility smoke.
 - [x] Final AIOX QA approved: no remaining P1/P2; concurrent approval-response finding fixed and tested.
-- [ ] Publish PR for Augusto; no merge, deployment or remote migrations.
+- [x] Published [PR #33](https://github.com/vilanoeldobem/project/pull/33), stacked on PR #31; review requested from `augustobr1to`. No merge, deployment or remote migrations.
 
 IDS: SEARCH found publication projections in public-ngo/photos/api, shared application status and existing
 occupantOf. REUSE account guards, applicationView, tests and audit_events. ADAPT one joined private projection
@@ -639,4 +639,4 @@ After the Unicode/NUL reason validation fix, final API typecheck, 146 tests and 
 packages are unchanged (502 tests covered overall). Desktop/mobile Chromium check passed withdrawal
 filter/status, read-only detail, free-lot occupancy and no overflow/errors against real local API reads
 with a synthetic session bridge; this is not a login-flow test. All task-owned servers/browser were stopped.
-Final AIOX QA approved without remaining P1/P2. The PR link remains to be recorded.
+Final AIOX QA approved without remaining P1/P2. Review delivery: PR #33.

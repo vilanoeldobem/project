@@ -1,6 +1,6 @@
 # Retirada administrativa de ONGs — back-end
 
-> **Status:** Em implementação para revisão de Augusto; proposta desligada em produção/homologação.
+> **Status:** Publicado no [PR #33](https://github.com/vilanoeldobem/project/pull/33), sobre o PR #31, para revisão de Augusto; proposta desligada em produção/homologação.
 > **Data:** 2026-11-12 · **Decisão técnica:** [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)
 
 ## Entrega
