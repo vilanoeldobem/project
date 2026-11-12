@@ -22,8 +22,9 @@ import { VoxelSnow } from "./VoxelSnow";
 /**
  * Public landing page (www.*). Copy is pt-BR and uses only approved wording: purpose and promise
  * (DEC-021); donation rules (DEC-010..013, DEC-026, DEC-029); NGO criteria (DEC-015); deadline
- * (DEC-043). No slogan is used (PEN-015). The final logo is not approved yet (DEC-024), so the
- * wordmark stays text and the voxel crest is a visual study (PROPOSTA / DEC-024 em teste).
+ * (DEC-043). No slogan is used (PEN-015). No logo is approved yet (DEC-024, PEN-016), so the brand
+ * is the temporary text wordmark (IMPL-0005, decision 3). The star-and-pine mark beside it is
+ * decorative voxel art drawn in code, not a logo: no logo image may be shown as the brand here.
  */
 
 const THEME_KEY = "vila.site.theme.v1";
@@ -260,28 +261,16 @@ export function App() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero__inner">
             <div className="hero__content">
-              <div className="hero__crest-row">
-                <picture>
-                  <source srcSet="/img/logo-voxel.webp" type="image/webp" />
-                  <img
-                    className="hero__crest"
-                    src="/img/logo-voxel.png"
-                    width={680}
-                    height={680}
-                    alt="Emblema em blocos voxel da Vila Noel do Bem: estrela dourada, árvore de Natal iluminada, chalés com neve nos telhados e pinheiros."
-                  />
-                </picture>
-                <div className="hero__status">
-                  <p className="status-pill">
-                    <VoxelClockIcon />
-                    <span>Hora na Vila (SP)</span>
-                    <strong>{now.time}</strong>
-                  </p>
-                  <p className="status-pill status-pill--muted">
-                    <span className="status-pill__dot" aria-hidden="true" />
-                    <span>{now.phase}</span>
-                  </p>
-                </div>
+              <div className="hero__status">
+                <p className="status-pill">
+                  <VoxelClockIcon />
+                  <span>Hora na Vila (SP)</span>
+                  <strong>{now.time}</strong>
+                </p>
+                <p className="status-pill status-pill--muted">
+                  <span className="status-pill__dot" aria-hidden="true" />
+                  <span>{now.phase}</span>
+                </p>
               </div>
 
               <h1 id="hero-title">Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.</h1>
@@ -475,18 +464,6 @@ export function App() {
 
         <section className="cta-banner" aria-labelledby="cta-title">
           <div className="cta-banner__inner">
-            <picture>
-              <source srcSet="/img/logo-voxel.webp" type="image/webp" />
-              <img
-                className="cta-banner__crest"
-                src="/img/logo-voxel.png"
-                width={680}
-                height={680}
-                alt=""
-                loading="lazy"
-                decoding="async"
-              />
-            </picture>
             <h2 id="cta-title">A Vila já está acesa.</h2>
             <p>Ela cresce até o lançamento, previsto para 30 de novembro de 2026.</p>
             <a className="btn btn--primary btn--lg" href={GAME_URL}>

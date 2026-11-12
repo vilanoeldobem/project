@@ -7,7 +7,7 @@
 
 const crisp = { shapeRendering: "crispEdges" as const, focusable: "false" as const, "aria-hidden": true };
 
-/** Header mark: gold star over a snow-capped pine, block-built on a 12×12 grid. */
+/** Decorative header mark (not a logo, see App.tsx): gold star over a snow-capped pine, 12×12 grid. */
 export function VoxelCrestMark({ size = 32 }: { size?: number }) {
   return (
     <svg className="voxel-icon" width={size} height={size} viewBox="0 0 24 24" {...crisp}>
