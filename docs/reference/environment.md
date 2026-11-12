@@ -90,6 +90,10 @@ de quadro passa de 22 ms e volta a subir quando sobra folga.
 neve e brilhos (liga/desliga), luzes fixas sem piscar, menos movimento (padrão segue `prefers-reduced-motion`),
 som (vento, sininhos, passos e efeitos; sempre começa desligado; nunca fica salvo como ligado). Em "Outros
 visitantes": ver quem está na praça e aparecer para eles (ligado por padrão; desligar desconecta, IMPL-0008).
+Depois de cerca de 5 minutos sem toque, clique, tecla ou movimento (ou 2 minutos com a aba oculta), a conexão com os outros
+visitantes entra em pausa ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)): o chip "👥 N" vira "👥 em
+pausa" e o painel diz "Em pausa por inatividade; a conexão volta no seu próximo toque, clique ou tecla.". O jogo
+segue normalmente sem os outros avatares; não há contagem regressiva, aviso sonoro nem pedido para "voltar".
 
 ## 7. Cena
 

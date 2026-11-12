@@ -4,7 +4,8 @@
 > **Schema D1:** v5 · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `packages/shared/src/accounts/validate.ts`, `apps/server/src/handler.ts`,
-> `apps/server/src/room.ts`, `packages/shared/src/net/protocol.ts`
+> `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
+> `packages/shared/src/net/protocol.ts`
 
 Dois Workers ([IMPL-0009](../decisions/0009-split-client-api-server-shared.md)):
 
@@ -356,7 +357,8 @@ texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada 
 | Direção | Mensagem | Significado |
 |---|---|---|
 | cliente → sala | `["p", x, z, yaw, speed]` | pose, no máximo 10 Hz e só quando muda |
-| cliente → sala | `"ping"` | mantém a conexão; resposta `"pong"` sem acordar a sala |
+| cliente → sala | `["a"]` | a pessoa clicou, tocou ou digitou sem que uma pose ou visual tenha saído nos últimos 20 s (`ACTIVE_MS`); conta como atividade ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) |
+| cliente → sala | `"ping"` | mantém a conexão; resposta `"pong"` sem acordar a sala; **não** conta como atividade |
 | sala → cliente | `["w", id, sala]` | boas-vindas com o id anônimo |
 | sala → cliente | `["s", tickMs, [[id, x, z, yaw, speed, idadeMs], …]]` | poses que mudaram (10 Hz); na entrada, a lista toda |
 | sala → cliente | `["l", id]` | alguém saiu |
@@ -367,6 +369,23 @@ A sala corrige a pose recebida: dentro do mundo, velocidade até a máxima do av
 limitado ao que daria para andar desde a última pose; a primeira pose é livre). Limite de 20 mensagens/s por
 conexão (rajada de 40); mais de 200 descartadas → fecha com `1008`. Sala cheia → fecha com `4001` e o cliente tenta
 a próxima.
+
+**Inatividade** ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)): a sala guarda, por conexão, a hora da
+última atividade real: pose que move ou gira o avatar, visual (`["k", …]`) ou `["a"]`. `"ping"`, pose repetida,
+mensagem inválida ou descartada pelo limite não contam. Conexão sem atividade por mais de `IDLE_TIMEOUT_SECONDS`
+(`apps/server/wrangler.jsonc`, padrão `300`; inteiro de `60` a `86400`, qualquer outro valor cai no padrão) é
+fechada pela sala com o código **`4002`** e motivo `idle`; os outros recebem `["l", id]` como em qualquer saída.
+Quando a última conexão sai ou é fechada, a sala para o timer e hiberna.
+
+| Código de fechamento | Motivo | O que o cliente faz |
+|---|---|---|
+| `4001` | `full` (sala cheia) | tenta a próxima sala na hora; depois de uma volta completa, espera 30 s |
+| `4002` | `idle` (inatividade) | **não** reconecta sozinho: mostra "👥 em pausa" e reconecta no próximo toque, clique ou tecla |
+| `1008` | `rate` (abuso do protocolo) | nova tentativa com espera exponencial (1–30 s) |
+| outros (`1006`, queda de rede, deploy) | — | nova tentativa com espera exponencial (1–30 s) |
+
+O cliente também desliga sozinho (fecha com `1000`, motivo `hidden`) quando a aba fica oculta por 2 minutos e
+volta do mesmo jeito: no próximo toque, clique ou tecla com a aba visível.
 
 Carga medida (`apps/server/scripts/load.mjs`, `wrangler dev` local, 2026-11-11): 41 robôs → 40 conectados e 1
 recusado como cheio; cada visitante recebe ~9,7 mensagens/s e ~10 kB/s; do tick à chegada p95 9 ms (sem rede real).

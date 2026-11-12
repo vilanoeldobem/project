@@ -4,6 +4,11 @@
  * The room is authoritative for what other visitors see: it sanitises every pose, refuses teleports
  * (a pose may only move as far as the avatar's top speed allows since the last accepted one), rate-limits
  * each connection with a token bucket and batches changed poses into one broadcast per tick.
+ *
+ * Idle bookkeeping (IMPL-0014): every member carries the time of its last real activity (a pose that moves
+ * or turns the avatar, a look, or the client's ["a"] report of a click, tap or key). The keep-alive "ping"
+ * never reaches this module, and junk or rate-limited messages do not count. `reapIdle` removes whoever
+ * stayed idle for longer than the limit so the room can empty, stop its timer and hibernate.
  */
 import { MOTION } from "@vila/shared/game/motion";
 import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
@@ -29,6 +34,8 @@ interface Member {
   placed: boolean;
   look: Look;
   lookDirty: boolean;
+  /** Time of the last real activity (see the module comment). */
+  activeAt: number;
 }
 
 export type AcceptResult = "ok" | "dropped" | "abuse";
@@ -49,8 +56,11 @@ export class RoomState {
     return [...this.members.keys()];
   }
 
-  /** Adds a member at the spawn point; returns its anonymous id, or null when full. */
-  join(now: number, id = this.nextId++): number | null {
+  /**
+   * Adds a member at the spawn point; returns its anonymous id, or null when full. `activeAt` restores the
+   * last activity of a connection that survived hibernation (a newcomer is active "now").
+   */
+  join(now: number, id = this.nextId++, activeAt = now): number | null {
     if (this.full) return null;
     this.nextId = Math.max(this.nextId, id + 1);
     this.members.set(id, {
@@ -63,12 +73,29 @@ export class RoomState {
       placed: false,
       look: DEFAULT_LOOK,
       lookDirty: false,
+      activeAt: Math.min(activeAt, now),
     });
     return id;
   }
 
   leave(id: number) {
     return this.members.delete(id);
+  }
+
+  /** Time of the member's last real activity (undefined once it left). */
+  activeAt(id: number): number | undefined {
+    return this.members.get(id)?.activeAt;
+  }
+
+  /**
+   * Removes every member idle for longer than `limitMs` and returns their ids (the caller closes those
+   * connections and tells the others). A removed id is gone for good: late messages from it are dropped.
+   */
+  reapIdle(now: number, limitMs: number): number[] {
+    const out: number[] = [];
+    for (const [id, m] of this.members) if (now - m.activeAt > limitMs) out.push(id);
+    for (const id of out) this.members.delete(id);
+    return out;
   }
 
   accept(id: number, raw: string, now: number): AcceptResult {
@@ -82,9 +109,14 @@ export class RoomState {
       return m.dropped > ABUSE_LIMIT ? "abuse" : "dropped";
     }
     m.tokens -= 1;
+    if (msg.t === "a") {
+      m.activeAt = now;
+      return "ok";
+    }
     if (msg.t === "k") {
       m.look = msg.look;
       m.lookDirty = true;
+      m.activeAt = now;
       return "ok";
     }
     const pose = msg.pose;
@@ -97,6 +129,8 @@ export class RoomState {
       pose.x = m.pose.x + (dx / d) * max;
       pose.z = m.pose.z + (dz / d) * max;
     }
+    // Only a pose that moves or turns the avatar is activity: repeating the same pose keeps nobody "present".
+    if (!m.placed || pose.x !== m.pose.x || pose.z !== m.pose.z || pose.yaw !== m.pose.yaw) m.activeAt = now;
     m.pose = pose;
     m.placed = true;
     m.acceptedAt = now;
