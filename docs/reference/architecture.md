@@ -19,7 +19,7 @@ api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) �
 server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server)
                                  └─ /room?i=N (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
 dash.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem-dash"   (apps/dash: Static Assets, SPA, _headers por build)
-                                 — NÃO PUBLICADO: painel administrativo, IMPL-0015
+                                 — painel administrativo, IMPL-0015 (publicado em 2026-11-12)
 
 navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment
                      ── fetch (CORS + cookie __Host-vila_session) ──▶ api.*  /auth/*, /me, /progress*, /ngo/*, /admin/*
@@ -304,7 +304,7 @@ chamadas e triângulos independem da GPU.
 
 ## 11. Painel administrativo (`apps/dash/src`)
 
-Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)); **não publicado**.
+Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)); publicado em 2026-11-12.
 React 19 + Vite, só arquivos estáticos; HTML plano e acessível, sem three.js, sem analytics e sem terceiros. Não
 importa nada dos outros apps: o que divide com o jogo está em `packages/shared/src/accounts/`.
 
@@ -334,8 +334,8 @@ de sanção (regras não definidas, DEC-037).
 
 ## Limitações conhecidas
 
-- Painel administrativo (`apps/dash`) implementado, **não publicado**: criar o Worker e o domínio `dash.*` exige
-  autorização. Ele usa só o login próprio, sem Cloudflare Access na frente (OQ-10, respondida).
+- Painel administrativo (`apps/dash`) publicado em 2026-11-12; com as contas desligadas mostra só dados públicos.
+  Ele usa só o login próprio, sem Cloudflare Access na frente (OQ-10, respondida).
 - Contas, XP no servidor e candidatura de ONG implementados, mas desligados em produção (`ACCOUNTS_ENABLED`) até a
   revisão LGPD / ECA Digital, a verificação do domínio no Resend e a chave `RESEND_API_KEY`.
 - Envio de logo e documentos implementado, mas desligado em produção (`NGO_FILES_ENABLED`): falta criar o bucket,

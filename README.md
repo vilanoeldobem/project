@@ -48,7 +48,7 @@ apps/client/     jogo: cliente 3D (React + Three.js, Static Assets) — play.vil
 apps/api/        API HTTP + D1 (rotas públicas e, atrás de ACCOUNTS_ENABLED, contas e ONGs) — api.vilanoeldobem.com.br
 apps/server/     presença em tempo real (Durable Object VillageRoom) — server.vilanoeldobem.com.br
 apps/site/       site público (React + Vite) — www.vilanoeldobem.com.br
-apps/dash/       painel administrativo (React + Vite, Static Assets) — dash.vilanoeldobem.com.br (não publicado)
+apps/dash/       painel administrativo (React + Vite, Static Assets) — dash.vilanoeldobem.com.br
 packages/shared/ lógica pura usada por mais de um app (@vila/shared/…): mundo, movimento, missões, ambiente, protocolo
 migrations/      migrations D1 NNNN_nome.sql (imutáveis depois de aplicadas)
 docs/            documentação técnica (Diátaxis) — índice em docs/README.md

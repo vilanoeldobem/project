@@ -9,6 +9,14 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — deploy de 2026-11-12
+
+- Os cinco Workers foram publicados a partir da `main` (`e2fa200`): API, servidor, painel administrativo
+  (`vilanoeldobem-dash`, criado nesse deploy, em `dash.vilanoeldobem.com.br`), jogo e site. Nenhuma migration remota
+  foi aplicada e as contas seguem desligadas.
+- Novo `apps/client/scripts/verify-live.mjs`: conferência do jogo em produção (carrega, entra na Vila, sem erro de
+  console ou de CSP, presença conectada). O `verify.mjs` passa a ser documentado como só local.
+
 ### Added — arquivos das candidaturas de ONG no R2 (desligado em produção)
 
 - Logo e documentos da candidatura num bucket R2 privado ([IMPL-0017](docs/decisions/0017-ngo-files-r2.md)):

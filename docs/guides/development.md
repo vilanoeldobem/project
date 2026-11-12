@@ -28,7 +28,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   scripts/verify.mjs        verificação em Chrome real
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
   scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
-apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*; não publicado) — IMPL-0015
+apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*) — IMPL-0015
   src/
     main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
     lib/                    api.ts (cliente da API), session.ts, login-token.ts, router.ts (hash), hooks.ts,

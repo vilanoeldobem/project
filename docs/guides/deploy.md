@@ -16,10 +16,13 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 | https://server.vilanoeldobem.com.br | `vilanoeldobem-server` | `apps/server` (presença, Durable Object `VillageRoom`) |
 | https://www.vilanoeldobem.com.br | `vilanoeldobem-site` | `apps/site` (site público) |
 | https://vilanoeldobem.com.br | `vilanoeldobem-site` | 301 → `www` |
-| https://dash.vilanoeldobem.com.br | `vilanoeldobem-dash` | `apps/dash` (painel administrativo) — **ainda não publicado**, ver [§8](#8-painel-administrativo-appsdash) |
+| https://dash.vilanoeldobem.com.br | `vilanoeldobem-dash` | `apps/dash` (painel administrativo), ver [§8](#8-painel-administrativo-appsdash) |
 
-Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não terá um:
+Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
+
+**Último deploy: 2026-11-12**, os cinco Workers a partir da `main` (`e2fa200`), na ordem API → servidor → painel →
+jogo → site. Nenhuma migration remota foi aplicada (o D1 de produção está na v3) e as contas seguem desligadas.
 
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
 ([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1 e o do bucket
@@ -66,10 +69,16 @@ pnpm deploy:api        # api.vilanoeldobem.com.br
 pnpm deploy:server     # server.vilanoeldobem.com.br
 pnpm deploy:client     # play.vilanoeldobem.com.br (+ redirecionamento de app.*)
 pnpm deploy:site       # www.vilanoeldobem.com.br
-pnpm deploy:dash       # dash.vilanoeldobem.com.br — só depois da autorização do §8 (cria Worker e domínio)
+pnpm deploy:dash       # dash.vilanoeldobem.com.br
 sh scripts/smoke-api.sh                                   # padrão: api.*, server.* e play.* de produção
-node apps/client/scripts/verify.mjs https://play.vilanoeldobem.com.br
+node apps/client/scripts/verify-live.mjs                  # padrão: https://play.vilanoeldobem.com.br
 ```
+
+`apps/client/scripts/verify.mjs` é **só local**: ele usa o painel de depuração do ambiente (`?envDebug=1`), que só
+existe em `localhost`, e contra produção para com tempo esgotado em `.env-debug`. Em produção use o
+`verify-live.mjs`: abre o jogo num Chrome real, entra na Vila e falha se houver erro de console (inclusive de CSP),
+requisição que falhou, presença sem conectar ou interface de conta visível com as contas desligadas. Não cria
+conta nem grava nada.
 
 ### 4.1 Primeiro deploy da separação (IMPL-0009)
 
@@ -244,9 +253,9 @@ concede ou retira papel.
 ## 8. Painel administrativo (`apps/dash`)
 
 Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)): app estático
-(Static Assets, sem script de Worker, sem bindings e sem segredos) que fala só com a API. **Nada disso foi
-publicado.** O primeiro `pnpm deploy:dash` **cria um recurso novo na Cloudflare** (o Worker `vilanoeldobem-dash`) e
-um Custom Domain com DNS e certificado: exige autorização humana explícita (AGENTS.md).
+(Static Assets, sem script de Worker, sem bindings e sem segredos) que fala só com a API. **Publicado em
+2026-11-12** (Worker `vilanoeldobem-dash` e Custom Domain criados nesse deploy). Com as contas desligadas ele mostra
+"Contas desligadas" e só dados públicos. Os passos abaixo ficam como registro e valem para um novo ambiente.
 
 ### 8.1 Antes de publicar
 
@@ -254,7 +263,9 @@ um Custom Domain com DNS e certificado: exige autorização humana explícita (A
    quem protege os dados é a API, que exige sessão e papel `admin` em cada rota. O HTML e o JavaScript não contêm
    dado nenhum.
 2. **Excluir `dash.*` do Cloudflare Web Analytics** (injeção automática da zona). A CSP do painel bloqueia o script
-   de medição; se ele for injetado, aparece erro de CSP no console e o `verify.mjs` do painel falha.
+   de medição; se ele for injetado, aparece erro de CSP no console e o `verify.mjs` do painel falha. Conferido em
+   2026-11-12: o HTML de `dash.*` saiu sem o script e o `verify.mjs` passou em produção; se o Web Analytics da zona
+   mudar, confira de novo.
 3. **Contas.** O painel só tem utilidade com `ACCOUNTS_ENABLED = "true"` ([§7.3](#73-ligar-as-contas)). Com a
    bandeira desligada ele abre, mostra "Contas desligadas" e só dados públicos.
 
@@ -336,10 +347,12 @@ logos das ONGs publicadas deixam de aparecer e a exclusão de conta continua apa
 
 ## Limitações conhecidas
 
-- Painel administrativo (`apps/dash`): implementado, **não publicado**; Access e exclusão do Web Analytics por decidir.
+- Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
-- Deploy da separação (IMPL-0009) ainda pendente de autorização; até lá, produção roda o Worker único antigo.
+- Medição com Google (OQ-13): desde 2026-11-12 a tag tenta enviar dados para hosts de publicidade do Google que a CSP
+  do jogo bloqueia. Cada bloqueio é um erro de console; `verify.mjs` (local) e `verify-live.mjs` (produção) falham por
+  isso até a configuração do Google Analytics ser ajustada. Nada mais falha nessas conferências.
 - Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital, a verificação do domínio no Resend e a
   chave `RESEND_API_KEY` no Worker.
 - Arquivos de ONG (IMPL-0017): bucket não criado, migration 0006 não aplicada, envio desligado.

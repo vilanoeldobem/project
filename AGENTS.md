@@ -10,7 +10,7 @@ minigames, meet approved NGOs and donate voluntarily. Monorepo (IMPL-0009), one 
 `apps/client` (React 19 + Three.js game, Static Assets, play.vilanoeldobem.com.br), `apps/api` (HTTP API + D1,
 api.vilanoeldobem.com.br), `apps/server` (realtime presence, Durable Object, server.vilanoeldobem.com.br),
 `apps/site` (public website, www.vilanoeldobem.com.br), `apps/dash` (backoffice dashboard for admins, static assets only,
-dash.vilanoeldobem.com.br; IMPL-0015, not deployed yet) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
+dash.vilanoeldobem.com.br; IMPL-0015) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 
@@ -28,6 +28,7 @@ pnpm --filter @vila/client dev:worker                           # client → :87
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # movement, colliders, layout (local only)
+node apps/client/scripts/verify-live.mjs                                # deployed game, read-only (verify.mjs is local only)
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
 node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
 node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)

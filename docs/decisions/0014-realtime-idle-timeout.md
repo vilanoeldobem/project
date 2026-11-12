@@ -1,6 +1,6 @@
 # IMPL-0014: Limite de inatividade na presença (desconectar quem está ausente)
 
-**Status:** Proposta — implementada, a validar (padrão de 5 min e textos da pausa são propostas; aguarda deploy)
+**Status:** Proposta — implementada, a validar (padrão de 5 min e textos da pausa são propostas; em produção desde 2026-11-12)
 **Data:** 2026-11-11
 **Fontes:** pedido do responsável técnico em 2026-11-11 ("add timeout and disconnect AFK to save durable object
 cost"); [IMPL-0008](0008-multiplayer-presence-durable-objects.md) (presença, timer de 10 Hz, "nada é gravado");
