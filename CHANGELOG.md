@@ -9,6 +9,36 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — moderação dentro do jogo para administradores (IMPL-0021; remoção de sala e bloqueio PROPOSTA, desligados)
+
+- Jogo: **modo moderação**, só para conta conectada com papel Administrador. Botão "Moderação" no HUD, desligado a
+  cada carregamento; ligado, a faixa "Modo moderação" fica visível no topo, acima de qualquer painel. Fora do modo
+  nenhuma ação de moderação aparece nem é consultada na API; o modo desliga ao sair, trocar de conta, perder o
+  papel ou ser bloqueado.
+- Jogo, casa de ONG publicada (no modo moderação): "Remover logo", "Remover foto" da galeria pública, "Retirar ONG
+  da Vila" (PROPOSTA, IMPL-0020; com a mensagem obrigatória para a organização) e o link "Abrir no painel". Só
+  aparecem as ações que podem funcionar (`/config.files`, `/config.withdrawal`, galeria pública com fotos). Cada
+  ação pede uma confirmação que nomeia a organização, envia a revisão lida pela API administrativa, pede de novo
+  em `409 stale_revision` e relê os terrenos ao concluir.
+- Jogo, **PROPOSTA** (só com `/config.moderation.presence`): selecionar outro visitante (clique no avatar ou botão
+  do HUD) e "Remover da sala", com confirmação. O cliente pede o bilhete, envia `["m", alvo, bilhete]` e espera a
+  resposta da sala: um pedido por vez, 1100 ms entre mensagens, no máximo 10 por minuto, 5 s sem resposta é falha.
+  Só `ok: true` vira "removido"; o bilhete nunca é exibido nem registrado.
+- Jogo: quem é removido (fechamento `4003`) lê "Você foi removido da sala por um administrador.", continua
+  jogando e só reconecta depois de 60 s, no próximo toque, clique ou tecla (sem laço, sem contar como erro de rede).
+- Jogo, **PROPOSTA**: conta bloqueada (`/me` com `blocked`, ou `403 session_blocked` em qualquer rota) vê "Conta
+  bloqueada", a mensagem da administração e a data, e só pode sair ou excluir a conta; a sincronização do progresso
+  e a tela da candidatura param sem erro.
+- Jogo: o painel da conta mostra o papel pelo rótulo compartilhado ("Padrão" / "Administrador").
+- Confirmações de moderação e a exclusão de conta bloqueada não aceitam duplo clique, tecla mantida pressionada
+  nem resposta nos primeiros 600 ms.
+
+### Fixed — Enter sobre um botão do HUD
+
+- Jogo: com o avatar perto de uma casa, da árvore ou de um morador, pressionar Enter sobre um botão do HUD em foco
+  abria o painel do que estava perto em vez de acionar o botão. Enter sobre um botão, link ou campo agora pertence
+  a esse controle; a tecla E e o Enter sem controle em foco continuam abrindo o que está perto.
+
 ### Added — papel de administrador e moderação (API e contrato compartilhado; bloqueio e remoção de sala PROPOSTA, desligados)
 
 - [IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md): dois papéis, Padrão (`player`) e
