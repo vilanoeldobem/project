@@ -19,6 +19,19 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-13 | Medição com Google: desde 2026-11-12 a tag do Google (GTM) tenta enviar dados também para `analytics.google.com`, `www.google.com`, `stats.g.doubleclick.net` e `google.com.br/ads/ga-audiences` (Google Signals / públicos de anúncios). A CSP do jogo bloqueia esses destinos: cada bloqueio é um erro de console, parte da medição se perde e `verify.mjs` / `verify-live.mjs` falham. O que fazer? | desligar o Google Signals e os recursos de publicidade na propriedade do Google Analytics / liberar esses hosts na CSP | **Não liberar**: menores são público provável (ECA Digital, LGPD) e esses destinos servem a publicidade. Desligar Google Signals e personalização de anúncios no Google Analytics; a CSP fica como está | medição confiável; `verify.mjs` e `verify-live.mjs` voltarem a passar | conferência em produção de 2026-11-12; [deploy §5](../guides/deploy.md#5-site-público-e-domínios) |
 | OQ-15 | Galeria institucional conciliada: ratificar quantidade, tamanho, PNG/JPEG, dimensões, direitos de imagem, consentimentos, retenção e procedimento para órfãos? Como tratar fotos depois da exclusão da conta? | Ratificar a proposta ou ajustar antes de receber arquivos reais; definir retenção por estado editorial | Galeria com revisão individual, no bucket privado `FILES`, separada de logo/comprovantes; PNG/JPEG tratados pelo parser compartilhado; `NGO_PHOTOS_ENABLED` desligada. Sem WebP nesta versão. Exclusão da conta remove toda a galeria, inclusive fotos aprovadas; leitura pública exige terreno publicado. Texto/versionamento da declaração e conferência de direitos de imagem aguardam decisão operacional | Ativar galeria e receber fotos reais; integração visual posterior | [IMPL-0018](0018-ngo-files-reconciliation.md), DEC-028/037, PEN-019 |
 
+**OQ-15, o que só o dono do produto responde (revisão do PR #35).** O código da galeria é PROPOSTA e não decide
+nenhum destes pontos; **`NGO_PHOTOS_ENABLED` fica `"false"` até a resposta**:
+
+1. **Direitos de imagem e consentimento:** hoje o envio de uma foto **não pede nem registra** declaração de
+   direitos de imagem ou de consentimento das pessoas retratadas (menores são público provável: ECA Digital,
+   LGPD). Qual é o texto, quem declara, e como a declaração é versionada e guardada?
+2. **Retenção depois de rejeitar a candidatura da ONG:** a rejeição bloqueia novos envios e mantém as fotos
+   privadas, mas **não apaga** os bytes (a rejeição individual de uma foto apaga). Por quanto tempo ficam, e quem
+   descarta? Até a resposta, só o responsável (remoção foto a foto ou exclusão da conta) ou um admin as remove;
+   não se presume retenção indefinida aprovada.
+3. **Retenção dos registros** de fotos rejeitadas ou removidas (linhas sem legenda nem bytes, mantidas para a
+   auditoria): prazo e descarte.
+
 OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo a questão de analytics do PR #32.
 
 ## Resolvidas
@@ -49,9 +62,3 @@ OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo 
   repositório Git `vilanoeldobem_docs` substitui a pasta `D:\VILA NOEL DO BEM` — registrado como DEC-045 no
   repositório de documentação (PR #1, aguardando revisão). **Atualização 10/11/2026:** os repositórios atuais são
   `vilanoeldobem/project` (código) e `vilanoeldobem/docs` (documentação); os nomes acima registram o contexto original.
-
-
-Complemento da OQ-15 — revisão #35: rejeitar a candidatura da ONG bloqueia novos uploads e deixa suas fotos
-privadas, mas não apaga automaticamente os bytes. Definir retenção/prazo e descarte após essa rejeição antes
-de ativar a galeria; isso difere da rejeição individual de uma foto, que já remove bytes. O responsável pode
-remover fotos e excluir a conta; não se presume aprovação da retenção indefinida nem ressubmissão automática.

@@ -456,9 +456,10 @@ para que a lista corresponda à revisão mostrada ao administrador.
   publicada; o logo de uma ONG publicada fica. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
   de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas, exceto rejeitar uma candidatura
   ainda aberta para liberar o terreno. Essa rejeição não cancela a exclusão nem altera a política de retenção. Se R2 falhar, a conta e
-  sessão continuam (`500`); se houver metadados sem binding `FILES`, responde `503 files_unavailable`. O usuário
-  repete **o mesmo `DELETE /me`** após a recuperação. A marca não expira nem é desfeita automaticamente, pois
-  parte dos bytes pode já ter sido removida. Escritas novas recebem `409 account_deleting`; leitura e sessão
+  sessão continuam (`500`) e a marca fica: o usuário repete **o mesmo `DELETE /me`** após a recuperação. Essa marca
+  não expira nem é desfeita, pois parte dos bytes pode já ter sido removida. Se houver metadados sem binding
+  `FILES`, responde `503 files_unavailable` **antes de apagar qualquer objeto**: a marca posta por esse pedido é
+  desfeita e a conta fica como estava (sem `deletionPending`); uma marca deixada por tentativa anterior permanece. Escritas novas recebem `409 account_deleting`; leitura e sessão
   continuam disponíveis para repetir a exclusão. A transação final incrementa as revisões das candidaturas antes
   de remover a conta: uma revisão antiga não pode aprovar evidências que foram apagadas. Chaves e registros de
   upload/limpeza em `media_upload_intents` também são apagados; PUT atrasado não pode recriar os bytes removidos.
@@ -519,7 +520,7 @@ Erros: `400 invalid_photo_metadata` (posição/legenda), `400 file_type|file_mis
 
 Ao excluir a conta, toda a galeria é removida, inclusive fotos aprovadas. Isso é distinto da retenção do logo
 institucional canônico. A exclusão falha de forma retomável se a limpeza dos bytes falhar; não confirma remoção
-com objetos ainda pendentes. Direitos de imagem e consentimentos continuam sob OQ-15.
+com objetos ainda pendentes. Direitos de imagem e consentimentos continuam sob OQ-15: o envio **não pede nem registra** declaração alguma, e a retenção das fotos depois de rejeitar a candidatura da ONG não está definida (PROPOSTA; a bandeira fica desligada até o dono do produto responder).
 
 ### Análise administrativa (DEC-037)
 

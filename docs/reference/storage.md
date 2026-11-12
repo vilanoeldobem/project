@@ -26,18 +26,18 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
 | `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 
-As migrations são sequenciais: esta versão contém 0001–0008. A 0006 mantém o contrato canônico de arquivos;
-0007 acrescenta a galeria e os guardas de conciliação; 0008 protege a persistência concorrente de progresso.
-Migrations não aplicadas podem ser ajustadas antes de
-integrar; uma migration já aplicada não muda de nome nem significado. Simuladores com a antiga 0010 são bases
-alternativas: usar nova base isolada, sem renomear seu histórico ou apagá-los.
+Esta versão contém 0001–0008, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso. A 0007 chamava-se 0010
+enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
+Simuladores locais com a antiga 0010 são bases alternativas: usar nova base isolada, sem renomear seu histórico
+ou apagá-los.
 A 0007 é pré-requisito do código conciliado mesmo com flags desligadas (sessão e decisões leem colunas novas).
 Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` responde sem logo e a rota de logo
 responde 404. Eles não dispensam a migration 0007 para usar as rotas privadas conciliadas.
 Operações de conta que encontrem ausência das novas colunas retornam `503 schema_outdated`; isso não substitui
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 
-Regras: números sequenciais; migrations aplicadas são imutáveis; nada de `IF NOT EXISTS` para esconder schema divergente.
+Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
 ## 2. Tabelas
 
@@ -270,8 +270,10 @@ publicado durante a limpeza. R2 falhou: mantém conta/sessão/intenção; repeti
 `GET /me` e o responsável no detalhe administrativo expõem `deletionPending`. As telas explicam a pendência e
 o caminho de repetição. Rejeitar uma candidatura ainda aberta é a exceção ao bloqueio administrativo: libera o
 terreno, preserva a intenção e não pode publicar evidências. Estado/revisão exatos e auditoria continuam exigidos.
-Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta. Não se deve zerar a marca para
-"destravar" uma conta: alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
+Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta e sem tocar em nenhum objeto; como
+nada foi apagado, o próprio pedido desfaz a marca que acabou de pôr e a conta não fica congelada. Fora desse caso
+não se deve zerar a marca para "destravar" uma conta: depois de uma falha do R2, ou quando a marca veio de uma
+tentativa anterior, alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
 as revisões das candidaturas, remove as intenções de upload/limpeza da conta, registra uma única auditoria e apaga o usuário. A revisão invalida decisões antigas
 mesmo depois que o vínculo e a linha do usuário desaparecerem.
 

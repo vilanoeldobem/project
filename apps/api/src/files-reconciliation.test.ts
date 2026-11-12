@@ -133,12 +133,17 @@ describe("canonical file reconciliation concurrency", () => {
 });
 
 describe("account file-deletion intent", () => {
-  it.each(["missing bucket", "R2 error"])("exposes pending erasure after %s, permits rejection and resumes account cleanup", async (failure) => {
+  // A missing bucket is refused before anything is erased and no longer freezes: see the tests further down.
+  it.each(["R2 error", "R2 error followed by a missing bucket"])("exposes pending erasure after %s, permits rejection and resumes account cleanup", async (failure) => {
     await file();
     vi.spyOn(console,"error").mockImplementation(()=>{});
-    if (failure === "missing bucket") env.FILES = undefined;
-    else r2.failNext("delete");
-    expect((await deleteAccount()).status).toBe(failure === "missing bucket" ? 503 : 500);
+    r2.failNext("delete");
+    expect((await deleteAccount()).status).toBe(500);
+    if (failure !== "R2 error") {
+      // Part of the bytes may already be gone: a later attempt without the bucket must not undo the freeze.
+      env.FILES = undefined;
+      expect(await (await deleteAccount()).json()).toEqual({ error: "files_unavailable" });
+    }
     const me = await (await request("GET", "/me")).json() as { user: { deletionPending: boolean } };
     const detail = await (await request("GET", `/admin/applications/${NGO}`, "admin")).json() as { applicant: { deletionPending: boolean; nickname: string } };
     expect(me.user.deletionPending).toBe(true);
@@ -274,12 +279,33 @@ describe("account file-deletion intent", () => {
     expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]); expect(audits("user.delete")).toHaveLength(1);
   });
 
-  it("fails closed without the files binding and can retry after the binding returns", async () => {
-    await file(); env.FILES = undefined;
-    expect((await deleteAccount()).status).toBe(503); expect(intent()).toBe(1);
+  it("fails closed without the files binding, leaves the account unfrozen and can retry after the binding returns", async () => {
+    const doc = await file(); env.FILES = undefined;
+    const refused = await deleteAccount();
+    expect([refused.status, await refused.json()]).toEqual([503, { error: "files_unavailable" }]);
+    // Nothing was erased, so nothing stays frozen: the person and the admin carry on as before the attempt.
+    expect(intent()).toBe(0);
     expect(fileRows()).toHaveLength(1); expect(r2.keys()).toHaveLength(1); expect(audits("user.delete")).toEqual([]);
-    env.FILES = r2; expect((await deleteAccount()).status).toBe(204);
-    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]);
+    expect(await (await request("GET", "/me")).json()).toMatchObject({ user: { id: "owner", deletionPending: false } });
+    const detail = await (await request("GET", `/admin/applications/${NGO}`, "admin")).json() as { applicant: unknown };
+    expect(detail.applicant).toEqual({ nickname: "owner", deletionPending: false });
+    env.FILES = r2;
+    expect((await remove(doc)).status).toBe(200);
+    expect((await decision("request_changes")).status).toBe(200);
+    expect((await json("POST", "/ngo/application", { ...APP, lotId: "plaza-01" })).status).toBe(200);
+    expect((await deleteAccount()).status).toBe(204);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]); expect(audits("user.delete")).toHaveLength(1);
+  });
+
+  it("keeps the freeze of a deletion that is erasing while a parallel attempt has no bucket", async () => {
+    await file();
+    const paused = pauseDelete(), erasing = deleteAccount(); await paused.ready;
+    env.FILES = undefined;
+    expect((await deleteAccount()).status).toBe(503);
+    expect(intent()).toBe(1);
+    env.FILES = r2; paused.release();
+    expect((await erasing).status).toBe(204);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]); expect(audits("user.delete")).toHaveLength(1);
   });
 
   it("records one account deletion when a second retry completes the same cleanup", async () => {

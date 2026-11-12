@@ -1,4 +1,10 @@
-/** NGO photos (PROPOSTA): immutable private objects, owner upload, audited admin publication. */
+/**
+ * NGO photos (IMPL-0018, PROPOSTA): immutable private objects, owner upload, audited admin publication.
+ *
+ * Not decided here (OQ-15, product owner): no image-rights or consent declaration is asked for or recorded at
+ * upload, and nothing sets how long photos stay after the NGO's application is rejected (they stay private; only
+ * the owner or an admin removes them). NGO_PHOTOS_ENABLED must stay "false" until those answers exist.
+ */
 import { newId } from "./crypto";
 import { putReserved } from "./media-storage";
 import { HttpError, json, NO_STORE, readBytes, readJson } from "./http";
