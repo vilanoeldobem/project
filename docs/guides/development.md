@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 
@@ -28,7 +28,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   scripts/verify.mjs        verificação em Chrome real
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
   scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
-apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*; não publicado) — IMPL-0015
+apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*) — IMPL-0015
   src/
     main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
     lib/                    api.ts (cliente da API), session.ts, login-token.ts, router.ts (hash), hooks.ts,
@@ -215,3 +215,35 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 ## Ver também
 
 [AGENTS.md](../../AGENTS.md) · [CONTRIBUTING.md](../../CONTRIBUTING.md) · [reference/architecture.md](../reference/architecture.md)
+
+## Conciliação local de arquivos e galeria
+
+Use a configuração separada `apps/api/wrangler.reconciliation-local.jsonc`, sem `account_id`, rotas ou IDs de
+produção. Ela usa D1/R2 sintéticos `ngo-media-review-local` com `remote:false`; nunca executar deploy com ela.
+A numeração atual termina em 0007. A base anterior do simulador (0010) deve permanecer intacta: esta receita
+cria um espaço local novo, sem renomear migrations já aplicadas naquela base.
+
+Em `apps/api`, num diretório de persistência novo:
+
+```bash
+pnpm exec wrangler d1 migrations apply ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to .wrangler/review-media-v7
+pnpm exec wrangler dev --local -c wrangler.reconciliation-local.jsonc --persist-to .wrangler/review-media-v7 --port 8792 --inspector-port 9242
+```
+
+Os fixtures de `apps/api/scripts/verify-files-reconciliation.mjs --seed` são sintéticos e geram SQL para esse D1
+local. Grave a saída em arquivo local e aplique com o mesmo `-c`, `--local` e `--persist-to`, antes de executar
+`node apps/api/scripts/verify-files-reconciliation.mjs http://localhost:8792` na raiz. Nunca aplicar esse seed em
+uma base compartilhada ou remota; ele reinicia seus próprios identificadores sintéticos.
+
+Para a verificação em navegador, prepare client/dash com `build:local`, seus Workers em `:8799`/`:8797` e o
+servidor em `:8788`. Na raiz, use o mesmo diretório de persistência por caminho absoluto:
+
+```bash
+VILA_API_CONFIG=wrangler.reconciliation-local.jsonc VILA_API_DB=ngo-media-review-local \
+VILA_API_PERSIST_TO="$PWD/apps/api/.wrangler/review-media-v7" \
+CHROMIUM_PATH=/usr/bin/chromium VILA_STUB_ANALYTICS=1 \
+node apps/client/scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8792 http://localhost:8797
+```
+
+A variável de analytics substitui o carregamento da tag só no teste, conforme OQ-13; não valida medição real.
+Resultados e limites da execução ficam no [registro de entrega](../implementation/ngo-files-reconciliation-report.md).

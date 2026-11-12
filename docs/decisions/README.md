@@ -31,10 +31,12 @@
 | [IMPL-0010](0010-seeded-procedural-voxel-content.md) | Conteúdo voxel procedural por semente (geradores, orçamentos, galeria) | Proposta — fases 0–5 implementadas |
 | [IMPL-0011](0011-accounts-magic-link-ngo-review.md) | Contas, link mágico, candidatura e análise de ONGs | Proposta — implementada, desligada em produção (`ACCOUNTS_ENABLED`); item 4 substituído por IMPL-0012 |
 | [IMPL-0012](0012-resend-transactional-email.md) | E-mail transacional pelo Resend | Aceita (2026-11-11) — implementada; aguarda chave e domínio verificado |
-| [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção; concorrência e confirmação de eventos revistas em IMPL-0019; conteúdo PROPOSTA (PEN-025) |
-| [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; aguarda deploy) |
-| [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — implementada, não publicada; menu PROPOSTA |
+| [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção (`QUESTS_V1_ENABLED`, `VITE_QUESTS_V1_ENABLED`); concorrência e confirmação de eventos revistas em IMPL-0019; conteúdo PROPOSTA (PEN-025) |
+| [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; em produção desde 2026-11-12) |
+| [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — em produção desde 2026-11-12 (contas desligadas); menu PROPOSTA |
 | [IMPL-0016](0016-click-navigation-and-colliders.md) | Navegação por clique com desvio de obstáculos e colisores medidos pelo que é desenhado | Proposta — implementada, a validar (layout do mundo segue PROPOSTA, PEN-017) |
+| [IMPL-0017](0017-ngo-files-r2.md) | Arquivos das candidaturas de ONG no R2 (logo e documentos) | Proposta — implementada, desligada em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019) |
+| [IMPL-0018](0018-ngo-files-reconciliation.md) | Conciliação de logo/documentos e galeria sobre o fluxo do PR #32 | Proposta — implementada, sem ativação; conciliação de arquivos e galeria |
 | [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementada, bandeiras inalteradas |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

@@ -1,17 +1,18 @@
 /**
  * Minimal D1 stand-in for unit tests, on Node's built-in SQLite (node:sqlite). Applies the real migrations
  * from /migrations, so the SQL that ships is the SQL under test. Supports prepare/bind/first/all/run/raw and
- * batch (in a transaction), which is all the API uses.
+ * batch (in a transaction, RETURNING rows included), which is all the API uses.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 
 const MIGRATIONS = new URL("../../../migrations/", import.meta.url);
 
-export function createD1() {
+/** `upTo` models an older database; `additionalMigrations` tests upgrades while leaving a prior feature absent. */
+export function createD1({ upTo = Infinity, additionalMigrations = [] } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
-  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
+  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && (Number(f.slice(0, 4)) <= upTo || additionalMigrations.includes(Number(f.slice(0, 4))))).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
 
   const statement = (sql, params = []) => ({
     sql,
@@ -25,8 +26,13 @@ export function createD1() {
       return { results: db.prepare(sql).all(...params), success: true, meta: {} };
     },
     async run() {
+      // Like D1, a statement with RETURNING hands its rows back in `results` (also inside a batch).
+      if (/\bRETURNING\b/i.test(sql)) {
+        const results = db.prepare(sql).all(...params);
+        return { success: true, results, meta: { changes: results.length } };
+      }
       const r = db.prepare(sql).run(...params);
-      return { success: true, meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
+      return { success: true, results: [], meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } };
     },
     async raw() {
       return db.prepare(sql).all(...params).map((r) => Object.values(r));

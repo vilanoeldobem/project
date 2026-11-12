@@ -23,6 +23,17 @@ export interface Health {
   mail: boolean;
 }
 
+/**
+ * `GET /config`: feature flags. `files` is true only when uploads work (IMPL-0017); an older API does not send
+ * it. Every key the API sends is kept (the system screen prints them all).
+ */
+export interface Config {
+  accounts?: boolean;
+  quests?: boolean;
+  files?: boolean;
+  [flag: string]: unknown;
+}
+
 /** Row of `GET /lots` (public): the NGO name appears only once published. */
 export interface Lot {
   id: string;
@@ -46,32 +57,37 @@ const pageQuery = (before?: string) => (before ? `?before=${encodeURIComponent(b
  * `fetcher` is injectable for tests.
  */
 export function createApi(base: string, fetcher: typeof fetch = fetch, onError: (e: ApiError) => void = () => {}) {
-  async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /** Sends one request with the session cookie; an unanswered or refused one becomes an `ApiError`. */
+  async function send(method: string, path: string, headers: Record<string, string>, body?: string): Promise<Response> {
     let res: Response;
     try {
-      res = await fetcher(`${base}${path}`, {
-        method,
-        credentials: "include",
-        headers: body === undefined ? { Accept: "application/json" } : { Accept: "application/json", "Content-Type": "application/json" },
-        body: body === undefined ? undefined : JSON.stringify(body),
-      });
+      res = await fetcher(`${base}${path}`, { method, credentials: "include", headers, body });
     } catch {
       throw new ApiError(0, "network");
     }
-    if (res.status === 204) return null as T;
-    const data = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
     if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
       const error = new ApiError(res.status, data.error ?? "unknown", data.fields);
       onError(error);
       throw error;
     }
-    return data as T;
+    return res;
+  }
+
+  async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const res = await send(
+      method,
+      path,
+      body === undefined ? { Accept: "application/json" } : { Accept: "application/json", "Content-Type": "application/json" },
+      body === undefined ? undefined : JSON.stringify(body)
+    );
+    if (res.status === 204) return null as T;
+    return (await res.json().catch(() => ({}))) as T;
   }
 
   return {
     health: () => call<Health>("GET", "/health"),
-    /** Feature flags; today only `accounts`, but every key the API sends is shown. */
-    config: () => call<Record<string, unknown>>("GET", "/config"),
+    config: () => call<Config>("GET", "/config"),
     lots: () => call<{ lots: Lot[] }>("GET", "/lots"),
     requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
     verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -83,6 +99,17 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
     /** `revision` is the version on screen: a newer resubmission makes the API refuse (409 stale_revision). */
     adminDecide: (id: string, action: ReviewAction, revision: number, note?: string, checks?: EligibilityChecks) =>
       call<{ application: ApplicationDetail["application"] }>("POST", `/admin/applications/${id}/decision`, { action, revision, note, checks }),
+    /**
+     * The bytes of one file of an application (IMPL-0017). They can only be read this way: the route checks the
+     * `Origin`, so a plain link or `<img src>` is refused. The API audits every read of a document
+     * (`ngo.file_read`): call this for a document only when the admin asks for it.
+     */
+    fileBytes: async (applicationId: string, fileId: string): Promise<Blob> => {
+      const res = await send("GET", `/admin/applications/${applicationId}/files/${fileId}`, {});
+      return res.blob().catch(() => {
+        throw new ApiError(0, "network");
+      });
+    },
     audit: async (before?: string): Promise<Page<AuditEvent>> => {
       const r = await call<{ events: AuditEvent[]; next: string | null }>("GET", `/admin/audit${pageQuery(before)}`);
       return { items: r.events, next: r.next };

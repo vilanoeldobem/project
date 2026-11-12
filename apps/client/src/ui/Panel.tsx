@@ -10,16 +10,19 @@ const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:n
  * dialog pattern: focus moves into the dialog, Tab cycles inside it, Escape closes and focus returns to
  * the element that opened it. A panel that swaps its content in place passes a `contentKey`: when it
  * changes and the focused control is gone, focus goes back to the dialog instead of falling to `<body>`.
+ * `mark` is a small image shown before the title (the logo of an NGO, IMPL-0017).
  */
 export function Panel({
   title,
   kicker,
+  mark,
   children,
   wide,
   contentKey,
 }: {
   title: string;
   kicker?: string;
+  mark?: ReactNode;
   children: ReactNode;
   wide?: boolean;
   contentKey?: string;
@@ -67,6 +70,7 @@ export function Panel({
     <div className="backdrop" onPointerDown={(e) => e.target === e.currentTarget && close()}>
       <div className={`panel${wide ? " panel--wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}>
         <header className="panel__head">
+          {mark}
           <div>
             {kicker && <p className="kicker">{kicker}</p>}
             <h2>{title}</h2>

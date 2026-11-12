@@ -21,6 +21,14 @@ describe("error text (pt-BR)", () => {
     expect(errorText(new ApiError(0, "network"))).toMatch(/Sem conexão/);
   });
 
+  it("has a sentence for every file route error that carries no field message", () => {
+    for (const code of ["files_disabled", "no_application", "application_locked", "application_changed"]) {
+      const text = errorText(new ApiError(409, code));
+      expect(text).not.toBe("Algo deu errado. Tente de novo.");
+      expect(text.length).toBeGreaterThan(20);
+    }
+  });
+
   it("points at the fields when the API sent field messages, and stays generic otherwise", () => {
     expect(errorText(new ApiError(400, "note_required", { note: "Explique o motivo." }))).toBe("Confira os campos destacados.");
     expect(errorText(new ApiError(500, "internal"))).toBe("Algo deu errado. Tente de novo.");

@@ -4,7 +4,8 @@ import { questState } from "@vila/shared/game/quests";
 import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import type { LotInfo } from "../lib/api";
+import { fetchLogo, type LotInfo } from "../lib/api";
+import { BlobImage } from "./BlobImage";
 import { Panel, Status } from "./Panel";
 
 /** Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). */
@@ -24,7 +25,13 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
 
   if (info?.state === "published" && info.ngo_name) {
     return (
-      <Panel kicker={`Terreno ${n}`} title={info.ngo_name} wide>
+      <Panel
+        kicker={`Terreno ${n}`}
+        title={info.ngo_name}
+        // The NGO's public logo (IMPL-0017), when it has one and it loads.
+        mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : undefined}
+        wide
+      >
         <div className="ngo-hud">
           <section>
             <p>{info.ngo_summary}</p>

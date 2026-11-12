@@ -10,7 +10,7 @@ minigames, meet approved NGOs and donate voluntarily. Monorepo (IMPL-0009), one 
 `apps/client` (React 19 + Three.js game, Static Assets, play.vilanoeldobem.com.br), `apps/api` (HTTP API + D1,
 api.vilanoeldobem.com.br), `apps/server` (realtime presence, Durable Object, server.vilanoeldobem.com.br),
 `apps/site` (public website, www.vilanoeldobem.com.br), `apps/dash` (backoffice dashboard for admins, static assets only,
-dash.vilanoeldobem.com.br; IMPL-0015, not deployed yet) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
+dash.vilanoeldobem.com.br; IMPL-0015) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 
@@ -28,6 +28,8 @@ pnpm --filter @vila/client dev:worker                           # client → :87
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # movement, colliders, layout (local only)
+# after a deploy only (not a pre-merge gate; verify.mjs above is local only):
+node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
 node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
 node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)
@@ -54,6 +56,13 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   mutation writes `audit_events`.
 - Accounts (IMPL-0011) stay behind `ACCOUNTS_ENABLED` ("false" in production) until the owner records the LGPD /
   ECA Digital review. Never flip it, grant `admin` remotely or apply remote migrations without explicit approval.
+- NGO files (IMPL-0017) stay behind `NGO_FILES_ENABLED` ("false" in production): the list of required documents is
+  PENDENTE (PEN-019), so no document is required or named. Never flip the flag or create the bucket without explicit
+  approval. The logo requires a published NGO and actual published lot. Institutional gallery photos are a
+  separate reviewed type: read [IMPL-0018](docs/decisions/0018-ngo-files-reconciliation.md) before changing their
+  storage or access. Only individually approved gallery photos of a published NGO/lot may also be public;
+  documents remain private. Canonical application files are locked during `under_review`; admins may read their
+  metadata/bytes with `FILES` bound even when uploads are off. `NGO_PHOTOS_ENABLED` stays off until its operational review.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -71,7 +80,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
-- D1 is the only persistent server-side store. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
+- D1 is the only persistent server-side database; the private R2 bucket `FILES` holds the bytes of NGO
+  application files (IMPL-0017, behind `NGO_FILES_ENABLED`) and separately reviewed gallery photos (IMPL-0018,
+  behind `NGO_PHOTOS_ENABLED`), both PROPOSTA: every read goes through the API, the bucket
+  never gets a public URL, no file name is stored, and `ngo_files` / `ngo_photos` in D1 decide who may read what. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
 - World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
@@ -80,11 +92,12 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short.
-- Never log request bodies, e-mails, tokens, CNPJ documents or any personal data.
+- Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.
 
 ## Forbidden without explicit human authorisation
 
-`git push`, `git reset --hard`, `git clean`, `wrangler deploy`, remote D1 migrations, creating or
+`git push`, `git reset --hard`, `git clean`, `wrangler deploy` (and, when authorised, only through `pnpm deploy:<app>`:
+a bare `wrangler deploy` of the API creates a missing R2 bucket by itself), remote D1 migrations, creating or
 deleting Cloudflare resources, changing secrets, adding payment/OAuth integrations, editing the docs
 repository.
 

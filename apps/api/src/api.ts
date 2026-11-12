@@ -2,14 +2,15 @@
  * HTTP API of Vila Noel do Bem (api.vilanoeldobem.com.br, IMPL-0009; pure logic, testable without workerd).
  *
  * Public, read-only:
- *   GET /health      → { ok, version, environment, db, mail }
- *   GET /config      → { accounts, quests }  (feature flags the client needs)
+ *   GET /health      → { ok, version, environment, db, mail, files }
+ *   GET /config      → { accounts, quests, files }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
+ *   GET /ngos/:id/logo → logo of a published NGO, from R2 (IMPL-0017; only when NGO_FILES_ENABLED = "true")
  *
  * Accounts, server XP, NGO applications and admin review (IMPL-0011; only when ACCOUNTS_ENABLED = "true"):
- * see auth.ts, progress.ts, ngo.ts, admin.ts, backoffice.ts. Mutations require an allowed `Origin` and a JSON body (which
+ * see auth.ts, progress.ts, ngo.ts, files.ts, admin.ts, backoffice.ts. Mutations require an allowed `Origin` and a JSON body (which
  * forces a CORS preflight); the session cookie is HttpOnly, Secure, SameSite=Lax.
  *
  * CORS: `Access-Control-Allow-Origin` (+ credentials) only for exact origins on ALLOWED_ORIGINS.
@@ -22,13 +23,18 @@ import { localSnapshot } from "@vila/shared/environment/config";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
+import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, recoverFileUploads, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
+import { publicNgo } from "./public-ngo";
+import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 
 export interface Env {
   DB?: D1Database;
+  /** Institutional gallery on the canonical private FILES bucket (IMPL-0018). */
+  NGO_PHOTOS_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -52,9 +58,15 @@ export interface Env {
   MAIL_FROM?: string;
   /** Workers rate limiting binding for sign-in requests, keyed by client IP (never stored). */
   AUTH_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  /** Private R2 bucket with the files of NGO applications (IMPL-0017). Never exposed by a public bucket URL. */
+  FILES?: R2Bucket;
+  /** "true" turns on NGO logo and document uploads (PROPOSTA; PEN-019). Needs `FILES` and ACCOUNTS_ENABLED. Off in production. */
+  NGO_FILES_ENABLED?: string;
+  /** Workers rate limiting binding for uploads, keyed by account id. */
+  FILE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
-export const VERSION = "0.3.0";
+export const VERSION = "0.4.0";
 
 export interface LotRow {
   id: string;
@@ -63,8 +75,11 @@ export interface LotRow {
   x: number;
   z: number;
   state: string;
+  ngo_id: string | null;
   ngo_name: string | null;
   ngo_summary: string | null;
+  /** Path of the published NGO's logo on this API (`/ngos/<id>/logo?v=…`), or null (IMPL-0017). */
+  ngo_logo: string | null;
 }
 
 export interface Indicator {
@@ -92,14 +107,27 @@ async function indicators(env: Env): Promise<Indicator[]> {
 
 async function lots(env: Env): Promise<LotRow[] | null> {
   if (!env.DB) return null;
-  const { results } = await env.DB.prepare(
-    `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
-            CASE WHEN n.status = 'published' THEN n.name END AS ngo_name,
-            CASE WHEN n.status = 'published' THEN n.summary END AS ngo_summary
-       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
-      ORDER BY l.street, l.slot`
-  ).all<LotRow>();
-  return results;
+  const LOGO = `CASE WHEN n.status = 'published' AND l.state = 'published' THEN
+       (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`;
+  const query = (logo: string) =>
+    env.DB!.prepare(
+      `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
+              CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary,
+              ${logo} AS ngo_logo
+         FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
+        ORDER BY l.street, l.slot`
+    ).all<LotRow>();
+  // `ngo_files` is read only with the feature on, and a database that does not have the table yet (migration
+  // 0006 not applied) still answers, without logos: this public route must never depend on a later migration.
+  if (!filesBucket(env)) return (await query("NULL")).results;
+  try {
+    return (await query(LOGO)).results;
+  } catch (e) {
+    if (!noFilesTable(e)) throw e;
+    return (await query("NULL")).results;
+  }
 }
 
 const accountOrigins = (env: Env) => allowedOrigins(env.ACCOUNT_ORIGINS ?? env.ALLOWED_ORIGINS);
@@ -114,7 +142,7 @@ export function corsHeaders(origin: string | null, env: Env): Record<string, str
     "Access-Control-Allow-Origin": origin,
     ...(accountOrigins(env).includes(origin) ? { "Access-Control-Allow-Credentials": "true" } : {}),
     "Access-Control-Allow-Methods": "GET, HEAD, POST, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Vila-Account, X-Vila-Caption",
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
@@ -130,22 +158,28 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
 
 const ACCOUNT_PREFIXES = ["/auth/", "/me", "/progress", "/ngo/", "/admin/"];
 const ADMIN_APP = /^\/admin\/applications\/([0-9a-f-]{36})(\/decision)?$/;
+const ADMIN_FILE = /^\/admin\/applications\/([0-9a-f-]{36})\/files\/([0-9a-f-]{36})$/;
+const OWN_FILE = /^\/ngo\/application\/files\/([0-9a-f-]{36})$/;
+const PUBLIC_LOGO = /^\/ngos\/([0-9a-f-]{36})\/logo$/;
 
 async function route(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const { pathname } = url;
   const method = request.method;
+  const accountRequest = ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
   if (method === "OPTIONS") return new Response(null, { status: 204 });
   try {
-    if (ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p))) return noStore(await accountRoute(request, env, url));
+    if (accountRequest) return noStore(await accountRoute(request, env, url));
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }
     switch (pathname) {
       case "/health":
-        return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env) }, { headers: NO_STORE });
-      case "/config":
-        return json({ accounts: env.ACCOUNTS_ENABLED === "true", quests: env.QUESTS_V1_ENABLED === "true" }, { headers: NO_STORE });
+        return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env), files: Boolean(env.FILES) }, { headers: NO_STORE });
+      case "/config": {
+        const accounts = env.ACCOUNTS_ENABLED === "true";
+        return json({ accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)) }, { headers: NO_STORE });
+      }
       case "/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });
       case "/environment":
@@ -156,11 +190,20 @@ async function route(request: Request, env: Env): Promise<Response> {
         if (rows === null) return json({ error: "db_unavailable" }, { status: 503 });
         return json({ lots: rows }, { headers: NO_STORE });
       }
-      default:
+      default: {
+        const logo = PUBLIC_LOGO.exec(pathname);
+        if (logo) return await publicLogo(request, env, logo[1]);
+        const photo = /^\/ngos\/([^/]+)\/photos\/([^/]+)$/.exec(pathname);
+        if (photo) return await photoContent(request, env, photo[2], "public", photo[1]);
+        if (pathname.startsWith("/ngos/")) return await publicNgo(env, pathname.slice("/ngos/".length));
         return json({ error: "not_found" }, { status: 404 });
+      }
     }
   } catch (err) {
     if (err instanceof HttpError) return errorResponse(err);
+    // Recognize only the new migration columns; never retry protected writes with weaker guards.
+    if (accountRequest && err instanceof Error && /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token)\b/i.test(err.message))
+      return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.
     console.error("api_error", pathname, err instanceof Error ? err.name : "unknown");
     return json({ error: "internal" }, { status: 500, headers: NO_STORE });
@@ -192,6 +235,26 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("POST", "/progress/events")) return postEvents(request, env);
   if (is("GET", "/ngo/application")) return getApplication(request, env);
   if (is("POST", "/ngo/application")) return submitApplication(request, env);
+  if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
+  if (is("GET", "/ngo/photos")) return listPhotos(request, env, url.searchParams.get("ngoId") ?? "", false);
+  if (is("GET", "/admin/ngo-photos")) return pendingPhotos(request, env);
+  const ownPhoto = /^\/ngo\/photos\/([^/]+)$/.exec(pathname);
+  if (ownPhoto && method === "DELETE") return deleteOwnPhoto(request, env, ownPhoto[1]);
+  const adminPhotos = /^\/admin\/ngos\/([^/]+)\/photos$/.exec(pathname);
+  if (adminPhotos && method === "GET") return listPhotos(request, env, adminPhotos[1], true);
+  const preview = /^\/(ngo\/photos|admin\/ngo-photos)\/([^/]+)\/content$/.exec(pathname);
+  if (preview && (method === "GET" || method === "HEAD")) return photoContent(request, env, preview[2], preview[1].startsWith("admin") ? "admin" : "owner");
+  const decision = /^\/admin\/ngo-photos\/([^/]+)\/decision$/.exec(pathname);
+  if (decision && method === "POST") return decidePhoto(request, env, decision[1]);
+  if (is("POST", "/ngo/application/files/recover")) return recoverFileUploads(request, env);
+  const recover = /^\/admin\/applications\/([0-9a-f-]{36})\/files\/recover$/.exec(pathname);
+  if (recover && method === "POST") return recoverFileUploads(request, env, recover[1]);
+  if (is("POST", "/ngo/application/files")) return uploadFile(request, env, url);
+  const own = OWN_FILE.exec(pathname);
+  if (own && method === "GET") return downloadOwnFile(request, env, own[1]);
+  if (own && method === "DELETE") return deleteFile(request, env, own[1]);
+  const adminFile = ADMIN_FILE.exec(pathname);
+  if (adminFile && method === "GET") return downloadFileAdmin(request, env, adminFile[1], adminFile[2]);
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);

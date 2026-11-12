@@ -20,6 +20,7 @@
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
 
 import { isoIn, newId, randomToken, sha256Hex } from "./crypto";
+import { removeFilesOfAccount } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { sendLoginLink } from "./mail";
 import { clearCookie, currentUser, meView, readSessionToken, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
@@ -170,8 +171,14 @@ export async function me(request: Request, env: Env): Promise<Response> {
 export async function deleteMe(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const db = env.DB!;
+  // Durable intent freezes NGO/file decisions while R2 cleanup runs. A failed cleanup is retried by DELETE /me.
+  await db.prepare("UPDATE users SET files_deleting = 1 WHERE id = ?").bind(user.id).run();
   await db.batch([
-    db.prepare("INSERT INTO audit_events (id, actor, action, subject, detail) VALUES (?, ?, 'user.delete', ?, NULL)").bind(newId(), user.id, `user:${user.id}`),
+    // The applicant's documents (and an unpublished logo) leave R2 first, then their rows in this transaction.
+    ...(await removeFilesOfAccount(env, user.id)),
+    // Removal of evidence/ownership invalidates reviews that were read before deletion began.
+    db.prepare("UPDATE ngos SET revision = revision + 1, updated_at = ? WHERE applicant_id = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND files_deleting = 1)").bind(new Date().toISOString(), user.id, user.id),
+    db.prepare("INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'user.delete', ?, NULL WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)").bind(newId(), user.id, `user:${user.id}`, user.id),
     db.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
   ]);
   return new Response(null, { status: 204, headers: { ...NO_STORE, "Set-Cookie": clearCookie() } });

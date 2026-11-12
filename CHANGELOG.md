@@ -20,7 +20,83 @@ Cada versão indica o schema D1 que entrega.
   Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
   duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0019](docs/decisions/0019-progress-concurrency-and-acknowledgment.md)).
 
-### Added — painel administrativo (`apps/dash`, não publicado)
+### Added — conciliação dos arquivos e galeria de ONGs (PR, PROPOSTA)
+
+- Reaproveita o PR #32: `FILES`, `ngo_files`, uploads crus, sanitizador e telas de logo/documentos permanecem
+  canônicos. Perfil público e galeria dos PRs #28/#29 são adaptados a esse bucket, sem o pipeline concorrente
+  de documentos do #31. Galeria PNG/JPEG com aprovação individual, desligada em produção/staging (IMPL-0018).
+- Migration 0007 preserva 0006; acrescenta galeria, token exclusivo de escrita e intenção durável de exclusão.
+  Sequência 0001–0007 sem lacunas; não importa pipelines alternativos nem a retirada do PR #33.
+- Candidatura e arquivos compartilham snapshot SQL. Estado/revisão exatos e token exclusivo impedem escrita
+  atrasada e auditoria duplicada; preserva o bloqueio em `under_review` do #32 atualizado.
+- Exclusão de conta congela as evidências antes da limpeza R2 e permite retomar em falha. Incrementa a revisão
+  final para invalidar decisões antigas; conserva o logo institucional canônico e remove toda a galeria.
+- Logo público passa a exigir terreno publicado e `no-store`, como o perfil e a galeria. Nenhuma alteração de jogo,
+  deploy, migration remota ou ativação pública faz parte desta entrega.
+
+### Fixed — revisão de perfil e arquivos
+
+- Perfil público tolerante ao schema v3, sem cidade, com aviso explícito dos campos públicos na candidatura.
+- Configuração de teste local separada da configuração de deploy, com banco e bucket sintéticos novos.
+- Numeração sequencial de migrations/ADRs e registro de entrega indexado, com respostas às revisões.
+- Logo/comprovantes registram intenção antes de R2, preservam bytes após confirmação incerta e rastreiam
+  limpeza de arquivos removidos/substituídos. Recuperação autenticada por responsável/admin, limitada a 50
+  intenções por chamada; primitiva de reserva/escrita condicional compartilhada com galeria (validação atual pendente).
+- Galeria removível pelo responsável e na exclusão da conta; demais salvaguardas e validação registradas na entrega.
+
+### Added — conferência do jogo em produção
+
+- `apps/client/scripts/verify-live.mjs`: conferência do jogo publicado (carrega, entra na Vila, sem erro de console
+  ou de CSP, presença respondendo). O `verify.mjs` passa a ser documentado como só local.
+- A documentação registra o deploy de 2026-11-12 (painel administrativo publicado) e a pergunta aberta OQ-13
+  (destinos de medição do Google bloqueados pela CSP do jogo).
+
+### Added — arquivos das candidaturas de ONG no R2 (desligado em produção)
+
+- Logo e documentos da candidatura num bucket R2 privado ([IMPL-0017](docs/decisions/0017-ngo-files-r2.md)):
+  **PROPOSTA**, atrás da bandeira `NGO_FILES_ENABLED` (`"false"` em produção). O bucket `vilanoeldobem-files` ainda
+  não foi criado e a migration 0006 não foi aplicada no remoto. Nenhum documento é obrigatório nem nomeado: a lista
+  é PENDENTE (PEN-019, OQ-12).
+- API: `POST /ngo/application/files`, `GET` e `DELETE /ngo/application/files/:id`,
+  `GET /admin/applications/:id/files/:fileId` e a rota pública `GET /ngos/:id/logo` (só de ONG publicada).
+  `GET /ngo/application` e `GET /admin/applications/:id` trazem `files`; `/lots` traz `ngo_logo`; `/config` traz
+  `files` e `/health` diz se o bucket está ligado. Novo cabeçalho `X-Vila-Account` nas escritas de arquivo.
+- Logo: PNG ou JPEG, até 512 KB, 64 a 1024 px. Documentos: até 5, PDF, PNG ou JPEG, até 5 MB cada. O formato é
+  conferido pelos bytes (SVG e HTML recusados) e o tamanho é conferido de novo enquanto o arquivo chega.
+- Imagens são guardadas sem metadados (EXIF com GPS, XMP, comentários); o nome original do arquivo não é guardado.
+- Enviar ou remover arquivo muda a `revision` da candidatura: decisão do admin sobre a versão anterior é recusada.
+  Durante a análise (`under_review`) os arquivos ficam travados e, depois de publicada, a ONG não troca mais
+  arquivo. `start_review` passa a valer para a versão atual, sem conferir a revisão vista.
+- Limites: 20 envios ou remoções por minuto por conta e 60 mudanças de arquivo por candidatura a cada 24 horas.
+- Admins leem os arquivos existentes sempre que o bucket está ligado, mesmo com o envio desligado.
+- `pnpm deploy:api` passa `--x-provision=false`: o wrangler não cria mais sozinho um bucket que falta.
+- Leitura de documento por admin gravada em `audit_events` (`ngo.file_read`), além de `ngo.file_add` e
+  `ngo.file_remove`.
+- `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não publicada.
+- Jogo: seção "Arquivos da candidatura" na tela da candidatura (enviar, trocar e remover logo; até 5 documentos,
+  com download e remoção), só quando `/config` traz `files: true`. O arquivo é conferido no navegador com as mesmas
+  regras da API antes do envio. O painel do terreno publicado mostra o logo da ONG.
+- Painel administrativo: seção "Arquivos" na análise da candidatura (prévia do logo; documentos só por download,
+  um registro de auditoria por clique), rótulos das novas ações na auditoria e estado "Envio de arquivos desligado".
+  A CSP do painel passa a aceitar `blob:` em `img-src` (só para a prévia do logo).
+- `verify-accounts.mjs` cobre o envio de arquivos no jogo e a leitura no painel; aceita uma API em outra porta
+  (argumento `api`) e `VILA_API_PERSIST_TO` para o banco local dela.
+- Migration `0006_ngo_files.sql` (schema D1 v6): tabela `ngo_files`.
+- `packages/shared/src/accounts/files.ts`: limites, detecção de formato, limpeza de metadados e frases de erro,
+  usados pela API, pelo jogo e pelo painel.
+
+## [0.4.0] - 2026-11-12
+
+**Contas e ONGs, painel administrativo, presença em tempo real e navegação por clique**
+([IMPL-0006](docs/decisions/0006-christmas-environment-real-time-procedural-weather.md) a
+[IMPL-0016](docs/decisions/0016-click-navigation-and-colliders.md)). Schema D1 **v5** no código; **produção segue na
+v3**: as migrations `0004` e `0005` não foram aplicadas e as contas continuam desligadas (`ACCOUNTS_ENABLED`), assim
+como as missões narrativas (`QUESTS_V1_ENABLED`). Os cinco Workers foram publicados a partir da `main` em 2026-11-12,
+na ordem API, servidor, painel administrativo (`vilanoeldobem-dash`, criado nesse deploy), jogo e site; esse deploy
+foi feito antes deste commit de versão, então `GET /health` em produção responde `"version": "0.3.0"` até a próxima
+publicação da API.
+
+### Added — painel administrativo (`apps/dash`)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em
   `dash.vilanoeldobem.com.br`, Worker `vilanoeldobem-dash` só com Static Assets (sem script, sem bindings). **Não

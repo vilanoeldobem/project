@@ -1,9 +1,9 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v5 · **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
-> `apps/api/src/accounts.test.ts`, `packages/shared/src/accounts/validate.ts`, `apps/server/src/handler.ts`,
+> **Schema D1:** v7 · **Atualizado em:** 2026-11-12
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
+> `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
 > `packages/shared/src/net/protocol.ts`
 
@@ -25,6 +25,11 @@ Rotas de conta (`/auth/*`, `/me`, `/progress*`, `/ngo/*`, `/admin/*`,
 [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) aceitam também `POST` e `DELETE` e só existem com a
 bandeira `ACCOUNTS_ENABLED` ligada ([§ Contas](#contas-impl-0011)).
 
+A migration 0007 é pré-requisito das rotas conciliadas. Nas rotas de conta, uma operação que encontre ausência
+das colunas `files_deleting` ou `file_write_token` retorna `503 schema_outdated`, sem repetir a escrita com
+guardas enfraquecidos. Isso não é um bloqueio global de autenticação: cadastro, emissão de links e consultas
+sem sessão não dependem necessariamente dessas colunas. Aplicar o esquema antes de disponibilizar o fluxo.
+
 ### CORS
 
 As páginas do jogo, do site e do painel administrativo estão em outra origem, então a API responde com CORS **só**
@@ -36,7 +41,7 @@ dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do scri
 
 | Requisição | Resposta |
 |---|---|
-| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
+| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type, X-Vila-Account, X-Vila-Caption`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
 | `Origin` ausente ou fora da lista | só `Vary: Origin` (o navegador bloqueia a leitura; `curl` e servidores continuam lendo as rotas públicas) |
 | `OPTIONS` (preflight) | `204` sem corpo, com os cabeçalhos acima quando a origem é permitida |
 
@@ -52,18 +57,19 @@ dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do scri
 `Cache-Control: no-store`.
 
 ```json
-{ "ok": true, "version": "0.4.0", "environment": "production", "db": true, "mail": false }
+{ "ok": true, "version": "0.4.0", "environment": "production", "db": true, "mail": false, "files": false }
 ```
 
 `version` vem da constante `VERSION` em `apps/api/src/api.ts`. `mail` diz se o segredo `RESEND_API_KEY` existe no
-Worker (nunca o valor).
+Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (binding `FILES`,
+[IMPL-0017](../decisions/0017-ngo-files-r2.md)); não diz se o envio de arquivos está ligado — isso é `/config`.
 
 ### GET /config
 
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false, "quests": false }
+{ "accounts": false, "quests": false, "files": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
@@ -74,6 +80,11 @@ aviso "Contas desligadas" e só dados públicos. O painel lista todas as chaves 
 staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
 `quests` é `true` **e** a bandeira dele também está ligada (`VITE_QUESTS_V1_ENABLED=true` no build ou `?quests=1` em
 localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
+
+`files` é `true` só quando as contas estão ligadas, `NGO_FILES_ENABLED = "true"` **e** o bucket R2 está ligado ao
+Worker. Com `false`, o jogo e o painel não mostram nada de arquivo e as rotas de arquivo respondem
+`404 files_disabled`. O envio de logo e documentos é PROPOSTA ([IMPL-0017](../decisions/0017-ngo-files-r2.md),
+PEN-019): ligado no script local `dev`, desligado em produção e staging.
 
 ### GET /indicators
 
@@ -94,13 +105,28 @@ Cache 30 s.
 
 ### GET /lots
 
-Terrenos e, só quando a ONG está `published`, nome e resumo dela. `Cache-Control: no-store`. Candidaturas em
+Terrenos e, só quando a ONG está `published`, nome, resumo e logo dela. `Cache-Control: no-store`. Candidaturas em
 andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas nunca expõem dados da organização.
 
 ```json
 { "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 20.33, "z": 8.42,
-              "state": "available", "ngo_name": null, "ngo_summary": null } ] }
+              "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null, "ngo_logo": null } ] }
 ```
+
+`ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
+
+`ngo_logo` é o caminho do logo nesta API (`/ngos/<id>/logo?v=<versão>`) quando a ONG publicada tem um; senão
+`null`. Com o envio de arquivos desligado é sempre `null` (e a tabela `ngo_files` nem é lida).
+
+### GET /ngos/:id/logo
+
+Logo de uma ONG **publicada e ligada a um terreno publicado** ([IMPL-0017](../decisions/0017-ngo-files-r2.md)); só existe com
+`NGO_FILES_ENABLED = "true"` e o bucket ligado (senão `404 files_disabled`). ONG não publicada, sem logo ou
+inexistente → `404 not_found`. É a única rota pública que entrega um arquivo: documentos nunca saem por aqui.
+
+Cabeçalhos: `Content-Type` do arquivo (`image/png` ou `image/jpeg`), `Cache-Control: no-store`, `ETag`
+(com `If-None-Match` igual → `304`), `X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: cross-origin`.
 
 ### GET /environment
 
@@ -298,11 +324,12 @@ apagar `.progress-smoke-seed.sql` e encerrar o Worker após a prova. As flags ac
 
 | Método e rota | Resposta |
 |---|---|
-| `GET /ngo/application` | `{application}` (a da própria conta) ou `{application: null}` |
-| `POST /ngo/application` | `201 {application}` (primeira) ou `200 {application}` (reenvio); corpo com `accountId` e os campos abaixo |
+| `GET /ngo/application` | `{application, files}` (a da própria conta) ou `{application: null, files: []}` |
+| `POST /ngo/application` | `201 {application, files}` (primeira) ou `200 {application, files}` (reenvio); corpo com `accountId` e os campos abaixo |
 
-Quatro etapas do wireframe; a lista de campos é **PROPOSTA** (G08, PEN-019). **Não há upload de documentos** nesta
-versão: os documentos são declarados e a administração os pede na análise.
+Quatro etapas do wireframe; a lista de campos é **PROPOSTA** (G08, PEN-019). Os critérios são declarados; logo e
+documentos são opcionais e seguem [§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017) (`files` vem
+vazio enquanto o envio estiver desligado).
 
 | Etapa | Campo | Regra |
 |---|---|---|
@@ -330,7 +357,9 @@ Regras do envio:
 - O envio reserva o terreno (`application_sent`) e grava `audit_events` `ngo.submit`.
 - **Reenvio** depois de `changes_requested` ou `rejected`: mesma linha, `revision + 1`, volta a `submitted`, apaga a
   mensagem anterior; se o terreno mudou, o antigo é liberado. Audita `ngo.resubmit`.
-- Nada fica público antes da aprovação: `/lots` só mostra nome e resumo de ONG `published`.
+- Nada fica público antes da aprovação. Depois dela, `/lots` mostra nome e resumo; `/ngos/:id` disponibiliza
+  também descrição, causas e projetos. A candidatura avisa quais campos serão públicos; cidade e contato não
+  integram o perfil público. Fotos exigem ainda aprovação individual.
 
 **Estados da candidatura e do terreno** (nomes **PROPOSTA** do plano; terreno conforme DEC-028):
 
@@ -342,6 +371,147 @@ Regras do envio:
 | `published` | `published` |
 | `rejected` | `available` (liberado, `ngo_id = NULL`) |
 
+### Arquivos da candidatura (IMPL-0017)
+
+Logo e documentos da candidatura, guardados num bucket R2 privado
+([IMPL-0017](../decisions/0017-ngo-files-r2.md)). **PROPOSTA**, desligado em produção: as rotas só existem com
+`NGO_FILES_ENABLED = "true"` e o bucket ligado (`/config` → `files: true`); senão `404 files_disabled`. A lista de
+documentos que uma ONG deve enviar é PENDENTE (PEN-019): nenhum é obrigatório nem tem nome.
+
+| Tipo (`kind`) | Quantos | Formatos | Tamanho | Lados da imagem | Quem lê |
+|---|---|---|---|---|---|
+| `logo` | 1 (enviar outro substitui) | PNG, JPEG | até 512 KB | 64 a 1024 px | público só depois de `published` (`GET /ngos/:id/logo`) |
+| `document` | até 5 | PDF, PNG, JPEG | até 5 MB | até 8192 px | só quem enviou e os admins |
+
+Os limites vêm de `FILE_RULES` em `packages/shared/src/accounts/files.ts`, usados pela API e pelas telas.
+
+| Método e rota | Requisição | Resposta |
+|---|---|---|
+| `POST /ngo/application/files?kind=logo\|document` | corpo = os bytes do arquivo; `Content-Type` = formato do arquivo; `X-Vila-Account` = id da conta | `201 {file, revision}` |
+| `GET /ngo/application/files/:id` | — | os bytes (só os da própria candidatura) |
+| `DELETE /ngo/application/files/:id` | `X-Vila-Account` | `200 {revision}` |
+| `GET /admin/applications/:id/files/:fileId` | — | os bytes (admin) |
+| `POST /ngo/application/files/recover` | sem corpo; `X-Vila-Account` = id da conta responsável | `200 {cleaned, remaining}` |
+| `POST /admin/applications/:id/files/recover` | sem corpo; `X-Vila-Account` = id do admin | `200 {cleaned, remaining}` |
+
+`file` é `{id, kind, contentType, size, createdAt}`. **Não existe nome de arquivo**: o nome original não é enviado,
+guardado nem devolvido (costuma trazer nome de pessoa); as telas chamam os downloads de `logo.png` e
+`documento-N.pdf`. `GET /ngo/application` e `GET /admin/applications/:id` trazem a lista em `files` (logo primeiro,
+documentos na ordem de envio). A candidatura, sua revisão e `files` são lidos na mesma instrução SQL,
+para que a lista corresponda à revisão mostrada ao administrador.
+
+- **Quem pode enviar:** conta logada e verificada, com candidatura, de uma origem de `ACCOUNT_ORIGINS`.
+  `X-Vila-Account` tem o mesmo papel do `accountId` das escritas em JSON (`409 account_changed` se outra aba trocou
+  de conta). Limites: 20 envios ou remoções por minuto por conta (`429 too_many_requests`) e 60 mudanças de
+  arquivo por candidatura a cada 24 horas (`429 too_many_file_changes`, com `fields.file`).
+- **Quando:** em `submitted`, `changes_requested` e `rejected`. Durante a análise (`under_review`) os arquivos ficam
+  travados, para que seja decidido exatamente o que foi visto, e depois de `published` ficam congelados (nos dois
+  casos `409 application_locked`).
+- **O que a API confere:** formato aceito para o tipo (`415 file_type`); tamanho, no cabeçalho e de novo enquanto os
+  bytes chegam (`413 file_too_large`); formato real, lido da assinatura dos bytes, igual ao `Content-Type`
+  (`400 file_mismatch`: uma página HTML ou um PDF chamado de PNG não passa; SVG nunca é aceito); imagem bem formada
+  (`400 file_invalid`) e dentro dos limites de pixels (`400 image_too_small`, `400 image_too_large`); arquivo vazio
+  (`400 file_empty`). Todos trazem `fields.file` com a frase em pt-BR.
+- **O que é guardado:** imagens sem os metadados conhecidos (EXIF com GPS e aparelho, XMP, IPTC, comentários,
+  miniaturas, blocos de texto do PNG, bytes depois do fim da imagem); do EXIF do JPEG fica só a orientação. Os
+  pixels e o perfil de cor não mudam. Só recodificar a imagem removeria tudo; PDF é guardado como veio. Um JPEG com
+  mais de um cabeçalho de tamanho, ou um arquivo feito de centenas de milhares de pedaços, é recusado
+  (`400 file_invalid`).
+- **Revisão:** cada envio ou remoção soma 1 em `revision` (devolvido na resposta). Uma decisão do admin feita sobre
+  a revisão anterior é recusada com `409 stale_revision` (menos `start_review`, que usa a revisão atual lida
+  no servidor e trava os arquivos). A escrita ainda compara **estado e revisão exatos**: se uma mutação vencer
+  entre a leitura e a transação, a análise não começa sobre um snapshot ultrapassado. Se a candidatura mudar
+  enquanto o arquivo chega ou é removido, a resposta é `409 application_changed`; um reenvio da candidatura que
+  perde para uma mudança de arquivo responde o mesmo. A intenção durável precede R2; falha na compensação deixa
+  limpeza pendente rastreável. O token exclusivo impede auditoria duplicada por perdedores.
+- **Falhas de armazenamento:** a reserva vazia e o PUT condicionado ao ETag são compartilhados com a galeria.
+  O commit exige intenção ativa e a remove junto dos metadados. Confirmação incerta é seguida de releitura antes
+  de apagar bytes; se o commit ocorreu, o arquivo permanece legível, embora a resposta possa ser `500 internal`.
+  Remoção/substituição registra limpeza antes de desvincular o objeto. Uma remoção com falha física retorna
+  `503 file_cleanup_pending`; um logo novo confirmado permanece válido se a limpeza do antigo falhar.
+- **Recuperação:** as duas rotas `files/recover` acima tratam no máximo 50 intenções por chamada, em ordem de
+  criação/id: limpeza marcada ou upload com mais de 15 minutos. `cleaned` conta exclusões confirmadas; `remaining`
+  conta todas as intenções restantes, inclusive envios recentes que não foram cancelados. Não retornam chave,
+  nome ou conteúdo. Exigem sessão, origem permitida, cabeçalho da conta e o limitador canônico; a rota administrativa
+  exige admin. Funcionam com `NGO_FILES_ENABLED` desligado, mas exigem contas e binding `FILES`. A marca de limpeza
+  impede finalização concorrente; erro mantém o registro para repetir. O prazo de 15 minutos cancela envio
+  abandonado, sem estabelecer retenção de documentos ou execução automática.
+- **Leitura por admin:** `GET /admin/applications/:id` lista os arquivos e `GET /admin/applications/:id/files/:fileId`
+  os entrega sempre que o bucket está ligado, mesmo com `NGO_FILES_ENABLED` desligado: quem aprova vê o que existe.
+- **Como os bytes são servidos:** `Content-Type` do arquivo, `X-Content-Type-Options: nosniff`,
+  `Content-Security-Policy: default-src 'none'; sandbox`, `Cache-Control: no-store`; documento sempre com
+  `Content-Disposition: attachment`, logo com `inline`. As rotas conferem `Origin`, então um link direto ou um
+  `<img src>` não funciona: as telas leem com `fetch` e `credentials: "include"`.
+- **Auditoria:** `ngo.file_add` e `ngo.file_remove` (quem enviou), `ngo.file_read` (admin que baixou um
+  **documento**; ver o logo não grava nada). `detail` é `{kind, file, revision?}`: sem nome de arquivo.
+  Recuperação administrativa grava `ngo.file_cleanup` com `{requested}` antes do I/O destrutivo, inclusive quando
+  houver falha parcial; é registro da tentativa, não confirmação de descarte.
+- **Exclusão de conta:** `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não
+  publicada; o logo de uma ONG publicada fica. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
+  de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas. Se R2 falhar, a conta e
+  sessão continuam (`500`); se houver metadados sem binding `FILES`, responde `503 files_unavailable`. O usuário
+  repete **o mesmo `DELETE /me`** após a recuperação. A marca não expira nem é desfeita automaticamente, pois
+  parte dos bytes pode já ter sido removida. Escritas novas recebem `409 account_deleting`; leitura e sessão
+  continuam disponíveis para repetir a exclusão. A transação final incrementa as revisões das candidaturas antes
+  de remover a conta: uma revisão antiga não pode aprovar evidências que foram apagadas. Chaves e registros de
+  upload/limpeza em `media_upload_intents` também são apagados; PUT atrasado não pode recriar os bytes removidos.
+
+### Perfil público e galeria institucional (IMPL-0018, PROPOSTA)
+
+Conciliação sobre o PR #32: reutiliza `FILES` e o sanitizador de imagens da IMPL-0017. Galeria é conteúdo
+institucional; logo e documentos continuam no fluxo e nas telas existentes. Não há nova tela de galeria neste PR.
+Envio e publicação das fotos dependem de `NGO_PHOTOS_ENABLED="true"`, desligada em produção e staging.
+Leitura privada, fila e remoção permanecem acessíveis com bucket ligado mesmo se novos envios forem desligados;
+exigem `ACCOUNTS_ENABLED` e sessão autorizada. Sem bucket, a galeria privada retorna `503 photos_unavailable`.
+O perfil textual público degrada para `photos: []` se não houver bucket/tabela de fotos ou se a flag estiver desligada.
+
+| Rota | Contrato |
+|---|---|
+| `GET /ngos/:id` | `{ngo: {id, name, summary, description, tags, projects, lotId, photos}}` |
+| `POST /ngo/photos?ngoId=:id&position=0` | bytes crus PNG/JPEG, `Content-Type`, `X-Vila-Account`, `X-Vila-Caption: encodeURIComponent(legenda)`; `201 {photo}` pendente |
+| `GET /ngo/photos?ngoId=:id` | `{photos}` só da própria ONG |
+| `GET /admin/ngos/:id/photos` | `{photos}` para admin |
+| `GET /admin/ngo-photos` | fila `{photos}` de pendentes/limpezas, até 100, ordenada por criação e id |
+| `DELETE /ngo/photos/:id` | `X-Vila-Account`; responsável remove e pode repetir a limpeza que falhou |
+| `GET`/`HEAD /ngo/photos/:id/content` | bytes privados para responsável |
+| `GET`/`HEAD /admin/ngo-photos/:id/content` | bytes privados para admin |
+| `POST /admin/ngo-photos/:id/decision` | JSON `{accountId, revision, action: "approve" | "reject" | "remove"}`; `200 {photo}` |
+| `GET`/`HEAD /ngos/:ngoId/photos/:photoId` | bytes apenas da foto aprovada, ONG publicada e terreno realmente publicado |
+
+O perfil público retorna `404` sem a associação publicada, mesmo que `requested_lot_id` exista. Expõe só campos
+públicos e projetos `{title, description}`; nunca CNPJ, contato, declarações, documentos, revisão, parecer ou chave
+R2. `photos` é `[]` com galeria desligada; quando ligada contém apenas `{id, url, caption, position}` aprovados,
+ordenados por posição e id. Perfil, fotos e logo público usam `no-store` e revogam a próxima leitura após retirada
+ou despublicação dos dados. A conciliação da operação de retirada do PR #33 é uma próxima entrega separada.
+
+Upload: responsável verificado; ONG em `submitted`, `changes_requested` ou `published`;
+até 10 fotos pendentes/aprovadas (rejeitadas e removidas liberam cota); posição inteira 0–9; legenda opcional com até 240
+pontos de código Unicode, enviada no cabeçalho (máximo 3000 caracteres codificados), **nunca na URL**. PNG/JPEG
+até 2 MiB, 4096 px por lado e 16 milhões de pixels. WebP e SVG não são aceitos. Assinatura e estrutura são
+verificadas; EXIF/XMP/comentários/texto são removidos pelo sanitizador compartilhado. Isso não é antivírus nem
+uma decodificação completa da imagem. A API não aceita o antigo corpo JSON/base64 do PR #29.
+
+A resposta privada `photo` contém `{id, ngoId, caption, position, status, revision, contentType, byteSize,
+previewUrl, uploadPending, cleanupPending}`. Revisão própria da foto, separada da candidatura. A prévia é nula
+para envios incompletos, rejeições e remoções. Admin não revisa sua própria ONG; só `pending` completo pode ser
+aprovado/rejeitado. Aprovar exige `GET` administrativo auditado da mesma revisão pelo mesmo admin; `HEAD` só lê
+metadados do bucket e não satisfaz essa condição. O registro de acesso não prova compreensão humana.
+
+Remoção e rejeição revogam acesso e limpam a legenda antes de apagar bytes. Falha deixa `cleanupPending: true`
+e `503 photo_cleanup_pending`; a linha permanece nas listas/fila para repetir a remoção. O responsável pode
+remover inclusive foto aprovada; isso não exige que o envio esteja ligado. Auditoria registra envio e leitura
+administrativa (`ngo.photo.upload|read`) além de decisões `ngo.photo.approve|reject|remove`.
+Não são exigidos documentos adicionais.
+
+Erros: `400 invalid_photo_metadata` (posição/legenda), `400 file_type|file_mismatch|file_invalid|image_too_large`,
+`413 too_large` (limite de corpo), `409 photo_limit_or_owner_changed`, `409 stale_revision`,
+`409 photo_object_missing|photo_review_required`, `503 photo_cleanup_pending|photos_unavailable`, `403 self_review`, além dos erros comuns de sessão/origem. A mesma cota
+`FILE_LIMITER` canônico se aplica a envio/remoção; o envio tem limite adicional de 60 por candidatura em 24 horas. Imagens de outra ONG, pendentes ou removidas retornam `404` ao público.
+
+Ao excluir a conta, toda a galeria é removida, inclusive fotos aprovadas. Isso é distinto da retenção do logo
+institucional canônico. A exclusão falha de forma retomável se a limpeza dos bytes falhar; não confirma remoção
+com objetos ainda pendentes. Direitos de imagem e consentimentos continuam sob OQ-15.
+
 ### Análise administrativa (DEC-037)
 
 Só contas com `role = 'admin'` (concedido à mão no D1, ver [deploy.md §7](../guides/deploy.md#7-contas-e-ongs-040));
@@ -350,7 +520,7 @@ outras → `403 admin_only`.
 | Método e rota | Corpo | Resposta |
 |---|---|---|
 | `GET /admin/applications[?status=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}]}` (até 200, mais recentes primeiro) |
-| `GET /admin/applications/:id` | — | `{application, applicant: {nickname} \| null, history: [{at, action, detail, actor}]}` |
+| `GET /admin/applications/:id` | — | `{application, applicant: {nickname} \| null, history: [{at, action, detail, actor}], files}` |
 | `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
 `status` filtra por um dos cinco estados; sem filtro, lista as candidaturas (exclui ONGs publicadas sem candidatura).
@@ -365,8 +535,9 @@ histórico é o nickname do admin.
 | `reject` | `submitted`, `under_review`, `changes_requested` | `rejected` / `available` | obrigatória, ≥ 10 caracteres |
 
 - `note` (até 1000 caracteres) é a mensagem à organização; fica em `ngos.review_note` e aparece para quem enviou.
-- `revision` (obrigatório, inteiro) é a versão que o admin está vendo. Se a organização reenviou enquanto a tela
-  estava aberta, a decisão é recusada (`409 stale_revision`, nada é gravado) em vez de valer para um conteúdo que
+- `revision` (obrigatório, inteiro) é a versão que o admin está vendo. `start_review` não a confere: inicia a
+  análise da versão atual, qualquer que seja, e trava os arquivos. Nas outras ações, se a organização reenviou ou
+  mudou um arquivo ([§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017)) enquanto a tela estava aberta, a decisão é recusada (`409 stale_revision`, nada é gravado) em vez de valer para um conteúdo que
   ninguém analisou.
 - `approve` exige `checks: {activeCnpj, oneYear, fundsConfirmable}`, os três `true` (as verificações do DEC-015);
   senão `400 checks_required`.
@@ -375,8 +546,8 @@ histórico é o nickname do admin.
   (só uma de duas decisões simultâneas vale, com uma linha de auditoria); candidatura inexistente → `404 not_found`.
 - Cada decisão grava `audit_events` `ngo.<action>` com o id do admin e `detail`
   `{from, to, lot, revision, hasNote}` (na aprovação, também `checks`) — sem e-mail e sem o texto da mensagem.
-- A aprovação publica a casa: `/lots` passa a trazer nome e resumo, e o jogo desenha o chalé gerado pela semente do
-  terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
+- A aprovação publica a casa: `/lots` traz nome e resumo e `/ngos/:id` disponibiliza descrição, causas e projetos,
+  sem cidade ou contato. O jogo desenha o chalé gerado pela semente do terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
 
 A tela dessas rotas é a seção "Candidaturas" do painel administrativo (`apps/dash`); o jogo não as chama mais.
 
@@ -469,10 +640,14 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | ambos | 404 | `not_found` | rota desconhecida; candidatura inexistente na análise |
 | API | 405 | `method_not_allowed` | rota pública com método diferente de GET/HEAD/OPTIONS |
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
-| API | 503 | `db_unavailable` | `/lots` ou rota de conta sem binding D1 |
+| API | 503 | `db_unavailable` | rota dependente de D1 (incluindo `/lots`, `/ngos/:id` e rotas de conta) sem binding |
+| API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ausentes; atualizar esquema antes de ativar o fluxo |
+| API | 409 | `account_deleting` | conta está em limpeza de arquivos; repetir a exclusão depois da recuperação |
+| API | 503 | `files_unavailable` | exclusão/recuperação exige armazenamento de arquivos, mas o binding `FILES` está ausente |
+| API | 503 | `file_cleanup_pending` | remoção/recuperação canônica não concluiu a limpeza; repetir `files/recover`, sem interpretar a retirada do metadado como descarte físico |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
 | API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ACCOUNT_ORIGINS`; `POST /auth/register` vindo do painel administrativo |
-| API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP |
+| API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP; envio, remoção ou recuperação de arquivo acima de 20/60 s pela mesma conta |
 | API | 415 | `json_required` | `POST` de conta sem `Content-Type: application/json` |
 | API | 413 | `too_large` | corpo acima de 16 000 bytes (32 000 na candidatura) |
 | API | 400 | `bad_json` | corpo não é um objeto JSON |
@@ -492,10 +667,20 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 400 | `bad_action` | `action` desconhecida na decisão |
 | API | 400 | `note_required` (+ `fields.note`) | pedir ajustes ou rejeitar sem mensagem de ≥ 10 caracteres |
 | API | 409 | `bad_transition` | decisão fora da tabela de transições |
-| API | 409 | `account_changed` | escrita com `accountId` diferente da sessão (outra aba trocou de conta) |
+| API | 409 | `account_changed` | escrita com `accountId` (ou `X-Vila-Account`, nos arquivos) diferente da sessão (outra aba trocou de conta) |
 | API | 409 | `stale_revision` | decisão sobre versão que já não é a atual |
 | API | 400 | `revision_required` | decisão sem `revision` inteiro |
 | API | 400 | `checks_required` | aprovação sem as três verificações do DEC-015 |
+| API | 404 | `files_disabled` | rota de arquivo com `NGO_FILES_ENABLED` desligado ou sem o bucket |
+| API | 400 | `bad_kind` | envio de arquivo com `kind` diferente de `logo` ou `document` |
+| API | 415 | `file_type` (+ `fields.file`) | formato não aceito para o tipo de arquivo |
+| API | 413 | `file_too_large` (+ `fields.file`) | arquivo acima do limite do tipo |
+| API | 400 | `file_mismatch`, `file_invalid`, `file_empty`, `image_too_small`, `image_too_large` (+ `fields.file`) | conteúdo diferente do formato informado, imagem ilegível, arquivo vazio, imagem fora dos limites de pixels |
+| API | 409 | `no_application` | envio de arquivo por conta sem candidatura |
+| API | 409 | `application_locked` | envio ou remoção de arquivo com a candidatura em análise ou a ONG já publicada |
+| API | 409 | `too_many_files` (+ `fields.file`) | sexto documento |
+| API | 429 | `too_many_file_changes` (+ `fields.file`) | mais de 60 envios e remoções de arquivo na mesma candidatura em 24 horas |
+| API | 409 | `application_changed` | a candidatura mudou enquanto o arquivo era enviado ou removido |
 | API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
 | API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |

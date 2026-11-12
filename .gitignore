@@ -6,3 +6,6 @@ dist/
 .dev.vars
 .env*
 verify-output/
+
+# Agent worktrees (local tooling)
+.claude/worktrees/

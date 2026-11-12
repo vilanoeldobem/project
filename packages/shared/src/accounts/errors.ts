@@ -19,8 +19,17 @@ const ERROR_TEXT: Record<string, string> = {
   too_many_requests: "Muitas tentativas seguidas. Espere um minuto e tente de novo.",
   mail_unavailable: "Não conseguimos enviar o e-mail agora. Tente de novo mais tarde.",
   account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
+  photo_cleanup_pending: "A foto já foi retirada. A remoção do arquivo ainda não terminou; tente remover novamente.",
+  photo_review_required: "Abra a foto desta revisão antes de aprovar.",
+  account_deleting: "A exclusão da conta está em andamento. Tente excluir a conta novamente para concluir.",
+  schema_outdated: "As contas estão temporariamente indisponíveis durante uma atualização. Tente de novo mais tarde.",
+  files_unavailable: "O armazenamento dos arquivos está indisponível. Tente concluir a exclusão novamente mais tarde.",
   stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
   checks_required: "Marque as três verificações antes de aprovar.",
+  files_disabled: "O envio de arquivos não está disponível agora.",
+  no_application: "Envie a candidatura antes de anexar arquivos.",
+  application_locked: "Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.",
+  application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */

@@ -1,7 +1,7 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
-> **Atualizado em:** 2026-11-11
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
+> **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
 
@@ -14,12 +14,14 @@ www.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-site"   (apps/site: 
 play.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem"        (apps/client: Static Assets, SPA, _headers por build)
 app.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem"        → 301 play.vilanoeldobem.com.br
 api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) ──▶ D1 "vilanoeldobem" (binding DB)
+                                 └─ arquivos de ONG ──▶ R2 "vilanoeldobem-files" (binding FILES; privado; IMPL-0017,
+                                    desligado em produção)
 server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server)
                                  └─ /room?i=N (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
 dash.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem-dash"   (apps/dash: Static Assets, SPA, _headers por build)
-                                 — NÃO PUBLICADO: painel administrativo, IMPL-0015
+                                 — painel administrativo, IMPL-0015 (publicado em 2026-11-12)
 
-navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment
+navegador em play.*  ── fetch (CORS) ──▶ api.*      /health, /config, /indicators, /lots, /environment, /ngos/:id
                      ── fetch (CORS + cookie __Host-vila_session) ──▶ api.*  /auth/*, /me, /progress*, /ngo/*, /admin/*
                                                               (só com ACCOUNTS_ENABLED, IMPL-0011)
                      ── WebSocket    ──▶ server.*   /room?i=N
@@ -50,7 +52,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Desempenho | `scene/RenderStats.tsx`, `scene/perf.ts` | Chamadas, triângulos, p50/p95 do quadro; resolução adaptativa |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
-| Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. A análise administrativa saiu do jogo: admins veem só o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) |
+| Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. Com `/config.files` ligado ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA), a tela da candidatura ganha "Arquivos da candidatura" (`ui/ApplicationFiles.tsx`, `lib/files.ts`): logo e documentos conferidos no navegador com as mesmas regras da API e enviados já sem metadados; o painel do terreno publicado mostra o logo (`ui/BlobImage.tsx`: lido por `fetch` e exibido por URL de objeto, sem alargar a CSP). A análise administrativa saiu do jogo: admins veem só o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) |
 | Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla |
 | Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar `app.*` → `play.*` (301, mesmo caminho e query); o resto vai para os Static Assets |
 
@@ -127,7 +129,7 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | Módulo | Responsabilidade |
 |---|---|
 | `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
-| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment` e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
+| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
 | `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
 | `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
@@ -135,10 +137,14 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
 | `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
-| `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico, decisões auditadas |
+| `files.ts` | Arquivos da candidatura no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA, bandeira `NGO_FILES_ENABLED`): envio com conferência do conteúdo, leitura por quem enviou e por admins (auditada), logo público da ONG publicada; `media_upload_intents` rastreia envio/limpeza, recuperável por responsável/admin em `files/recover`, inclusive com envio desligado; exclusão de conta inclui intenções |
+| `media-storage.ts` | Primitiva comum de logo/documentos e galeria: reserva vazia, releitura de autorização, PUT condicionado ao ETag e uma repetição limitada em throttling; impede escrita tardia de bytes pessoais após remoção da reserva |
+| `public-ngo.ts` | Perfil aprovado com lista explícita de campos públicos, tolerante ao schema v3; só ONG com terreno publicado |
+| `ngo-photos.ts` | Galeria institucional separada de comprovantes, aprovação por foto, bytes privados em `FILES` e publicação condicionada |
+| `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
 | `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
 
-Único app com acesso ao D1. Detalhes em [api.md](api.md).
+Único app com acesso ao D1 e ao bucket R2. Detalhes em [api.md](api.md) e [storage.md](storage.md).
 
 ### 3.1 Fluxo de entrada (link mágico)
 
@@ -187,6 +193,7 @@ Cloudflare.
 |---|---|---|
 | `game/` | `world.ts`, `collision.ts`, `motion.ts`, `navigation.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
 | `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura), dash (rótulos das áreas) |
+| `accounts/` | `files.ts` | api (autoridade), client e dash: tipos de arquivo da candidatura, limites, detecção do formato pelos bytes, limpeza de metadados de imagem e frases de erro (IMPL-0017) |
 | `accounts/` | `contract.ts`, `errors.ts` | client e dash: formas das respostas de conta e de análise, rótulos de situação, `ApiError` e a frase em pt-BR de cada código de erro |
 | `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`), site (só `config.ts` e `time.ts`: relógio e fases do dia) |
 | `net/` | `protocol.ts` | client, server |
@@ -250,6 +257,9 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | `vars.MAIL_FROM` | `acesso@vilanoeldobem.com.br` | Remetente do link de acesso |
 | api | segredo `RESEND_API_KEY` | fora do `wrangler.jsonc` (`wrangler secret put`) | Chave do Resend (só o link de acesso, IMPL-0012) |
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
+| api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
+| api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, **ainda não criado** (IMPL-0017) |
+| api | `vars.NGO_FILES_ENABLED` | `"false"` | Envio de logo e documentos desligado até a lista de documentos (PEN-019) e a revisão LGPD |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
 | server | `vars.IDLE_TIMEOUT_SECONDS` | `"300"` | Segundos sem atividade até a sala fechar a conexão (IMPL-0014); inteiro de 60 a 86400, senão vale 300 |
@@ -268,8 +278,12 @@ Rotas de conta: só respondem a `Origin` permitida (`403 forbidden_origin`); mut
 `Content-Type: application/json` (`415`), o que força o preflight de CORS; sessão e links guardados só como hash;
 cookie `HttpOnly`, `Secure`, `SameSite=Lax`; nenhum dado pessoal em log.
 
+Arquivos de ONG ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): bucket R2 privado, lido só pela API; o formato é
+conferido pelos bytes (SVG e HTML recusados), imagens perdem os metadados antes de serem guardadas, e os bytes saem
+com `nosniff`, CSP `default-src 'none'; sandbox` e, nos documentos, como download. Nome de arquivo não é guardado.
+
 `_headers` do painel, gerado a cada build por `apps/dash/security-headers.ts`: CSP mais estrita que a do jogo
-(`default-src 'self'`, sem script ou estilo inline, nenhum terceiro, `connect-src 'self'` + exatamente a API da
+(`default-src 'self'`, sem script ou estilo inline, nenhum terceiro, `img-src 'self' blob:` para a prévia do logo de uma candidatura, `connect-src 'self'` + exatamente a API da
 build, `frame-ancestors 'none'`, `base-uri 'none'`), `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy:
 no-referrer`, `Cross-Origin-Opener-Policy: same-origin`; o HTML sai com `Cache-Control: no-store, no-transform`.
 
@@ -293,7 +307,7 @@ chamadas e triângulos independem da GPU.
 
 ## 11. Painel administrativo (`apps/dash/src`)
 
-Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)); **não publicado**.
+Backoffice em `dash.vilanoeldobem.com.br` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)); publicado em 2026-11-12.
 React 19 + Vite, só arquivos estáticos; HTML plano e acessível, sem three.js, sem analytics e sem terceiros. Não
 importa nada dos outros apps: o que divide com o jogo está em `packages/shared/src/accounts/`.
 
@@ -302,9 +316,9 @@ importa nada dos outros apps: o que divide com o jogo está em `packages/shared/
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `accounts_disabled`) |
 | Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta |
 | Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`) |
-| Dados | `lib/hooks.ts`, `lib/format.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos |
+| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos; envio da decisão (recarrega a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique) |
 | Aparência | `lib/theme.ts`, `styles.css` | Cores vindas de `PALETTE` (`packages/shared/src/game/world.ts`); um único CSS, sem estilo inline |
-| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo); terrenos; auditoria; contas; estado do sistema; áreas pendentes |
+| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download; terrenos; auditoria; contas; estado do sistema; áreas pendentes |
 | Build | `security-headers.ts`, `vite.config.ts` | `_headers` por build (CSP com a API da build) |
 
 Quem vê o quê:
@@ -318,16 +332,19 @@ Quem vê o quê:
 | Admin | Todas as seções |
 
 A API impõe o papel em cada rota `/admin/*`; o que o painel esconde é conveniência, não proteção. As seções
-"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs) são avisos sem função, e a de contas não tem ação
+"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs — este último agora só com as decisões que faltam, PEN-019 e OQ-12) são avisos sem função, e a de contas não tem ação
 de sanção (regras não definidas, DEC-037).
 
 ## Limitações conhecidas
 
-- Painel administrativo (`apps/dash`) implementado, **não publicado**: criar o Worker e o domínio `dash.*` exige
-  autorização. Ele usa só o login próprio, sem Cloudflare Access na frente (OQ-10, respondida).
+- Painel administrativo (`apps/dash`) publicado em 2026-11-12; com as contas desligadas mostra só dados públicos.
+  Ele usa só o login próprio, sem Cloudflare Access na frente (OQ-10, respondida).
 - Contas, XP no servidor e candidatura de ONG implementados, mas desligados em produção (`ACCOUNTS_ENABLED`) até a
   revisão LGPD / ECA Digital, a verificação do domínio no Resend e a chave `RESEND_API_KEY`.
-- Candidatura sem upload de documentos; nickname sem moderação; sem e-mail de aviso das decisões.
+- Envio de logo e documentos implementado, mas desligado em produção (`NGO_FILES_ENABLED`): falta criar o bucket,
+  aplicar as migrations 0006/0007, definir a lista de documentos (PEN-019) e o prazo de retenção (OQ-12). PDF não é
+  inspecionado.
+- Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo
   compartilhado (IMPL-0008).
