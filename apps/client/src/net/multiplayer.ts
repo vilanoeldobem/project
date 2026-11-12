@@ -17,6 +17,7 @@ import {
   ACTIVE_MS,
   CLOSE_FULL,
   CLOSE_IDLE,
+  CLOSE_REMOVED,
   decodeServer,
   encodeLook,
   encodePose,
@@ -31,6 +32,12 @@ const HISTORY = 8;
 const PING_MS = 20_000;
 /** A tab hidden this long hangs up by itself (IMPL-0014); shorter than the room's idle limit on purpose. */
 const HIDDEN_PAUSE_MS = 120_000;
+/**
+ * After an administrator removed this visitor from the room (PROPOSTA, IMPL-0021) the client does not reconnect
+ * for this long, whatever the person does; after it, the next real input reconnects, like the idle close. It is
+ * the courtesy of an honest client, not a barrier.
+ */
+export const REMOVED_HOLD_MS = 60_000;
 
 interface Sample {
   t: number;
@@ -58,8 +65,38 @@ export interface Remote {
 export const lookKey = (l: Look) => SLOTS.map((s) => l[s]).join("|");
 const DEFAULT_KEY = lookKey(DEFAULT_LOOK);
 
-/** "idle": paused for inactivity (IMPL-0014); the next click, tap or key reconnects. */
-export type NetStatus = "off" | "connecting" | "online" | "full" | "offline" | "idle";
+/**
+ * "idle": paused for inactivity (IMPL-0014); the next click, tap or key reconnects. "removed": an administrator
+ * removed this visitor from the room (PROPOSTA, IMPL-0021); paused like "idle", after `REMOVED_HOLD_MS`.
+ */
+export type NetStatus = "off" | "connecting" | "online" | "full" | "offline" | "idle" | "removed";
+
+/**
+ * The open connection as the moderation flow sees it (PROPOSTA, IMPL-0021): the room and this visitor's id as the
+ * room announced them, and a way to send one message on that very socket. A new connection is a new link.
+ */
+export interface PresenceLink {
+  readonly room: number;
+  readonly selfId: number;
+  /** False when the socket is no longer open (nothing was sent). Never counts as activity. */
+  send: (message: string) => boolean;
+}
+
+/** What the moderation flow hears from the room: the answer to a removal request, a visitor leaving, the link going away. */
+export type PresenceEvent = { type: "removal"; target: number; ok: boolean } | { type: "left"; id: number } | { type: "closed" };
+
+let link: PresenceLink | null = null;
+const listeners = new Set<(e: PresenceEvent) => void>();
+const emit = (e: PresenceEvent) => listeners.forEach((listener) => listener(e));
+
+/** The connection that is open and welcomed right now, or null. */
+export const presenceLink = (): PresenceLink | null => link;
+
+/** Listens to the room's moderation events; returns the function that stops listening. */
+export function onPresenceEvent(listener: (e: PresenceEvent) => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
 
 /** `looks`: distinct looks currently worn by others (one instanced group each). */
 export const useNet = create<{ status: NetStatus; others: number; looks: Record<string, Look> }>(() => ({
@@ -152,6 +189,8 @@ export interface ClosePlan {
   status: NetStatus;
   /** Milliseconds until the next attempt (0 = at once); null = wait for the person's next click, tap or key. */
   delayMs: number | null;
+  /** With `delayMs` null: milliseconds during which input does not reconnect either (absent = none). */
+  holdMs?: number;
   /** Room to try next and the attempt counter to carry over. */
   room: number;
   tries: number;
@@ -159,11 +198,14 @@ export interface ClosePlan {
 
 /**
  * Pure reconnect policy. Idle close (IMPL-0014) → no timer at all: reconnecting by itself would only start
- * another idle period, so the next real input reconnects. Full room → next room at once (after a full round,
- * wait 30 s). Anything else (network drop, deploy, abuse) → same room with exponential backoff, 1 s … 30 s.
+ * another idle period, so the next real input reconnects. Removed by an administrator (PROPOSTA, IMPL-0021) → no
+ * timer either, and input is ignored for `REMOVED_HOLD_MS`: it is not a network error and must never loop. Full
+ * room → next room at once (after a full round, wait 30 s). Anything else (network drop, deploy, abuse) → same
+ * room with exponential backoff, 1 s … 30 s.
  */
 export function planAfterClose(code: number, room: number, tries: number): ClosePlan {
   if (code === CLOSE_IDLE) return { status: "idle", delayMs: null, room, tries: 0 };
+  if (code === CLOSE_REMOVED) return { status: "removed", delayMs: null, holdMs: REMOVED_HOLD_MS, room, tries: 0 };
   if (code === CLOSE_FULL) {
     const next = (room + 1) % MAX_ROOMS;
     return tries + 1 >= MAX_ROOMS
@@ -177,7 +219,8 @@ export function planAfterClose(code: number, room: number, tries: number): Close
  * Connects while `enabled`; returns the disconnect function. Reconnects follow `planAfterClose`. While
  * connected, a click, tap or key with no pose or look sent in the last `ACTIVE_MS` is reported as ["a"], so
  * someone playing a minigame or reading a panel is not taken for idle. A tab hidden for `HIDDEN_PAUSE_MS`
- * hangs up by itself and waits for input like an idle close.
+ * hangs up by itself and waits for input like an idle close. After a removal by an administrator the wait for
+ * input starts only when `REMOVED_HOLD_MS` have passed.
  */
 export function connectPresence(): () => void {
   let ws: WebSocket | null = null;
@@ -187,6 +230,8 @@ export function connectPresence(): () => void {
   let closed = false;
   /** Waiting for the person's next click, tap or key (idle close, or the tab stayed hidden). */
   let paused = false;
+  /** Input before this instant does not resume a paused connection (removal by an administrator). */
+  let holdUntil = 0;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let sendTimer: ReturnType<typeof setInterval> | null = null;
@@ -207,20 +252,26 @@ export function connectPresence(): () => void {
     if (sendTimer) clearInterval(sendTimer);
     if (pingTimer) clearInterval(pingTimer);
     sendTimer = pingTimer = null;
+    if (link) {
+      link = null;
+      emit({ type: "closed" });
+    }
     resetRemotes();
   };
 
-  const pause = () => {
+  const pause = (status: NetStatus = "idle", holdMs = 0) => {
     paused = true;
+    holdUntil = holdMs ? Date.now() + holdMs : 0;
     if (retry) clearTimeout(retry);
     retry = null;
-    useNet.setState({ status: "idle" });
+    useNet.setState({ status });
   };
 
   // Real input: resumes a paused connection, or tells the room the person is here (at most every ACTIVE_MS).
   const onInput = () => {
     if (closed) return;
     if (paused) {
+      if (Date.now() < holdUntil) return;
       paused = false;
       tries = 0;
       open();
@@ -250,7 +301,8 @@ export function connectPresence(): () => void {
   const open = () => {
     if (closed || paused) return;
     useNet.setState({ status: "connecting" });
-    ws = new WebSocket(`${SERVICES.realtime}/room?i=${room}`);
+    const socket = new WebSocket(`${SERVICES.realtime}/room?i=${room}`);
+    ws = socket;
     ws.onmessage = (ev) => {
       if (typeof ev.data !== "string" || ev.data === "pong") return;
       const m = decodeServer(ev.data);
@@ -258,6 +310,12 @@ export function connectPresence(): () => void {
       if (m.t === "w") {
         selfId = m.id;
         tries = 0;
+        link = {
+          room: m.room,
+          selfId: m.id,
+          // Straight to the socket: a removal request is not activity, so it never goes through `tell`.
+          send: (message) => socket === ws && socket.readyState === WebSocket.OPEN && (socket.send(message), true),
+        };
         useNet.setState({ status: "online" });
       } else if (m.t === "s") ingestSnapshot(m.poses, m.tick, selfId);
       else if (m.t === "k") {
@@ -267,7 +325,8 @@ export function connectPresence(): () => void {
         pendingLooks.delete(m.id);
         useNet.setState({ others: remotes.size });
         refreshLooks();
-      }
+        emit({ type: "left", id: m.id });
+      } else if (m.t === "m") emit({ type: "removal", target: m.target, ok: m.ok });
     };
     ws.onopen = () => {
       last = "";
@@ -290,7 +349,7 @@ export function connectPresence(): () => void {
       const plan = planAfterClose(ev.code, room, tries);
       room = plan.room;
       tries = plan.tries;
-      if (plan.delayMs === null) return pause();
+      if (plan.delayMs === null) return pause(plan.status, plan.holdMs);
       if (plan.delayMs === 0) return open();
       useNet.setState({ status: plan.status });
       retry = setTimeout(open, plan.delayMs);

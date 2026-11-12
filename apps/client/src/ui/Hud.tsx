@@ -6,8 +6,9 @@ import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
 import { AccountChip } from "./Account";
-import { EnvironmentChip } from "./Environment";
+import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
+import { ModerationBar, ModerationChip } from "./Moderation";
 import { Wordmark } from "./Wordmark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
@@ -80,7 +81,10 @@ export function Hud() {
       if (e.key === "+" || e.key === "=") return zoomBy(1 / ZOOM_STEP);
       if (e.key === "-") return zoomBy(ZOOM_STEP);
       const n = useVila.getState().nearby;
-      if ((e.key === "e" || e.key === "E" || e.key === "Enter") && n) activate(n);
+      // Enter on a focused button, link or field belongs to that control: without this, pressing Enter on a HUD
+      // button near a house opened the house instead (the panel took the focus before the button was activated).
+      const onControl = e.key === "Enter" && e.target instanceof Element && e.target.closest("button, a[href], input, select, textarea, summary") !== null;
+      if ((e.key === "e" || e.key === "E" || e.key === "Enter") && n && !onControl) activate(n);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -103,9 +107,12 @@ export function Hud() {
               ))}
             </div>
           )}
+          <RemovedNotice />
+          <ModerationBar />
         </div>
         <nav className="hud__nav">
           <AccountChip />
+          <ModerationChip />
           <button className="btn btn--chip" onClick={() => open({ kind: "explore" })} aria-label="Explorar ONGs">
             🏡 <span>Explorar ONGs</span>
           </button>
