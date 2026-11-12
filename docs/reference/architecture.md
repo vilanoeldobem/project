@@ -146,6 +146,16 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 
 Único app com acesso ao D1 e ao bucket R2. Detalhes em [api.md](api.md) e [storage.md](storage.md).
 
+**Retirada de publicação (PROPOSTA, IMPL-0020):** a tabela aditiva `ngo_withdrawals` preserva a aprovação e o
+histórico, mas projeta a situação privada como `withdrawn`. No mesmo batch, a retirada incrementa a revisão,
+libera os terrenos efetivamente associados e registra auditoria. A liberação para outra ONG foi confirmada por
+Nicolas em 2026-11-12; reentrada e demais regras operacionais seguem [OQ-14](../decisions/open-questions.md).
+Perfil, fotos, terrenos e indicadores públicos sempre excluem retiradas, inclusive com `NGO_WITHDRAWAL_ENABLED`
+desligada: essa bandeira controla somente novas mutações. Leitura privada autorizada preserva fotos/documentos;
+o motivo não entra em respostas públicas ou no texto livre da auditoria. O jogo atual precisa recarregar sua
+consulta para atualizar uma cena aberta; não há broadcast de retirada nem alteração de XP/missões neste fluxo.
+Contrato e limites em [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md).
+
 ### 3.1 Fluxo de entrada (link mágico)
 
 ```

@@ -51,6 +51,8 @@ export async function publicPhotos(env: Env, ngoId: string) {
 }
 
 const UPLOAD_STATES = "('submitted', 'changes_requested', 'published')";
+/** A withdrawn NGO keeps `status = 'published'` (IMPL-0020): uploads and photo decisions check the ledger too. */
+const NOT_WITHDRAWN = "NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id)";
 const ACTIVE_PHOTO = "status IN ('pending','approved')";
 const TOKEN = "EXISTS (SELECT 1 FROM ngo_photos WHERE id = ? AND decision_token = ?)";
 
@@ -78,8 +80,10 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
   try { caption = decodeURIComponent(encodedCaption); }
   catch { throw new HttpError(400, "invalid_photo_metadata"); }
   if (!ID.test(ngoId)) missing();
-  const owner = await env.DB!.prepare("SELECT id,status FROM ngos WHERE id=? AND applicant_id=?").bind(ngoId, user.id).first<{id: string; status: string}>();
+  const owner = await env.DB!.prepare("SELECT n.id,n.status,w.ngo_id AS withdrawn FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id=n.id WHERE n.id=? AND n.applicant_id=?")
+    .bind(ngoId, user.id).first<{id: string; status: string; withdrawn: string | null}>();
   if (!owner) missing();
+  if (owner.withdrawn) throw new HttpError(409, "application_withdrawn");
   if (!["submitted", "changes_requested", "published"].includes(owner.status)) throw new HttpError(409, "application_locked");
   if (Array.from(caption.trim()).length > 240 || caption.includes("\0") || positionText === null || !/^[0-9]$/.test(positionText)) throw new HttpError(400, "invalid_photo_metadata");
   const position = Number(positionText);
@@ -95,7 +99,7 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
   // Durable staging precedes R2: a killed request leaves a private row that can be explicitly removed.
   const staged = await env.DB!.prepare(`INSERT INTO ngo_photos(id,ngo_id,object_key,content_type,byte_size,caption,position,upload_pending)
     SELECT ?,?,?,?,?,?,?,1 WHERE EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id
-      WHERE n.id=? AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES})
+      WHERE n.id=? AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})
       AND (SELECT COUNT(*) FROM ngo_photos WHERE ngo_id=? AND ${ACTIVE_PHOTO})<10`)
     .bind(id, ngoId, key, checked.type, checked.bytes.length, caption.trim(), position, ngoId, user.id, ngoId).run();
   if (!staged.meta.changes) throw new HttpError(409, "photo_limit_or_owner_changed");
@@ -103,11 +107,11 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
   try {
     await putReserved(bucket, key, checked.bytes, checked.type, async () => Boolean(await env.DB!.prepare(
       `SELECT p.id FROM ngo_photos p JOIN ngos n ON n.id=p.ngo_id JOIN users u ON u.id=n.applicant_id
-        WHERE p.id=? AND p.status='pending' AND p.upload_pending=1 AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES}`
+        WHERE p.id=? AND p.status='pending' AND p.upload_pending=1 AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN}`
     ).bind(id,user.id).first()));
     const [changed] = await env.DB!.batch([
       env.DB!.prepare(`UPDATE ngo_photos SET upload_pending=0,decision_token=? WHERE id=? AND status='pending' AND upload_pending=1
-        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES})`)
+        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})`)
         .bind(token, id, user.id),
       env.DB!.prepare(`INSERT INTO audit_events(id,actor,action,subject,detail) SELECT ?,?,'ngo.photo.upload',?,? WHERE ${TOKEN}`)
         .bind(newId(), user.id, `ngo:${ngoId}`, JSON.stringify({photoId:id,revision:1}), id, token),
@@ -214,7 +218,8 @@ export async function decidePhoto(request: Request, env: Env, id: string): Promi
   if (action !== "approve" && action !== "reject" && action !== "remove") throw new HttpError(400, "bad_action");
   if (!Number.isInteger(body.revision) || (body.revision as number) < 1) throw new HttpError(400, "revision_required");
   if (!ID.test(id)) missing();
-  const row = await env.DB!.prepare(`SELECT ${COLUMNS}, n.applicant_id FROM ngo_photos p JOIN ngos n ON n.id=p.ngo_id WHERE p.id=?`).bind(id).first<Photo & {applicant_id:string|null}>();
+  const row = await env.DB!.prepare(`SELECT ${COLUMNS}, n.applicant_id, w.ngo_id AS withdrawn FROM ngo_photos p JOIN ngos n ON n.id=p.ngo_id
+    LEFT JOIN ngo_withdrawals w ON w.ngo_id=n.id WHERE p.id=?`).bind(id).first<Photo & {applicant_id:string|null; withdrawn:string|null}>();
   if (!row) missing();
   if (row.applicant_id === admin.id) throw new HttpError(403, "self_review");
   if (action === "remove" && row.status === "removed") return removePhoto(env,row,admin.id,false);
@@ -222,6 +227,8 @@ export async function decidePhoto(request: Request, env: Env, id: string): Promi
     try { await cleanupPhoto(env,row); } catch { throw new HttpError(503,"photo_cleanup_pending"); }
     return json({photo:privateView({...row,cleanup_pending:0},true)}, {headers:NO_STORE});
   }
+  // Removal (and the cleanup retries above) stays possible after a withdrawal; approving or rejecting does not.
+  if (row.withdrawn && action !== "remove") throw new HttpError(409, "application_withdrawn");
   if (row.revision !== body.revision) throw new HttpError(409, "stale_revision");
   if (action === "remove") return removePhoto(env,row,admin.id,false);
   if (row.status !== "pending" || row.upload_pending) throw new HttpError(409, "bad_transition");
@@ -233,12 +240,15 @@ export async function decidePhoto(request: Request, env: Env, id: string): Promi
   }
   const status = action === "approve" ? "approved" : "rejected", token = newId();
   const [changed] = await env.DB!.batch([
-    env.DB!.prepare("UPDATE ngo_photos SET status=?,caption=CASE WHEN ?='rejected' THEN '' ELSE caption END,cleanup_pending=?,revision=revision+1,decision_token=?,updated_at=? WHERE id=? AND revision=? AND status='pending' AND upload_pending=0 AND NOT EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.files_deleting=1)")
+    env.DB!.prepare("UPDATE ngo_photos SET status=?,caption=CASE WHEN ?='rejected' THEN '' ELSE caption END,cleanup_pending=?,revision=revision+1,decision_token=?,updated_at=? WHERE id=? AND revision=? AND status='pending' AND upload_pending=0 AND NOT EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.files_deleting=1) AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id=ngo_photos.ngo_id)")
       .bind(status,status,action === "reject"?1:0,token,new Date().toISOString(),id,row.revision),
     env.DB!.prepare(`INSERT INTO audit_events(id,actor,action,subject,detail) SELECT ?,?,?,?,? WHERE ${TOKEN}`)
       .bind(newId(),admin.id,`ngo.photo.${action}`,`ngo:${row.ngo_id}`,JSON.stringify({photoId:id,from:row.status,to:status,revision:row.revision+1}),id,token),
   ]);
-  if (!changed.meta.changes) throw new HttpError(409,"stale_revision");
+  if (!changed.meta.changes) {
+    const withdrawn = await env.DB!.prepare("SELECT 1 AS x FROM ngo_withdrawals WHERE ngo_id=?").bind(row.ngo_id).first();
+    throw new HttpError(409, withdrawn ? "application_withdrawn" : "stale_revision");
+  }
   const after = {...row,status,caption:action === "reject"?"":row.caption,revision:row.revision+1,cleanup_pending:action === "reject"?1:0};
   if (action === "reject") {
     try { await cleanupPhoto(env,after); after.cleanup_pending=0; }

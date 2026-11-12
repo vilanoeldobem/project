@@ -285,3 +285,31 @@ consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da O
 
 [api.md](api.md) · [guides/deploy.md](../guides/deploy.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
 [IMPL-0017](../decisions/0017-ngo-files-r2.md)
+
+## Retirada administrativa — `0009_ngo_withdrawals.sql`
+
+[IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md) adiciona `ngo_withdrawals`, sem reconstruir `ngos`,
+alterar seu CHECK ou apagar tabelas filhas. Cada ONG tem no
+máximo um registro, com token exclusivo da operação, motivo privado, ID do administrador, data, revisão e
+lista JSON dos terrenos associados no momento da retirada. O ator não tem FK, preservando identidade de
+auditoria após exclusão da conta; a FK para ONG impede apagar o registro histórico por cascade.
+
+A primeira instrução do batch insere o registro somente se a revisão e o estado `published` ainda forem os
+esperados e não houver retirada. Instruções seguintes conferem o token exclusivo: incrementam revisão,
+liberam **todas as associações atuais** em `lots` e auditam uma única decisão. Uma transação perdedora não
+altera terreno, revisão ou histórico, mesmo com timestamps iguais. Falha em qualquer instrução reverte tudo.
+`requested_lot_id`, `review_note`, aprovação armazenada, fotos, documentos e progresso permanecem intactos.
+
+O estado `withdrawn` é uma projeção privada: `ngos.status='published'` conserva a aprovação histórica e a
+existência no registro determina a retirada. Lista, detalhe e candidatura própria leem essa projeção com a
+revisão no mesmo snapshot. Envio e decisões sobre fotos também verificam o registro; as consultas públicas
+exigem o terreno publicado, que a retirada libera, então desligar a flag de escrita não volta a publicar
+conteúdo retirado. Não há rota de restauração ou apagamento
+da retirada. Reentrada, retenção e atendimento operacional continuam em OQ-14/OQ-12.
+
+**Ordem de operação:** aplicar 0009 no ambiente autorizado **antes** de publicar a nova API, inclusive quando
+`NGO_WITHDRAWAL_ENABLED=false`, sempre que as contas estiverem ligadas: as consultas privadas dependem da tabela. Nenhuma migration remota
+foi aplicada neste PR. Depois de haver retiradas, voltar à versão antiga da API não é rollback seguro: ela
+ignora o registro em projeções privadas e mutações de fotos. Preservar o registro e usar versão
+que respeite essa exclusão; não remover tabela ou registros como tentativa de rollback. OQ-09 continua
+pendente para missões cujo alvo desapareça. A interface precisa ser integrada antes da ativação operacional.

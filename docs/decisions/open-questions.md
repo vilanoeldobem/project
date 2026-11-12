@@ -34,6 +34,8 @@ nenhum destes pontos; **`NGO_PHOTOS_ENABLED` fica `"false"` até a resposta**:
 
 OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo a questão de analytics do PR #32.
 
+| OQ-14 | Retirada de ONG publicada: qual procedimento administrativo, comunicação do motivo, retenção e reentrada; como atualizar cenas já abertas? | Ratificar/ajustar proposta antes da ativação; definir restauração/reentrada separadamente | Terreno liberado para outra ONG, confirmado por Nicolas em 2026-11-12. Registro permanente de retirada, histórico e arquivos preservados, sem restauração ou reenvio; bandeira de novas retiradas desligada. Visibilidade pública sempre respeita retirada já registrada, mesmo com a bandeira desligada. Missão da última casa depende de OQ-09 | Ativar retirada em homologação/produção; futura restauração ou reentrada | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; confirmação direta do responsável sobre o terreno |
+
 ## Resolvidas
 
 - **OQ-10** (2026-11-11, Augusto): **sem Cloudflare Access na frente de `dash.*`.** O painel administrativo usa só o

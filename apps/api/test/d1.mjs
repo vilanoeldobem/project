@@ -40,6 +40,8 @@ export function createD1({ upTo = Infinity, additionalMigrations = [] } = {}) {
   });
 
   return {
+    /** Test helper: apply one real migration after seeding an older schema (see `upTo`). */
+    migrate: (filename) => db.exec(readFileSync(new URL(filename, MIGRATIONS), "utf8")),
     prepare: (sql) => statement(sql),
     async batch(list) {
       db.exec("BEGIN");

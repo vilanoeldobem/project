@@ -36,7 +36,13 @@ export interface NgoRow {
   applicant_id: string | null;
   created_at: string;
   updated_at: string;
+  withdrawal_reason?: string | null;
+  withdrawn_at?: string | null;
 }
+
+/** Approval remains historical; the ledger supplies the effective private status in the same snapshot. */
+export const APPLICATION_QUERY = `SELECT n.*, w.reason AS withdrawal_reason, w.withdrawn_at
+  FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id`;
 
 export const applicationView = (r: NgoRow) => ({
   id: r.id,
@@ -51,17 +57,18 @@ export const applicationView = (r: NgoRow) => ({
   tags: JSON.parse(r.tags ?? "[]") as string[],
   projects: JSON.parse(r.projects ?? "[]") as NgoApplication["projects"],
   lotId: r.requested_lot_id,
-  status: r.status,
+  status: r.withdrawn_at ? "withdrawn" : r.status,
   revision: r.revision,
   reviewNote: r.review_note,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
+  ...(r.withdrawn_at ? { withdrawal: { reason: r.withdrawal_reason, at: r.withdrawn_at } } : {}),
 });
 
 const ACTIVE = ["submitted", "under_review", "published"];
 
 export async function myApplication(env: Env, userId: string): Promise<NgoRow | null> {
-  return env.DB!.prepare("SELECT * FROM ngos WHERE applicant_id = ? ORDER BY created_at DESC LIMIT 1").bind(userId).first<NgoRow>();
+  return env.DB!.prepare(`${APPLICATION_QUERY} WHERE n.applicant_id = ? ORDER BY n.created_at DESC LIMIT 1`).bind(userId).first<NgoRow>();
 }
 
 /** Application and file list share one SQL snapshot, so the admin cannot approve mismatched evidence. */
@@ -69,7 +76,8 @@ export async function applicationSnapshot(env: Env, value: string, byOwner = fal
   const fileList = `COALESCE((SELECT json_group_array(json_object(
     'id',id,'kind',kind,'contentType',content_type,'size',size,'createdAt',created_at))
     FROM (SELECT * FROM ngo_files WHERE ngo_id = n.id ORDER BY kind = 'logo' DESC,created_at,id)), '[]')`;
-  const query = (files: string) => env.DB!.prepare(`SELECT n.*, ${files} AS file_snapshot FROM ngos n
+  const query = (files: string) => env.DB!.prepare(`SELECT n.*, w.reason AS withdrawal_reason, w.withdrawn_at, ${files} AS file_snapshot
+    FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id
     WHERE ${byOwner ? "n.applicant_id" : "n.id"} = ? ORDER BY n.created_at DESC LIMIT 1`)
     .bind(value).first<NgoRow & { file_snapshot: string }>();
   let row: Awaited<ReturnType<typeof query>>;
@@ -97,6 +105,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
   const current = await myApplication(env, user.id);
+  if (current?.withdrawn_at) throw new HttpError(409, "application_withdrawn");
   if (current && ACTIVE.includes(current.status)) throw new HttpError(409, "application_active");
 
   const lot = await db.prepare("SELECT id, state, ngo_id FROM lots WHERE id = ?").bind(value.lotId).first<{ id: string; state: string; ngo_id: string | null }>();

@@ -30,11 +30,14 @@ import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
 import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
+import { withdrawNgo } from "./ngo-withdrawal";
 
 export interface Env {
   DB?: D1Database;
   /** Institutional gallery on the canonical private FILES bucket (IMPL-0018). */
   NGO_PHOTOS_ENABLED?: string;
+  /** Administrative withdrawal is disabled until the integration/mission review (IMPL-0020). */
+  NGO_WITHDRAWAL_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -258,6 +261,8 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
+  const ngoWithdrawal = /^\/admin\/ngos\/([^/]+)\/withdraw$/.exec(pathname);
+  if (ngoWithdrawal && method === "POST") return withdrawNgo(request, env, ngoWithdrawal[1]);
   const m = ADMIN_APP.exec(pathname);
   if (m && method === "GET" && !m[2]) return getApplicationAdmin(request, env, m[1]);
   if (m && method === "POST" && m[2]) return decide(request, env, m[1]);

@@ -192,7 +192,8 @@ describe("feature flag", () => {
 
   it("keeps missing-0006 account reads and deletion working once reconciliation columns exist", async () => {
     // Exercise the upstream missing-files fallback with our required columns, without creating ngo_files.
-    db = createD1({ upTo: 5, additionalMigrations: [7] });
+    // 0009 (`ngo_withdrawals`) is required by every signed-in NGO route: without it they answer 503 schema_outdated.
+    db = createD1({ upTo: 5, additionalMigrations: [7, 9] });
     env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
     const a = await applicant();
     expect((await call("GET", "/ngo/application", undefined, a.cookie)).body).toMatchObject({ application: { status: "submitted" }, files: [] });

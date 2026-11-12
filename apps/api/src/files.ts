@@ -158,6 +158,7 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
   const db = env.DB!;
   const app = await myApplication(env, user.id);
   if (!app) throw new HttpError(409, "no_application");
+  if (app.withdrawn_at) throw new HttpError(409, "application_withdrawn");
   if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
   await assertChangeBudget(env, app.id);
   if (kind !== "logo") {
@@ -236,6 +237,7 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
   const app = await myApplication(env, user.id);
   const row = app ? await db.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE id = ? AND ngo_id = ?`).bind(fileId, app.id).first<FileRow>() : null;
   if (!app || !row) throw new HttpError(404, "not_found");
+  if (app.withdrawn_at) throw new HttpError(409, "application_withdrawn");
   if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
   await assertChangeBudget(env, app.id);
 

@@ -16,7 +16,7 @@
  */
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { applicationSnapshot, applicationView, type NgoRow } from "./ngo";
+import { APPLICATION_QUERY, applicationSnapshot, applicationView, type NgoRow } from "./ngo";
 import { requireAdmin } from "./session";
 import type { Env } from "./api";
 
@@ -30,15 +30,17 @@ const RULES: Record<Action, { from: string[]; to: string; lot: string | null }> 
   reject: { from: ["submitted", "under_review", "changes_requested"], to: "rejected", lot: null },
 };
 
-const STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected"];
+const STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"];
 
 export async function listApplications(request: Request, env: Env): Promise<Response> {
   await requireAdmin(request, env);
   const status = new URL(request.url).searchParams.get("status");
-  const where = status && STATUSES.includes(status) ? "WHERE n.status = ?" : "WHERE n.applicant_id IS NOT NULL OR n.status != 'published'";
+  // The stored status of a withdrawn NGO stays 'published' (IMPL-0020): lists show and filter the effective one.
+  const effectiveStatus = "CASE WHEN w.ngo_id IS NOT NULL THEN 'withdrawn' ELSE n.status END";
+  const where = status && STATUSES.includes(status) ? `WHERE ${effectiveStatus} = ?` : "WHERE n.applicant_id IS NOT NULL OR n.status != 'published' OR w.ngo_id IS NOT NULL";
   const stmt = env.DB!.prepare(
-    `SELECT n.id, n.name, n.city, n.status, n.revision, n.requested_lot_id AS lotId, n.created_at AS createdAt, n.updated_at AS updatedAt
-       FROM ngos n ${where} ORDER BY n.updated_at DESC LIMIT 200`
+    `SELECT n.id, n.name, n.city, ${effectiveStatus} AS status, n.revision, n.requested_lot_id AS lotId, n.created_at AS createdAt, n.updated_at AS updatedAt
+       FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id ${where} ORDER BY n.updated_at DESC LIMIT 200`
   );
   const { results } = await (status && STATUSES.includes(status) ? stmt.bind(status) : stmt).all();
   return json({ applications: results }, { headers: NO_STORE });
@@ -109,6 +111,6 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
     if (latest?.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
     throw new HttpError(409, latest && latest.revision !== row.revision ? "stale_revision" : "bad_transition");
   }
-  const after = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
+  const after = await db.prepare(`${APPLICATION_QUERY} WHERE n.id = ?`).bind(id).first<NgoRow>();
   return json({ application: applicationView(after!) }, { headers: NO_STORE });
 }

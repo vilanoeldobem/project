@@ -36,6 +36,7 @@
     // list of documents and the LGPD review covers them. Needs ACCOUNTS_ENABLED and migration 0006.
     "NGO_FILES_ENABLED": "false",
     "NGO_PHOTOS_ENABLED": "false",
+    "NGO_WITHDRAWAL_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -66,6 +67,7 @@
         "QUESTS_V1_ENABLED": "false",
         "NGO_FILES_ENABLED": "false",
         "NGO_PHOTOS_ENABLED": "false",
+        "NGO_WITHDRAWAL_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",
