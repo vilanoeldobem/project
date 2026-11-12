@@ -2,7 +2,7 @@
 
 **Status:** Proposta — implementada e testada; **desligada em produção** (`QUESTS_V1_ENABLED = "false"` na API e build
 do jogo sem `VITE_QUESTS_V1_ENABLED`). Concorrência e confirmação de eventos do item 4 são revistas por
-[IMPL-0019](0019-progress-concurrency-and-acknowledgment.md), proposta em revisão. O catálogo, os XP, os moradores e as regras de jogo das quests são **PROPOSTA**
+[IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) (Proposta). O catálogo, os XP, os moradores e as regras de jogo das quests são **PROPOSTA**
 (PEN-025) e **não foram aprovados pelo dono do produto**; este ADR registra só as escolhas técnicas do runtime
 **Data:** 2026-11-11
 **Fontes:** revisão do PR #19 (`feat/quests-v1`, commit `ca587f7`) e autorização do responsável do repositório para

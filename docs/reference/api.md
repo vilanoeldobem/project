@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v7 · **Atualizado em:** 2026-11-12
+> **Schema D1:** v8 · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
@@ -291,7 +291,9 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
   são reenviados quando a conexão volta, em novo evento ou na próxima entrada. `409 progress_conflict` preserva
-  essa fila; não existe atualização instantânea da tela entre dispositivos nem retry por temporizador nesta entrega.
+  essa fila; não existe atualização instantânea da tela entre dispositivos nem nova tentativa por temporizador.
+  Um evento que o servidor omite sai da fila (a resposta foi `200`), e a tela só troca o progresso local pelo da
+  conta na próxima entrada ou ao recarregar a página.
   `GET /progress` recupera o estado persistido pela sessão da conta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
 - Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
@@ -299,12 +301,12 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
   dá XP.
 
-O formato de sucesso continua `{progress}`. `progress_pending` foi retirado durante a revisão: um visitante com
-`lake-lanterns` aceita consegue entrar na conta que tem `harness-bells` ativa e 40 XP; o cliente adota o estado da
-conta e limpa a fila incompatível, em vez de ficar mostrando o progresso local com aviso incorreto de conexão.
+O formato de sucesso é sempre `{progress}`, o estado autoritativo da conta. Exemplo: um visitante com
+`lake-lanterns` aceita entra na conta que tem `harness-bells` ativa e 40 XP; o `accept` incompatível é omitido, o
+cliente adota o estado da conta e limpa a fila enviada. O progresso de visitante dessa quest não é levado para a conta.
 Não existe abandono, substituição automática da quest ativa ou fila de futuras quests; essa decisão continua em
-OQ-09. Com quests desligadas os eventos são omitidos; o cliente usa `/config` para não enviá-los.
-As bandeiras de produção continuam desligadas.
+[OQ-09](../decisions/open-questions.md). Com quests desligadas os eventos são omitidos; o cliente usa `/config`
+para não enviá-los.
 
 Prova local com duas sessões e dados sintéticos: `apps/api/scripts/verify-progress.mjs` (somente localhost), incluindo
 concorrência, reenvio, novo login, XP/nível e isolamento de contas. O script não publica recursos nem aplica migrations

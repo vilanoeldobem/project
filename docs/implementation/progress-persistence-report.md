@@ -1,6 +1,6 @@
 # Registro da persistência de progresso — D12
 
-> **Status:** Correções implementadas e validadas no CI; revisão do PR pendente · **Versão do software:** 0.4.0 ·
+> **Status:** Implementado; contas e quests desligadas em produção · **Versão do software:** 0.4.0 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/api/src/progress.ts`, `tests/progress-account.test.mjs`,
 > [PR #30](https://github.com/vilanoeldobem/project/pull/30), [IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md).
@@ -54,8 +54,18 @@ remota no CI evitou acrescentar carga ao host local; todos os dados eram sintét
 
 Contas e quests permanecem desligadas em produção. O servidor valida IDs e transições, sem provar ações na
 cena 3D. Não há sincronização visual instantânea entre abas, abandono automático ou substituição de quest ativa.
-OQ-09/PEN-025 continuam pendentes. Nenhum merge na main, deploy, migration remota ou alteração de recurso Cloudflare foi executado.
+OQ-09/PEN-025 continuam pendentes. Esta entrega não inclui deploy, migration remota nem alteração de recurso Cloudflare.
 
+Comportamentos mantidos de propósito, à espera de OQ-09: (1) ao entrar, eventos de quest de visitante incompatíveis
+com a quest ativa da conta são descartados, inclusive objetivos e `turn-in` feitos como visitante; (2) numa aba
+desatualizada, um evento omitido pelo servidor sai da fila com `200` e a tela só mostra o progresso da conta na
+próxima entrada; (3) falha do servidor na sincronização (`409 progress_conflict`, `5xx`) usa o mesmo aviso de
+"sem conexão" e é reenviada em novo evento, ao voltar a conexão ou na próxima entrada. A migration 0008 precisa
+estar aplicada antes de ligar as contas: sem `progress_writes`, `POST /progress/events` responde `500`.
+
+**Conferência final antes da integração:** controle negativo repetido (`tests/progress-account.test.mjs` falha com o
+`progress.ts` de `51480aa` e passa com o atual); testes novos para a espera aleatória entre tentativas e para a
+exclusão da conta com pedido em andamento (nada é gravado, resposta `401`); cabeçalhos de schema atualizados para v8.
 
 A segunda rodada da revisão direta do #35 acrescenta visibilidade/recuperação da exclusão pendente e cache de
 mídias, sem mudar o contrato de progresso descrito acima. Foi incorporada neste PR para validar a composição.

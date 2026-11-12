@@ -1,6 +1,6 @@
 # Versionamento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json`, `apps/*/package.json`, `packages/shared/package.json`,
 > `apps/api/src/api.ts` (`VERSION`), `CHANGELOG.md`
@@ -16,7 +16,7 @@
 
 Migrations e ADRs recebem numeração sequencial na ordem de integração. Não reservar identificadores para PRs
 paralelos: antes do merge, conferir os arquivos existentes e renumerar somente propostas ainda não aplicadas
-remotamente. A revisão de progresso segue a base conciliada de arquivos/galeria; o histórico aplicado prevalece.
+remotamente.
 
 ## 2. SemVer durante 0.y.z
 

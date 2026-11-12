@@ -569,7 +569,15 @@ progress when guest quest state conflicts. PR #30 follows the canonical files/ga
 - [x] Existing PR #30 updated on #35 and review requested again from Augusto; no main merge, deploy, remote migration or flag activation.
 - [ ] Augusto review; OQ-09 quest policy remains a product decision.
 
-IDS: reused the reducer, request/session guards, D1 adapter and client synchronization contract. Integration
+### Final check before merge (review of `51480aa`, six findings)
+
+- [x] 1 fixed at `41993c4` (inapplicable quest events answer 200 with the account state); negative control repeated: `tests/progress-account.test.mjs` fails on the `51480aa` handler (`sync` stays `pending`) and passes now.
+- [x] 2 sequence 0006/0007/0008 and IMPL-0017/0018/0019; "números sequenciais" kept; schema headers of the current docs and the deploy guide now say v8 / 0008.
+- [x] 3 branch-state wording removed from `docs/reference/{api,versioning}.md`, IMPL-0013 and the delivery record; 4 error table lists `progress_conflict` and `too_many_events`; 5 no external tool name left; 6 jittered wait between attempts, now asserted by a test.
+- [x] New tests: retry waits (20–39 ms, 40–59 ms) and account deleted while a request waits to commit (401, nothing written). A seeded interleaving run (150 seeds, three sessions) lost no acknowledged event on this handler and fails on `main` at seed 1; it was a one-off check, not committed.
+- [ ] Left to OQ-09: guest quest progress that conflicts with the account's active quest is dropped at sign-in; a stale tab keeps showing local progress until the next load.
+
+Reuse: the reducer, request/session guards, D1 adapter and client synchronization contract. Integration
 imports live at repository-root tests, never in production app code. The 608-test and runtime evidence above supersedes the earlier 440-test baseline, which predates these review fixes.
 
 Reproduction and limits: [delivery record](../docs/implementation/progress-persistence-report.md).
