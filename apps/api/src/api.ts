@@ -3,7 +3,7 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db }
- *   GET /config      → { accounts }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
