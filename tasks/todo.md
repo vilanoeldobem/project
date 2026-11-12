@@ -518,7 +518,7 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - [ ] Port PR #33 withdrawal in a separate delivery; compatibility is not claimed yet.
 - [ ] Remote provisioning/activation only in an authorised delivery after review.
 
-### Final validation — updated PR #32 base
+### Historical validation — before review corrections (`0921674`)
 
 Base: `49db536a50c96f66e49c982d920b9624bc014306`; Node 24.22.2 / pnpm 10.32.1 on Linux.
 Serial commands with low priority, two CPU threads and at most two Vitest workers:
@@ -526,7 +526,7 @@ Serial commands with low priority, two CPU threads and at most two Vitest worker
 - `pnpm --workspace-concurrency=1 -r run typecheck`: all 6 packages passed.
 - `pnpm --workspace-concurrency=1 -r run test --maxWorkers=2`: 569 passed (shared 146, API 159, client 179, dash 53, server 23, site 9).
 - `pnpm --workspace-concurrency=1 -r run build`: passed; Worker builds use dry-run, no deploy.
-- Local migrations 0001–0007; `verify-files-reconciliation.mjs`: passed against isolated workerd/D1/R2.
+- Local migrations 0001–0006 plus the then-numbered 0010; `verify-files-reconciliation.mjs`: passed against isolated workerd/D1/R2. The revised sequence is validated separately below.
 - `sh scripts/smoke-api.sh http://localhost:8792 http://localhost:8788 http://localhost:8799`: 14 checks passed.
 - `verify-accounts.mjs` with the isolated API, Linux Chromium and GTM stub: passed; actual PNG/JPEG, private document upload/download/removal, changes requested/resubmission, admin approval/audit and public logo.
 - First browser attempt timed out with two active software-rendered scenes; parking the unused page (same context/cookies) allowed the complete rerun to pass. Product UI unchanged.
@@ -535,10 +535,12 @@ Serial commands with low priority, two CPU threads and at most two Vitest worker
 Reproduction and limits: [delivery record](../docs/implementation/ngo-files-reconciliation-report.md).
 Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote infrastructure. Gallery UI remains a separate increment.
 
-### Review corrections — pending validation
+### Review corrections — validated in CI; operational policy pending
 
 - [x] Separate local config and new synthetic database/bucket; production config has no local account-enabled environment.
 - [x] Sequential migration0007/ADR0018 for the agreed #32→#35→#30 merge order; old local state preserved.
 - [x] Indexed delivery record, neutral roles, public-field/privacy and schema reference fixes.
-- [ ] Finish gallery removal/cleanup/audit/rights safeguards and verify every review item against tests.
-- [ ] Record current typecheck/test/build/smoke/browser results; earlier results do not validate this correction.
+- [x] Gallery removal/retry, account erasure, read audit, review receipts and durable canonical/gallery upload cleanup implemented and tested.
+- [x] Typecheck, 593 tests, build, real workerd/D1/R2 lifecycle and Chromium account/file/disclosure flow passed on `bb1c813` in [CI](https://github.com/vilanoeldobem/project/actions/runs/43272168427/job/131371240921).
+- [ ] Image rights/consent policy and its approval/version record remain unresolved (review #29.3, OQ-15); production flags stay off.
+- [ ] Augusto review; passing CI does not approve merge or activation.
