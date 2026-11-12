@@ -1283,10 +1283,12 @@ button {
     scroll-behavior: auto;
   }
 
-  /* Keep short opacity/colour feedback, drop spatial movement and loops. */
-  .garland__bulb,
-  .chip-btn[data-state="loading"]::after,
-  .btn[data-state="loading"]::after {
+  /*
+   * Keep the short colour feedback, drop loops and spatial movement. No blanket transition rule
+   * here: giving every element a duration would make things that never moved (the skip link
+   * sliding in, for one) animate only for the visitors who asked for less motion.
+   */
+  .garland__bulb {
     animation: none;
   }
 
@@ -1294,23 +1296,31 @@ button {
   .inline-cta__arrow {
     transform: none;
   }
-
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.12s;
-  }
 }
 
+/*
+ * High contrast. The app always sets data-theme, and the theme tokens are declared with
+ * specificity (0,2,0) (`:root[data-theme="light"]`, `:root:not([data-theme="light"])`), so these
+ * overrides use (0,2,0) selectors too and win by coming later in the file.
+ */
 @media (prefers-contrast: more) {
-  :root {
+  /* Light: explicit, or no saved choice on a light system. */
+  :root:not([data-theme="dark"]) {
     --border-subtle: oklch(0.315 0.052 175 / 0.6);
     --text-secondary: var(--text-primary);
   }
 
-  [data-theme="dark"] {
+  :root[data-theme="dark"] {
     --border-subtle: oklch(0.95 0.02 170 / 0.55);
     --text-secondary: var(--text-primary);
+  }
+
+  /* No saved choice on a dark system: declared after the light rule above, so dark wins. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --border-subtle: oklch(0.95 0.02 170 / 0.55);
+      --text-secondary: var(--text-primary);
+    }
   }
 
   .btn,

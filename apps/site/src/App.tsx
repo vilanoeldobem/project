@@ -33,6 +33,9 @@ const SNOW_KEY = "vila.site.snow.v1";
 
 type Theme = "light" | "dark";
 
+/** Browser chrome colour per theme: light `--surface-masthead`, dark `--canvas` (sRGB of the tokens). */
+const THEME_COLOR: Record<Theme, string> = { light: "#0C3A30", dark: "#07201B" };
+
 interface Scene {
   id: string;
   label: string;
@@ -107,14 +110,11 @@ export function App() {
     const root = document.documentElement;
     root.dataset.theme = theme;
     root.style.colorScheme = theme;
-    // One unmedia'd meta wins over the two prefers-color-scheme defaults from index.html.
-    let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]:not([media])');
-    if (!meta) {
-      meta = document.createElement("meta");
-      meta.name = "theme-color";
-      document.head.appendChild(meta);
+    // index.html ships one theme-color meta per colour scheme and the browser uses the one whose
+    // media matches the system. Point both at the chosen theme, so a manual choice wins either way.
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      meta.content = THEME_COLOR[theme];
     }
-    meta.content = theme === "dark" ? "#07201B" : "#0C3A30";
   }, [theme]);
 
   useEffect(() => {
