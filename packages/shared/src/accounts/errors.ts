@@ -21,6 +21,10 @@ const ERROR_TEXT: Record<string, string> = {
   account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
   stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
   checks_required: "Marque as três verificações antes de aprovar.",
+  files_disabled: "O envio de arquivos não está disponível agora.",
+  no_application: "Envie a candidatura antes de anexar arquivos.",
+  application_locked: "A organização já foi publicada: os arquivos não podem mais ser alterados.",
+  application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */
