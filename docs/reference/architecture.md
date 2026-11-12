@@ -188,13 +188,14 @@ Cloudflare.
 | `game/` | `world.ts`, `collision.ts`, `motion.ts`, `navigation.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
 | `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura), dash (rótulos das áreas) |
 | `accounts/` | `contract.ts`, `errors.ts` | client e dash: formas das respostas de conta e de análise, rótulos de situação, `ApiError` e a frase em pt-BR de cada código de erro |
-| `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`) |
+| `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`), site (só `config.ts` e `time.ts`: relógio e fases do dia) |
 | `net/` | `protocol.ts` | client, server |
 
 ## 6. Site (`apps/site`)
 
 Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.md)); links para o jogo apontam para
-`play.vilanoeldobem.com.br` (a página `404.html` inclusive). Não importa nada dos outros apps.
+`play.vilanoeldobem.com.br` (a página `404.html` inclusive, que é `noindex`). Não importa nada dos outros apps; de
+`packages/shared` usa só o relógio e as fases do dia (`environment/config.ts`, `environment/time.ts`).
 
 Identidade **"Vila Voxel Nevada"**, alinhada ao jogo ([IMPL-0006](../decisions/0006-christmas-environment-real-time-procedural-weather.md))
 sem carregar Three.js:
@@ -202,14 +203,16 @@ sem carregar Three.js:
 | Peça | Código | Papel |
 |---|---|---|
 | Tokens | `src/styles.css` | Papéis semânticos em `oklch()` a partir da paleta de `shared/game/world.ts`; temas Dia Nevado e Noite Natalina (elevação tonal, nunca inversão) |
-| Arte | `src/VoxelArt.tsx` | Emblema, pínheiros, chalés, neve e céu em SVG `crispEdges`; cordão de lâmpadas em blocos |
-| Neve | `src/VoxelSnow.tsx` | Canvas 2D isolado, PRNG determinístico, pausa em aba oculta, neve parada com `prefers-reduced-motion` |
-| Conteúdo | `src/App.tsx` | Hero com emblema, relógio de São Paulo (`Intl`), diorama de três cenas reais do jogo, seções aprovadas |
+| Arte | `src/VoxelArt.tsx` | Marca decorativa do cabeçalho (estrela e pinheiro), pinheiros, chalés, neve e ícones em SVG `crispEdges`; cordão de lâmpadas em blocos |
+| Neve | `src/VoxelSnow.tsx` | Canvas 2D isolado, PRNG determinístico, pausa em aba oculta. Neve desligada: o canvas sai da página. Neve ligada com `prefers-reduced-motion`: um quadro parado. Cores lidas dos tokens uma vez e de novo a cada troca de tema |
+| Relógio | `src/villageClock.ts` | Hora de São Paulo (`Intl`) e fase do dia com as fronteiras `CYCLE` de `@vila/shared/environment/config`, as mesmas do jogo |
+| Conteúdo | `src/App.tsx` | Hero com o relógio da Vila, diorama de três cenas reais do jogo, seções aprovadas. Marca: texto temporário (IMPL-0005), sem imagem de logo (DEC-024, PEN-016) |
 | Comportamento | `public/theme.js` | Aplica o tema salvo antes do primeiro quadro (CSP sem script inline) |
 
 Preferências do visitante ficam em `vila.site.theme.v1` e `vila.site.snow.v1` (por aparelho). A verificação
-(`scripts/verify.mjs`, Chrome real) cobre `/` e `/404.html` em oito larguras, dois temas, interação, foco,
-zoom de texto, cores forçadas, contraste alto e impressão.
+(`scripts/verify.mjs`, Chrome real) cobre `/` e `/404.html` em oito larguras, dois temas, interação, ordem do
+teclado e contraste do anel de foco, o que a neve pinta (ligada, desligada, movimento reduzido), zoom de texto,
+cores forçadas, contraste alto, página sem JavaScript e impressão.
 
 ## 7. Limites entre apps
 
