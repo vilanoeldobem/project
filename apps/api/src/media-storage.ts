@@ -4,6 +4,7 @@ import { HttpError } from "./http";
 export async function putReserved(bucket: R2Bucket, key: string, bytes: Uint8Array, contentType: string,
   stillActive: () => Promise<boolean>): Promise<void> {
   const reservation = await bucket.put(key, new Uint8Array());
+  if (!reservation) throw new HttpError(409, "upload_cancelled");
   const options = { httpMetadata: { contentType }, onlyIf: { etagMatches: reservation.etag } };
   if (!await stillActive()) {
     await bucket.delete(key).catch(() => {}); // Only the empty reservation exists at this point.
