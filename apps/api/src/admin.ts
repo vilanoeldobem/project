@@ -15,9 +15,8 @@
  * checks (`checks: {activeCnpj, oneYear, fundsConfirmable}`, all true), recorded in the audit detail.
  */
 import { newId } from "./crypto";
-import { listFiles } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { applicationView, type NgoRow } from "./ngo";
+import { applicationSnapshot, applicationView, type NgoRow } from "./ngo";
 import { requireAdmin } from "./session";
 import type { Env } from "./api";
 
@@ -48,9 +47,10 @@ export async function listApplications(request: Request, env: Env): Promise<Resp
 export async function getApplicationAdmin(request: Request, env: Env, id: string): Promise<Response> {
   await requireAdmin(request, env);
   const db = env.DB!;
-  const row = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
+  const { row, files } = await applicationSnapshot(env, id);
   if (!row) throw new HttpError(404, "not_found");
-  const applicant = row.applicant_id ? await db.prepare("SELECT nickname FROM users WHERE id = ?").bind(row.applicant_id).first<{ nickname: string }>() : null;
+  const owner = row.applicant_id ? await db.prepare("SELECT nickname, files_deleting FROM users WHERE id = ?").bind(row.applicant_id).first<{ nickname: string; files_deleting: number }>() : null;
+  const applicant = owner ? { nickname: owner.nickname, deletionPending: Boolean(owner.files_deleting) } : null;
   const { results } = await db
     .prepare(
       `SELECT a.at, a.action, a.detail, u.nickname AS actor FROM audit_events a LEFT JOIN users u ON u.id = a.actor
@@ -58,7 +58,7 @@ export async function getApplicationAdmin(request: Request, env: Env, id: string
     )
     .bind(`ngo:${id}`)
     .all();
-  return json({ application: applicationView(row), applicant, history: results, files: await listFiles(env, id) }, { headers: NO_STORE });
+  return json({ application: applicationView(row), applicant, history: results, files }, { headers: NO_STORE });
 }
 
 export async function decide(request: Request, env: Env, id: string): Promise<Response> {
@@ -76,32 +76,37 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   const checks = { activeCnpj: raw.activeCnpj === true, oneYear: raw.oneYear === true, fundsConfirmable: raw.fundsConfirmable === true };
   if (action === "approve" && !(checks.activeCnpj && checks.oneYear && checks.fundsConfirmable)) throw new HttpError(400, "checks_required");
   const db = env.DB!;
-  const row = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
+  const row = await db.prepare(`SELECT n.*, COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
+    LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
   if (!row) throw new HttpError(404, "not_found");
+  // Rejection only releases the reserved lot; it cannot republish evidence or cancel partial erasure.
+  if (row.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
   if (action !== "start_review" && row.revision !== revision) throw new HttpError(409, "stale_revision");
   if (!rule.from.includes(row.status)) throw new HttpError(409, "bad_transition");
   // Nobody reviews their own organisation (conflict of interest).
   if (row.applicant_id === admin.id) throw new HttpError(403, "self_review");
 
-  const now = new Date().toISOString();
+  const now = new Date().toISOString(), token = newId();
   const lot = row.requested_lot_id;
   // The lot and audit writes happen only if this request's status change went through (same transaction):
   // a concurrent decision that loses the race writes nothing.
-  const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND status = ? AND updated_at = ?)";
+  const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)";
   const statements = [
-    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ? WHERE id = ? AND status = ? AND revision = ?").bind(
-      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, id, row.status, row.revision
+    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ?, file_write_token = ? WHERE id = ? AND status = ? AND revision = ? AND (? = 'reject' OR NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1))").bind(
+      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, token, id, row.status, row.revision, action
     ),
     rule.lot
-      ? db.prepare(`UPDATE lots SET state = ?, ngo_id = ? WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(rule.lot, id, lot, id, id, rule.to, now)
-      : db.prepare(`UPDATE lots SET state = 'available', ngo_id = NULL WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(lot, id, id, rule.to, now),
+      ? db.prepare(`UPDATE lots SET state = ?, ngo_id = ? WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(rule.lot, id, lot, id, id, token)
+      : db.prepare(`UPDATE lots SET state = 'available', ngo_id = NULL WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(lot, id, id, token),
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE ${MINE}`).bind(
-      newId(), admin.id, `ngo.${action}`, `ngo:${id}`, JSON.stringify({ from: row.status, to: rule.to, lot, revision: row.revision, hasNote: Boolean(note), ...(action === "approve" ? { checks } : {}) }), id, rule.to, now
+      newId(), admin.id, `ngo.${action}`, `ngo:${id}`, JSON.stringify({ from: row.status, to: rule.to, lot, revision: row.revision, hasNote: Boolean(note), ...(action === "approve" ? { checks } : {}) }), id, token
     ),
   ];
   const [updated] = await db.batch(statements);
   if (!updated.meta.changes) {
-    const latest = await db.prepare("SELECT revision FROM ngos WHERE id = ?").bind(id).first<{ revision: number }>();
+    const latest = await db.prepare(`SELECT n.revision,COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
+      LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<{ revision: number; files_deleting: number }>();
+    if (latest?.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
     throw new HttpError(409, latest && latest.revision !== row.revision ? "stale_revision" : "bad_transition");
   }
   const after = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();

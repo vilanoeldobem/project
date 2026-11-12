@@ -12,6 +12,7 @@ import { jpeg, pdf, png, pngChunk, text } from "../test/fixtures.mjs";
 import { createR2 } from "../test/r2.mjs";
 import { type Env, handleApi } from "./api";
 import { MAX_FILE_CHANGES_PER_DAY } from "./files";
+import { sha256Hex } from "./crypto";
 
 const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
@@ -168,8 +169,30 @@ describe("feature flag", () => {
       }
   });
 
-  it("lets accounts work on a database without migration 0006: no files, and an account can still be deleted", async () => {
+  it("fails closed for an existing account without reconciliation columns, preserving its data", async () => {
     db = createD1({ upTo: 5 });
+    env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
+    db.sql("INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES('legacy','Legacy','legacy','legacy','Recife','legacy@example.test','admin','2026-01-01')");
+    db.sql("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,'legacy','2099-01-01')", await sha256Hex("legacy"));
+    const cookie = "__Host-vila_session=legacy";
+    for (const [method, path, body] of [
+      ["GET", "/me"], ["GET", "/ngo/application"], ["GET", "/admin/applications"],
+      ["POST", "/ngo/application", { accountId: "legacy", ...APP }], ["DELETE", "/me"],
+    ] as const) {
+      const result = await call(method, path, body, cookie);
+      expect([method, path, result.status, result.body]).toEqual([method, path, 503, { error: "schema_outdated" }]);
+      expect(result.headers.get("Cache-Control")).toBe("no-store");
+    }
+    expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
+    expect(db.sql("SELECT COUNT(*) AS n FROM sessions")[0].n).toBe(1);
+    expect(db.sql("SELECT COUNT(*) AS n FROM ngos")[0].n).toBe(0);
+    expect(db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n).toBe(0);
+    expect(r2.keys()).toEqual([]);
+  });
+
+  it("keeps missing-0006 account reads and deletion working once reconciliation columns exist", async () => {
+    // Exercise the upstream missing-files fallback with our required columns, without creating ngo_files.
+    db = createD1({ upTo: 5, additionalMigrations: [7] });
     env = { DB: db, FILES: r2, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", NGO_FILES_ENABLED: "false" };
     const a = await applicant();
     expect((await call("GET", "/ngo/application", undefined, a.cookie)).body).toMatchObject({ application: { status: "submitted" }, files: [] });
@@ -179,10 +202,10 @@ describe("feature flag", () => {
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
   });
 
-  it("lets the browser send the account header (CORS preflight)", async () => {
-    const res = await send("OPTIONS", "/ngo/application/files?kind=logo", { headers: { "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,x-vila-account" } });
+  it("lets the browser send account and gallery caption headers (CORS preflight)", async () => {
+    const res = await send("OPTIONS", "/ngo/application/files?kind=logo", { headers: { "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type,x-vila-account,x-vila-caption" } });
     expect(res.status).toBe(204);
-    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, X-Vila-Account");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toBe("Content-Type, X-Vila-Account, X-Vila-Caption");
     expect(res.headers.get("Access-Control-Allow-Methods")).toContain("DELETE");
   });
 });
@@ -444,7 +467,7 @@ describe("review and publication", () => {
       "content-disposition": "inline",
       "x-content-type-options": "nosniff",
       "content-security-policy": "default-src 'none'; sandbox",
-      "cache-control": "public, max-age=300",
+      "cache-control": "no-cache",
       "cross-origin-resource-policy": "cross-origin",
       etag: `"${logo.id}"`,
     });
@@ -527,10 +550,11 @@ describe("reading and removing", () => {
     expect(r2.keys()).toEqual([`ngo/${a.ngoId}/${keep.id}`]);
     expect(audits("ngo.file_remove")).toEqual([{ actor: a.user.id, subject: `ngo:${a.ngoId}`, detail: JSON.stringify({ kind: "document", file: doc.id, revision: 4 }) }]);
     expect((await remove(a, doc.id)).status).toBe(404);
-    // The row is gone even if R2 fails to delete: the object is then unreachable, not served.
+    // Metadata is hidden, but a durable cleanup intent exposes failure and permits recovery.
     r2.failNext("delete");
-    expect((await remove(a, keep.id)).status).toBe(200);
+    expect((await remove(a, keep.id)).status).toBe(503);
     expect(rows()).toEqual([]);
+    expect(db.sql("SELECT id,cleanup_pending FROM media_upload_intents")).toEqual([{id:keep.id,cleanup_pending:1}]);
   });
 
   it("writes one removal to the audit trail when two removals of the same file race", async () => {
@@ -606,17 +630,20 @@ describe("account deletion (LGPD)", () => {
     expect(r2.keys()).toEqual([]);
   });
 
-  it("removes a document uploaded while the account was being deleted (no files before)", async () => {
+  it("blocks a late document while the account is being deleted (no files before)", async () => {
     const a = await applicant();
-    // The upload commits after the deletion looked for files and before it deleted the account.
-    beforeNextBatch(async () => expect((await upload(a, "document", pdf(), "application/pdf")).status).toBe(201));
+    // The persisted intent prevents an upload after cleanup looked for files and before account removal.
+    beforeNextBatch(async () => {
+      const late = await upload(a, "document", pdf(), "application/pdf");
+      expect([late.status, late.body.error]).toEqual([409, "account_deleting"]);
+    });
     expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
     expect(rows()).toEqual([]);
     expect(r2.keys()).toEqual([]);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
   });
 
-  it("removes a document uploaded while the account's other files were leaving R2", async () => {
+  it("blocks a late document while the account's other files are leaving R2", async () => {
     const a = await applicant();
     await upload(a, "document", pdf("first"), "application/pdf");
     const remove = r2.delete.bind(r2);
@@ -624,7 +651,8 @@ describe("account deletion (LGPD)", () => {
     r2.delete = async (keys: string | string[]) => {
       if (!fired) {
         fired = true;
-        expect((await upload(a, "document", pdf("second"), "application/pdf")).status).toBe(201);
+        const late = await upload(a, "document", pdf("second"), "application/pdf");
+        expect([late.status, late.body.error]).toEqual([409, "account_deleting"]);
       }
       return remove(keys);
     };

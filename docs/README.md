@@ -1,6 +1,6 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
@@ -41,6 +41,8 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 
 **Registro**
 - [implementation/slice-01-report.md](implementation/slice-01-report.md) — entrega da 0.1.0.
+- [implementation/ngo-files-reconciliation-report.md](implementation/ngo-files-reconciliation-report.md) — conciliação de arquivos, galeria e respostas às revisões.
+- [implementation/progress-persistence-report.md](implementation/progress-persistence-report.md) — persistência concorrente e correção do progresso divergente ao entrar na conta.
 
 ## Status por área (2026-11-12)
 

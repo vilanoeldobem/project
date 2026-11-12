@@ -19,6 +19,7 @@ export interface User {
   email: string;
   role: "player" | "admin";
   verified_at: string | null;
+  files_deleting?: number;
 }
 
 export function sessionCookie(token: string): string {
@@ -40,7 +41,7 @@ export async function currentUser(request: Request, env: Env): Promise<User | nu
   const token = readSessionToken(request);
   if (!token || !env.DB) return null;
   return env.DB.prepare(
-    `SELECT u.id, u.name, u.nickname, u.city, u.email, u.role, u.verified_at
+    `SELECT u.id, u.name, u.nickname, u.city, u.email, u.role, u.verified_at, u.files_deleting
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = ? AND s.expires_at > ?`
   )
@@ -69,4 +70,4 @@ export function assertAccount(body: Record<string, unknown>, user: User): void {
 }
 
 /** What the person's own client may see about themselves (e-mail included; never sent to anyone else). */
-export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role });
+export const meView = (u: User) => ({ id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role, deletionPending: Boolean(u.files_deleting) });

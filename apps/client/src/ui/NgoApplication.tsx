@@ -193,7 +193,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
             <Field label="Data de abertura do CNPJ *" error={shown.openedOn} hint="A organização precisa ter pelo menos 1 ano.">
               <input type="date" value={form.openedOn} onChange={(e) => set("openedOn", e.target.value)} />
             </Field>
-            <Field label="Cidade da sede *" error={shown.city}>
+            <Field label="Cidade da sede *" error={shown.city} hint="Usada na análise da candidatura; não aparece no perfil público.">
               <input value={form.city} onChange={(e) => set("city", e.target.value)} maxLength={60} />
             </Field>
           </>
@@ -228,7 +228,8 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
         )}
         {step === 3 && (
           <>
-            <Field label="Resumo (aparece na casa) *" error={shown.summary}>
+            <p className="note">Após a aprovação, nome, resumo, descrição, áreas de atuação e projetos ficarão públicos na Vila. Não inclua dados pessoais nesses textos.</p>
+            <Field label="Resumo (público após aprovação) *" error={shown.summary}>
               <input value={form.summary} onChange={(e) => set("summary", e.target.value)} maxLength={280} />
             </Field>
             <Field label="Sobre a organização *" error={shown.description}>

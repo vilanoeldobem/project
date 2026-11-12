@@ -35,6 +35,7 @@
     // NGO logo and document uploads to R2 (PROPOSTA, IMPL-0017, PEN-019). Off until the owner approves the
     // list of documents and the LGPD review covers them. Needs ACCOUNTS_ENABLED and migration 0006.
     "NGO_FILES_ENABLED": "false",
+    "NGO_PHOTOS_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -64,6 +65,7 @@
         "ACCOUNTS_ENABLED": "false",
         "QUESTS_V1_ENABLED": "false",
         "NGO_FILES_ENABLED": "false",
+        "NGO_PHOTOS_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",
