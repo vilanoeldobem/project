@@ -553,3 +553,21 @@ Not checked: real email, Safari/Firefox, phone-width UI, analytics or remote inf
 - [x] Types,621 unit/integration/render tests and static review passed locally with bounded resources.
 - Build and real Worker/browser results for this revision are recorded in the [PR checks](https://github.com/vilanoeldobem/project/pull/35/checks).
 - [ ] Technical-owner sign-off for the proposed gallery exception; OQ-15 consent and application-rejection retention; no activation authorised.
+
+### Pre-merge pass on the 12 findings of the PR35 review (after `fa65004`)
+
+Each finding was re-checked against the code, not the commit messages. Already closed at `fa65004`: 1, 5, 6, 7, 8,
+9, 10, 11 and the cheap parts of 3. Closed in this pass:
+
+- [x] Finding 2: a deletion refused for lack of the bucket, before any object is touched, no longer leaves the
+  account frozen (`auth.ts`); a freeze after an R2 failure stays, visible and retryable.
+- [x] Finding 4: `AGENTS.md` and `storage.md` carry the original rule sentences again; the gallery is a narrow,
+  explicit PROPOSTA exception.
+- [x] Findings 1, 7, 12: every always-on public route is tested on schemas v3 to v6 in all 16 flag/bucket
+  combinations (`public-ngo.test.ts`).
+- [x] Finding 3: what only the product owner can answer is listed under OQ-15 and labelled in `ngo-photos.ts`.
+- [x] `pnpm typecheck`, `pnpm test` (626: shared 146, API 212, client 181, dash 55, server 23, site 9),
+  `pnpm build`, and `node scripts/verify-media-local.mjs` (local workerd, D1, R2) passed.
+- [ ] Not run locally: the Chromium flow (`verify-media-local.mjs --browser`), which needs the CI environment.
+- [ ] Still the owner's call: the gallery exception in `AGENTS.md`, OQ-15, and applying migration 0007 before this
+  API serves signed-in accounts.
