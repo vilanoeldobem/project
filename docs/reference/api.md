@@ -482,7 +482,7 @@ Erros: `400 invalid_photo_metadata` (posição/legenda), `400 file_type|file_mis
 
 Ao excluir a conta, toda a galeria é removida, inclusive fotos aprovadas. Isso é distinto da retenção do logo
 institucional canônico. A exclusão falha de forma retomável se a limpeza dos bytes falhar; não confirma remoção
-com objetos ainda pendentes. Direitos de imagem e consentimentos continuam sob OQ-15.
+com objetos ainda pendentes. Direitos de imagem e consentimentos continuam sob OQ-15: o envio **não pede nem registra** declaração alguma, e a retenção das fotos depois de rejeitar a candidatura da ONG não está definida (PROPOSTA; a bandeira fica desligada até o dono do produto responder).
 
 ### Análise administrativa (DEC-037)
 
