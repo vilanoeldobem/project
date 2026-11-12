@@ -59,13 +59,20 @@ Cada versão indica o schema D1 que entrega.
 ### Added
 
 - Runtime das quests narrativas `quests-v1` (PROPOSTA, DEC-039 a DEC-042; PEN-025) atrás de flags
-  (`VITE_QUESTS_V1_ENABLED=true`, `?quests=1` em localhost/dev e `QUESTS_V1_ENABLED` na API), com catálogo em
+  (`VITE_QUESTS_V1_ENABLED=true` ou `?quests=1` em localhost/dev no cliente **e** `QUESTS_V1_ENABLED` na API, lida
+  pelo cliente em `GET /config`; as duas precisam estar ligadas), com catálogo em
   `packages/shared/src/game/quests.ts`, máquina de estados pura, cinco NPCs (`villager`), coleta por proximidade,
   bolsa derivada, diálogos, Caderno de cadeias, integração com XP idempotente na API, testes em
   `packages/shared/src/game/quests.test.ts`, verificação no navegador (`apps/client/scripts/verify-quests.mjs`) e
   referência em [quests.md](docs/reference/quests.md).
-- Painel de doação global físico (`DONATION_PANEL`, gerador `quest-donation-panel`), sempre visível como ponto de
-  doação global (DEC-026) e usado na leitura da promessa de `quests-v1`.
+- Painel de doação global físico (`DONATION_PANEL`, gerador `quest-donation-panel`; PROPOSTA `quests-v1`), montado só
+  com as quests ligadas: abre o mesmo painel de doação da árvore (DEC-026) e serve à leitura da promessa.
+- Regras do runtime de `quests-v1` ([IMPL-0013](docs/decisions/0013-quests-v1-runtime.md)): com as flags desligadas o
+  mundo é o de antes (moradores, atril e os obstáculos deles só existem com as quests ligadas); a API grava um evento
+  de quest apenas quando ele é uma transição válida (um `accept` de aba desatualizada ou um objetivo antes do
+  `accept` não travam mais a missão e podem ser reenviados); com `QUESTS_V1_ENABLED` desligada a API ignora os
+  eventos de quest e grava o resto do lote, em vez de recusar tudo com `400`; clicar num morador de longe faz o
+  avatar andar até ele em vez de abrir o diálogo; o foco do teclado fica no diálogo quando a próxima missão aparece.
 - Itens de quest (PROPOSTA, `quests-v1`): cinco geradores em `apps/client/src/scene/gen/quest-items.ts` —
   `quest-reindeer-bell` (Sino do arreio), `quest-lucky-charm` (Patuá da sorte), `quest-ornament-crate` (Caixa de
   enfeites), `quest-donation-panel` (Painel de doação global) e `quest-story-page` (Página da história) — com

@@ -70,8 +70,9 @@ animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rót
 Os cinco moradores das quests narrativas (`NPCS`; PROPOSTA `quests-v1`, PEN-025) usam o mesmo gerador `villager` com
 semente igual ao `npc_id` (Baltazar, Dona Filó, Seu Nivaldo, Aurora, Dona Guida), colidem com raio `0,5` e carregam um
 rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitura da doação global
-(`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, sempre visível como ponto de
-doação global (DEC-026) e com um rótulo curto "Doação global". Posições e rótulos são sugestões PROPOSTA; a copy diz
+(`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, com um rótulo curto
+"Doação global"; leva ao mesmo painel de doação da árvore (DEC-026). NPCs, atril, rótulos e obstáculos só existem com
+as quests ligadas. Posições e rótulos são sugestões PROPOSTA; a copy diz
 "ao sul" para o trenó e o trenó pequeno, que estão em `+z` na tela. Ver [quests.md](quests.md).
 
 ## 4. Cosméticos do avatar (PROPOSTA)

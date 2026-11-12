@@ -5,21 +5,29 @@
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `packages/shared/src/game/quests.ts`, `packages/shared/src/game/progress.ts`,
 > `packages/shared/src/game/world.ts`, `apps/client/src/{game,scene,ui}`, `apps/api/src/progress.ts`;
-> conteúdo em `content/proposals/quests-v1/` (PROPOSTA).
+> conteúdo em `content/proposals/quests-v1/` (PROPOSTA). Decisão técnica:
+> [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
 
 O runtime de `quests-v1` leva ao jogo as 15 missões narrativas da [proposta](../../content/proposals/quests-v1/README.md)
 (cinco cadeias de três missões). Nada aqui é decisão de produto: o catálogo, os XP, os cinco moradores fictícios e
-os visuais continuam pendentes em **PEN-025**. Em produção tudo fica desligado; nada muda para quem joga sem as flags.
+os visuais continuam pendentes em **PEN-025**. Em produção tudo fica desligado; nada muda para quem joga sem as flags:
+sem NPCs, sem itens, sem atril de doação, sem os obstáculos deles e sem nenhum evento de quest enviado ou gravado.
 
 ## 1. Flags
 
 | Lado | Chave | Efeito |
 |---|---|---|
-| Cliente | `VITE_QUESTS_V1_ENABLED=true` (build) | Monta NPCs, itens de quest e o Caderno de cadeias |
+| Cliente | `VITE_QUESTS_V1_ENABLED=true` (build) | Lado do cliente da bandeira: monta NPCs, itens de quest, atril e o Caderno de cadeias **se a API também estiver ligada** |
 | Cliente | `?quests=1` (só `localhost`/`127.0.0.1` ou build de desenvolvimento) | O mesmo, para verificação local |
-| API | `QUESTS_V1_ENABLED=false` em `apps/api/wrangler.jsonc` (produção e staging) | Eventos de quest recusados com `400 bad_events` |
+| API | `QUESTS_V1_ENABLED=false` em `apps/api/wrangler.jsonc` (produção e staging) | Eventos de quest são ignorados (resposta `200`, nada gravado); o resto do lote é gravado normalmente |
 | API | `--var QUESTS_V1_ENABLED:true` no script `dev` | `:8787` local aceita e grava eventos de quest |
-| API | `GET /config` → `{accounts, quests}` | O cliente e os scripts leem a bandeira do servidor |
+| API | `GET /config` → `{accounts, quests}` | O cliente lê a bandeira do servidor ao abrir o jogo (`initAccount`) |
+
+**As duas bandeiras precisam estar ligadas.** O cliente só mostra as quests quando a bandeira dele (build ou
+`?quests=1`) **e** o `quests` de `GET /config` são verdadeiros (`apps/client/src/game/questsFlag.ts`). Enquanto
+`/config` não responde, ou se a API estiver fora do ar, as quests ficam desligadas. Com as quests desligadas o cliente
+não põe eventos de quest na fila nem os envia; um evento de quest que já estivesse na fila de envio é descartado em vez
+de reenviado. Se só um dos lados estiver ligado, nada de quest aparece.
 
 As quatro missões rápidas (`explore-gifts`, `play-memory`, `causes-visit-lot`, `causes-global-donation`) continuam
 iguais e **sempre** aceitas pela API, com ou sem a flag.
@@ -44,8 +52,9 @@ iguais e **sempre** aceitas pela API, com ou sem a flag.
 | | 2 | `donation-promise-reading` | read | Dona Guida → Dona Guida | 20 |
 | | 3 | `story-page-delivery` | deliver | Dona Guida → Seu Nivaldo | 50 |
 
-Total: **465 XP** de quest (mais os 110 XP das quatro missões rápidas). Níveis continuam
-`floor(xp / 100) + 1` (`XP_PER_LEVEL = 100`); a soma leva ao nível 5.
+Total: **465 XP** de quest (mais os 110 XP das quatro missões rápidas, **575 XP** ao todo). Níveis continuam
+`floor(xp / 100) + 1` (`XP_PER_LEVEL = 100`): só as quests levam ao nível 5 (`floor(465 / 100) + 1`) e a soma com as
+missões rápidas leva ao **nível 6** (`floor(575 / 100) + 1`).
 
 ## 3. Máquina de estados
 
@@ -84,8 +93,13 @@ Toda missão aceita `accept` e `turn-in`; os objetivos usam ids estáveis:
 | `donation-promise-reading` | `read-confirm` |
 
 `applyEvent` grava a chave `<missao>:<evento>` apenas quando a transição é válida; evento fora de hora não entra em
-`seen` (nada de pré-coleta) e o XP só é somado no `turn-in`, uma vez. O replay é comutativo porque os contadores são
-recalculados a partir de `seen`.
+`seen` (nada de pré-coleta) e o XP só é somado no `turn-in`, uma vez.
+
+**O replay depende da ordem.** O que é garantido: a mesma lista de eventos, na mesma ordem, dá sempre o mesmo
+progresso; repetir um evento não muda nada; nenhuma ordem concede mais XP do que o catálogo tem (os contadores são
+recalculados a partir de `seen`). O que **não** é garantido: ordens diferentes darem o mesmo resultado. Um `accept`
+enviado com outra missão em andamento, ou um objetivo que chega antes do `accept`, é ignorado naquela posição. Por
+isso a API só grava um evento de quest quando ele é uma transição válida (seção 9).
 
 ## 5. Um minijogo, uma missão ativa
 
@@ -106,6 +120,11 @@ recusado no motor e a interface explica **Conclua a missão atual primeiro**.
 
 - Os cinco usam o gerador `villager` com semente igual ao `npc_id` e colidem com raio `0.5`, como os moradores
   decorativos. Posições são sugestão PROPOSTA (layout final em PEN-017/PEN-023).
+- Os obstáculos dos NPCs e do atril ficam em `QUEST_OBSTACLES`, **fora** de `OBSTACLES`: o cliente só os soma aos
+  colisores do avatar quando as quests estão ligadas, junto com os modelos. Sem as flags, `OBSTACLES` é o mesmo de
+  antes e nada invisível bloqueia o caminho.
+- Clicar num NPC abre o diálogo só a até `INTERACT_DISTANCE` (`4.5`), o mesmo alcance do botão de ação; de mais
+  longe, o clique faz o avatar andar até o NPC.
 - `QUEST_SPAWNS` (coleta por proximidade, raio `1.4`): dois sinos, duas caixas de enfeites, duas lanternas do lago.
 - `QUEST_INTERACTIONS`: `mailbox-open` (raio `3.5`) e `sled-ride` (raio `3.5`).
 - A câmera faz `-z` ser o topo da tela (norte) e `+z` a base (sul): o trenó e o trenó pequeno estão **ao sul**, e a
@@ -119,7 +138,7 @@ As tabelas abaixo repetem `world.ts` e são conferidas por um teste de coordenad
 `packages/shared/src/game/motion.test.ts`, ao lado das folgas. Mudar uma peça de lugar passa a exigir uma alteração
 deliberada no teste, não pode ser um deslize.
 
-| NPC (`NPCS`, colisão `r: 0.5`) | `id` | `x` | `z` | `rot` |
+| NPC (`NPCS`, colisão `r: 0.5` em `QUEST_OBSTACLES`) | `id` | `x` | `z` | `rot` |
 |---|---|---:|---:|---|
 | Baltazar | `sleigh-keeper` | `-2.5` | `28.5` | `Math.atan2(2.5, -28.5)` |
 | Dona Filó | `market-keeper` | `-18.6` | `0` | `Math.atan2(18.6, 0)` |
@@ -155,9 +174,10 @@ o `+z` atual do trenó (`SLEIGH`) e do trenó pequeno (`kids-sled`). Mover qualq
 
 ## 7. Painel de doação e gatilho de leitura
 
-- `DONATION_PANEL` fica em `(4.6, 6.4)`, virado para a chegada do spawn, com obstáculo `r: 0.5`. É um adereço
-  **permanente** (ponto de doação global, DEC-026), montado mesmo com as quests desligadas, e usa o gerador
-  `quest-donation-panel` com a semente `donation-panel`.
+- `DONATION_PANEL` fica em `(4.6, 6.4)`, virado para a chegada do spawn, com obstáculo `r: 0.5` (em
+  `QUEST_OBSTACLES`). O atril é **PROPOSTA** como o resto de `quests-v1`: o modelo, o rótulo "Doação global", o
+  obstáculo e o alvo do botão de ação só existem com as quests ligadas. Sem as flags, o ponto de doação global
+  (DEC-026) continua sendo a árvore, como antes. Usa o gerador `quest-donation-panel` com a semente `donation-panel`.
 - A árvore e o atril abrem o **mesmo** painel `ui/Donation.tsx`. Nenhum texto é 3D.
 - A missão `donation-promise-reading` avança só pelo botão explícito **Entendi, li a promessa**. Abrir o painel,
   rolar ou permanecer parado **nunca** grava `read-confirm` (sem cronômetro, sem tempo mínimo).
@@ -178,8 +198,19 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
 
 - O progresso continua em `Progress` (`vila.progress.v2` para visitante; conta no servidor). Nenhuma chave nova.
 - `POST /progress/events` aceita até 50 eventos por requisição e 500 por conta; cada missão gasta de 2 a 4 eventos
-  (o log completo tem cerca de 70). A gravação continua `INSERT OR IGNORE` em `progress_events`, cuja chave primária
-  `(user_id, mission_id, event_id)` já garante idempotência.
+  (o log completo tem cerca de 70). A chave primária `(user_id, mission_id, event_id)` de `progress_events` garante
+  idempotência.
+- **Só transições válidas são gravadas** ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)). A API refaz o
+  progresso gravado, aplica o lote na ordem recebida e grava um evento de quest apenas se ele muda o estado naquele
+  momento. Um evento ainda inválido (segundo `accept` com outra missão em andamento, objetivo antes do `accept`)
+  recebe `200`, não é gravado e pode ser reenviado depois, quando passar a valer. Uma transição válida vai para o fim
+  do log (`INSERT OR REPLACE`), o que também corrige uma linha gravada antes da hora por duas requisições
+  simultâneas. As quatro missões rápidas não dependem de ordem e continuam com `INSERT OR IGNORE`.
+- Com `QUESTS_V1_ENABLED` desligada, os eventos de quest do lote são ignorados e os demais são gravados; id de missão
+  ou de evento que o jogo não produz continua dando `400 bad_events` para o lote inteiro.
+- **Confiança (risco aceito, PROPOSTA):** o servidor confere ids e a ordem das transições, mas confia que a ação
+  aconteceu na cena. Uma conta consegue forjar no máximo o XP do catálogo: **575 XP** (465 de quests + 110 das missões
+  rápidas). XP não dá nada que dinheiro compre e doação não dá XP.
 - **Nenhuma migration, tabela ou coluna nova.** Nenhum texto livre, coordenada ou dado de dispositivo é enviado.
 - Doação não dá XP de quest; jogar nunca é doar; nada aqui usa sorte, loot box, compra, tempo online, diária,
   sequência ou convite em massa.
@@ -187,11 +218,14 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
 ## 10. Verificação
 
 - `packages/shared/src/game/quests.test.ts`: catálogo, sincronia com os três CSVs, máquina de estados, regra de uma
-  missão ativa, roteamento do minijogo, 465 XP e replay em qualquer ordem.
+  missão ativa, roteamento do minijogo, 465 XP e teto de 465 XP em qualquer ordem de replay.
 - `packages/shared/src/game/motion.test.ts`: folgas de NPCs, pontos de coleta e atril contra obstáculos, terrenos,
-  lago, árvore e entre si.
-- `apps/api/src/accounts.test.ts`: cadeia completa no servidor (100 XP), replay idempotente, evento desconhecido e
-  bandeira desligada.
+  lago, árvore e entre si; `OBSTACLES` sem nenhuma entrada na posição de um NPC ou do atril.
+- `apps/api/src/accounts.test.ts`: cadeia completa no servidor (100 XP), replay idempotente, evento desconhecido,
+  bandeira desligada (quests ignoradas, missões gravadas), `accept` de aba desatualizada que volta a valer, objetivo
+  antes do `accept` e linha gravada antes da hora.
+- `apps/client/src/lib/account.test.ts`: quests só com a bandeira do cliente **e** `/config.quests`; sem elas,
+  nenhum evento de quest é enfileirado ou enviado.
 - `apps/client/scripts/verify-quests.mjs`: navegador real, `?quests=1`, 15 missões em ordem, capturas em
   `apps/client/verify-output/`.
 

@@ -36,7 +36,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Lógica | `shared/game/world.ts`, `shared/game/progress.ts`, `shared/game/quests.ts` | Layout do mundo, obstáculos, superfícies, paleta, missões/XP e o catálogo/estado das quests (puro, testado) |
 | Simulação | `shared/game/motion.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos (puro, testado); estado vivo mutável fora do zustand ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
 | Eventos | `game/events.ts` | Barramento `step` / `gift` / `mission`: pegadas, partículas e som reagem à jogabilidade |
-| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local) |
+| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local, **e** `quests` de `GET /config`) |
 | Missões narrativas | `shared/game/quests.ts`, `scene/Props.tsx` (NPCs, itens, atril), `ui/NpcDialog.tsx`, `ui/Missions.tsx`, `ui/Donation.tsx`, `ui/Lot.tsx` | Quests `quests-v1` (PROPOSTA, DEC-039..042, PEN-025): uma missão ativa, diálogo, entrega, bolsa derivada e Caderno de cadeias ([quests.md](quests.md)) |
 | Ambiente | `shared/environment/*`, `environment/runtime.ts`, `settings.ts`, `audio.ts`, `labels.ts` | Hora real de SP, relógio de rede, clima procedural, eventos, keyframes (puros, em `shared`); sincronização, presets, som e rótulos (navegador) ([environment.md](environment.md)) |
 | Cena 3D | `scene/*` | react-three-fiber; `World` (canvas, presets), `Ground` (chão nevado + clique), `Props` (árvore, postes, terrenos, presentes), `Scenery` (pinheiros, montanhas, lago, bonecos de neve, trenó, cordões de luz), `Player` (movimento, câmera, vista do céu, proximidade) |
@@ -78,7 +78,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me` |
 | `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pelo Cloudflare Email Service (binding `EMAIL`); `devLink` fora de produção |
-| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`) |
+| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico, decisões auditadas |
 
