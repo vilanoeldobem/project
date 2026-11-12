@@ -4,10 +4,12 @@
  */
 import { useState, type ReactNode } from "react";
 
+import { errorText } from "@vila/shared/accounts/errors";
 import { validateRegistration, type Registration } from "@vila/shared/accounts/validate";
 
 import { useVila, type Panel as PanelState } from "../game/store";
 import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/account";
+import { SERVICES } from "../lib/services";
 import { Panel } from "./Panel";
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
@@ -24,17 +26,6 @@ export function Field({ label, error, hint, children }: { label: string; error?:
     </label>
   );
 }
-
-const ERROR_TEXT: Record<string, string> = {
-  network: "Sem conexão com a Vila. Tente de novo em instantes.",
-  too_many_requests: "Muitas tentativas seguidas. Espere um minuto e tente de novo.",
-  mail_unavailable: "Não conseguimos enviar o e-mail agora. Tente de novo mais tarde.",
-  account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
-  stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
-  checks_required: "Marque as três verificações antes de aprovar.",
-};
-export const errorText = (e: unknown) =>
-  e instanceof ApiError ? (ERROR_TEXT[e.code] ?? (Object.keys(e.fields).length ? "Confira os campos destacados." : "Algo deu errado. Tente de novo.")) : "Algo deu errado.";
 
 /** HUD chip: "Entrar" or "@nickname" (only when accounts are on). */
 export function AccountChip() {
@@ -206,9 +197,10 @@ function SignedIn({ then }: { then?: PanelState }) {
       <EditProfile />
       <div className="actions">
         {user.role === "admin" && (
-          <button className="btn" onClick={() => open({ kind: "admin" })}>
-            Análise de ONGs
-          </button>
+          // The review of NGO applications lives in the backoffice dashboard (IMPL-0015): a plain link, new tab.
+          <a className="btn" href={SERVICES.dash} target="_blank" rel="noopener">
+            Abrir painel administrativo
+          </a>
         )}
         <button className="btn" onClick={() => open({ kind: "ngo" })}>
           Minha candidatura de ONG

@@ -50,6 +50,7 @@ button { font: inherit; color: inherit; }
 }
 .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--pine); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
+a.btn { text-decoration: none; }
 .btn--primary { background: var(--red); border-color: #6e2626; color: var(--cream); box-shadow: 0 3px 0 #6e2626; }
 .btn--primary:hover:not(:disabled) { background: var(--red-2); }
 .btn--small { min-height: 36px; padding: 0.3em 0.8em; font-size: 0.9rem; }
@@ -239,6 +240,3 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .callout p { margin: 4px 0 0; }
 .danger { margin-top: 12px; }
 .danger summary { cursor: pointer; font-weight: 700; color: var(--red); }
-.admin-list { list-style: none; padding: 0; display: grid; gap: 6px; }
-.admin-list__item { width: 100%; text-align: left; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 10px 12px; border: 2px solid var(--pine); border-radius: 10px; background: var(--cream); cursor: pointer; font: inherit; color: var(--pine); }
-.history { padding-left: 18px; font-size: 0.9rem; }

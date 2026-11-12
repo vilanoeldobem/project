@@ -1,45 +1,22 @@
 /**
  * Accounts on the client (P13, OQ-02, OQ-03; IMPL-0011): config flag, magic-link sign-in, the signed-in
- * user, progress sync with the server and the NGO/admin calls. The session lives in an HttpOnly cookie on
- * the API host; this module never sees it. Exploring the Vila never requires an account.
+ * user, progress sync with the server and the NGO application calls. The session lives in an HttpOnly cookie on
+ * the API host; this module never sees it. Exploring the Vila never requires an account. The admin review lives
+ * in the backoffice dashboard (apps/dash, IMPL-0015).
  */
 import { create } from "zustand";
 
+import type { Application, Me } from "@vila/shared/accounts/contract";
+import { ApiError } from "@vila/shared/accounts/errors";
 import type { NgoApplication } from "@vila/shared/accounts/validate";
 import type { Progress } from "@vila/shared/game/progress";
 
 import { useVila } from "../game/store";
 import { SERVICES } from "./services";
 
-export interface Me {
-  id: string;
-  name: string;
-  nickname: string;
-  city: string;
-  email: string;
-  role: "player" | "admin";
-}
-
-export type ApplicationStatus = "submitted" | "under_review" | "changes_requested" | "published" | "rejected";
-export interface Application extends NgoApplication {
-  id: string;
-  status: ApplicationStatus;
-  revision: number;
-  reviewNote: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-/** API error with the stable code and pt-BR field messages. */
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    readonly fields: Record<string, string> = {}
-  ) {
-    super(code);
-  }
-}
+// Shapes and errors shared with the backoffice dashboard live in `@vila/shared/accounts/*`.
+export type { Application, Me };
+export { ApiError };
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
@@ -66,13 +43,6 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 /** Writes carry the account this page believes is signed in (the API refuses them for any other). */
 const accountId = () => useAccount.getState().user?.id ?? "";
 
-/** The three DEC-015 checks the admin ticked before approving (recorded in the audit). */
-export interface EligibilityChecks {
-  activeCnpj: boolean;
-  oneYear: boolean;
-  fundsConfirmable: boolean;
-}
-
 export const api = {
   config: () => call<{ accounts: boolean }>("GET", "/config"),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
@@ -87,18 +57,6 @@ export const api = {
     call<{ progress: Progress }>("POST", "/progress/events", { accountId: owner, events }),
   application: () => call<{ application: Application | null }>("GET", "/ngo/application"),
   submitApplication: (a: NgoApplication) => call<{ application: Application }>("POST", "/ngo/application", { ...a, accountId: accountId() }),
-  adminList: (status?: string) => call<{ applications: Array<Pick<Application, "id" | "name" | "city" | "status" | "revision" | "lotId" | "createdAt" | "updatedAt">> }>(
-    "GET",
-    `/admin/applications${status ? `?status=${encodeURIComponent(status)}` : ""}`
-  ),
-  adminGet: (id: string) =>
-    call<{ application: Application; applicant: { nickname: string } | null; history: Array<{ at: string; action: string; actor: string | null; detail: string | null }> }>(
-      "GET",
-      `/admin/applications/${id}`
-    ),
-  /** `revision` is the version on screen: a newer resubmission makes the API refuse (409 stale_revision). */
-  adminDecide: (id: string, action: "start_review" | "approve" | "request_changes" | "reject", revision: number, note?: string, checks?: EligibilityChecks) =>
-    call<{ application: Application }>("POST", `/admin/applications/${id}/decision`, { action, revision, note, checks }),
 };
 
 interface AccountState {

@@ -15,8 +15,7 @@ export type Panel =
   | { kind: "indicators" }
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
-  | { kind: "ngo"; lotId?: string }
-  | { kind: "admin" };
+  | { kind: "ngo"; lotId?: string };
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby = { kind: "tree" } | { kind: "lot"; lotId: string } | null;
