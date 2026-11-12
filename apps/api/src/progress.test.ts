@@ -172,12 +172,31 @@ describe("saved progress across sessions", () => {
       db.sql("UPDATE progress_writes SET revision=revision+1 WHERE user_id='owner'");
       return original(statements);
     };
-    const conflict = await post([mission()]);
+    // Each retry waits a short random time first (20–39 ms, then 40–59 ms), so competing writers do not spin.
+    const waits: number[] = [];
+    const timer = vi.spyOn(globalThis, "setTimeout").mockImplementation(((run: () => void, ms = 0) => {
+      waits.push(ms); queueMicrotask(run); return 0;
+    }) as unknown as typeof setTimeout);
+    const conflict = await post([mission()]).finally(() => timer.mockRestore());
     expect(conflict.status).toBe(409); expect(await conflict.json()).toEqual({ error: "progress_conflict" });
     expect(attempts).toBe(3); expect(db.sql("SELECT * FROM progress_events")).toHaveLength(0);
+    expect(waits).toHaveLength(2);
+    expect(waits[0]).toBeGreaterThanOrEqual(20); expect(waits[0]).toBeLessThan(40);
+    expect(waits[1]).toBeGreaterThanOrEqual(40); expect(waits[1]).toBeLessThan(60);
     db.batch = original;
     expect((await post([mission()])).status).toBe(200);
     expect((await progress()).xp).toBe(40);
+  });
+
+  it("writes nothing when the account is deleted while a request waits to commit", async () => {
+    const gate = pauseNextBatch();
+    const delayed = post([quest("accept"), mission()]);
+    await gate.entered;
+    try { db.sql("DELETE FROM users WHERE id='owner'"); }
+    finally { gate.release(); }
+    expect((await delayed).status).toBe(401);
+    expect(db.sql("SELECT * FROM progress_events")).toHaveLength(0);
+    expect(db.sql("SELECT * FROM progress_writes")).toHaveLength(0);
   });
 
   it("rolls back the claim and every event on a database failure, then allows a safe retry", async () => {
