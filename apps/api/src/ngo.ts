@@ -153,6 +153,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
     if (active && ACTIVE.includes(active.status) && active.revision !== revision) throw new HttpError(409, "application_active");
     const dup = await db.prepare("SELECT id FROM ngos WHERE cnpj = ? AND id != ?").bind(value.cnpj, ngoId).first();
     if (dup) throw new HttpError(409, "cnpj_in_use", { cnpj: "Já existe uma candidatura com esse CNPJ." });
+    // The application moved on while this was being sent (a file was added or removed, IMPL-0017): not the lot's fault.
+    if (current && active && active.revision !== current.revision) throw new HttpError(409, "application_changed");
     throw new HttpError(409, "lot_unavailable", { lotId: "Esse terreno acabou de ser escolhido. Escolha outro." });
   }
   const row = await myApplication(env, user.id);

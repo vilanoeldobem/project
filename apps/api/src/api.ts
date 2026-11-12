@@ -23,7 +23,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
-import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, publicLogo, uploadFile } from "./files";
+import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
@@ -102,20 +102,26 @@ async function indicators(env: Env): Promise<Indicator[]> {
 
 async function lots(env: Env): Promise<LotRow[] | null> {
   if (!env.DB) return null;
-  // `ngo_files` is read only with the feature on: until then the table may not exist yet (migration 0006).
-  const logo = filesBucket(env)
-    ? `CASE WHEN n.status = 'published' THEN
-         (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`
-    : "NULL";
-  const { results } = await env.DB.prepare(
-    `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
-            CASE WHEN n.status = 'published' THEN n.name END AS ngo_name,
-            CASE WHEN n.status = 'published' THEN n.summary END AS ngo_summary,
-            ${logo} AS ngo_logo
-       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
-      ORDER BY l.street, l.slot`
-  ).all<LotRow>();
-  return results;
+  const LOGO = `CASE WHEN n.status = 'published' THEN
+       (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`;
+  const query = (logo: string) =>
+    env.DB!.prepare(
+      `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
+              CASE WHEN n.status = 'published' THEN n.name END AS ngo_name,
+              CASE WHEN n.status = 'published' THEN n.summary END AS ngo_summary,
+              ${logo} AS ngo_logo
+         FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
+        ORDER BY l.street, l.slot`
+    ).all<LotRow>();
+  // `ngo_files` is read only with the feature on, and a database that does not have the table yet (migration
+  // 0006 not applied) still answers, without logos: this public route must never depend on a later migration.
+  if (!filesBucket(env)) return (await query("NULL")).results;
+  try {
+    return (await query(LOGO)).results;
+  } catch (e) {
+    if (!noFilesTable(e)) throw e;
+    return (await query("NULL")).results;
+  }
 }
 
 const accountOrigins = (env: Env) => allowedOrigins(env.ACCOUNT_ORIGINS ?? env.ALLOWED_ORIGINS);
