@@ -35,7 +35,7 @@ describe("public NGO profile", () => {
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(await res.json()).toEqual({ ngo: {
       id: NGO_ID, name: "Associação Exemplo", summary: "Resumo público", description: "Descrição aprovada", city: "Recife",
-      tags: ["education", "children"], projects: [{ title: "Leitura", description: "Projeto aprovado" }], lotId: "plaza-01",
+      tags: ["education", "children"], projects: [{ title: "Leitura", description: "Projeto aprovado" }], lotId: "plaza-01", photos: [],
     } });
   });
 
@@ -82,7 +82,7 @@ describe("public NGO profile", () => {
     expect(JSON.parse(text).ngo).toMatchObject({ tags: ["education"], projects: [{ title: "Leitura", description: "Projeto aprovado" }] });
     expect(text).not.toContain("PRIVATE_");
     expect(text).not.toContain("11222333000181");
-    expect(Object.keys(JSON.parse(text).ngo).sort()).toEqual(["city", "description", "id", "lotId", "name", "projects", "summary", "tags"]);
+    expect(Object.keys(JSON.parse(text).ngo).sort()).toEqual(["city", "description", "id", "lotId", "name", "photos", "projects", "summary", "tags"]);
   });
 
   it.each([null, "not-json", '{"private":"PRIVATE_VALUE"}', "null"])("handles legacy or malformed JSON without exposing it: %s", async (value) => {

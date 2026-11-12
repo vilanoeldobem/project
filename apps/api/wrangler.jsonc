@@ -24,6 +24,7 @@
     "ACCOUNTS_ENABLED": "false",
     // Quests-v1 events (PROPOSTA, DEC-039..042, PEN-025). Off until the owner approves the catalog.
     "QUESTS_V1_ENABLED": "false",
+    "NGO_PHOTOS_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -41,6 +42,21 @@
   // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed) and no
   // AUTH_LIMITER.
   "env": {
+    // Local simulator only: never deploy this environment or create its synthetic resources.
+    "photos-local": {
+      "name": "vilanoeldobem-api-photos-local",
+      "routes": [], "workers_dev": false, "preview_urls": false, "ratelimits": [],
+      "vars": {
+        "ENVIRONMENT": "local", "ACCOUNTS_ENABLED": "true", "NGO_PHOTOS_ENABLED": "true",
+        "QUESTS_V1_ENABLED": "false", "MAIL_FROM": "",
+        "ALLOWED_ORIGINS": "http://localhost:8799,http://localhost:8797",
+        "ACCOUNT_ORIGINS": "http://localhost:8799,http://localhost:8797",
+        "GAME_ORIGIN": "http://localhost:8799", "DASH_ORIGIN": "http://localhost:8797"
+      },
+      "d1_databases": [{ "binding": "DB", "database_name": "ngo-photos-local",
+        "database_id": "00000000-0000-0000-0000-000000000006", "migrations_dir": "../../migrations", "remote": false }],
+      "r2_buckets": [{ "binding": "NGO_PHOTOS", "bucket_name": "ngo-photos-local", "remote": false }]
+    },
     "staging": {
       "name": "vilanoeldobem-api-staging",
       "routes": [],
@@ -51,6 +67,7 @@
         "ENVIRONMENT": "staging",
         "ACCOUNTS_ENABLED": "false",
         "QUESTS_V1_ENABLED": "false",
+        "NGO_PHOTOS_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

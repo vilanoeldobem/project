@@ -9,6 +9,15 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — fotos institucionais das ONGs (PROPOSTA, desativado)
+
+- Upload privado pelo dono verificado, metadados no D1 v6 e bytes imutáveis em R2 privado. Revisão de fotos por
+  admin com controle de revisão e auditoria; remoção revoga acesso antes de apagar o objeto.
+- Perfil público retorna fotos aprovadas e a API entrega bytes somente para ONG e terreno publicados.
+  Limites propostos e checagem estrutural de PNG/JPEG/WebP; não há sanitização de metadados.
+- Ambiente local de prova e testes SQL/R2; produção/staging permanecem desligados até revisão de privacidade,
+  consentimento, retenção e configuração. Nenhum recurso remoto ou interface do game/dashboard alterado.
+
 ### Added — perfil público das ONGs
 
 - `GET /ngos/:id`: conteúdo institucional aprovado para a casa da ONG (D09, P03/P04), com descrição, cidade,

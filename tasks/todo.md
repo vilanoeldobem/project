@@ -546,3 +546,30 @@ site 9), including 21 public-profile route cases using SQLite and the real migra
 remaining P1/P2 issues. Commands: `pnpm --workspace-concurrency=1 -r run typecheck`,
 `pnpm --workspace-concurrency=1 -r run test --maxWorkers=2`, `pnpm --workspace-concurrency=1 -r run build`.
 No browser suite was rerun because this increment changes no UI; no remote data was written or deployment made.
+
+
+## NGO institutional photos — D09 backend increment — 2026-11-12
+
+Scope: immutable authenticated owner upload, private R2 bytes, D1 metadata, audited admin approval/removal,
+public approved gallery and bytes. Branch/PR only; Augusto reviews. Policy/limits are PROPOSTA and production stays off.
+
+- [x] Reuse existing session/account/origin/body guards; scope ownership before storage writes.
+- [x] Add migration 0006, atomic gallery cap, unique object keys and compensating cleanup.
+- [x] Add bounded raster structural checks; explicitly document absence of metadata sanitization/full decoding.
+- [x] Add private owner/admin preview and revision/token guarded review with audit and self-review refusal.
+- [x] Expose only approved photos for actually published NGO/lot; no-store/nosniff, immediate next-read revocation.
+- [x] Author SQL-backed tests with fake storage for permissions, publication, limit races and storage failures.
+- [x] Document API/storage, proposed limits, local binding and unresolved activation policy.
+- [x] Root ran serial workspace typecheck/build, full tests, targeted final API regression and real local D1/R2 smoke.
+- [ ] Publish PR for Augusto; no merge, deploy, remote migration, bucket creation or flag activation.
+
+IDS: reused account/session helpers, D1 test adapter and existing audit_events; created focused photo module and
+bounded header parser because no storage/upload implementation exists. No dependency, frontend, documents or
+background cleanup service added. Runtime evidence belongs to root validation; authored tests alone are not PASS.
+
+Photo validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): all six packages passed typecheck and build
+(Worker deploy dry-runs only). Full workspace: 463 tests passed; after final APNG rejection, API recheck passed
+110 tests plus typecheck (other packages unchanged). Local workerd with migrations 0001–0006 and simulated R2
+passed upload → private preview → approval → public profile/bytes/HEAD → stale review rejection → removal.
+All heavy jobs ran serially with two-worker/CPU limits. Static AIOX QA reported no remaining P1/P2.
+No browser UI test: no frontend changes. Production/staging flags remain off; activation and OQ-12 remain pending.

@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 5 abertas · **Atualizado em:** 2026-11-11
+> **Status:** 6 abertas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -15,6 +15,7 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-05 | Ângulo, zoom e controles finais da câmera; orçamento de desempenho em celular | — | Diagonal de cima, deslocamento (0,24,21) com zoom do jogador 0,55–1,6×; andar só por clique/toque; vista opcional "Olhar o céu" (IMPL-0006) | G12 | doc 17, G12 |
 | OQ-09 | Uma missão aceita pode ser abandonada? Hoje não há essa transição. `newest-house-visit` pede a visita a uma casa publicada: se a única ONG publicada sair da Vila depois do `accept`, a missão não termina e, como só há uma missão ativa por vez, nenhuma outra pode ser aceita | permitir abandonar (volta a "disponível") / concluir ou liberar a missão automaticamente quando o objetivo deixa de existir / manter como está | Sem transição de abandono; a missão só é oferecida enquanto existe uma casa publicada; `quests-v1` desligada em produção (IMPL-0013) | Ligar `quests-v1` em produção (PEN-025) | revisão do PR #19; [IMPL-0013](0013-quests-v1-runtime.md) |
 | OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); só mutações gravam `audit_events`; menu atual como PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), DEC-037 |
+| OQ-12 | Fotos institucionais: quais formatos, dimensões, tamanho e quantidade aceitar; quem comprova direitos e consentimento; como tratar EXIF/GPS, substituição, retirada, retenção e objetos órfãos? | Ratificar limites e revisão individual propostos / alterar antes da ativação; decidir remoção de metadados ou exigência de arquivo previamente saneado | Upload privado e imutável, publicação individual por outro administrador, sem sanitização automática; `NGO_PHOTOS_ENABLED` desligada até aceite operacional. Documentos comprobatórios seguem fora deste fluxo | Ativar fotos e receber arquivos reais em homologação ou produção | [IMPL-0017](0017-private-ngo-photos.md), DEC-028/037, PEN-019 |
 
 ## Resolvidas
 

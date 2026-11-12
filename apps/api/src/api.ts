@@ -28,9 +28,13 @@ import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
+import { decidePhoto, listPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 
 export interface Env {
   DB?: D1Database;
+  /** PROPOSTA: private NGO photos; disabled until rights/privacy and storage review. */
+  NGO_PHOTOS_ENABLED?: string;
+  NGO_PHOTOS?: R2Bucket;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -145,6 +149,8 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }
+    const publicPhoto = /^\/ngos\/([^/]+)\/photos\/([^/]+)$/.exec(pathname);
+    if (publicPhoto) return await photoContent(request, env, publicPhoto[2], "public", publicPhoto[1]);
     if (pathname.startsWith("/ngos/")) return await publicNgo(env, pathname.slice("/ngos/".length));
     switch (pathname) {
       case "/health":
@@ -200,6 +206,14 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
+  if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
+  if (is("GET", "/ngo/photos")) return listPhotos(request, env, url.searchParams.get("ngoId") ?? "", false);
+  const adminPhotos = /^\/admin\/ngos\/([^/]+)\/photos$/.exec(pathname);
+  if (adminPhotos && method === "GET") return listPhotos(request, env, adminPhotos[1], true);
+  const preview = /^\/(ngo\/photos|admin\/ngo-photos)\/([^/]+)\/content$/.exec(pathname);
+  if (preview && (method === "GET" || method === "HEAD")) return photoContent(request, env, preview[2], preview[1].startsWith("admin") ? "admin" : "owner");
+  const photoDecision = /^\/admin\/ngo-photos\/([^/]+)\/decision$/.exec(pathname);
+  if (photoDecision && method === "POST") return decidePhoto(request, env, photoDecision[1]);
   const m = ADMIN_APP.exec(pathname);
   if (m && method === "GET" && !m[2]) return getApplicationAdmin(request, env, m[1]);
   if (m && method === "POST" && m[2]) return decide(request, env, m[1]);

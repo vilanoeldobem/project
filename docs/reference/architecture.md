@@ -140,6 +140,13 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 
 Único app com acesso ao D1. Detalhes em [api.md](api.md).
 
+**Fotos de ONGs (PROPOSTA, IMPL-0017):** a API passa a admitir o binding opcional `NGO_PHOTOS` para binários em
+R2 privado; D1 conserva metadados, autoria e decisão editorial. `NGO_PHOTOS_ENABLED` fica desligada por padrão.
+Nenhum domínio público de bucket é necessário: a API verifica a publicação da foto, da ONG e do terreno antes
+de servir cada imagem. Prévias usam sessão e origem autorizadas. Configuração remota e ativação dependem de
+[OQ-12](../decisions/open-questions.md); o contrato e as limitações de consistência estão em
+[IMPL-0017](../decisions/0017-private-ngo-photos.md). O `VillageRoom` continua efêmero.
+
 ### 3.1 Fluxo de entrada (link mágico)
 
 ```

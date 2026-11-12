@@ -123,7 +123,8 @@ Exemplo sintético do contrato, não um registro de produção:
     "city": "Recife",
     "tags": ["education"],
     "projects": [{ "title": "Leitura", "description": "Projeto aprovado." }],
-    "lotId": "plaza-01"
+    "lotId": "plaza-01",
+    "photos": []
   }
 }
 ```
@@ -140,9 +141,10 @@ Exemplo sintético do contrato, não um registro de produção:
 - Registros antigos podem ter `summary`, `description` e `city` nulos. `tags` e `projects` ausentes, JSON inválido
   ou com formato diferente de lista resultam em `[]`. Tags fora do catálogo atual e projetos sem título/descrição
   textuais são omitidos; o catálogo de tags permanece **PROPOSTA**.
-- Fotos, documentos e indicadores novos não fazem parte deste incremento; não há campos ou valores simulados.
+- `photos` contém somente fotos aprovadas quando `NGO_PHOTOS_ENABLED="true"`; com a flag desligada, retorna `[]`.
+  Fotos seguem o contrato abaixo. Documentos privados e indicadores novos não fazem parte desta entrega.
 
-Usa o schema existente, sem migration nova. **Antes de publicar a API com essa rota, o banco de destino precisa
+O perfil textual usa o schema v5; fotos exigem a migration `0006_ngo_photos.sql` e binding privado R2. **Antes de publicar a API com essa rota, o banco de destino precisa
 ter as migrations 0004–0005 da `main` aplicadas**, conforme o procedimento autorizado de publicação. Não aplicar
 as migrations da antiga linha paralela de contas. A integração visual ao HUD é uma entrega separada do game;
 o contrato e os testes de API estão disponíveis neste incremento.
@@ -516,3 +518,68 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
 [IMPL-0015](../decisions/0015-dash-backoffice-app.md)
+
+
+## Fotos das ONGs — backend D09 (PROPOSTA, desativado)
+
+`NGO_PHOTOS_ENABLED="true"` libera estas rotas, com binding privado `NGO_PHOTOS` (R2) e schema v6.
+Produção e staging continuam com a flag `false` e sem binding R2. Não foi criado bucket ou aplicado schema remoto.
+Os limites abaixo são **PROPOSTA técnica para revisão do Augusto**, não decisão de produto já aprovada.
+
+| Rota | Autorização / entrada | Saída |
+|---|---|---|
+| `POST /ngo/photos` | Conta verificada e dona da ONG; JSON `{accountId, ngoId, caption, position, contentType, dataBase64}` | `201 {photo}` com estado `pending` |
+| `GET /ngo/photos?ngoId=UUID` | Conta dona da ONG | `{photos}` até 10 registros não removidos |
+| `GET /ngo/photos/:id/content` | Conta dona da ONG | Bytes para prévia privada |
+| `GET /admin/ngos/:ngoId/photos` | Admin | `{photos}` com prévias privadas |
+| `GET /admin/ngo-photos/:id/content` | Admin | Bytes para análise |
+| `POST /admin/ngo-photos/:id/decision` | Admin; `{accountId, revision, action: "approve" | "reject" | "remove"}` | `{photo}` com revisão incrementada |
+| `GET /ngos/:ngoId/photos/:id` | Pública, sem sessão | Bytes somente quando foto aprovada, ONG publicada e terreno real publicado |
+
+Rotas privadas reutilizam `ACCOUNTS_ENABLED`, sessão e Origin exato das contas; escritas exigem JSON e `accountId`
+igual à sessão. `HEAD` funciona nas rotas de bytes. Para prévias privadas no navegador, usar `fetch` com
+`credentials: "include"` e Origin permitido; não são URLs de bucket público. Respostas usam `no-store`; imagens
+usam MIME validado, `nosniff` e CSP restritiva. Conteúdo oculto/inexistente sempre responde `404 not_found`.
+
+`photo` privado contém `id`, `ngoId`, `caption`, `position`, `status`, `revision`, `contentType`, `byteSize` e
+`previewUrl` (nulo após remoção). Chave R2 nunca é retornada. O perfil público adiciona apenas
+`photos: [{id, url, caption, position}]`, ordenadas por `position,id`, com URL relativa à **origem da API**.
+A flag desligada produz `photos: []`; flag ligada sem binding retorna `503 photos_unavailable`.
+
+Limites propostos: 2 MiB de bytes, corpo JSON até 3 MiB (inclusive sem Content-Length), PNG/JPEG/WebP estático,
+até 4096 pixels por lado e 16 milhões de pixels, legenda de até 240 caracteres, posição inteira 0–9 e até
+10 fotos não removidas por ONG. Base64 deve ser canônico; MIME declarado deve corresponder à estrutura detectada.
+SVG/HTML e WebP animado são recusados. Verificação lê assinaturas, comprimentos de blocos, cabeçalhos e dimensões;
+**não decodifica pixels, não valida CRC/compressão integral nem remove EXIF/GPS/XMP**. Um arquivo estruturalmente
+aceito ainda pode falhar no decodificador do navegador. Análise visual continua necessária.
+
+Uploads e legendas são imutáveis. Para substituir conteúdo, remover a foto anterior e enviar nova foto pendente.
+Aprovar/rejeitar é permitido somente de `pending`; remover aceita qualquer estado ainda não removido. Nenhum
+admin pode analisar a própria ONG. Aprovação verifica existência do objeto. Cada decisão usa revisão e token
+exclusivo na mesma transação D1 da auditoria, evitando dupla decisão/histórico em concorrência.
+
+Erros adicionais: `400 invalid_photo`, `invalid_photo_metadata`, `bad_action`, `revision_required`;
+`403 not_verified`, `admin_only`, `self_review`; `409 account_changed`, `stale_revision`, `bad_transition`,
+`photo_object_missing`, `photo_limit_or_owner_changed`; `413 photo_too_large`/`too_large`;
+`415 json_required`. Erros de infraestrutura inesperados retornam `500 internal`, sem publicar a foto.
+
+**Ativação permanece bloqueada por decisões operacionais:** consentimento/direito de imagem (especialmente
+crianças), política para metadados EXIF/GPS, retenção após exclusão da conta e rotina de limpeza de objetos.
+Não ativar produção só porque testes passaram. Código/UI não coleta consentimento nesta entrega.
+
+### Validação local D1 + R2 (somente dados sintéticos)
+
+Na raiz do checkout, usando Node 24 e pnpm 10, o ambiente `photos-local` simula ambos os bindings e não usa
+recursos remotos. Não executar deploy deste ambiente nem retirar `--local` dos comandos:
+
+```bash
+pnpm --filter @vila/api exec wrangler d1 migrations apply DB --env photos-local --local
+node apps/api/scripts/verify-photos.mjs --seed > .photo-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute DB --env photos-local --local --file ../../.photo-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --env photos-local --local --port 8796
+# Em outro terminal, após o Worker ficar pronto:
+node apps/api/scripts/verify-photos.mjs http://127.0.0.1:8796
+```
+
+O arquivo de seed contém somente credenciais sintéticas locais; excluir `.photo-smoke-seed.sql` depois da prova.
+O smoke cobre envio, prévia, aprovação, leitura pública, revisão repetida e retirada. Não aplica mudanças na nuvem.

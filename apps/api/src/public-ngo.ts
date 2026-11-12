@@ -1,6 +1,7 @@
 /** Published NGO content for a village house (D09, P03/P04, DEC-028/037). No application-only fields. */
 import { NGO_TAGS, type NgoProject } from "@vila/shared/accounts/validate";
 
+import { publicPhotos } from "./ngo-photos";
 import { HttpError, json, NO_STORE } from "./http";
 import type { Env } from "./api";
 
@@ -45,6 +46,6 @@ export async function publicNgo(env: Env, id: string): Promise<Response> {
 
   return json({ ngo: {
     id: row.id, name: row.name, summary: row.summary, description: row.description, city: row.city,
-    tags, projects, lotId: row.lotId,
+    tags, projects, lotId: row.lotId, photos: await publicPhotos(env, id),
   } }, { headers: NO_STORE });
 }

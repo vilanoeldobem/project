@@ -1,17 +1,17 @@
-# Armazenamento (D1)
+# Armazenamento (D1 e fotos privadas em R2)
 
-O perfil público `GET /ngos/:id` (D09) reutiliza `ngos` e `lots`, sem tabela ou migration nova. A leitura seleciona
+O perfil público `GET /ngos/:id` (D09) reutiliza `ngos` e `lots`, com dados textuais existentes; fotos opcionais usam a tabela `ngo_photos` da migration 0006. A leitura seleciona
 somente os campos institucionais e exige publicação tanto da ONG quanto do terreno ligado por `lots.ngo_id`.
 JSONs de tags/projetos são convertidos para a forma pública, sem repassar campos extras. Contrato e pré-requisito
 de schema para publicação em [api.md](api.md#get-ngosid).
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v6 (foto ainda não ativada) ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v4**). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+(**v6** no checkout; isso não comprova aplicação remota). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
 ## 1. Migrations
@@ -137,3 +137,32 @@ separados dos dados de gamificação (dossiê §13).
 ## Ver também
 
 [api.md](api.md) · [guides/deploy.md](../guides/deploy.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)
+
+
+## Fotos institucionais — `0006_ngo_photos.sql` (PROPOSTA)
+
+D1 mantém `ngo_photos`: UUID, ONG, chave única R2, MIME, tamanho, legenda, posição, estado, revisão, token da
+última decisão e timestamps. Índice `(ngo_id,status,position,id)` atende listagem pública. Limites e contrato em
+[api.md](api.md#fotos-das-ongs--backend-d09-proposta-desativado). Nenhum documento comprobatório é aceito aqui.
+
+R2 guarda somente os bytes em `ngo-photos/<ngo UUID>/<photo UUID>`, gerados pelo servidor. Bucket privado,
+sem r2.dev, domínio público ou URLs assinadas. A API consulta D1 a cada leitura: só aprovação e vínculo publicado
+real dão acesso público. D1 permanece a fonte de estado; R2 não decide aprovação.
+
+R2 e D1 não oferecem transação conjunta. Primeiro grava-se uma chave imutável no bucket; depois o INSERT D1
+condicional verifica dono e limite de dez fotos não removidas. Falha no INSERT tenta apagar somente essa chave.
+Falha nessa compensação deixa órfão privado; o erro operacional não inclui a chave ou conteúdo. Remoção grava
+primeiro o estado `removed` e auditoria, depois tenta apagar R2; falha no bucket mantém a retirada pública válida.
+A remoção libera uma vaga. Repetir a decisão com revisão antiga não repete a auditoria ou a limpeza.
+
+**Recuperação operacional pendente antes de ativar:** listar chaves do bucket privado e comparar com D1;
+apagar órfãos sem linha e objetos cuja linha está `removed`, após revisão e autorização do operador. Uma chave
+sem linha pode pertencer a upload ainda em curso: executar em janela sem uploads ou com margem de idade definida
+pela operação. Não existe job automático de limpeza neste PR. As exclusões remotas não foram autorizadas.
+
+A FK de fotos usa `ON DELETE CASCADE` para exclusão da ONG, mas não apaga R2: qualquer exclusão direta de ONG exige
+a mesma reconciliação. Excluir a conta mantém a ONG (FK existente `applicant_id SET NULL`) e suas fotos; política
+de retenção e retirada deve ser fechada antes da ativação. Dados privados de documentos não entram nesse bucket.
+
+Flag `NGO_PHOTOS_ENABLED=false` em produção/staging, sem bindings remotos. Só `photos-local` tem R2 e D1 sintéticos
+com `remote:false`. Migration nova não foi executada remotamente; versões remotas dependem de autorização.
