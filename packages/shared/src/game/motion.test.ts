@@ -154,8 +154,7 @@ describe("stepBody", () => {
 describe("world helpers", () => {
   it("keeps every gift and the spawn clear of obstacles", async () => {
     const { GIFTS, SPAWN } = await import("./world");
-    for (const p of [...GIFTS, SPAWN])
-      for (const o of OBSTACLES) expect(Math.hypot(p.x - o.x, p.z - o.z)).toBeGreaterThan(o.r + MOTION.radius);
+    for (const p of [...GIFTS, SPAWN]) expect(clearance(OBSTACLES, p.x, p.z)).toBeGreaterThan(0);
   });
 
   // Was a straight line that got past the villager and the dog only by squeezing between them (a gap
@@ -195,16 +194,22 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
     const at = (list: typeof OBSTACLES, x: number, z: number) => list.filter((o) => o.x === x && o.z === z);
     for (const { id, x, z } of NPCS) {
       expect(at(OBSTACLES, x, z), `${id} in OBSTACLES`).toEqual([]);
-      expect(at(QUEST_OBSTACLES, x, z), `${id} in QUEST_OBSTACLES`).toEqual([{ x, z, r: 0.5 }]);
+      // A villager's footprint (IMPL-0016): 1.5 u across the arms, 0.9 u deep, turned with the NPC.
+      expect(at(QUEST_OBSTACLES, x, z), `${id} in QUEST_OBSTACLES`).toHaveLength(1);
+      expect(at(QUEST_OBSTACLES, x, z)[0], `${id} footprint`).toMatchObject({ r: 0.45, hx: 0.3, hz: 0 });
+      // With quests off the spot where the NPC would stand is open ground.
+      expect(clearance(OBSTACLES, x, z), `${id} spot with quests off`).toBeGreaterThan(0);
     }
     expect(at(OBSTACLES, DONATION_PANEL.x, DONATION_PANEL.z), "lectern in OBSTACLES").toEqual([]);
     expect(at(QUEST_OBSTACLES, DONATION_PANEL.x, DONATION_PANEL.z), "lectern in QUEST_OBSTACLES").toEqual([{ x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r }]);
+    expect(clearance(OBSTACLES, DONATION_PANEL.x, DONATION_PANEL.z), "lectern spot with quests off").toBeGreaterThan(0);
     expect(QUEST_OBSTACLES).toHaveLength(NPCS.length + 1);
   });
 
   it("keeps every NPC clear of the pre-existing scenery, lots, pond and each other", () => {
     for (const { id, x, z } of NPCS) {
-      for (const o of OBSTACLES) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius + 0.3);
+      // Room for an avatar plus 0.3 u between the NPC's centre and every piece of scenery.
+      expect(clearance(OBSTACLES, x, z), `${id} obstacles`).toBeGreaterThanOrEqual(0.3 - 1e-9);
       for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
       expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
       expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
@@ -217,7 +222,7 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
   it("keeps every quest spawn reachable and off lots, pond, tree and scenery", () => {
     expect(new Set(QUEST_SPAWNS.map((s) => s.id)).size).toBe(QUEST_SPAWNS.length);
     for (const { id, x, z } of QUEST_SPAWNS) {
-      for (const o of [...OBSTACLES, ...QUEST_OBSTACLES]) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius);
+      expect(clearance([...OBSTACLES, ...QUEST_OBSTACLES], x, z), `${id} obstacles`).toBeGreaterThanOrEqual(0.25);
       for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
       expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
       expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
@@ -226,10 +231,8 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
   });
 
   it("places the donation lectern clear of props, lots, sleigh, pond and NPCs", () => {
-    for (const o of [...OBSTACLES, ...QUEST_OBSTACLES]) {
-      if (o.x === DONATION_PANEL.x && o.z === DONATION_PANEL.z) continue;
-      expect(Math.hypot(DONATION_PANEL.x - o.x, DONATION_PANEL.z - o.z), "lectern obstacles").toBeGreaterThan(o.r + MOTION.radius);
-    }
+    const others = [...OBSTACLES, ...QUEST_OBSTACLES].filter((o) => o.x !== DONATION_PANEL.x || o.z !== DONATION_PANEL.z);
+    expect(clearance(others, DONATION_PANEL.x, DONATION_PANEL.z), "lectern obstacles").toBeGreaterThan(0);
     for (const l of LOTS) expect(Math.hypot(DONATION_PANEL.x - l.x, DONATION_PANEL.z - l.z), `lectern vs ${l.id}`).toBeGreaterThan(5.5);
     expect(Math.hypot(DONATION_PANEL.x - SLEIGH.x, DONATION_PANEL.z - SLEIGH.z), "lectern sleigh").toBeGreaterThan(5);
     expect(Math.hypot(DONATION_PANEL.x - POND.x, DONATION_PANEL.z - POND.z), "lectern pond").toBeGreaterThan(POND.radius + 1);
@@ -239,6 +242,8 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
   /*
    * The current layout is the frozen PROPOSTA (final layout is PEN-017/PEN-023): moving a piece must be
    * an intentional test diff. The clearance checks above stay; this one pins the coordinates themselves.
+   * IMPL-0016 moved `bell-pine-north` (was -10, -12.4), `bell-pine-east` (was 12.2, 9.5) and
+   * `lantern-lake-1` (was 23.5, 17) out from under the pine boughs, which now block the avatar.
    */
   it("pins the exact coordinates of NPCs, quest spawns, quest interactions and the donation lectern", () => {
     expect(NPCS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
@@ -249,11 +254,11 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
       { id: "storyteller", x: 5, z: 4 },
     ]);
     expect(QUEST_SPAWNS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
-      { id: "bell-pine-north", x: -10, z: -12.4 },
-      { id: "bell-pine-east", x: 12.2, z: 9.5 },
+      { id: "bell-pine-north", x: -10, z: -13.2 },
+      { id: "bell-pine-east", x: 12.9, z: 9.2 },
       { id: "crate-street", x: -14.5, z: 8.6 },
       { id: "crate-market", x: -16.8, z: -3.6 },
-      { id: "lantern-lake-1", x: 23.5, z: 17 },
+      { id: "lantern-lake-1", x: 23.2, z: 17 },
       { id: "lantern-lake-2", x: 30.5, z: 10 },
     ]);
     expect(QUEST_INTERACTIONS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
