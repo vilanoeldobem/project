@@ -7,7 +7,8 @@
  *
  * Files of the application (IMPL-0017), only when `/config` of the API in use says `files: true` (otherwise the
  * steps are skipped with a note): in the GAME the applicant sends a logo and documents, sees them listed, gets the
- * pt-BR refusal for a wrong file (nothing stored), downloads and removes a document; in the DASHBOARD the admin
+ * pt-BR refusal for a wrong file (nothing stored), sends a real JPEG with EXIF as the logo (previewed, stored
+ * without EXIF), downloads and removes a document; in the DASHBOARD the admin
  * sees the logo previewed, downloads the document (the read shows in the audit trail); after the approval the
  * published lot panel shows the logo and the applicant's files are read-only. The file names used here never
  * appear on screen, in the console or in a URL.
@@ -124,6 +125,45 @@ const localSql = (command) =>
     cwd: apiDir,
     stdio: "pipe",
   });
+
+/**
+ * A real 128 × 80 JPEG written by an image tool, with an EXIF block: the browser must decode what the game sends
+ * after cleaning it, and what the API stores must carry no EXIF.
+ */
+const JPEG_WITH_EXIF = Buffer.from(
+  [
+    "/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAgKADAAQAAAABAAAAUAAAAAD/7QA4UGhvdG9zaG9wID",
+    "MuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8IAEQgAUACAAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAMCBAEFAAYHCAkKC//EAMMQAAEDAwIEAwQGBAcG",
+    "BAgGcwECAAMRBBIhBTETIhAGQVEyFGFxIweBIJFCFaFSM7EkYjAWwXLRQ5I0ggjhU0AlYxc18JNzolBEsoPxJlQ2ZJR0wmDShKMYcOInRTdls1V1pJXDhfLTRnaA40dWZrQJChkaKCkqODk6SElKV1",
+    "hZWmdoaWp3eHl6hoeIiYqQlpeYmZqgpaanqKmqsLW2t7i5usDExcbHyMnK0NTV1tfY2drg5OXm5+jp6vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAQIAAwQFBgcICQoL/8QAwxEAAgIBAwMD",
+    "AgMFAgUCBASHAQACEQMQEiEEIDFBEwUwIjJRFEAGMyNhQhVxUjSBUCSRoUOxFgdiNVPw0SVgwUThcvEXgmM2cCZFVJInotIICQoYGRooKSo3ODk6RkdISUpVVldYWVpkZWZnaGlqc3R1dnd4eXqAg4",
+    "SFhoeIiYqQk5SVlpeYmZqgo6SlpqeoqaqwsrO0tba3uLm6wMLDxMXGx8jJytDT1NXW19jZ2uDi4+Tl5ufo6ery8/T19vf4+fr/2wBDAAcHBwcHBwwHBwwRDAwMERcRERERFx4XFxcXFx4kHh4eHh4e",
+    "JCQkJCQkJCQrKysrKysyMjIyMjg4ODg4ODg4ODj/2wBDAQkJCQ4NDhkNDRk7KCEoOzs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozs7Ozv/2gAMAwEAAhEDEQAAAT",
+    "HQ3RiyJJIUOAgjQtgqu7SpSa3fUjpjar58ormKp2aubJfRgcYixAturBrbtkqNdaPSa8FizY6xpLaAIdtg2QaWVs0fUwndpXWtRDhsrKRKxCa2NaQFxW2zALpaTF1YUgazyGC6rbERRtpoxErEqFMY",
+    "uAhdEFWItVL+1clKshqSlFlQZs5jGeSFSM0QZLK7UyVRphwD/9oACAEBAAEFAjHcEpRdNKJ0qrVrGL1D+kC0yBUy5AmYrxGaSQYqc2JhaAkXCaZoI5i0J96kLzlKiXysmYgFS+yKNERkZXzQB1DRga",
+    "hKqgMZErLCdWqqXmCCqpXzEFpWtDh1URRiVDRIx1JmVg4pF0UVcxNGs4iCTmMmrKerDIe7OO2S0w4tSdTBHkZKyx6NQCmJDzlVAiXkFrCT9HbHnpaaEFmiQhVUlUjUcQq5QkkRRFKqtSilrVk8g+qq",
+    "1JcQgySrmqSl8HItKUIKSnLXl1ZUlTg5WQ1Z9kCjzQHm+XRZiQwKsF5aaLSAmMVq01eCS+XHVUWS6DuntLlyouYpJGI6i+phJeJYS7gyJRFIrE5VCadxG0qCBzXJIqRSRRjIsaMdslKfMUJeYl5ZB4",
+    "qogwxxZ27uJLblgqJ+4kMs9w1GgQr6H//aAAgBAxEBPwGtTzwx440pA7JRa0DX0P6NoFvhvQD6NJf/2gAIAQIRAT8B1kUNdh1Df0Q/1dqeNK1rQlrv/9oACAEBAAY/AqgVDOQPwZCtexUg/NgqPHyY",
+    "UDoxJJwDMkfAvqeL1RX4v2XXHh5v2Hol+09S8grtUvTtq+jyeIFA6nsSySentQOjqO3SHXtzU8B5ur6DSvcivf4fB6Cno8Fa/EPR5ej1ejBdFPiznq9A9WFPAdup8ulB2rR9Xm9NautDUuqe1VOr6X",
+    "Vb0BfNGpPbXhV9PbTg8JODVn9jGY0HB9Lo6l1dH1PC4FKcGT/guquLp30egFC+Dp2o+WdXgO+oq+D6gKfe6Bq/pHp2q696pdDx7V+57IL9gf7f2PHCg9Xr217+j9jIP92n/b+x8AO2VNGOkKU6mgf0",
+    "dMvvV++aq19H/8QAMxABAAMAAgICAgIDAQEAAAILAREAITFBUWFxgZGhscHw0RDh8SAwQFBgcICQoLDA0OD/2gAIAQEAAT8hQLXiGLOgiPajiv3SetFs0UR0dY8tjSKkrrH1Q01uwoLAt52xQLK9HO",
+    "aahnlKyQ8lhnps2R+/F4FAUbrHTzUvH2Pqh0z5bDmUwtzzTGUnx39WUadYmZdvCOZg2gz+OG7TVInNPDUcUpxogudVoC+2zfmXCqFBjldigPCShAWP8Z9rKqu7LcBD8UyB4vaaJXUZ81UZNnoibiHL",
+    "wFjw5P3YdwfLKKOUA4n7s4CYTd7iGnpZ6qpeq6DKqc+FL6ORkWNERXueBIcnS14bJing3S6WKI8jdWc7uIlsXL3HyFd0/bSAQc3RdskaGJGqR5ROf4s7anHKHzVkl455ssgRy0Qz0fnxW3PPFEGeE2",
+    "AcjmbIwbUi6LoSWSxUeD5VuJtdAq+xqL8nujzs99zZMBD4qSm5sBDjtQFcj2qV4Mp4rCHvmx7wzPqs+FNTpJnn/wCWBgmqDgFQwru+yKwA1hYrRD9z/wAtJeK8a+VOAT4K7oDwnLdv+rYqxf8AAWzT",
+    "IDiaBG2vdQKCcqOEz3fTWCXm8YfMV5H7UfNZknf+GsWAlywT5L/8bH/419U45/V9xYfi/MsIyrV+Ys/Jc7cP5viD8UmL6n/wqRRIlDvqzcdycN8Bfxex5HFmHX/An/8AAF1cf9aOVJikhGnr8er/AP",
+    "/aAAwDAQACEQMRAAAQSj+r0hvidIcN8k1IRsttX7+hfge4Jt2iDB/tDfSG/8QAMxEBAQEAAwABAgUFAQEAAQEJAQARITEQQVFhIHHwkYGhsdHB4fEwQFBgcICQoLDA0OD/2gAIAQMRAT8Q3u2r3d2O",
+    "Ry+RPNjqDuTDiM3IPrIukAD+tnGy1uRxExH1Zxnjq7ngg7Rkms9aOThxEId3DEWz9GAMsv/aAAgBAhEBPxDLLpvoW88I5s/QjV5vpl+klveb6JDIceZ+/mfWX6QXd918xEjlLvvY+U2vUaNb4yXZPG",
+    "Otv//aAAgBAQABPxBT9C4EcJ+RsSbCC4g1rZIjIh0YifMOHikkcnM5VwzukzP7pPYiLCcErzvjiqLywHj1HHVOgygbInp55pkyGDkDHRxxYqYMSwk/NyWRIjk67z9zdzbRpmyY/wCZU9W4ATZ/ijZA",
+    "HRMcv3eZpkBhMIfBlRnbwGlA4s2c5j+aNjPJ4fHpqkSIfIQnjlpkJCYHHiw4x+l+fVYu7O0+K0CpSSfuDrzSQd92V7lqJD/dSDFBkHMsu0HuEFyfNKjTePP1QhpzJo98WHAE/wAMqYunosd3AD3HLZ",
+    "rJwh31U0AXXA+k8+7ARxPXe0iWUgEDsnxWPKkTs+aPwkwcfqwqgZQIHpF5gqlj3ZC0xSN8K6zOb9lDyk4P7aCyKX1DoeqzkJaHyZVgJcnPFMD3OLZn4BlgcKnX0M1DGepTSRnx1WFoNnN3FdD+6SEM",
+    "BDwlVhfqOobFnhIed7LNtXyDB92WRBcQ8XJicAmT3WNAaIS+adEvIRGPn1ccYRcl/wAwr80EI6iyF5XSgRQcGUd6y9cFcoglZ49WUleWOqE8UpRAxw/iuhRE5Ac16qDCjeSR4iKaFAJ4fRvcS+LDJ7",
+    "g7lJiRVLgdeXqKEh7JYnzrYyWkhI3hD14qcIMprBQ5fEzS56iDijMhx912W+5mWBHHzVNCEyxqBcg1Dy/igmXQFBWk5l16OA4C4wldRGkcbHuusAWMnL3O9VPIQrIZiMKHGCVQw2gHJ8jx+agaBgdT",
+    "pA/FeX94uZDvbAmT4GVzYCAYQz+qLAVFBPSiR+LobOXJdjJ3qxIBHN6Wdx07BNDBmaZb6UInm7aBIJPgkiCf04/VVJ/wI/ipQ60XgyE17r4EJKN2kbkGWzwJ7uymbZhSDsPUxFlWjI5p0ROkRj4rTP",
+    "miA1HoCh44R9euKECZjg/uoPNnztXDi9CwIkxxwHlPdkmvCEMHn7rJvf6p4jHgpYBYj4ijaLSuVpNqKkmBwdNI9jfIOou9o88gO33UM3yZ/u8ov+AgOVitgfzszsmcZ+N4LvIFEbEWCUjMoA7iqFi4",
+    "wagLrvoplpLzXDGDooHNwmN77oIAIJGpKSCfUXikBnCg8RGZhPxlH1VTDQxw/N4VuRnZZVRIiIrESwlEHXU9xVRiInmnf1RXDt4s3Y9BNmzUgl9WShL02bNE8pyKgCYqjJEihO062PPV/9k=",
+  ].join(""),
+  "base64"
+);
 
 /** Uploads on in the API in use (IMPL-0017)? An API that does not know them has no `files` in `/config`. */
 const filesOn = (await (await fetch(`${apiUrl}/config`)).json()).files === true;
@@ -365,6 +405,21 @@ if (filesOn) {
   await files.getByLabel("Trocar logo").setInputFiles(upload("pdf", "application/pdf", PDF));
   if (!(await said("Envie o logo em PNG ou JPEG."))) errors.push("files: a PDF as logo was not refused");
   if (JSON.stringify((await ownApplication(a)).files) !== before) errors.push("files: a refused file changed what the API holds");
+
+  // A real JPEG with EXIF as the logo: it is cleaned in the browser, still decodes, and is stored without EXIF.
+  if (!JPEG_WITH_EXIF.includes("Exif")) errors.push("files: the JPEG sample has no EXIF block (the check below would prove nothing)");
+  await files.getByLabel("Trocar logo").setInputFiles(upload("jpg", "image/jpeg", JPEG_WITH_EXIF));
+  await a.waitForFunction(() => document.querySelector('img[alt^="Logo enviado"]')?.naturalWidth === 128, null, { timeout: API_WAIT }).catch(() => errors.push("files: the JPEG logo is not previewed at its real size"));
+  const storedLogo = await a.evaluate(async (api) => {
+    const { files } = await (await fetch(`${api}/ngo/application`, { credentials: "include" })).json();
+    const logo = files.find((f) => f.kind === "logo");
+    const bytes = new Uint8Array(await (await fetch(`${api}/ngo/application/files/${logo.id}`, { credentials: "include" })).arrayBuffer());
+    return { type: logo.contentType, size: logo.size, exif: new TextDecoder("latin1").decode(bytes).includes("Exif") };
+  }, BUILD_API);
+  if (storedLogo.type !== "image/jpeg" || storedLogo.exif || storedLogo.size >= JPEG_WITH_EXIF.length) errors.push(`files: the stored JPEG logo still carries EXIF or was not cleaned (${JSON.stringify(storedLogo)})`);
+  // Back to the PNG logo the rest of the run expects.
+  await files.getByLabel("Trocar logo").setInputFiles(upload("png", "image/png", png(256, 256)));
+  await a.waitForFunction(() => document.querySelector('img[alt^="Logo enviado"]')?.naturalWidth === 256, null, { timeout: API_WAIT }).catch(() => errors.push("files: the PNG logo did not replace the JPEG one"));
 
   await files.getByLabel("Adicionar documento").setInputFiles(upload("png", "image/png", png(640, 480)));
   if (!(await said("Documento 2 enviado."))) errors.push("files: the second document was not confirmed");

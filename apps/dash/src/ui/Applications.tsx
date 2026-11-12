@@ -105,7 +105,8 @@ function ReviewDetail({ id }: { id: string }) {
   const [error, setError] = useState("");
   useEffect(
     () =>
-      void Promise.all([api.adminGet(id), api.config()]).then(
+      // A failed `/config` only means the flag is unknown (treated as off): the application itself still opens.
+      void Promise.all([api.adminGet(id), api.config().catch(() => ({ files: false }))]).then(
         ([detail, config]) => {
           setFilesOn(config.files === true);
           setD(detail);
@@ -296,15 +297,15 @@ function Files({ applicationId, files, enabled }: { applicationId: string; files
   return (
     <>
       <h2>Arquivos</h2>
-      {!enabled ? (
+      {!enabled && (
         <Notice state="files-off" title="Envio de arquivos desligado" tone="warn">
           <p>
-            O envio de arquivos está desligado nesta API (<code>NGO_FILES_ENABLED</code>, ou o armazenamento não está configurado), então não é
-            possível enviar nem ler logo e documentos das candidaturas. Nada aqui é dado de exemplo: os arquivos aparecem quando o envio for
-            ligado.
+            O envio de arquivos está desligado nesta API (<code>NGO_FILES_ENABLED</code>, ou o armazenamento não está configurado): as
+            organizações não conseguem enviar nem trocar arquivos agora. {files.length > 0 ? "Os arquivos abaixo foram enviados antes e continuam valendo: confira-os, porque o logo fica público se o envio for ligado de novo depois da aprovação." : "Nada aqui é dado de exemplo: os arquivos aparecem quando o envio for ligado."}
           </p>
         </Notice>
-      ) : files.length === 0 ? (
+      )}
+      {!enabled && files.length === 0 ? null : files.length === 0 ? (
         <p className="muted" data-state="empty">
           Nenhum arquivo enviado.
         </p>

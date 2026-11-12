@@ -69,7 +69,7 @@ describe("list and errors", () => {
 
   it("shows the API's sentence about the file, else the sentence of the error code", () => {
     expect(fileFailure(new ApiError(413, "file_too_large", { file: "O arquivo passa do limite de 512 KB." }))).toBe("O arquivo passa do limite de 512 KB.");
-    expect(fileFailure(new ApiError(409, "application_locked"))).toBe("A organização já foi publicada: os arquivos não podem mais ser alterados.");
+    expect(fileFailure(new ApiError(409, "application_locked"))).toBe("Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.");
     expect(fileFailure(new ApiError(0, "network"))).toBe("Sem conexão com a Vila. Tente de novo em instantes.");
   });
 

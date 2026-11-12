@@ -249,6 +249,17 @@ describe("files of an application (IMPL-0017)", () => {
     }
   });
 
+  it("still shows the files that exist when uploads are off: an approval must not publish a logo nobody saw", () => {
+    const logo: ApplicationFile = { id: "f0000000-0000-4000-8000-000000000001", kind: "logo", contentType: "image/png", size: 2048, createdAt: "2026-11-12T12:00:00.000Z" };
+    const document: ApplicationFile = { id: "f0000000-0000-4000-8000-000000000002", kind: "document", contentType: "application/pdf", size: 4096, createdAt: "2026-11-12T12:01:00.000Z" };
+    const section = filesOf(review({}, { files: [logo, document] }, false));
+    expect(count(section, 'data-state="files-off"')).toBe(1);
+    expect(section).toContain("continuam valendo");
+    expect(count(section, 'data-file="logo"')).toBe(1);
+    expect(count(section, 'data-file="document"')).toBe(1);
+    expect(section).toContain("Baixar documento 1");
+  });
+
   it("labels file events in the history by kind, never by the file id", () => {
     const history = [
       { at: "2026-11-10T12:05:00.000Z", action: "ngo.file_add", detail: JSON.stringify({ kind: "logo", file: LOGO.id, revision: 2 }), actor: "ong_teste" },
