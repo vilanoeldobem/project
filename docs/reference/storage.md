@@ -210,9 +210,10 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
-| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
-| Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
+| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação, ou depois de uma retirada) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) ou de uma retirada (OQ-14) |
+| Logo (R2) | de candidatura fora da Vila (não publicada, ou retirada): apagado com a conta; de ONG publicada em terreno publicado: fica, como a ONG |
 | Galeria (R2) | todas as fotos são removidas ao excluir a conta, inclusive as aprovadas; falha de limpeza permite repetição |
+| Registro de retirada (`ngo_withdrawals`, D1; PROPOSTA) | fica, com a mensagem enviada à organização, inclusive depois da exclusão da conta do responsável; **sem prazo definido** (OQ-14) |
 | Intenção de arquivo (D1) | até finalizar o upload ou confirmar a limpeza; cancelamento de envio abandonado pode ser solicitado após 15 min, sem prazo automático de retenção |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
@@ -279,7 +280,9 @@ mesmo depois que o vínculo e a linha do usuário desaparecerem.
 
 O logo institucional segue a retenção canônica por status da ONG. A galeria é apagada com a conta em qualquer
 estado; antes da exclusão, leitura pública exige foto aprovada e terreno publicado. Direitos de imagem e
-consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da ONG é uma entrega separada.
+consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da ONG (IMPL-0020, PROPOSTA) não
+apaga arquivo algum; o logo só continua guardado depois da exclusão da conta enquanto a ONG estiver publicada em
+um terreno publicado, e a retirada é recusada (`409 account_deleting`) enquanto uma exclusão estiver pendente.
 
 ## Ver também
 

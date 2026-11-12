@@ -50,6 +50,13 @@ export interface ApplicationFile {
 export const FILES_EDITABLE_STATUSES = ["submitted", "changes_requested", "rejected"] as const;
 export const filesEditable = (status: string): boolean => (FILES_EDITABLE_STATUSES as readonly string[]).includes(status);
 
+/**
+ * Statuses in which the applicant may remove their own files: the editable ones and, PROPOSTA (IMPL-0020, OQ-14),
+ * "withdrawn". After the administration withdraws the NGO nothing can be added or replaced, but removing one's own
+ * data stays possible. `status` is the effective status the API answers, not the stored one.
+ */
+export const filesRemovable = (status: string): boolean => filesEditable(status) || status === "withdrawn";
+
 /** Download name built from what the API knows: "logo.png", "documento-2.pdf" (`position` counts from 1). */
 export const fileDownloadName = (file: Pick<ApplicationFile, "kind" | "contentType">, position = 1): string =>
   `${file.kind === "logo" ? "logo" : `documento-${position}`}.${FILE_EXTENSION[file.contentType]}`;

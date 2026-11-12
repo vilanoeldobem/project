@@ -35,6 +35,11 @@ const uploadPhoto = (position = 1, user = "owner") => request("POST", `/ngo/phot
   { "X-Vila-Account": user, "Content-Type": "image/png", "X-Vila-Caption": "" }, png() as BodyInit);
 const uploadDocument = (user = "owner") => request("POST", "/ngo/application/files?kind=document", user, ORIGIN,
   { "X-Vila-Account": user, "Content-Type": "application/pdf" }, pdf() as BodyInit);
+const uploadLogo = (user = "owner") => request("POST", "/ngo/application/files?kind=logo", user, ORIGIN,
+  { "X-Vila-Account": user, "Content-Type": "image/png" }, png() as BodyInit);
+const deletePhoto = (id: string, user = "owner") => request("DELETE", `/ngo/photos/${id}`, user, ORIGIN, { "X-Vila-Account": user });
+const deleteAccount = (user = "owner") => request("DELETE", "/me", user, ORIGIN, {});
+const approve = (revision = 1) => call("POST", `/admin/applications/${NGO}/decision`, { action: "approve", revision, checks: { activeCnpj: true, oneYear: true, fundsConfirmable: true } });
 const deleteFile = (id: string, user = "owner") => request("DELETE", `/ngo/application/files/${id}`, user, ORIGIN, { "X-Vila-Account": user });
 const error = async (response: Response | Promise<Response>) => ((await (await response).json()) as { error: string }).error;
 
@@ -212,9 +217,9 @@ describe("administrative NGO withdrawal", () => {
     const put = vi.spyOn(bucket, "put");
     expect(await error(uploadPhoto())).toBe("application_withdrawn");
     expect(await error(uploadDocument())).toBe("application_withdrawn");
+    expect(await error(uploadLogo())).toBe("application_withdrawn");
     expect(put).not.toHaveBeenCalled();
     for (const action of ["approve", "reject"]) expect(await error(photoDecision(action))).toBe("application_withdrawn");
-    expect(await error(deleteFile(DOCUMENT))).toBe("application_withdrawn");
     expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "owner" }, "owner"))).toBe("application_withdrawn");
     expect(await error(call("POST", `/admin/applications/${NGO}/decision`, { action: "reject", revision: 2, note: "Not a decision any more." }))).toBe("bad_transition");
     expect((await photoDecision("remove")).status).toBe(200);
@@ -270,6 +275,184 @@ describe("administrative NGO withdrawal", () => {
     prior.migrate("0009_ngo_withdrawals.sql");
     expect(tables.map((table) => prior.sql(`SELECT * FROM ${table}`))).toEqual(before);
     expect(prior.sql("PRAGMA foreign_key_check")).toEqual([]); expect(prior.sql("SELECT * FROM ngo_withdrawals")).toEqual([]);
+  });
+});
+
+describe("files, gallery and account deletion after a withdrawal", () => {
+  // PROPOSTA (OQ-14): removing one's own data stays possible after a withdrawal; adding or changing does not.
+  it("lets the applicant remove their own files and photos, and nobody else", async () => {
+    expect((await withdraw()).status).toBe(200);
+    expect((await deleteFile(DOCUMENT, "other")).status).toBe(404);
+    expect((await deletePhoto(PHOTO, "other")).status).toBe(404);
+    const removed = await deleteFile(DOCUMENT);
+    expect([removed.status, await removed.json()]).toEqual([200, { revision: 3 }]);
+    expect((await deleteFile(LOGO)).status).toBe(200);
+    expect((await deletePhoto(PHOTO)).status).toBe(200);
+    expect(bucket.keys()).toEqual([]);
+    expect(db.sql("SELECT * FROM ngo_files")).toEqual([]);
+    expect(db.sql("SELECT status,caption,cleanup_pending FROM ngo_photos")).toEqual([{ status: "removed", caption: "", cleanup_pending: 0 }]);
+    expect(db.sql("SELECT * FROM media_upload_intents")).toEqual([]);
+    expect(db.sql("SELECT actor,action FROM audit_events WHERE action IN ('ngo.file_remove','ngo.photo.remove') ORDER BY rowid")).toEqual([
+      { actor: "owner", action: "ngo.file_remove" }, { actor: "owner", action: "ngo.file_remove" }, { actor: "owner", action: "ngo.photo.remove" }]);
+    // Still withdrawn, with the same message; the ledger keeps the revision of the withdrawal itself.
+    expect(await (await call("GET", "/ngo/application", undefined, "owner")).json()).toMatchObject({ application: { status: "withdrawn", revision: 4, withdrawal: { reason: REASON } }, files: [] });
+    expect(db.sql("SELECT revision FROM ngo_withdrawals")).toEqual([{ revision: 2 }]);
+    for (const refused of [uploadDocument(), uploadLogo(), uploadPhoto()]) expect(await error(refused)).toBe("application_withdrawn");
+  });
+
+  it("keeps files frozen for a published NGO that was not withdrawn", async () => {
+    expect(await error(deleteFile(DOCUMENT))).toBe("application_locked");
+    expect(await error(uploadDocument())).toBe("application_locked");
+    expect(bucket.keys()).toEqual([PHOTO_KEY, LOGO_KEY, DOCUMENT_KEY].sort());
+  });
+
+  it("completes the account deletion of a withdrawn NGO's owner and erases its files, logo included", async () => {
+    expect((await withdraw()).status).toBe(200);
+    expect((await deleteAccount()).status).toBe(204);
+    expect(db.sql("SELECT id FROM users WHERE id='owner'")).toEqual([]);
+    expect(bucket.keys()).toEqual([]);
+    expect(db.sql("SELECT * FROM ngo_files")).toEqual([]); expect(db.sql("SELECT * FROM ngo_photos")).toEqual([]);
+    // The organisation's record, the ledger and the message stay; the link to the person is gone.
+    expect(db.sql("SELECT applicant_id,status,revision FROM ngos WHERE id=?", NGO)).toEqual([{ applicant_id: null, status: "published", revision: 3 }]);
+    expect(db.sql("SELECT ngo_id,reason,actor FROM ngo_withdrawals")).toEqual([{ ngo_id: NGO, reason: REASON, actor: "admin" }]);
+    expect(await (await call("GET", `/admin/applications/${NGO}`)).json()).toMatchObject({ application: { status: "withdrawn", withdrawal: { reason: REASON } }, applicant: null, files: [] });
+    expect(await (await call("GET", "/admin/applications?status=withdrawn")).json()).toMatchObject({ applications: [{ id: NGO, status: "withdrawn" }] });
+    for (const path of [`/ngos/${NGO}`, `/ngos/${NGO}/logo`, `/ngos/${NGO}/photos/${PHOTO}`]) expect((await publicGet(path)).status).toBe(404);
+    // What the code does today (OQ-14): the CNPJ stays taken; another CNPJ can take the released lot.
+    expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "other" }, "other"))).toBe("cnpj_in_use");
+    expect((await call("POST", "/ngo/application", { ...APPLICATION, accountId: "other", cnpj: "11444777000161" }, "other")).status).toBe(201);
+  });
+
+  it("keeps the public logo of a published NGO when its owner deletes the account (unchanged rule)", async () => {
+    expect((await deleteAccount()).status).toBe(204);
+    expect(bucket.keys()).toEqual([LOGO_KEY]);
+    expect((await publicGet(`/ngos/${NGO}/logo`)).status).toBe(200);
+    // Withdrawn later, with nobody left to remove it: the logo stays stored and private (retention: OQ-14).
+    expect((await withdraw({ revision: 2 })).status).toBe(200);
+    expect((await publicGet(`/ngos/${NGO}/logo`)).status).toBe(404);
+    expect(bucket.keys()).toEqual([LOGO_KEY]);
+  });
+
+  it("blocks the owner's account and the CNPJ after a withdrawal: what the code does today (OQ-14)", async () => {
+    expect((await withdraw()).status).toBe(200);
+    // A different organisation, a different CNPJ, a free lot: still refused for this account.
+    expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "owner", cnpj: "11444777000161", lotId: "plaza-02" }, "owner"))).toBe("application_withdrawn");
+    expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "other", lotId: "plaza-02" }, "other"))).toBe("cnpj_in_use");
+    // No decision applies and there is no undo route.
+    for (const action of ["start_review", "approve", "request_changes", "reject"])
+      expect(await error(call("POST", `/admin/applications/${NGO}/decision`, { action, revision: 2, note: "Synthetic note for the test.", checks: { activeCnpj: true, oneYear: true, fundsConfirmable: true } }))).toBe("bad_transition");
+    for (const method of ["DELETE", "PUT", "PATCH"]) expect((await call(method, `/admin/ngos/${NGO}/withdraw`, {})).status).toBe(404);
+    expect(db.sql("SELECT status FROM ngos WHERE id=?", NGO)).toEqual([{ status: "published" }]);
+    // The stored status holds the slot of the 0005 unique index for this account.
+    await expect(db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id) VALUES(?,'Second','11444777000161','submitted','owner')").bind(OTHER_NGO).run()).rejects.toThrow(/UNIQUE/);
+  });
+});
+
+describe("withdrawal racing other writes", () => {
+  const asSubmitted = async () => {
+    await db.prepare("UPDATE ngos SET status='submitted' WHERE id=?").bind(NGO).run();
+    await db.prepare("UPDATE lots SET state='application_sent' WHERE ngo_id=?").bind(NGO).run();
+  };
+
+  it("discards a file upload that was in flight when the NGO was approved and withdrawn", async () => {
+    await asSubmitted();
+    const paused = pauseNextBytesPut(), pending = uploadDocument();
+    await paused.ready;
+    expect((await approve()).status).toBe(200); expect((await withdraw()).status).toBe(200);
+    paused.release();
+    const late = await pending;
+    expect([late.status, await error(late)]).toEqual([409, "application_changed"]);
+    expect(db.sql("SELECT id FROM ngo_files ORDER BY id")).toEqual([{ id: LOGO }, { id: DOCUMENT }]);
+    expect(db.sql("SELECT * FROM media_upload_intents")).toEqual([]);
+    expect(bucket.keys()).toEqual([PHOTO_KEY, LOGO_KEY, DOCUMENT_KEY].sort());
+    expect(db.sql("SELECT * FROM audit_events WHERE action='ngo.file_add'")).toEqual([]);
+    expect(db.sql("SELECT revision FROM ngos WHERE id=?", NGO)).toEqual([{ revision: 2 }]);
+  });
+
+  it("applies an approval and a withdrawal in order, whichever request started first", async () => {
+    await asSubmitted();
+    // The approval is still in its batch: the NGO is not published yet, so there is nothing to withdraw.
+    const paused = pauseNextBatch(), pending = approve(); await paused.ready;
+    expect(await error(withdraw())).toBe("bad_transition");
+    paused.release();
+    expect((await pending).status).toBe(200);
+    expect(db.sql("SELECT * FROM ngo_withdrawals")).toEqual([]);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "published", ngo_id: NGO }]);
+    expect((await withdraw()).status).toBe(200);
+    expect(db.sql("SELECT action FROM audit_events WHERE action IN ('ngo.approve','ngo.withdraw') ORDER BY rowid")).toEqual([{ action: "ngo.approve" }, { action: "ngo.withdraw" }]);
+  });
+
+  it("never lets a resubmission pass a withdrawal", async () => {
+    // While the withdrawal is committing the NGO is still published: the applicant already has an active application.
+    const paused = pauseNextBatch(), pending = withdraw(); await paused.ready;
+    expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "owner" }, "owner"))).toBe("application_active");
+    paused.release(); expect((await pending).status).toBe(200);
+    expect(await error(call("POST", "/ngo/application", { ...APPLICATION, accountId: "owner" }, "owner"))).toBe("application_withdrawn");
+    expect(db.sql("SELECT * FROM audit_events WHERE action IN ('ngo.submit','ngo.resubmit')")).toEqual([]);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "available", ngo_id: null }]);
+  });
+
+  it("refuses in SQL a resubmission whose read is older than the approval and the withdrawal", async () => {
+    await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    await db.prepare("UPDATE lots SET state='application_sent' WHERE ngo_id=?").bind(NGO).run();
+    const paused = pauseNextBatch(), pending = call("POST", "/ngo/application", { ...APPLICATION, accountId: "owner", name: "Changed name" }, "owner");
+    await paused.ready;
+    // No API path publishes an application awaiting changes: forced here to prove the write guards alone hold.
+    await db.prepare("UPDATE ngos SET status='published' WHERE id=?").bind(NGO).run();
+    await db.prepare("UPDATE lots SET state='published' WHERE ngo_id=?").bind(NGO).run();
+    expect((await withdraw()).status).toBe(200);
+    paused.release();
+    const late = await pending;
+    expect([late.status, await error(late)]).toEqual([409, "application_changed"]);
+    expect(db.sql("SELECT name,status,revision FROM ngos WHERE id=?", NGO)).toEqual([{ name: "Exemplo", status: "published", revision: 2 }]);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "available", ngo_id: null }]);
+    expect(db.sql("SELECT * FROM audit_events WHERE action='ngo.resubmit'")).toEqual([]);
+  });
+
+  it("waits for a pending account deletion, then withdraws the ownerless NGO", async () => {
+    // DELETE /me froze the account and erased the R2 objects; its final batch has not committed yet.
+    const paused = pauseNextBatch(), pending = deleteAccount(); await paused.ready;
+    expect(db.sql("SELECT files_deleting FROM users WHERE id='owner'")).toEqual([{ files_deleting: 1 }]);
+    expect(await error(withdraw())).toBe("account_deleting");
+    expect(db.sql("SELECT * FROM ngo_withdrawals")).toEqual([]);
+    paused.release(); expect((await pending).status).toBe(204);
+    // The logo of the still-published NGO stayed, bytes and row together: no orphan either way.
+    expect(bucket.keys()).toEqual([LOGO_KEY]); expect(db.sql("SELECT id FROM ngo_files")).toEqual([{ id: LOGO }]);
+    expect(await error(withdraw())).toBe("stale_revision");
+    expect((await withdraw({ revision: 2 })).status).toBe(200);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "available", ngo_id: null }]);
+  });
+
+  it("refuses in SQL a withdrawal whose read is older than the start of an account deletion", async () => {
+    const paused = pauseNextBatch(), pending = withdraw(); await paused.ready;
+    // The deletion froze the account after the withdrawal read it (its R2 cleanup is still running).
+    await db.prepare("UPDATE users SET files_deleting=1 WHERE id='owner'").run();
+    paused.release();
+    const late = await pending;
+    expect([late.status, await error(late)]).toEqual([409, "account_deleting"]);
+    expect(db.sql("SELECT * FROM ngo_withdrawals")).toEqual([]); expect(db.sql("SELECT * FROM audit_events")).toEqual([]);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "published", ngo_id: NGO }]);
+  });
+
+  it("refuses a withdrawal that lost to a completed account deletion, and leaves the NGO as it was", async () => {
+    const paused = pauseNextBatch(), pending = withdraw(); await paused.ready;
+    expect((await deleteAccount()).status).toBe(204);
+    paused.release();
+    const late = await pending;
+    expect([late.status, await error(late)]).toEqual([409, "stale_revision"]);
+    expect(db.sql("SELECT * FROM ngo_withdrawals")).toEqual([]);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")).toEqual([{ state: "published", ngo_id: NGO }]);
+    expect(db.sql("SELECT action FROM audit_events ORDER BY rowid")).toEqual([{ action: "user.delete" }]);
+  });
+
+  it("lets an account deletion finish after a withdrawal committed first", async () => {
+    expect((await withdraw()).status).toBe(200);
+    const paused = pauseNextBatch(), pending = deleteAccount(); await paused.ready;
+    // Frozen account: the owner's own removal is refused meanwhile, the erasure itself goes on.
+    expect(await error(deleteFile(DOCUMENT))).toBe("account_deleting");
+    paused.release(); expect((await pending).status).toBe(204);
+    expect(bucket.keys()).toEqual([]); expect(db.sql("SELECT * FROM ngo_files")).toEqual([]);
+    expect(db.sql("SELECT ngo_id FROM ngo_withdrawals")).toEqual([{ ngo_id: NGO }]);
   });
 });
 

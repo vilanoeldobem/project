@@ -416,7 +416,9 @@ para que a lista corresponda à revisão mostrada ao administrador.
   arquivo por candidatura a cada 24 horas (`429 too_many_file_changes`, com `fields.file`).
 - **Quando:** em `submitted`, `changes_requested` e `rejected`. Durante a análise (`under_review`) os arquivos ficam
   travados, para que seja decidido exatamente o que foi visto, e depois de `published` ficam congelados (nos dois
-  casos `409 application_locked`).
+  casos `409 application_locked`). Depois de uma retirada administrativa (`withdrawn`, IMPL-0020, **PROPOSTA**):
+  nenhum envio ou troca (`409 application_withdrawn`), mas a pessoa ainda **remove** os próprios arquivos
+  (`DELETE`), com a mesma auditoria e o mesmo incremento de `revision`.
 - **O que a API confere:** formato aceito para o tipo (`415 file_type`); tamanho, no cabeçalho e de novo enquanto os
   bytes chegam (`413 file_too_large`); formato real, lido da assinatura dos bytes, igual ao `Content-Type`
   (`400 file_mismatch`: uma página HTML ou um PDF chamado de PNG não passa; SVG nunca é aceito); imagem bem formada
@@ -456,9 +458,10 @@ para que a lista corresponda à revisão mostrada ao administrador.
   **documento**; ver o logo não grava nada). `detail` é `{kind, file, revision?}`: sem nome de arquivo.
   Recuperação administrativa grava `ngo.file_cleanup` com `{requested}` antes do I/O destrutivo, inclusive quando
   houver falha parcial; é registro da tentativa, não confirmação de descarte.
-- **Exclusão de conta:** `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não
-  publicada; o logo de uma ONG publicada fica. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
-  de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas, exceto rejeitar uma candidatura
+- **Exclusão de conta:** `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura que
+  não está na Vila; o logo de uma ONG publicada **e ligada a um terreno publicado** fica. Uma ONG retirada
+  (IMPL-0020) não tem terreno: o logo dela é apagado com a conta. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
+  de candidatura/arquivo/foto, decisões administrativas concorrentes e a retirada (`409 account_deleting`) são recusadas, exceto rejeitar uma candidatura
   ainda aberta para liberar o terreno. Essa rejeição não cancela a exclusão nem altera a política de retenção. Se R2 falhar, a conta e
   sessão continuam (`500`) e a marca fica: o usuário repete **o mesmo `DELETE /me`** após a recuperação. Essa marca
   não expira nem é desfeita, pois parte dos bytes pode já ter sido removida. Se houver metadados sem binding
@@ -496,7 +499,9 @@ R2. `photos` é `[]` com galeria desligada; quando ligada contém apenas `{id, u
 ordenados por posição e id. O perfil usa `no-store`; logo e fotos públicos usam `no-cache` com ETag. A API
 revalida a associação e a aprovação antes de responder `304`, sem abrir o corpo quando o ETag corresponde.
 Retirada ou despublicação retorna `404` mesmo com ETag anterior. Bytes privados continuam `no-store`.
-Sem bucket/tabela de galeria, a rota pública de foto retorna `404` e o perfil mantém `photos: []`. A conciliação da operação de retirada do PR #33 é uma próxima entrega separada.
+Sem bucket/tabela de galeria, a rota pública de foto retorna `404` e o perfil mantém `photos: []`. Depois de uma
+retirada administrativa (IMPL-0020, PROPOSTA) o envio de fotos e as decisões `approve`/`reject` respondem
+`409 application_withdrawn`; a remoção pelo responsável (`DELETE /ngo/photos/:id`) e por admin (`remove`) continua.
 
 Upload: responsável verificado; ONG em `submitted`, `changes_requested` ou `published`;
 até 10 fotos pendentes/aprovadas (rejeitadas e removidas liberam cota); posição inteira 0–9; legenda opcional com até 240

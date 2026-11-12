@@ -15,13 +15,15 @@
  *
  * A change of files bumps the application's `revision`: an admin decision made on the previous revision is
  * refused (409 stale_revision), so nothing unseen gets published. Files are locked while an admin reviews
- * (`under_review`) and frozen once the NGO is published. Admins read whatever files exist whenever the bucket is
+ * (`under_review`) and frozen once the NGO is published. Once the NGO is withdrawn (IMPL-0020, PROPOSTA) nothing
+ * can be added, but the applicant may remove their own files; the public logo route requires the published lot,
+ * so a withdrawn NGO has no public logo. Admins read whatever files exist whenever the bucket is
  * bound, even with the feature switched off: what could be published must always be visible to who decides.
  *
  * D1 records upload/cleanup intents before touching R2. Conditional writes prevent a cancelled upload from
  * recreating erased bytes; owner/admin recovery retries abandoned intents without exposing private objects.
  */
-import { checkFile, type ApplicationFile, type FileKind, FILE_RULES, fileErrorText, filesEditable, isFileKind, isFileType } from "@vila/shared/accounts/files";
+import { checkFile, type ApplicationFile, type FileKind, FILE_RULES, fileErrorText, filesEditable, filesRemovable, isFileKind, isFileType } from "@vila/shared/accounts/files";
 
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readBytes } from "./http";
@@ -237,8 +239,8 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
   const app = await myApplication(env, user.id);
   const row = app ? await db.prepare(`SELECT ${COLUMNS} FROM ngo_files WHERE id = ? AND ngo_id = ?`).bind(fileId, app.id).first<FileRow>() : null;
   if (!app || !row) throw new HttpError(404, "not_found");
-  if (app.withdrawn_at) throw new HttpError(409, "application_withdrawn");
-  if (!filesEditable(app.status)) throw new HttpError(409, "application_locked");
+  // After a withdrawal (IMPL-0020, PROPOSTA) the applicant may still remove their own files, never add one.
+  if (!filesRemovable(app.withdrawn_at ? "withdrawn" : app.status)) throw new HttpError(409, "application_locked");
   await assertChangeBudget(env, app.id);
 
   const now = new Date().toISOString(), token = newId();
@@ -341,7 +343,8 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
 
 /**
  * Account deletion (LGPD): the applicant's documents go with the account, and so does the logo of an
- * application that was never published. The logo of a published NGO stays, like the NGO itself.
+ * application that is not in the village. The logo of a published NGO on a published lot stays, like the NGO
+ * itself; a withdrawn NGO (IMPL-0020) keeps `status = 'published'` but holds no lot, so its logo goes too.
  * All gallery photos belonging to the account are erased, including approved photos.
  * Runs even with feature flags off. Missing storage with owned metadata fails closed, preserving the account.
  * The objects are removed before the rows: if the request dies in between, bytes are gone and rows are not,
@@ -350,7 +353,10 @@ export async function publicLogo(request: Request, env: Env, ngoId: string): Pro
 export async function removeFilesOfAccount(env: Env, userId: string): Promise<D1PreparedStatement[]> {
   const db = env.DB!;
   // DELETE /me has already frozen owner mutations and administrative decisions with files_deleting.
-  const DOOMED = "FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id WHERE n.applicant_id = ? AND (f.kind = 'document' OR n.status != 'published')";
+  // The lot rule reads no table newer than 0003. It cannot change under this erasure: decisions (but rejection,
+  // which never applies to a published NGO) and withdrawals are refused while `files_deleting` is set.
+  const DOOMED = `FROM ngo_files f JOIN ngos n ON n.id = f.ngo_id WHERE n.applicant_id = ? AND (f.kind = 'document' OR n.status != 'published'
+    OR NOT EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published'))`;
   const PHOTOS = "FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE n.applicant_id = ?";
   let results: Array<{ id: string; ngo_id: string }> = [];
   let hasFilesTable = true;
