@@ -15,7 +15,6 @@ const cli = join(api, "node_modules/wrangler/bin/wrangler.js");
 const base = "http://127.0.0.1:8792";
 const children = new Set();
 let directory;
-
 async function freePort(port) {
   const server = createServer();
   await new Promise((ok, fail) => { server.once("error", fail); server.listen(port, "127.0.0.1", ok); });
@@ -23,7 +22,6 @@ async function freePort(port) {
   await new Promise((ok, fail) => server.close((error) => error ? fail(error) : ok()));
   return selected;
 }
-
 function child(args, env) {
   const process = spawn(globalThis.process.execPath, args, {
     cwd: directory, env, detached: true, stdio: ["ignore", "pipe", "pipe"],
@@ -38,7 +36,6 @@ function child(args, env) {
   });
   return task;
 }
-
 async function stop(task) {
   if (task.done) return;
   const signal = (value) => {
@@ -49,23 +46,23 @@ async function stop(task) {
   if (!task.done) { signal("SIGKILL"); await task.closed; }
 }
 
-async function run(args, env) {
+async function run(args, env, timeout = 60000) {
   const task = child(args, env);
-  const code = await Promise.race([task.closed, delay(60000, undefined, { ref: false }).then(() => "timeout")]);
+  const code = await Promise.race([task.closed, delay(timeout, undefined, { ref: false }).then(() => "timeout")]);
   if (code !== 0) {
     await stop(task);
-    throw new Error(`Local smoke command failed (${code}): ${task.error}`);
+    throw new Error(`Local smoke command failed (${code}): ${task.error}\n${task.output.slice(-16384)}`);
   }
   return task.output;
 }
 
-async function ready(worker) {
+async function ready(worker, address = `${base}/health`) {
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline) {
     if (worker.done) throw new Error(`Local Worker exited: ${worker.error}`);
     try {
-      const response = await fetch(`${base}/health`, { signal: AbortSignal.timeout(500) });
-      if (response.ok && (await response.json()).environment === "development") return;
+      const response = await fetch(address, { signal: AbortSignal.timeout(500) });
+      if (response.ok && (address !== `${base}/health` || (await response.json()).environment === "development")) return;
     } catch { /* Retry readiness until the bounded deadline. */ }
     await delay(100);
   }
@@ -73,6 +70,8 @@ async function ready(worker) {
 }
 
 async function main() {
+  const browser = process.argv.includes("--browser");
+  if (browser) assert.ok(process.env.CI && process.env.CHROMIUM_PATH, "Browser orchestration requires CI and installed Chromium");
   const config = JSON.parse((await readFile(join(api, "wrangler.reconciliation-local.jsonc"), "utf8"))
     .replace(/^\s*\/\/.*$/gm, ""));
   assert.equal(config.account_id, undefined);
@@ -111,6 +110,32 @@ async function main() {
   const output = await run([smoke, base], env);
   assert.match(output, /PASS: canonical files/);
   console.log("PASS: isolated local media lifecycle (workerd, D1, conditional R2 writes)");
+  if (browser) {
+    for (const [app, port] of [["client", 8799], ["dash", 8797], ["server", 8788]]) {
+      await freePort(port);
+      const appDir = join(root, "apps", app);
+      const localConfig = JSON.parse((await readFile(join(appDir, "wrangler.jsonc"), "utf8")).replace(/^\s*\/\/.*$/gm, ""));
+      assert.ok(!localConfig.d1_databases && !localConfig.r2_buckets && !localConfig.services);
+      delete localConfig.account_id;
+      localConfig.name = `vila-media-${app}-local`;
+      Object.assign(localConfig, { routes: [], workers_dev: false, preview_urls: false });
+      localConfig.vars = { ...localConfig.vars, ENVIRONMENT: "development", ALLOWED_ORIGINS: "http://localhost:8799" };
+      if (localConfig.main) localConfig.main = resolve(appDir, localConfig.main);
+      if (localConfig.assets) localConfig.assets.directory = resolve(appDir, localConfig.assets.directory);
+      const path = join(directory, `${app}.json`);
+      await writeFile(path, JSON.stringify(localConfig));
+      const service = child([cli, "dev", "--config", path, "--local", "--persist-to", join(directory, app),
+        "--ip", "127.0.0.1", "--port", String(port), "--inspector-port", String(await freePort(0)),
+        "--infer-origin-from-routes=false", "--log-level", "warn"], env);
+      await ready(service, `http://127.0.0.1:${port}/${app === "server" ? "health" : ""}`);
+    }
+    const result = await run([join(root, "apps/client/scripts/verify-accounts.mjs"),
+      "http://localhost:8799", "http://localhost:8792", "http://localhost:8797"], { ...env,
+      CHROMIUM_PATH: process.env.CHROMIUM_PATH, VILA_STUB_ANALYTICS: "1", VILA_API_CONFIG: configPath,
+      VILA_API_PERSIST_TO: join(directory, "state"), VILA_API_DB: database.database_name }, 360000);
+    assert.match(result, /ok.*accounts flow/);
+    console.log("PASS: real Chromium account/file flow and disclosure (GTM stubbed; analytics not tested)");
+  }
 }
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.once(signal, () => {
