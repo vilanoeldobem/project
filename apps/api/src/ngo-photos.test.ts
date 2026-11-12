@@ -95,7 +95,8 @@ describe("private NGO photos and public approval", () => {
     expect((await decision(id, "approve", 1, "owner")).status).toBe(403);
     await db.prepare("UPDATE users SET role='admin' WHERE id='owner'").run();
     for (const action of ["approve", "reject", "remove"]) {
-      expect(await (await decision(id, action, 1, "owner")).json()).toEqual({ error: "self_review" });
+      // Call the forbidden mutation directly: the happy-path helper also reads the photo (audited).
+      expect(await (await call("POST", `/admin/ngo-photos/${id}/decision`, { accountId: "owner", action, revision: 1 }, "owner")).json()).toEqual({ error: "self_review" });
     }
     expect(db.sql("SELECT * FROM audit_events WHERE action!='ngo.photo.upload'")).toHaveLength(0);
   });
