@@ -1,4 +1,4 @@
-/** Published NGO content for a village house (D09, P03/P04, DEC-028/037). No application-only fields. */
+/** PROPOSTA: published NGO content for a village house (D09, P03/P04, DEC-028/037). No application-only fields. */
 import { NGO_TAGS, type NgoProject } from "@vila/shared/accounts/validate";
 
 import { publicPhotos } from "./ngo-photos";

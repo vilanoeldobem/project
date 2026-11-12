@@ -58,11 +58,11 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   ECA Digital review. Never flip it, grant `admin` remotely or apply remote migrations without explicit approval.
 - NGO files (IMPL-0017) stay behind `NGO_FILES_ENABLED` ("false" in production): the list of required documents is
   PENDENTE (PEN-019), so no document is required or named. Never flip the flag or create the bucket without explicit
-  approval. The logo requires a published NGO and actual published lot. Institutional gallery photos are a
-  separate reviewed type: read [IMPL-0018](docs/decisions/0018-ngo-files-reconciliation.md) before changing their
-  storage or access. Only individually approved gallery photos of a published NGO/lot may also be public;
-  documents remain private. Canonical application files are locked during `under_review`; admins may read their
-  metadata/bytes with `FILES` bound even when uploads are off. `NGO_PHOTOS_ENABLED` stays off until its operational review.
+  approval. Only the logo of a published NGO is ever public.
+  The institutional gallery in [IMPL-0018](docs/decisions/0018-ngo-files-reconciliation.md) is PROPOSTA,
+  implemented as dark code for local validation. `NGO_PHOTOS_ENABLED` must stay false in production until
+  the technical owner explicitly accepts the proposed exception to this rule and OQ-15 is resolved.
+  Documents remain private; local gallery tests do not grant publication approval.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 

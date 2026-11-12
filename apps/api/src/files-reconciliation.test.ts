@@ -133,6 +133,47 @@ describe("canonical file reconciliation concurrency", () => {
 });
 
 describe("account file-deletion intent", () => {
+  it.each(["missing bucket", "R2 error"])("exposes pending erasure after %s, permits rejection and resumes account cleanup", async (failure) => {
+    await file();
+    vi.spyOn(console,"error").mockImplementation(()=>{});
+    if (failure === "missing bucket") env.FILES = undefined;
+    else r2.failNext("delete");
+    expect((await deleteAccount()).status).toBe(failure === "missing bucket" ? 503 : 500);
+    const me = await (await request("GET", "/me")).json() as { user: { deletionPending: boolean } };
+    const detail = await (await request("GET", `/admin/applications/${NGO}`, "admin")).json() as { applicant: { deletionPending: boolean; nickname: string } };
+    expect(me.user.deletionPending).toBe(true);
+    expect(detail.applicant).toEqual({ nickname:"owner", deletionPending:true });
+    for (const action of ["start_review","approve","request_changes"]) {
+      const response = await decision(action);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toEqual({ error:"account_deleting" });
+    }
+    expect((await decision("reject")).status).toBe(200);
+    expect(db.sql("SELECT state,ngo_id FROM lots WHERE id='plaza-01'")[0]).toEqual({ state:"available",ngo_id:null });
+    expect(intent()).toBe(1); expect(fileRows()).toHaveLength(1); expect(r2.keys()).toHaveLength(1);
+    expect((await json("POST", "/ngo/application", APP)).status).toBe(409);
+    expect((await decision("reject")).status).toBe(409);
+    env.FILES = r2;
+    expect((await deleteAccount()).status).toBe(204);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]);
+    expect(audits("ngo.reject")).toHaveLength(1); expect(audits("user.delete")).toHaveLength(1);
+    expect(audits("ngo.approve")).toEqual([]); expect(audits("ngo.request_changes")).toEqual([]);
+    expect(db.sql("SELECT status,applicant_id FROM ngos WHERE id=?",NGO)[0]).toEqual({status:"rejected",applicant_id:null});
+  });
+
+  it("releases the lot during pending cleanup without cancelling erasure or duplicating rejection", async () => {
+    await file(); const before=revision();
+    const paused=pauseDelete(), deletion=deleteAccount(); await paused.ready;
+    expect((await decision("reject",before)).status).toBe(200);
+    expect((await decision("reject",before)).status).toBe(409);
+    expect(intent()).toBe(1);
+    expect(db.sql("SELECT ngo_id FROM lots WHERE id='plaza-01'")[0].ngo_id).toBeNull();
+    paused.release(); expect((await deletion).status).toBe(204);
+    expect(revision()).toBeGreaterThan(before);
+    expect(audits("ngo.reject")).toHaveLength(1); expect(audits("user.delete")).toHaveLength(1);
+    expect(fileRows()).toEqual([]); expect(r2.keys()).toEqual([]);
+  });
+
   it("freezes approval and file writes while cleanup is in progress but leaves reads available", async () => {
     const logo = await file("logo"), doc = await file(), before = revision();
     const paused = pauseDelete(), pending = deleteAccount(); await paused.ready;

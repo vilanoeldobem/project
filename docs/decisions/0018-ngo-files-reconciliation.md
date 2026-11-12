@@ -59,8 +59,7 @@ ser implementada tornando públicos todos os arquivos da candidatura.
    candidatura; não duplicar registros por revisão.
 8. **Uniformizar a publicação.** Perfil textual, logo e galeria exigem ONG publicada e terreno realmente
    associado por `lots.ngo_id`, também publicado. Galeria exige ainda foto aprovada. Leituras públicas de
-   logo/foto/perfil usam `no-store`, incluindo verificações condicionais, para que uma nova consulta confira
-   a autorização atual. Isso não remove cópias já baixadas nem atualiza automaticamente uma cena aberta.
+   perfil usam `no-store`; logo/foto usam `no-cache` com ETag, revalidando a autorização atual antes de `304`. Isso não remove cópias já baixadas nem atualiza automaticamente uma cena aberta.
 9. **Conservar a privacidade do fluxo do Augusto.** Documentos são downloads autenticados, sem nomes originais
    persistidos; leitura administrativa é auditada. A intenção de retenção do PR #32 permanece: excluir a conta
    remove documentos e o logo ainda não publicado, preservando o logo institucional publicado. As proteções de
@@ -90,6 +89,12 @@ usuário com a intenção de exclusão. Essa intenção durável substitui a seg
 que aprovação e envio não mudem o conjunto de evidências enquanto R2 é limpo.
 
 Nesse intervalo pode haver metadado privado cujo objeto já foi apagado; o download falha de forma fechada.
+O estado durável aparece como `deletionPending` em `/me` e no responsável do detalhe administrativo. A tela da
+conta oferece tentar concluir a exclusão; o painel explica por que não pode aprovar/pedir ajustes e permite
+rejeitar uma candidatura ainda aberta para liberar o terreno. Rejeição conserva CAS, justificativa, auditoria
+e proibição de autoanálise; não cancela a intenção nem decide retenção da galeria. Ações bloqueadas respondem
+`account_deleting`, inclusive numa corrida, para que o painel releia o estado. Não se permite cancelar a exclusão
+depois de um possível descarte parcial.
 Não afirmar atomicidade entre D1 e R2 nem comprovar exclusão física só pelo início da operação. Não há serviço
 novo de fila, rotina de expiração ou cancelamento da intenção neste incremento; recuperação é repetir a
 exclusão autorizada. A referência de armazenamento descreve o procedimento; a validação desta rodada está

@@ -6,7 +6,7 @@ ALTER TABLE users ADD COLUMN files_deleting INTEGER NOT NULL DEFAULT 0 CHECK(fil
 -- PROPOSTA: immutable photos, private R2 bytes, explicit admin approval (D09 / DEC-037).
 CREATE TABLE ngo_photos (
   id TEXT PRIMARY KEY,
-  ngo_id TEXT NOT NULL REFERENCES ngos(id) ON DELETE CASCADE,
+  ngo_id TEXT NOT NULL REFERENCES ngos(id),
   object_key TEXT NOT NULL UNIQUE,
   content_type TEXT NOT NULL CHECK(content_type IN ('image/jpeg','image/png')),
   byte_size INTEGER NOT NULL CHECK(byte_size > 0 AND byte_size <= 2097152),

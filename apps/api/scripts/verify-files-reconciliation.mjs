@@ -88,7 +88,9 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   assert.ok(!JSON.stringify(published).includes(doc.id));
   for (const path of [`/ngos/${ngo}/logo`, photoPath]) {
     const response = await req(path);
-    assert.equal(response.status, 200); assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(response.status, 200); assert.equal(response.headers.get("Cache-Control"), "no-cache");
+    const etag = response.headers.get("ETag"); assert.ok(etag);
+    assert.equal((await req(path, undefined, undefined, "GET", { "If-None-Match": etag })).status, 304);
     assert.equal((await req(path, undefined, undefined, "HEAD")).status, 200);
   }
   const adminDoc = await req(`/admin/applications/${ngo}/files/${doc.id}`, 1);
@@ -106,6 +108,7 @@ UPDATE lots SET ngo_id='${ngo}',state='application_sent' WHERE id='plaza-01';`);
   assert.equal((await req(`/admin/applications/${ngo}/files/${doc.id}`, 1)).status, 404);
   assert.equal((await req(`/ngos/${ngo}/logo`)).status, 200);
   assert.equal((await req(photoPath)).status, 404);
+  assert.equal((await req(photoPath, undefined, undefined, "GET", { "If-None-Match": `"${photo.id}"` })).status, 404);
   assert.deepEqual((await read(await req(`/ngos/${ngo}`))).ngo.photos, []);
   console.log("PASS: canonical files + reviewed photos, sanitized images, revision/audit races, owner erasure and account cleanup");
 }

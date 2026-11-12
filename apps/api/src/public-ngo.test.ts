@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { createD1 } from "../test/d1.mjs";
+import { createR2 } from "../test/r2.mjs";
 import { handleApi, type Env } from "./api";
 
 const NGO_ID = "a0000000-0000-4000-8000-000000000001";
@@ -119,8 +120,12 @@ describe("public NGO profile", () => {
 });
 
 
-it("serves a minimal published NGO on the production v3 schema without leaking private fields", async () => {
+it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across flag/bucket combination %i", async (flags) => {
   db = createD1({ upTo: 3 }); env.DB = db;
+  env.ACCOUNTS_ENABLED = flags & 1 ? "true" : "false";
+  env.NGO_FILES_ENABLED = flags & 2 ? "true" : "false";
+  env.NGO_PHOTOS_ENABLED = flags & 4 ? "true" : "false";
+  env.FILES = flags & 8 ? createR2() : undefined;
   await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', 'published')").bind(NGO_ID).run();
   await db.prepare("UPDATE lots SET ngo_id=?,state='published' WHERE id='plaza-01'").bind(NGO_ID).run();
   const response = await get();

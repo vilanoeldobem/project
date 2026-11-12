@@ -140,7 +140,7 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `files.ts` | Arquivos da candidatura no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA, bandeira `NGO_FILES_ENABLED`): envio com conferência do conteúdo, leitura por quem enviou e por admins (auditada), logo público da ONG publicada; `media_upload_intents` rastreia envio/limpeza, recuperável por responsável/admin em `files/recover`, inclusive com envio desligado; exclusão de conta inclui intenções |
 | `media-storage.ts` | Primitiva comum de logo/documentos e galeria: reserva vazia, releitura de autorização, PUT condicionado ao ETag e uma repetição limitada em throttling; impede escrita tardia de bytes pessoais após remoção da reserva |
 | `public-ngo.ts` | Perfil aprovado com lista explícita de campos públicos, tolerante ao schema v3; só ONG com terreno publicado |
-| `ngo-photos.ts` | Galeria institucional separada de comprovantes, aprovação por foto, bytes privados em `FILES` e publicação condicionada |
+| `ngo-photos.ts` | Galeria institucional PROPOSTA, bandeira `NGO_PHOTOS_ENABLED` desligada em produção, separada de comprovantes; aprovação por foto, bytes privados em `FILES` e publicação condicionada à revisão técnica/operacional |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
 | `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
 

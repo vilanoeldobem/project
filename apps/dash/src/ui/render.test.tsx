@@ -161,6 +161,17 @@ describe("system", () => {
 });
 
 describe("review of an application", () => {
+  it("explains pending account erasure and keeps only rejection enabled for an open application", () => {
+    const page = review({}, { applicant:{ nickname:"ong_teste",deletionPending:true } });
+    expect(page).toContain('data-state="deletion-pending"');
+    expect(page).toContain("Exclusão da conta pendente");
+    expect(page).toContain("rejeitar libera o terreno sem cancelar a exclusão");
+    for (const action of ["Iniciar análise","Aprovar","Pedir ajustes"])
+      expect(page).toMatch(new RegExp(`<button[^>]*disabled=""[^>]*>${action}</button>`));
+    expect(page).toMatch(/<button class="btn">Rejeitar<\/button>/);
+    expect(page).toContain('<fieldset class="checks" disabled="">');
+  });
+
   it("shows the evidence, the three checks and the applicant by nickname only", () => {
     const page = review({});
     expect(page).toContain('<span class="status" data-status="submitted">Candidatura enviada</span>');

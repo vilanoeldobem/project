@@ -137,6 +137,7 @@ export async function listPhotos(request: Request, env: Env, ngoId: string, admi
 }
 
 export async function photoContent(request: Request, env: Env, id: string, access: "owner" | "admin" | "public", ngoId?: string): Promise<Response> {
+  if (access === "public" && !env.FILES) missing();
   const bucket = resources(env, access === "public");
   const user = access === "public" ? null : await (access === "admin" ? requireAdmin(request, env) : requireUser(request, env));
   if (!ID.test(id) || (access === "public" && (!ngoId || !ID.test(ngoId)))) missing();
@@ -145,15 +146,22 @@ export async function photoContent(request: Request, env: Env, id: string, acces
   if (access === "public") { guard = `p.status = 'approved' AND p.upload_pending=0 AND n.id = ? AND ${PUBLISHED}`; params.push(ngoId); }
   if (access === "owner") { guard += " AND n.applicant_id = ?"; params.push(user!.id); }
   const row = await env.DB!.prepare(`SELECT ${COLUMNS} FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE p.id = ? AND ${guard}`)
-    .bind(...params).first<Photo>();
+    .bind(...params).first<Photo>().catch((error: unknown) => {
+      if (access === "public" && error instanceof Error && /no such table: ngo_photos/i.test(error.message)) return null;
+      throw error;
+    });
   if (!row) missing();
   const head = request.method === "HEAD";
-  const object = head ? await bucket.head(row.object_key) : await bucket.get(row.object_key);
+  const etag = `"${row.id}"`;
+  const revalidate = access === "public" && request.headers.get("If-None-Match") === etag;
+  const object = head || revalidate ? await bucket.head(row.object_key) : await bucket.get(row.object_key);
   if (!object) missing();
+  const cache: Record<string, string> = access === "public" ? { "Cache-Control": "no-cache", ETag: etag } : NO_STORE;
+  if (revalidate) return new Response(null, { status: 304, headers: cache });
   if (access === "admin" && !head) await env.DB!.prepare("INSERT INTO audit_events(id,actor,action,subject,detail) VALUES(?,?,'ngo.photo.read',?,?)")
     .bind(newId(), user!.id, `ngo:${row.ngo_id}`, JSON.stringify({photoId:id,revision:row.revision})).run();
   return new Response(head ? null : (object as R2ObjectBody).body, { headers: {
-    ...NO_STORE, "Content-Disposition": "inline", "Content-Type": row.content_type, "X-Content-Type-Options": "nosniff",
+    ...cache, "Content-Disposition": "inline", "Content-Type": row.content_type, "X-Content-Type-Options": "nosniff",
     "Content-Security-Policy": "default-src 'none'; sandbox", "Content-Length": String(object.size),
   } });
 }

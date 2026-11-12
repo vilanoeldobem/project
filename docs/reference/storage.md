@@ -83,13 +83,14 @@ Metadados dos arquivos de uma candidatura ([IMPL-0017](../decisions/0017-ngo-fil
 ### ngo_photos (v7, PROPOSTA)
 
 Galeria institucional no **mesmo bucket `FILES`**, com chave `ngo-photos/<ngo_id>/<photo_id>`; não substitui o
-logo em `ngo_files`. Colunas: `id`, `ngo_id` (FK com cascata), `object_key` único, `content_type` PNG/JPEG,
+logo em `ngo_files`. Colunas: `id`, `ngo_id` (FK sem cascata, como `ngo_files`), `object_key` único, `content_type` PNG/JPEG,
 `byte_size` (1–2097152), `caption` (até 240), `position` (0–9), `status` (`pending|approved|rejected|removed`),
 `revision`, `decision_token` único, `upload_pending`, `cleanup_pending`, `created_at`, `updated_at`.
 Índice `(ngo_id,status,position,id)`. A intenção de upload existe antes dos bytes; `upload_pending=1` não pode
 ser publicado. Remoção/rejeição limpa legenda e revoga acesso antes da limpeza R2; falha mantém
 `cleanup_pending=1` para nova tentativa. Limite de 10 pendentes/aprovadas é conferido no INSERT; rejeitadas não
-consomem cota. Nenhuma chave contém nome/legenda.
+consomem cota. Nenhuma chave contém nome/legenda. A FK impede apagar a ONG enquanto houver metadados
+de fotos: remover bytes e registros explicitamente antes de excluir uma ONG evita perder a referência ao R2.
 
 ### media_upload_intents (v7)
 
@@ -244,6 +245,9 @@ entrega. Uma queda na criação tardia de reserva já cancelada pode deixar um o
 Antes de limpar R2, `DELETE /me` marca `files_deleting=1`. Os guards de candidatura, arquivos, fotos e revisão
 administrativa recusam novas mutações enquanto essa marca existe. O conjunto a apagar não pode virar conteúdo
 publicado durante a limpeza. R2 falhou: mantém conta/sessão/intenção; repetir `DELETE /me` retoma a limpeza.
+`GET /me` e o responsável no detalhe administrativo expõem `deletionPending`. As telas explicam a pendência e
+o caminho de repetição. Rejeitar uma candidatura ainda aberta é a exceção ao bloqueio administrativo: libera o
+terreno, preserva a intenção e não pode publicar evidências. Estado/revisão exatos e auditoria continuam exigidos.
 Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta. Não se deve zerar a marca para
 "destravar" uma conta: alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
 as revisões das candidaturas, remove as intenções de upload/limpeza da conta, registra uma única auditoria e apaga o usuário. A revisão invalida decisões antigas

@@ -49,7 +49,8 @@ export async function getApplicationAdmin(request: Request, env: Env, id: string
   const db = env.DB!;
   const { row, files } = await applicationSnapshot(env, id);
   if (!row) throw new HttpError(404, "not_found");
-  const applicant = row.applicant_id ? await db.prepare("SELECT nickname FROM users WHERE id = ?").bind(row.applicant_id).first<{ nickname: string }>() : null;
+  const owner = row.applicant_id ? await db.prepare("SELECT nickname, files_deleting FROM users WHERE id = ?").bind(row.applicant_id).first<{ nickname: string; files_deleting: number }>() : null;
+  const applicant = owner ? { nickname: owner.nickname, deletionPending: Boolean(owner.files_deleting) } : null;
   const { results } = await db
     .prepare(
       `SELECT a.at, a.action, a.detail, u.nickname AS actor FROM audit_events a LEFT JOIN users u ON u.id = a.actor
@@ -75,8 +76,11 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   const checks = { activeCnpj: raw.activeCnpj === true, oneYear: raw.oneYear === true, fundsConfirmable: raw.fundsConfirmable === true };
   if (action === "approve" && !(checks.activeCnpj && checks.oneYear && checks.fundsConfirmable)) throw new HttpError(400, "checks_required");
   const db = env.DB!;
-  const row = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
+  const row = await db.prepare(`SELECT n.*, COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
+    LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
   if (!row) throw new HttpError(404, "not_found");
+  // Rejection only releases the reserved lot; it cannot republish evidence or cancel partial erasure.
+  if (row.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
   if (action !== "start_review" && row.revision !== revision) throw new HttpError(409, "stale_revision");
   if (!rule.from.includes(row.status)) throw new HttpError(409, "bad_transition");
   // Nobody reviews their own organisation (conflict of interest).
@@ -88,8 +92,8 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   // a concurrent decision that loses the race writes nothing.
   const MINE = "EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)";
   const statements = [
-    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ?, file_write_token = ? WHERE id = ? AND status = ? AND revision = ? AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)").bind(
-      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, token, id, row.status, row.revision
+    db.prepare("UPDATE ngos SET status = ?, review_note = ?, updated_at = ?, file_write_token = ? WHERE id = ? AND status = ? AND revision = ? AND (? = 'reject' OR NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1))").bind(
+      rule.to, action === "request_changes" || action === "reject" ? note : row.review_note, now, token, id, row.status, row.revision, action
     ),
     rule.lot
       ? db.prepare(`UPDATE lots SET state = ?, ngo_id = ? WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(rule.lot, id, lot, id, id, token)
@@ -100,7 +104,9 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   ];
   const [updated] = await db.batch(statements);
   if (!updated.meta.changes) {
-    const latest = await db.prepare("SELECT revision FROM ngos WHERE id = ?").bind(id).first<{ revision: number }>();
+    const latest = await db.prepare(`SELECT n.revision,COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
+      LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<{ revision: number; files_deleting: number }>();
+    if (latest?.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
     throw new HttpError(409, latest && latest.revision !== row.revision ? "stale_revision" : "bad_transition");
   }
   const after = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();

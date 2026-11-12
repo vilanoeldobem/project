@@ -124,7 +124,7 @@ Logo de uma ONG **publicada e ligada a um terreno publicado** ([IMPL-0017](../de
 `NGO_FILES_ENABLED = "true"` e o bucket ligado (senão `404 files_disabled`). ONG não publicada, sem logo ou
 inexistente → `404 not_found`. É a única rota pública que entrega um arquivo: documentos nunca saem por aqui.
 
-Cabeçalhos: `Content-Type` do arquivo (`image/png` ou `image/jpeg`), `Cache-Control: no-store`, `ETag`
+Cabeçalhos: `Content-Type` do arquivo (`image/png` ou `image/jpeg`), `Cache-Control: no-cache`, `ETag`
 (com `If-None-Match` igual → `304`), `X-Content-Type-Options: nosniff`,
 `Content-Security-Policy: default-src 'none'; sandbox`, `Cross-Origin-Resource-Policy: cross-origin`.
 
@@ -190,7 +190,8 @@ Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
 | `POST /me` | `{name, nickname, city}` | `200 {user}` (correção; e-mail não muda) |
 | `DELETE /me` | — | `204`, exclui a conta (ver abaixo) |
 
-`user` = `{id, name, nickname, city, email, role}` (`role`: `player` ou `admin`). Só a própria pessoa recebe esses
+`user` = `{id, name, nickname, city, email, role, deletionPending}` (`role`: `player` ou `admin`). `deletionPending`
+é booleano e informa exclusão iniciada ainda não concluída; clientes toleram a ausência em APIs anteriores. Só a própria pessoa recebe esses
 dados; para os outros, só o nickname é público.
 
 **Campos (P13):** exatamente Nome, Nickname, Cidade e E-mail (DEC-038, **CONFIRMADO**). As regras de formato abaixo
@@ -237,6 +238,9 @@ feito por outra pessoa com este e-mail antes do dono entrar). O e-mail não é e
 **Exclusão (`DELETE /me`):** apaga a conta, as sessões, os links e os eventos de missão (cascata no D1); uma
 candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vira `NULL`). Grava `audit_events`
 `user.delete` (ator e assunto pelo id, sem dados pessoais).
+Se a limpeza dos arquivos falhar, `GET /me` mantém a sessão e responde `deletionPending: true`. A tela da conta
+exibe a exclusão pendente e o botão **Tentar concluir exclusão**. A exclusão não pode ser cancelada: parte dos
+bytes já pode ter sido apagada. O cliente relê esse estado depois de uma falha e repete o mesmo `DELETE /me`.
 
 ### E-mail (Resend, IMPL-0012)
 
@@ -412,7 +416,8 @@ para que a lista corresponda à revisão mostrada ao administrador.
   houver falha parcial; é registro da tentativa, não confirmação de descarte.
 - **Exclusão de conta:** `DELETE /me` apaga do R2 e do D1 os documentos da pessoa e o logo de candidatura não
   publicada; o logo de uma ONG publicada fica. Antes de acessar R2, marca `users.files_deleting=1`: novas escritas
-  de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas. Se R2 falhar, a conta e
+  de candidatura/arquivo/foto e decisões administrativas concorrentes são recusadas, exceto rejeitar uma candidatura
+  ainda aberta para liberar o terreno. Essa rejeição não cancela a exclusão nem altera a política de retenção. Se R2 falhar, a conta e
   sessão continuam (`500`); se houver metadados sem binding `FILES`, responde `503 files_unavailable`. O usuário
   repete **o mesmo `DELETE /me`** após a recuperação. A marca não expira nem é desfeita automaticamente, pois
   parte dos bytes pode já ter sido removida. Escritas novas recebem `409 account_deleting`; leitura e sessão
@@ -445,8 +450,10 @@ O perfil textual público degrada para `photos: []` se não houver bucket/tabela
 O perfil público retorna `404` sem a associação publicada, mesmo que `requested_lot_id` exista. Expõe só campos
 públicos e projetos `{title, description}`; nunca CNPJ, contato, declarações, documentos, revisão, parecer ou chave
 R2. `photos` é `[]` com galeria desligada; quando ligada contém apenas `{id, url, caption, position}` aprovados,
-ordenados por posição e id. Perfil, fotos e logo público usam `no-store` e revogam a próxima leitura após retirada
-ou despublicação dos dados. A conciliação da operação de retirada do PR #33 é uma próxima entrega separada.
+ordenados por posição e id. O perfil usa `no-store`; logo e fotos públicos usam `no-cache` com ETag. A API
+revalida a associação e a aprovação antes de responder `304`, sem abrir o corpo quando o ETag corresponde.
+Retirada ou despublicação retorna `404` mesmo com ETag anterior. Bytes privados continuam `no-store`.
+Sem bucket/tabela de galeria, a rota pública de foto retorna `404` e o perfil mantém `photos: []`. A conciliação da operação de retirada do PR #33 é uma próxima entrega separada.
 
 Upload: responsável verificado; ONG em `submitted`, `changes_requested` ou `published`;
 até 10 fotos pendentes/aprovadas (rejeitadas e removidas liberam cota); posição inteira 0–9; legenda opcional com até 240
@@ -484,7 +491,7 @@ outras → `403 admin_only`.
 | Método e rota | Corpo | Resposta |
 |---|---|---|
 | `GET /admin/applications[?status=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}]}` (até 200, mais recentes primeiro) |
-| `GET /admin/applications/:id` | — | `{application, applicant: {nickname} \| null, history: [{at, action, detail, actor}], files}` |
+| `GET /admin/applications/:id` | — | `{application, applicant: {nickname, deletionPending} \| null, history: [{at, action, detail, actor}], files}` |
 | `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
 `status` filtra por um dos cinco estados; sem filtro, lista as candidaturas (exclui ONGs publicadas sem candidatura).
@@ -497,6 +504,13 @@ histórico é o nickname do admin.
 | `approve` | `submitted`, `under_review` | `published` / `published` | opcional |
 | `request_changes` | `submitted`, `under_review` | `changes_requested` / `application_sent` | obrigatória, ≥ 10 caracteres |
 | `reject` | `submitted`, `under_review`, `changes_requested` | `rejected` / `available` | obrigatória, ≥ 10 caracteres |
+
+Com `applicant.deletionPending: true`, o painel mostra o aviso de exclusão pendente, bloqueia iniciar análise,
+aprovar e pedir ajustes; essas ações válidas retornam `409 account_deleting`, inclusive se a intenção vencer
+uma corrida com a decisão. **Rejeitar continua permitido nos estados da tabela**, com justificativa, revisão/estado
+exatos, proibição de autoanálise e auditoria somente da decisão vencedora. Libera o terreno, mantém a intenção
+de exclusão e não apaga fotos automaticamente. Se o estado mudar com a tela aberta, o painel relê o detalhe ao
+receber `account_deleting`. ONG já publicada continua fora da transição de rejeição; retirada é outra entrega.
 
 - `note` (até 1000 caracteres) é a mensagem à organização; fica em `ngos.review_note` e aparece para quem enviou.
 - `revision` (obrigatório, inteiro) é a versão que o admin está vendo. `start_review` não a confere: inicia a
@@ -606,7 +620,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
 | API | 503 | `db_unavailable` | rota dependente de D1 (incluindo `/lots`, `/ngos/:id` e rotas de conta) sem binding |
 | API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ausentes; atualizar esquema antes de ativar o fluxo |
-| API | 409 | `account_deleting` | conta está em limpeza de arquivos; repetir a exclusão depois da recuperação |
+| API | 409 | `account_deleting` | exclusão pendente bloqueia candidatura/arquivos e análise/aprovação/ajustes; dono pode repetir exclusão, admin pode rejeitar candidatura aberta e liberar terreno |
 | API | 503 | `files_unavailable` | exclusão/recuperação exige armazenamento de arquivos, mas o binding `FILES` está ausente |
 | API | 503 | `file_cleanup_pending` | remoção/recuperação canônica não concluiu a limpeza; repetir `files/recover`, sem interpretar a retirada do metadado como descarte físico |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
