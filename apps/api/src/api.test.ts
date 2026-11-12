@@ -26,7 +26,7 @@ describe("worker /api", () => {
     expect(body.indicators.every((i) => i.value === null)).toBe(true);
   });
 
-  it("indicators count only published NGOs", async () => {
+  it("indicators count only published NGOs that hold a published lot", async () => {
     let sql = "";
     const db = {
       prepare: (q: string) => {
@@ -35,7 +35,8 @@ describe("worker /api", () => {
       },
     } as unknown as D1Database;
     const body = (await (await get("/indicators", env(db))).json()) as { indicators: { key: string; value: number | null }[] };
-    expect(sql).toContain("FROM ngos WHERE status = 'published'");
+    expect(sql).toContain("FROM ngos n WHERE n.status = 'published' AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')");
+    expect(sql).not.toContain("ngo_withdrawals");
     expect(body.indicators.find((i) => i.key === "approved_ngos")?.value).toBe(3);
     expect(body.indicators.find((i) => i.key === "confirmed_donations")?.value).toBeNull();
   });

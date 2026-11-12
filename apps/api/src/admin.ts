@@ -78,8 +78,10 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   const checks = { activeCnpj: raw.activeCnpj === true, oneYear: raw.oneYear === true, fundsConfirmable: raw.fundsConfirmable === true };
   if (action === "approve" && !(checks.activeCnpj && checks.oneYear && checks.fundsConfirmable)) throw new HttpError(400, "checks_required");
   const db = env.DB!;
+  // Read through the withdrawal ledger like the answer below: a database without migration 0009 is refused here
+  // (503 schema_outdated), before anything is written.
   const row = await db.prepare(`SELECT n.*, COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
-    LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
+    LEFT JOIN ngo_withdrawals w ON w.ngo_id=n.id LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
   if (!row) throw new HttpError(404, "not_found");
   // Rejection only releases the reserved lot; it cannot republish evidence or cancel partial erasure.
   if (row.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");

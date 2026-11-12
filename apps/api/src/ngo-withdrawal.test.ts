@@ -4,6 +4,7 @@ import { pdf, png } from "../test/fixtures.mjs";
 import { createR2 } from "../test/r2.mjs";
 import { handleApi, type Env } from "./api";
 import { sha256Hex } from "./crypto";
+import { publicPhotos } from "./ngo-photos";
 
 const NGO = "a0000000-0000-4000-8000-000000000001", OTHER_NGO = "a0000000-0000-4000-8000-000000000002";
 const PHOTO = "b0000000-0000-4000-8000-000000000001";
@@ -60,21 +61,26 @@ function pauseNextBytesPut() {
   return { ready, release };
 }
 
+/** Accounts, sessions and one published NGO on plaza-01; photo and files only where the schema has their tables. */
+async function seed(database: ReturnType<typeof createD1>, schema = 9) {
+  for (const user of ["owner", "other", "admin", "admin2"]) {
+    await database.prepare("INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES(?,?,?,?,?,?,?,?)")
+      .bind(user, user, user, user, "Recife", `${user}@example.test`, user.startsWith("admin") ? "admin" : "player", "2026-01-01").run();
+    await database.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex(user), user, "2099-01-01").run();
+  }
+  await database.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id,review_note) VALUES(?, 'Exemplo', '11222333000181', 'published', 'owner', 'plaza-01','Original review')").bind(NGO).run();
+  await database.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-01'").bind(NGO).run();
+  if (schema >= 7) await database.prepare("INSERT INTO ngo_photos(id,ngo_id,object_key,content_type,byte_size,caption,position,status) VALUES(?,?,?,'image/png',1,'Public caption',0,'approved')").bind(PHOTO, NGO, PHOTO_KEY).run();
+  if (schema >= 6) await database.prepare("INSERT INTO ngo_files(id,ngo_id,kind,content_type,size,uploaded_by,created_at) VALUES(?,?,'logo','image/png',1,'owner','2026-01-01'),(?,?,'document','application/pdf',1,'owner','2026-01-02')").bind(LOGO, NGO, DOCUMENT, NGO).run();
+  await database.prepare("INSERT INTO progress_events(user_id,mission_id,event_id) VALUES('owner','explore','plaza')").run();
+}
+
 beforeEach(async () => {
   db = createD1(); bucket = createR2();
   for (const key of [PHOTO_KEY, LOGO_KEY, DOCUMENT_KEY]) await bucket.put(key, new Uint8Array([1]));
   env = { DB: db, FILES: bucket, ACCOUNTS_ENABLED: "true", ALLOWED_ORIGINS: ORIGIN, NGO_WITHDRAWAL_ENABLED: "true",
     NGO_PHOTOS_ENABLED: "true", NGO_FILES_ENABLED: "true" };
-  for (const user of ["owner", "other", "admin", "admin2"]) {
-    await db.prepare("INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES(?,?,?,?,?,?,?,?)")
-      .bind(user, user, user, user, "Recife", `${user}@example.test`, user.startsWith("admin") ? "admin" : "player", "2026-01-01").run();
-    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex(user), user, "2099-01-01").run();
-  }
-  await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id,review_note) VALUES(?, 'Exemplo', '11222333000181', 'published', 'owner', 'plaza-01','Original review')").bind(NGO).run();
-  await db.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-01'").bind(NGO).run();
-  await db.prepare("INSERT INTO ngo_photos(id,ngo_id,object_key,content_type,byte_size,caption,position,status) VALUES(?,?,?,'image/png',1,'Public caption',0,'approved')").bind(PHOTO, NGO, PHOTO_KEY).run();
-  await db.prepare("INSERT INTO ngo_files(id,ngo_id,kind,content_type,size,uploaded_by,created_at) VALUES(?,?,'logo','image/png',1,'owner','2026-01-01'),(?,?,'document','application/pdf',1,'owner','2026-01-02')").bind(LOGO, NGO, DOCUMENT, NGO).run();
-  await db.prepare("INSERT INTO progress_events(user_id,mission_id,event_id) VALUES('owner','explore','plaza')").run();
+  await seed(db);
 });
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
@@ -266,3 +272,106 @@ describe("administrative NGO withdrawal", () => {
     expect(prior.sql("PRAGMA foreign_key_check")).toEqual([]); expect(prior.sql("SELECT * FROM ngo_withdrawals")).toEqual([]);
   });
 });
+
+describe("public projections of a withdrawn NGO", () => {
+  const indicator = async () => ((await (await publicGet("/indicators")).json()) as { indicators: Array<{ key: string; value: number | null }> })
+    .indicators.find((item) => item.key === "approved_ngos")?.value;
+  const lot = async () => ((await (await publicGet("/lots")).json()) as { lots: Array<Record<string, unknown>> }).lots.find((item) => item.id === "plaza-01");
+  const PUBLIC_PATHS = ["/lots", "/indicators", `/ngos/${NGO}`, `/ngos/${NGO}/logo`, `/ngos/${NGO}/photos/${PHOTO}`];
+
+  // One assertion per public projection, each shown before and gone after: a projection that only checks
+  // `status = 'published'` (the stored status never changes) fails here.
+  it("stops showing the NGO in lots, indicators, profile, logo, photo list and photo bytes", async () => {
+    expect(await lot()).toMatchObject({ state: "published", ngo_id: NGO, ngo_name: "Exemplo", ngo_logo: `/ngos/${NGO}/logo?v=${LOGO.slice(0, 8)}` });
+    expect(await indicator()).toBe(1);
+    expect(await (await publicGet(`/ngos/${NGO}`)).json()).toMatchObject({ ngo: { id: NGO, photos: [{ id: PHOTO, url: `/ngos/${NGO}/photos/${PHOTO}` }] } });
+    expect(await publicPhotos(env, NGO)).toHaveLength(1);
+    expect((await publicGet(`/ngos/${NGO}/logo`)).status).toBe(200);
+    expect((await publicGet(`/ngos/${NGO}/photos/${PHOTO}`)).status).toBe(200);
+
+    expect((await withdraw()).status).toBe(200);
+
+    expect(await lot()).toEqual(expect.objectContaining({ state: "available", ngo_id: null, ngo_name: null, ngo_summary: null, ngo_logo: null }));
+    expect(await indicator()).toBe(0);
+    expect((await publicGet(`/ngos/${NGO}`)).status).toBe(404);
+    expect(await publicPhotos(env, NGO)).toEqual([]);
+    for (const method of ["GET", "HEAD"]) {
+      expect((await publicGet(`/ngos/${NGO}/logo`, method)).status).toBe(404);
+      expect((await publicGet(`/ngos/${NGO}/photos/${PHOTO}`, method)).status).toBe(404);
+    }
+    // A cached validator must not keep the bytes alive either.
+    for (const [path, etag] of [[`/ngos/${NGO}/logo`, `"${LOGO}"`], [`/ngos/${NGO}/photos/${PHOTO}`, `"${PHOTO}"`]])
+      expect((await request("GET", path, "", null, { "If-None-Match": etag })).status).toBe(404);
+    // Nothing public names the organisation, its files or the message to it any more, with every flag on or off.
+    for (const flags of [{}, { NGO_WITHDRAWAL_ENABLED: "false" }, { ACCOUNTS_ENABLED: "false", NGO_WITHDRAWAL_ENABLED: "false" }]) {
+      env = { ...env, ...flags };
+      for (const path of PUBLIC_PATHS) {
+        const text = await (await publicGet(path)).text();
+        for (const secret of [NGO, "Exemplo", LOGO, PHOTO, REASON]) expect([path, text.includes(secret)]).toEqual([path, false]);
+      }
+    }
+    // The private copies are untouched: the withdrawal removes nothing from R2 or D1.
+    expect(bucket.keys()).toEqual([PHOTO_KEY, LOGO_KEY, DOCUMENT_KEY].sort());
+  });
+
+  it("releases the house in the same request for an NGO whose owner account is gone", async () => {
+    await db.prepare("UPDATE ngos SET applicant_id=NULL WHERE id=?").bind(NGO).run();
+    expect((await withdraw()).status).toBe(200);
+    expect(await indicator()).toBe(0);
+    for (const path of PUBLIC_PATHS.slice(2)) expect((await publicGet(path)).status).toBe(404);
+  });
+});
+
+describe("database without migration 0009", () => {
+  const CHECKS = { activeCnpj: true, oneYear: true, fundsConfirmable: true };
+
+  // Signed-in and admin routes join `ngo_withdrawals`: on an older database they follow the 503 schema_outdated
+  // convention (never a 500), with the withdrawal flag on or off, and write nothing.
+  it.each(["true", "false"])("answers 503 schema_outdated on the routes that read the ledger (NGO_WITHDRAWAL_ENABLED=%s)", async (flag) => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    db = createD1({ upTo: 8 }); await seed(db, 8);
+    env = { ...env, DB: db, NGO_WITHDRAWAL_ENABLED: flag };
+    const before = ["ngos", "lots", "ngo_photos", "ngo_files", "audit_events", "media_upload_intents"].map((table) => db.sql(`SELECT * FROM ${table}`));
+    const outdated: Array<[string, Promise<Response>]> = [
+      ["GET /ngo/application", call("GET", "/ngo/application", undefined, "owner")],
+      ["POST /ngo/application", call("POST", "/ngo/application", { ...APPLICATION, accountId: "other", cnpj: "11444777000161", lotId: "plaza-02" }, "other")],
+      ["GET /admin/applications", call("GET", "/admin/applications")],
+      ["GET /admin/applications?status", call("GET", "/admin/applications?status=published")],
+      ["GET /admin/applications/:id", call("GET", `/admin/applications/${NGO}`)],
+      ["POST /ngo/photos", uploadPhoto()],
+      ["POST /admin/ngo-photos/:id/decision", call("POST", `/admin/ngo-photos/${PHOTO}/decision`, { accountId: "admin", action: "remove", revision: 1 })],
+      ["POST /ngo/application/files", uploadDocument()],
+      ["DELETE /ngo/application/files/:id", deleteFile(DOCUMENT)],
+      ["POST /ngo/application/files/recover", request("POST", "/ngo/application/files/recover", "owner", ORIGIN, { "X-Vila-Account": "owner" })],
+      ...(flag === "true" ? [["POST /admin/ngos/:id/withdraw", withdraw()] as [string, Promise<Response>]] : []),
+    ];
+    for (const [name, pending] of outdated) {
+      const response = await pending;
+      expect([name, response.status, await response.json()]).toEqual([name, 503, { error: "schema_outdated" }]);
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+    }
+    if (flag === "false") expect((await withdraw()).status).toBe(404);
+    expect(["ngos", "lots", "ngo_photos", "ngo_files", "audit_events", "media_upload_intents"].map((table) => db.sql(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(bucket.keys()).toEqual([PHOTO_KEY, LOGO_KEY, DOCUMENT_KEY].sort());
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("keeps the session, progress, public reads and account deletion working without the ledger", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    db = createD1({ upTo: 8 }); await seed(db, 8); env = { ...env, DB: db };
+    expect((await call("GET", "/me", undefined, "owner")).status).toBe(200);
+    expect((await call("GET", "/progress", undefined, "owner")).status).toBe(200);
+    for (const path of ["/lots", "/indicators", `/ngos/${NGO}`, `/ngos/${NGO}/logo`, `/ngos/${NGO}/photos/${PHOTO}`]) expect([path, (await publicGet(path)).status]).toEqual([path, 200]);
+    // A decision is refused before it writes: its answer would need the ledger.
+    await db.prepare("UPDATE ngos SET status='submitted' WHERE id=?").bind(NGO).run();
+    await db.prepare("UPDATE lots SET state='application_sent' WHERE ngo_id=?").bind(NGO).run();
+    for (const action of ["start_review", "approve", "reject"])
+      expect(await error(call("POST", `/admin/applications/${NGO}/decision`, { action, revision: 1, checks: CHECKS, note: "Synthetic note for the test." }))).toBe("schema_outdated");
+    expect(db.sql("SELECT status FROM ngos WHERE id=?", NGO)[0].status).toBe("submitted");
+    expect(db.sql("SELECT * FROM audit_events")).toEqual([]);
+    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    expect(db.sql("SELECT applicant_id FROM ngos WHERE id=?", NGO)[0].applicant_id).toBeNull();
+    expect(logged).not.toHaveBeenCalled();
+  });
+});
+

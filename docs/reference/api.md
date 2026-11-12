@@ -93,7 +93,7 @@ Cache 30 s.
 
 | key | Fonte | Valor na 0.4.0 |
 |---|---|---|
-| `approved_ngos` | `COUNT(*) FROM ngos WHERE status='published'` | número (ou `null` sem D1) |
+| `approved_ngos` | ONGs com `status='published'` ligadas a um terreno `published` (o que a Vila mostra; uma ONG retirada não tem terreno e não é contada) | número (ou `null` sem D1) |
 | `registered_users` | — | `null` (o código ainda traz a nota "Cadastro ainda não implementado.") |
 | `confirmed_donations` | — | `null` (PEN-004, PEN-006) |
 | `confirmed_amount` | — | `null` |

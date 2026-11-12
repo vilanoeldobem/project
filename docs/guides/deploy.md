@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -57,11 +57,20 @@ pnpm --filter @vila/api db:migrate:remote
 ```
 
 Exige autorização humana explícita. Confira o histórico remoto e aplique a sequência efetiva antes de
-disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007
-e a gravação de progresso requer a 0008 (`progress_writes`, IMPL-0019; sem ela `POST /progress/events` responde `500`);
-operações que encontrem colunas novas ausentes retornam `503 schema_outdated`. As rotas públicas continuam
-tolerantes à v3, inclusive `/ngos/:id`; isso não dispensa o upgrade antes de ativar as contas. O último estado
-registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
+disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007,
+a gravação de progresso requer a 0008 (`progress_writes`, IMPL-0019; sem ela `POST /progress/events` responde `500`)
+e as rotas de candidatura e de análise de ONG requerem a 0009 (`ngo_withdrawals`, IMPL-0020), **mesmo com
+`NGO_WITHDRAWAL_ENABLED` desligada**; operações que encontrem colunas novas ou essa tabela ausentes retornam
+`503 schema_outdated`. As rotas públicas continuam tolerantes à v3, inclusive `/lots`, `/indicators`, `/ngos/:id`,
+logo e fotos: nenhuma delas lê a tabela de retiradas. Isso não dispensa o upgrade antes de ativar as contas. O
+último estado registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
+
+**Ordem com as contas ligadas: migration antes da API.** `db:migrate:remote` aplica todas as migrations pendentes
+de uma vez (levar a 0009 a um banco na v3 aplica também 0004–0008). Com `ACCOUNTS_ENABLED = "false"` a API desta
+versão pode ser publicada antes de qualquer migration: as rotas públicas respondem igual nos schemas v3 a v9
+(teste em `apps/api/src/public-ngo.test.ts`). Com as contas ligadas, publicar a API antes da 0009 deixa
+`/ngo/application`, `/admin/applications*`, o envio de fotos e de arquivos respondendo `503 schema_outdated` até a
+migration ser aplicada; sessão, progresso e exclusão de conta continuam funcionando.
 
 ## 4. Publicar
 
@@ -178,7 +187,7 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 
 ### 7.1 Ordem do deploy da 0.4.0
 
-1. **Migrations sequenciais até 0008 + API** (ambas exigem autorização):
+1. **Migrations sequenciais até 0009 + API**, nesta ordem (ambas exigem autorização):
 
    ```bash
    pnpm --filter @vila/api db:migrate:remote     # aplica somente as migrations pendentes da sequência revisada
@@ -187,8 +196,9 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
    curl -s https://api.vilanoeldobem.com.br/config    # {"accounts":false}
    ```
 
-   Aplique a sequência revisada antes de ativar o fluxo de contas. 0006 contém os arquivos canônicos e 0007
-   contém a galeria e guardas. O perfil público funciona na v3 com campos opcionais ausentes tratados como
+   Aplique a sequência revisada antes de ativar o fluxo de contas. 0006 contém os arquivos canônicos, 0007
+   contém a galeria e guardas e 0009 contém o registro de retiradas, lido pelas rotas de candidatura e análise
+   ([§3](#3-aplicar-migrations-remotas)). O perfil público funciona na v3 com campos opcionais ausentes tratados como
    vazios; teste uma ONG inexistente em `GET /ngos/00000000-0000-4000-8000-000000000000` → 404. Isso não afirma
    que o banco remoto já recebeu as migrations.
 2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
@@ -327,10 +337,11 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
    `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
    já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
-2. **Migrations sequenciais até 0008 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
+2. **Migrations sequenciais até 0009 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
    explícita. A 0006 contém arquivos canônicos; a 0007 contém galeria e guardas usados em todas as rotas de
-   sessão. **Se contas já estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado**
-   com `503 schema_outdated`, mesmo com fotos desligadas. Cadastro/link/logout não provam que a sessão funciona.
+   sessão; a 0009 contém o registro de retiradas usado nas rotas de candidatura e análise. **Se contas já
+   estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado** e, antes da 0009, as
+   rotas de candidatura e análise, com `503 schema_outdated`, mesmo com fotos e retirada desligadas. Cadastro/link/logout não provam que a sessão funciona.
    Aplicar a sequência antes da API e conferir `/me` com sessão sintética de homologação. O código anterior é
    compatível com as colunas/tabelas adicionais. Esta orientação não afirma aplicação no banco remoto.
 3. **Conferir:**
@@ -368,6 +379,18 @@ Uma implementação testada não autoriza ligar a bandeira nem criar recursos. C
 rejeição individual, recuperação de falhas de limpeza e exclusão de conta em homologação antes de pedir ativação.
 A interface de edição/revisão da galeria é outra entrega. Desligar a bandeira interrompe upload/publicação,
 preservando operações autenticadas de remoção e recuperação.
+
+### 9.5 Retirada de ONG publicada — ainda desligada (PROPOSTA)
+
+`NGO_WITHDRAWAL_ENABLED` permanece `"false"` em produção e em homologação
+([IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)). A rota `POST /admin/ngos/:id/withdraw` responde
+`404` e o painel não oferece a ação. Ligar a bandeira depende das respostas do dono do produto à
+[OQ-14](../decisions/open-questions.md) (efeitos sobre a conta e o CNPJ, ausência de restauração, retenção,
+mensagem à organização) e da política de missões da OQ-09; uma implementação testada não autoriza a ativação.
+A migration 0009 vem antes da API sempre que as contas estiverem ligadas ([§3](#3-aplicar-migrations-remotas)).
+Depois de existir alguma retirada, não reverta a API para uma versão anterior a esta: ela não conhece o registro
+e trataria a organização como publicada nas telas privadas e voltaria a contá-la no indicador público
+`approved_ngos` (perfil, logo, fotos e terreno continuam sem mostrá-la, porque o terreno foi liberado). Desligar a bandeira só impede novas retiradas; nunca republica uma organização retirada.
 
 ## Limitações conhecidas
 
