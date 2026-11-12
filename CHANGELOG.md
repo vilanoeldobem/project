@@ -84,6 +84,31 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Runtime das quests narrativas `quests-v1` (PROPOSTA, DEC-039 a DEC-042; PEN-025) atrás de flags
+  (`VITE_QUESTS_V1_ENABLED=true` ou `?quests=1` em localhost/dev no cliente **e** `QUESTS_V1_ENABLED` na API, lida
+  pelo cliente em `GET /config`; as duas precisam estar ligadas), com catálogo em
+  `packages/shared/src/game/quests.ts`, máquina de estados pura, cinco NPCs (`villager`), coleta por proximidade,
+  bolsa derivada, diálogos, Caderno de cadeias, integração com XP idempotente na API, testes em
+  `packages/shared/src/game/quests.test.ts`, verificação no navegador (`apps/client/scripts/verify-quests.mjs`) e
+  referência em [quests.md](docs/reference/quests.md).
+- Painel de doação global físico (`DONATION_PANEL`, gerador `quest-donation-panel`; PROPOSTA `quests-v1`), montado só
+  com as quests ligadas: abre o mesmo painel de doação da árvore (DEC-026) e serve à leitura da promessa.
+- Regras do runtime de `quests-v1` ([IMPL-0013](docs/decisions/0013-quests-v1-runtime.md)): com as flags desligadas o
+  mundo é o de antes (moradores, atril e os obstáculos deles só existem com as quests ligadas); a API grava um evento
+  de quest apenas quando ele é uma transição válida (um `accept` de aba desatualizada ou um objetivo antes do
+  `accept` não travam mais a missão e podem ser reenviados); com `QUESTS_V1_ENABLED` desligada a API ignora os
+  eventos de quest e grava o resto do lote, em vez de recusar tudo com `400`; clicar num morador de longe faz o
+  avatar andar até ele em vez de abrir o diálogo; o foco do teclado fica no diálogo quando a próxima missão aparece.
+- Itens de quest (PROPOSTA, `quests-v1`): cinco geradores em `apps/client/src/scene/gen/quest-items.ts` —
+  `quest-reindeer-bell` (Sino do arreio), `quest-lucky-charm` (Patuá da sorte), `quest-ornament-crate` (Caixa de
+  enfeites), `quest-donation-panel` (Painel de doação global) e `quest-story-page` (Página da história) — com
+  receitas visuais pesquisadas em `content/proposals/quests-v1/object-references.md`, todos dentro de 80 voxels e
+  200 faces (itens) ou 220 e 600 (adereço de mundo).
+- Proposta estruturada `content/proposals/quests-v1/` (15 missões em 5 cadeias de NPC, diálogos, bíblia de
+  história, catálogo normalizado de 8 objetos em `objects.csv`/`objects.md`, fila de prompts em `object-prompts/`,
+  auditoria em `review.md`, plano de piloto em `pilot-plan.md` e validadores `validate-quests.mjs` e
+  `validate-objects.mjs`).
+
 - Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
   fundidos numa só geometria por material (+3 chamadas de desenho para todos).
 
@@ -136,6 +161,12 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- Rótulos de missão sobre os cinco NPCs e o atril da doação (`@react-three/drei` `Html`), um botão de ação no HUD
+  por alvo (NPC, interação de quest, painel de doação, árvore, terreno) com `E`/`Enter`, diálogo modal
+  (`ui/Panel.tsx`) seguindo o padrão APG de foco, copy cardinal corrigida para **ao sul** para o trenó, cabeçalhos
+  de CORS aplicados na própria `Response` em `apps/api/src/api.ts`, teste de coordenadas exatas em
+  `packages/shared/src/game/motion.test.ts` e atualização de [api.md](docs/reference/api.md),
+  [architecture.md](docs/reference/architecture.md) e [content.md](docs/reference/content.md).
 - Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
   zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
@@ -149,6 +180,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- Contador "Missões n/4" do HUD restrito às quatro missões rápidas (`MISSIONS`), mantendo as 15 quests narrativas
+  em seção própria no Caderno.
 - Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
   deslizamento.
 

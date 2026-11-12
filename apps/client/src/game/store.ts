@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { COSMETICS, type Look, sanitizeLook, unlockedIds } from "@vila/shared/game/cosmetics";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
+import type { NpcId } from "@vila/shared/game/quests";
 import { events } from "./events";
 
 export type Panel =
@@ -16,10 +17,17 @@ export type Panel =
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
+  | { kind: "npc"; npcId: NpcId }
   | { kind: "admin" };
 
 /** Closest interactive target near the avatar (drives the action button). */
-export type Nearby = { kind: "tree" } | { kind: "lot"; lotId: string } | null;
+export type Nearby =
+  | { kind: "tree" }
+  | { kind: "lot"; lotId: string }
+  | { kind: "npc"; npcId: NpcId }
+  | { kind: "quest"; interactionId: string }
+  | { kind: "donation-panel" }
+  | null;
 
 // v2: mission ids were renamed to English in 0.2.0; v1 progress is discarded. This key holds GUEST progress
 // only: a signed-in account's progress lives on the server (and in memory), so on a shared browser the next
@@ -128,7 +136,12 @@ export const useVila = create<VilaState>((set, get) => ({
   close: () => set({ panel: { kind: "none" } }),
   setNearby: (nearby) => {
     const cur = get().nearby;
-    if (cur?.kind === nearby?.kind && (cur?.kind !== "lot" || (nearby?.kind === "lot" && cur.lotId === nearby.lotId))) return;
+    if (cur && nearby && cur.kind === nearby.kind) {
+      if (cur.kind === "lot" && nearby.kind === "lot" && cur.lotId === nearby.lotId) return;
+      if (cur.kind === "npc" && nearby.kind === "npc" && cur.npcId === nearby.npcId) return;
+      if (cur.kind === "quest" && nearby.kind === "quest" && cur.interactionId === nearby.interactionId) return;
+      if (cur.kind !== "lot" && cur.kind !== "npc" && cur.kind !== "quest") return;
+    } else if (cur === nearby) return;
     set({ nearby });
   },
   setTarget: (target) => set(target ? { target, skyView: false } : { target }),

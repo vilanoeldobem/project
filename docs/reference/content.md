@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos) · **Atualizado em:** 2026-11-10
+> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 5 de 5 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -39,6 +39,11 @@
 | `garland` | Guirlanda | props | comprimento, curvatura, lâmpadas, laços | 44 / 154 |
 | `market-stall` | Barraca | props | toldo listrado, madeira, largura, mercadorias | 111 / 318 |
 | `panettone-stand` | Barraca de panetone | props | toldo, madeira, largura (toque brasileiro) | 110 / 322 |
+| `quest-reindeer-bell` | Sino do arreio | props | metal ouro/bronze, altura e largura da boca, tom da faixa, estilo do laço, orientação | 57 / 138 |
+| `quest-lucky-charm` | Patuá da sorte | props | par de tecido, cordão, selo frontal, boca arrepiada, lado do raminho, orientação | 50 / 108 |
+| `quest-ornament-crate` | Caixa de enfeites | props | madeira, profundidade, altura, combinação de bolas emissivas, topo, lado da neve | 68 / 156 |
+| `quest-donation-panel` | Painel de doação global | props | madeira, largura, altura, moldura, guirlanda, lâmpada, orientação | 77 / 196 |
+| `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
@@ -61,6 +66,14 @@ cachorro, um gato no banco, dois passarinhos nos postes, um coelho e uma coruja 
 fixa. Respiram e olham em volta pelo material `idle` (shader de vértice; "Menos movimento" desliga). A coruja só
 aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores e cachorro bloqueiam o avatar;
 animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
+
+Os cinco moradores das quests narrativas (`NPCS`; PROPOSTA `quests-v1`, PEN-025) usam o mesmo gerador `villager` com
+semente igual ao `npc_id` (Baltazar, Dona Filó, Seu Nivaldo, Aurora, Dona Guida), colidem com raio `0,5` e carregam um
+rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitura da doação global
+(`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, com um rótulo curto
+"Doação global"; leva ao mesmo painel de doação da árvore (DEC-026). NPCs, atril, rótulos e obstáculos só existem com
+as quests ligadas. Posições e rótulos são sugestões PROPOSTA; a copy diz
+"ao sul" para o trenó e o trenó pequeno, que estão em `+z` na tela. Ver [quests.md](quests.md).
 
 ## 4. Cosméticos do avatar (PROPOSTA)
 

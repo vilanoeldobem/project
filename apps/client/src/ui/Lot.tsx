@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { questState } from "@vila/shared/game/quests";
+import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import type { LotInfo } from "../lib/api";
@@ -10,6 +12,13 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
+  // newest-house-visit (PROPOSTA quests-v1): only a published house with a real NGO counts.
+  useEffect(() => {
+    if (!questsEnabled() || info?.state !== "published" || !info.ngo_name) return;
+    if (questState(useVila.getState().progress, "newest-house-visit") !== "active") return;
+    useVila.getState().record("newest-house-visit", lotId);
+    useVila.getState().notify("Visita registrada! Leve a notícia a Dona Guida.");
+  }, [info?.state, info?.ngo_name, lotId]);
   const n = Number(lotId.split("-")[1]);
   const accounts = useAccount((s) => s.enabled);
 
