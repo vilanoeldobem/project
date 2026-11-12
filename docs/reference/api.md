@@ -82,7 +82,7 @@ Cache 30 s.
 
 | key | Fonte | Valor na 0.4.0 |
 |---|---|---|
-| `approved_ngos` | `COUNT(*) FROM ngos WHERE status='published'` | número (ou `null` sem D1) |
+| `approved_ngos` | ONGs com `status='published'` e sem registro em `ngo_withdrawals` | número (ou `null` sem D1) |
 | `registered_users` | — | `null` (o código ainda traz a nota "Cadastro ainda não implementado.") |
 | `confirmed_donations` | — | `null` (PEN-004, PEN-006) |
 | `confirmed_amount` | — | `null` |
@@ -94,7 +94,7 @@ Cache 30 s.
 
 ### GET /lots
 
-Terrenos e, só quando **a ONG e o terreno** estão `published`, identificador, nome e resumo dela.
+Terrenos e, só quando **a ONG e o terreno** estão `published` e não existe retirada administrativa, identificador, nome e resumo dela.
 `ngo_id` é o identificador para consultar `GET /ngos/:id`; nos demais estados ele é `null`.
 `Cache-Control: no-store`. Candidaturas em
 andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas nunca expõem dados da organização.
@@ -129,7 +129,7 @@ Exemplo sintético do contrato, não um registro de produção:
 }
 ```
 
-- Somente retorna a ONG com `ngos.status = 'published'`, ligada por `lots.ngo_id` a um terreno também
+- Somente retorna a ONG sem registro em `ngo_withdrawals`, com `ngos.status = 'published'`, ligada por `lots.ngo_id` a um terreno também
   `published`. O terreno retornado é o vínculo real, não `requested_lot_id` da candidatura.
 - Identificador inválido, organização inexistente, não publicada ou sem terreno publicado → a mesma resposta
   `404 {"error":"not_found"}`. Sem binding D1 → `503 db_unavailable`.
@@ -329,12 +329,15 @@ versão: os documentos são declarados e a administração os pede na análise.
 | | `projects` | até 3 (`[{title, description}]`, título 3–80, descrição até 400; extras ignorados) |
 | 4. Revisão e envio | `lotId` | `plaza-NN`, terreno `available` (ou o que a candidatura já ocupa) |
 
-`application` = os campos acima + `{id, status, revision, reviewNote, createdAt, updatedAt}`.
+`application` = os campos acima + `{id, status, revision, reviewNote, createdAt, updatedAt}`. Depois de retirada
+administrativa, o status efetivo é `withdrawn` e há `withdrawal: {reason, at}`, somente para o dono/admin.
+A nota original `reviewNote` é preservada. A listagem administrativa expõe o status, mas não o motivo.
 
 Regras do envio:
 
 - Exige conta verificada (`403 not_verified`).
 - Uma candidatura ativa por conta: com uma em `submitted`, `under_review` ou `published` → `409 application_active`.
+- ONG retirada → `409 application_withdrawn`; não há reenvio ou retorno à Vila nesta entrega.
 - Terreno ocupado → `409 lot_unavailable` (com `fields.lotId`); CNPJ de outra candidatura → `409 cnpj_in_use` (com
   `fields.cnpj`). A reserva do terreno é condicional no mesmo lote de SQL; se outra pessoa levou o terreno no meio,
   a mudança é desfeita e a resposta é `409 lot_unavailable`.
@@ -352,6 +355,7 @@ Regras do envio:
 | `changes_requested` | `application_sent` (continua reservado) |
 | `published` | `published` |
 | `rejected` | `available` (liberado, `ngo_id = NULL`) |
+| `withdrawn` (status efetivo da API; aprovação anterior preservada no banco) | `available` (associações atuais liberadas, `ngo_id = NULL`) |
 
 ### Análise administrativa (DEC-037)
 
@@ -364,7 +368,9 @@ outras → `403 admin_only`.
 | `GET /admin/applications/:id` | — | `{application, applicant: {nickname} \| null, history: [{at, action, detail, actor}]}` |
 | `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
-`status` filtra por um dos cinco estados; sem filtro, lista as candidaturas (exclui ONGs publicadas sem candidatura).
+`status` filtra pelos cinco estados anteriores ou `withdrawn`, projetado junto com a revisão no mesmo snapshot.
+Sem filtro, lista candidaturas e retiradas, incluindo ONGs retiradas sem solicitante. ONGs publicadas sem
+candidatura e sem retirada continuam excluídas. `?status=published` não inclui retiradas.
 `:id` é o UUID da candidatura. Quem enviou aparece só pelo nickname (`null` se a conta foi excluída); `actor` no
 histórico é o nickname do admin.
 
@@ -656,3 +662,53 @@ node apps/api/scripts/verify-documents.mjs http://127.0.0.1:8794
 Excluir `.document-smoke-seed.sql` depois da prova. O seed reinicia apenas a ONG sintética e suas sessões;
 repeti-lo pode deixar bytes órfãos no simulador R2. Use o ambiente isolado. O smoke cobre dono/admin, negação
 de visitante/terceiro, revisão obsoleta, retirada, aprovação e permanência privada após publicação.
+
+## Retirada administrativa de ONG publicada — IMPL-0020
+
+**Liberação do terreno confirmada por Nicolas em 12/11/2026.** Contrato técnico para revisão no PR, sem
+ativação remota. Ver [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md) e OQ-09/OQ-14.
+
+`POST /admin/ngos/:id/withdraw` exige `ACCOUNTS_ENABLED=true`, `NGO_WITHDRAWAL_ENABLED=true`, Origin permitido,
+sessão de administrador e JSON `{accountId, revision, reason}`. `accountId` deve ser o da sessão;
+`revision` é inteiro seguro positivo; `reason` é texto privado de 10 a 1000 pontos de código Unicode após
+aparar espaços, sem NUL embutido. A contagem coincide com a restrição do SQLite.
+O administrador não pode retirar a própria ONG. Só uma ONG publicada, ainda sem retirada, aceita a operação.
+
+Resposta: `200 {application}` com nova revisão, `status: "withdrawn"` e `withdrawal: {reason, at}`. A retirada,
+o incremento de revisão, a liberação dos terrenos e a auditoria são uma transação D1. Chamadas concorrentes ou
+repetidas não duplicam auditoria: apenas uma vence, as demais recebem `409`. O registro da retirada guarda os
+terrenos **realmente associados**, inclusive quando `requested_lot_id` é diferente ou nulo. Todos esses vínculos
+são liberados (`available`, `ngo_id=null`); um terreno de outra ONG não é alterado. A outra organização pode
+candidatar-se ao terreno pelo fluxo já existente.
+
+Na próxima leitura da API, `/ngos/:id`, galeria e bytes públicos de fotos (GET/HEAD) deixam de servir a ONG;
+`/lots` não expõe nome/resumo/id retirados e `/indicators` exclui a organização da contagem. Indicadores mantêm
+o cache existente de 30 s. Os bloqueios de leitura persistem mesmo desligando a flag de novas retiradas.
+Conteúdo já baixado ou uma tela que ainda não atualizou não pode ser revogado por essa operação.
+
+Dados e aprovação histórica permanecem no banco. Fotos e documentos continuam disponíveis pelas rotas
+privadas já autorizadas para dono/admin. Novos uploads de fotos e aprovação/rejeição de fotos são bloqueados;
+a remoção administrativa de uma foto continua disponível. Documentos seguem congelados pelo estado aprovado
+armazenado. Não há exclusão física, retorno automático, novo cadastro pela mesma candidatura nem alteração
+de missões, XP ou eventos de progresso. OQ-09 continua tratando a missão ativa cujo último alvo deixa a Vila.
+
+Motivo/data aparecem apenas no detalhe privado e na resposta ao solicitante. `reviewNote` conserva a nota
+original da análise. A auditoria `ngo.withdraw` guarda ator, ONG, revisão, IDs dos terrenos e `hasReason`, sem
+copiar o texto privado. A listagem administrativa filtra `withdrawn` e não mistura retiradas com `published`.
+O rótulo compartilhado e o cálculo de ocupação do painel reconhecem a retirada; o botão de retirada e a
+apresentação do motivo ainda devem ser integrados por Augusto. Não há alteração visual do jogo neste PR.
+
+| Erro | Significado |
+|---|---|
+| `404 not_found` | Flag desligada, UUID inválido ou ONG inexistente |
+| `400 revision_required` / `reason_required` | Revisão ou motivo inválidos |
+| `409 account_changed` | A conta da página diverge da sessão |
+| `403 self_review` | Administrador é o solicitante da ONG |
+| `409 stale_revision` | Revisão antiga ou disputa perdida durante a transação |
+| `409 bad_transition` | ONG ainda não publicada |
+| `409 application_withdrawn` | ONG já retirada; também bloqueia reenvio e novas fotos/moderação |
+
+Continuam valendo erros de sessão, papel, Origin, contas e JSON. Todas as respostas privadas e recusas de
+conteúdo público usam `no-store`. Migration **0009 precisa existir antes de publicar este código, mesmo com
+a flag desligada**, pois projeções de leitura consultam o registro de retiradas. Preparação e prova local em
+[armazenamento](storage.md#retirada-administrativa--0009_ngo_withdrawalssql).

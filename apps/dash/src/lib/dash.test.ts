@@ -189,9 +189,9 @@ describe("what the screens print", () => {
     expect([flagText(true), flagText(false), flagText("beta"), flagText(3)]).toEqual(["Ligado", "Desligado", '"beta"', "3"]);
   });
 
-  it("shows on a lot the application that holds it (a rejected one does not)", () => {
+  it("shows the current lot occupant, excluding rejected and withdrawn historical applications", () => {
     const app = (id: string, lotId: string, status: ApplicationSummary["status"]): ApplicationSummary => ({ id, lotId, status, name: id, city: "Recife", revision: 1, createdAt: "", updatedAt: "" });
-    const apps = [app("old", "plaza-03", "rejected"), app("now", "plaza-03", "under_review"), app("other", "plaza-04", "published")];
+    const apps = [app("withdrawn", "plaza-03", "withdrawn"), app("old", "plaza-03", "rejected"), app("now", "plaza-03", "under_review"), app("other", "plaza-04", "published"), app("gone", "plaza-05", "withdrawn")];
     expect(occupantOf({ id: "plaza-03" }, apps)?.id).toBe("now");
     expect(occupantOf({ id: "plaza-04" }, apps)?.id).toBe("other");
     expect(occupantOf({ id: "plaza-05" }, apps)).toBeUndefined();

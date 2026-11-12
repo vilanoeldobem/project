@@ -26,6 +26,7 @@
     "QUESTS_V1_ENABLED": "false",
     "NGO_PHOTOS_ENABLED": "false",
     "NGO_DOCUMENTS_ENABLED": "false",
+    "NGO_WITHDRAWAL_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -43,6 +44,24 @@
   // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed) and no
   // AUTH_LIMITER.
   "env": {
+    // Isolated IMPL-0020 simulator: never deploy or provision these synthetic resources.
+    "withdrawal-local": {
+      "name": "vilanoeldobem-api-withdrawal-local",
+      "routes": [], "workers_dev": false, "preview_urls": false, "ratelimits": [],
+      "vars": {
+        "ENVIRONMENT": "local", "ACCOUNTS_ENABLED": "true", "NGO_WITHDRAWAL_ENABLED": "true",
+        "NGO_PHOTOS_ENABLED": "true", "NGO_DOCUMENTS_ENABLED": "true", "QUESTS_V1_ENABLED": "false", "MAIL_FROM": "",
+        "ALLOWED_ORIGINS": "http://localhost:8799,http://localhost:8797",
+        "ACCOUNT_ORIGINS": "http://localhost:8799,http://localhost:8797",
+        "GAME_ORIGIN": "http://localhost:8799", "DASH_ORIGIN": "http://localhost:8797"
+      },
+      "d1_databases": [{ "binding": "DB", "database_name": "ngo-withdrawal-local",
+        "database_id": "00000000-0000-0000-0000-000000000009", "migrations_dir": "../../migrations", "remote": false }],
+      "r2_buckets": [
+        { "binding": "NGO_PHOTOS", "bucket_name": "ngo-withdrawal-photos-local", "remote": false },
+        { "binding": "NGO_DOCUMENTS", "bucket_name": "ngo-withdrawal-documents-local", "remote": false }
+      ]
+    },
     // Isolated local simulator for IMPL-0019. Never deploy or provision these synthetic resources.
     "documents-local": {
       "name": "vilanoeldobem-api-documents-local",
@@ -85,6 +104,7 @@
         "QUESTS_V1_ENABLED": "false",
         "NGO_PHOTOS_ENABLED": "false",
         "NGO_DOCUMENTS_ENABLED": "false",
+        "NGO_WITHDRAWAL_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

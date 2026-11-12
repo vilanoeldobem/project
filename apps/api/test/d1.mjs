@@ -8,10 +8,10 @@ import { DatabaseSync } from "node:sqlite";
 
 const MIGRATIONS = new URL("../../../migrations/", import.meta.url);
 
-export function createD1() {
+export function createD1({ before } = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON;");
-  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
+  for (const f of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql") && (!before || f < before)).sort()) db.exec(readFileSync(new URL(f, MIGRATIONS), "utf8"));
 
   const statement = (sql, params = []) => ({
     sql,
@@ -34,6 +34,8 @@ export function createD1() {
   });
 
   return {
+    /** Test helper: apply a real migration after seeding a previous schema. */
+    migrate: (filename) => db.exec(readFileSync(new URL(filename, MIGRATIONS), "utf8")),
     prepare: (sql) => statement(sql),
     async batch(list) {
       db.exec("BEGIN");

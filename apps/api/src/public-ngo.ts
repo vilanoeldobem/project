@@ -34,6 +34,7 @@ export async function publicNgo(env: Env, id: string): Promise<Response> {
     `SELECT n.id, n.name, n.summary, n.description, n.city, n.tags, n.projects, l.id AS lotId
        FROM ngos n JOIN lots l ON l.ngo_id = n.id
       WHERE n.id = ? AND n.status = 'published' AND l.state = 'published'
+        AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id)
       ORDER BY l.id LIMIT 1`
   ).bind(id).first<PublicNgoRow>();
   if (!row) throw new HttpError(404, "not_found");

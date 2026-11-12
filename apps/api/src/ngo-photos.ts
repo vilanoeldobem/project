@@ -11,7 +11,7 @@ interface Photo {
   caption: string; position: number; status: string; revision: number;
 }
 const COLUMNS = "p.id, p.ngo_id, p.object_key, p.content_type, p.byte_size, p.caption, p.position, p.status, p.revision";
-const PUBLISHED = "n.status = 'published' AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')";
+const PUBLISHED = "n.status = 'published' AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id) AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')";
 function missing(): never { throw new HttpError(404, "not_found"); }
 function resources(env: Env): R2Bucket {
   if (env.NGO_PHOTOS_ENABLED !== "true") missing();
@@ -44,8 +44,10 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
   const body = await readJson(request, 3 * 1024 * 1024);
   assertAccount(body, user);
   if (typeof body.ngoId !== "string" || !ID.test(body.ngoId)) missing();
-  const owner = await env.DB!.prepare("SELECT id FROM ngos WHERE id = ? AND applicant_id = ?").bind(body.ngoId, user.id).first();
+  const owner = await env.DB!.prepare("SELECT n.id, w.ngo_id AS withdrawn FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id WHERE n.id = ? AND n.applicant_id = ?")
+    .bind(body.ngoId, user.id).first<{ id: string; withdrawn: string | null }>();
   if (!owner) missing();
+  if (owner.withdrawn) throw new HttpError(409, "application_withdrawn");
   if (typeof body.caption !== "string" || body.caption.trim().length > 240 ||
       typeof body.position !== "number" || !Number.isInteger(body.position) || body.position < 0 || body.position > 9)
     throw new HttpError(400, "invalid_photo_metadata");
@@ -58,8 +60,9 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
     const result = await env.DB!.prepare(
       `INSERT INTO ngo_photos (id, ngo_id, object_key, content_type, byte_size, caption, position)
        SELECT ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE id = ? AND applicant_id = ?)
+       AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals WHERE ngo_id = ?)
        AND (SELECT COUNT(*) FROM ngo_photos WHERE ngo_id = ? AND status != 'removed') < 10`
-    ).bind(id, body.ngoId, key, body.contentType, bytes.length, body.caption.trim(), body.position, body.ngoId, user.id, body.ngoId).run();
+    ).bind(id, body.ngoId, key, body.contentType, bytes.length, body.caption.trim(), body.position, body.ngoId, user.id, body.ngoId, body.ngoId).run();
     if (!result.meta.changes) throw new HttpError(409, "photo_limit_or_owner_changed");
   } catch (error) {
     // A failed cleanup leaves an inaccessible orphan; never delete another upload's immutable key.
@@ -108,17 +111,20 @@ export async function decidePhoto(request: Request, env: Env, id: string): Promi
   if (action !== "approve" && action !== "reject" && action !== "remove") throw new HttpError(400, "bad_action");
   if (!Number.isInteger(body.revision) || (body.revision as number) < 1) throw new HttpError(400, "revision_required");
   if (!ID.test(id)) missing();
-  const row = await env.DB!.prepare(`SELECT ${COLUMNS}, n.applicant_id FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id WHERE p.id = ?`)
-    .bind(id).first<Photo & { applicant_id: string | null }>();
+  const row = await env.DB!.prepare(`SELECT ${COLUMNS}, n.applicant_id, w.ngo_id AS withdrawn FROM ngo_photos p JOIN ngos n ON n.id = p.ngo_id
+    LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id WHERE p.id = ?`)
+    .bind(id).first<Photo & { applicant_id: string | null; withdrawn: string | null }>();
   if (!row) missing();
   if (row.applicant_id === admin.id) throw new HttpError(403, "self_review");
+  if (row.withdrawn && action !== "remove") throw new HttpError(409, "application_withdrawn");
   if (row.revision !== body.revision) throw new HttpError(409, "stale_revision");
   if (row.status === "removed" || (action !== "remove" && row.status !== "pending")) throw new HttpError(409, "bad_transition");
   const status = action === "approve" ? "approved" : action === "reject" ? "rejected" : "removed";
   if (action === "approve" && !(await bucket.head(row.object_key))) throw new HttpError(409, "photo_object_missing");
   const token = newId();
   const [changed] = await env.DB!.batch([
-    env.DB!.prepare("UPDATE ngo_photos SET status = ?, revision = revision + 1, decision_token = ?, updated_at = ? WHERE id = ? AND revision = ? AND status = ?")
+    env.DB!.prepare(`UPDATE ngo_photos SET status = ?, revision = revision + 1, decision_token = ?, updated_at = ? WHERE id = ? AND revision = ? AND status = ?
+      ${action === "remove" ? "" : "AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = ngo_photos.ngo_id)"}`)
       .bind(status, token, new Date().toISOString(), id, row.revision, row.status),
     env.DB!.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail)
       SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngo_photos WHERE id = ? AND decision_token = ?)`)

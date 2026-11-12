@@ -9,6 +9,19 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — retirada administrativa de ONGs publicadas (desativada)
+
+- API para administrador independente retirar ONG publicada com motivo privado e revisão, liberando os
+  terrenos realmente associados conforme orientação de Nicolas. Registro, revisão, terreno e auditoria
+  confirmam juntos; disputa ou repetição não duplica a decisão.
+- Migration aditiva 0009 preserva candidatura, análise anterior, fotos, documentos e progresso. Perfil,
+  fotos públicas e indicadores excluem retiradas; dono/admin continuam com acesso privado autorizado.
+- Estado efetivo `withdrawn` no contrato privado e correção do cálculo de ocupação no painel. Sem botão novo
+  ou alteração do jogo; integração operacional e efeitos em missões continuam pendentes. Produção/staging
+  ficam desligadas e nenhuma infraestrutura remota é alterada.
+- Testes de concorrência, autorização, migração com dados e recuperação transacional; prova D1/R2 local.
+  Migration 0009 é pré-requisito de deploy mesmo com flag desligada; versão anterior não conhece retiradas.
+
 ### Added — documentos privados das candidaturas de ONG (PROPOSTA, desativado)
 
 - Envio/listagem/download/retirada de comprovantes pelo dono e leitura administrativa, em R2 privado separado

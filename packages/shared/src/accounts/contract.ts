@@ -15,7 +15,7 @@ export interface Me {
   role: "player" | "admin";
 }
 
-export const APPLICATION_STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected"] as const;
+export const APPLICATION_STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 /** State names are PROPOSTA (IMPL-0011); the labels are UI copy. */
@@ -25,6 +25,7 @@ export const STATUS_LABEL: Record<ApplicationStatus, string> = {
   changes_requested: "Ajustes solicitados",
   published: "Aprovada e publicada",
   rejected: "Não aprovada",
+  withdrawn: "Retirada da Vila",
 };
 
 export interface Application extends NgoApplication {
@@ -34,6 +35,8 @@ export interface Application extends NgoApplication {
   reviewNote: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Private explanation; absent before administrative withdrawal (IMPL-0020). */
+  withdrawal?: { reason: string; at: string };
 }
 
 /** Row of `GET /admin/applications`. */

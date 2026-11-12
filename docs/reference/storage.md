@@ -161,7 +161,8 @@ sem linha pode pertencer a upload ainda em curso: executar em janela sem uploads
 pela operação. Não existe job automático de limpeza neste PR. As exclusões remotas não foram autorizadas.
 
 A FK de fotos usa `ON DELETE CASCADE` para exclusão da ONG, mas não apaga R2: qualquer exclusão direta de ONG exige
-a mesma reconciliação. Excluir a conta mantém a ONG (FK existente `applicant_id SET NULL`) e suas fotos; política
+a mesma reconciliação. A partir de 0009, ONG com retirada registrada não pode ser excluída enquanto o registro
+preservado existir. Excluir a conta mantém a ONG (FK existente `applicant_id SET NULL`) e suas fotos; política
 de retenção e retirada deve ser fechada antes da ativação. Dados privados de documentos não entram nesse bucket.
 
 Flag `NGO_PHOTOS_ENABLED=false` em produção/staging, sem bindings remotos. Só `photos-local` tem R2 e D1 sintéticos
@@ -198,8 +199,9 @@ e remover órfãos/tombstones somente com autorização operacional, em janela s
 definida para não apagar envio em curso. Este PR não executa exclusões remotas.
 
 Excluir a conta mantém candidatura/documentos, mas limpa `applicant_id`, encerrando o acesso do dono anterior.
-O admin continua autorizado a ler anexos ativos; essa retenção exige decisão antes da ativação. Excluir a ONG
-diretamente faz cascade dos metadados, mas não apaga R2: exige reconciliação autorizada. Auditoria de mutações
+O admin continua autorizado a ler anexos ativos; essa retenção exige decisão antes da ativação. Excluir uma ONG
+sem registro de retirada faz cascade dos metadados, mas não apaga R2: exige reconciliação autorizada. ONG retirada
+tem a exclusão bloqueada pela FK do registro de retirada (0009). Auditoria de mutações
 contém apenas IDs/revisão; leituras não são auditadas nesta versão.
 
 Produção/staging: `NGO_DOCUMENTS_ENABLED=false`, sem bucket/binding remoto novo. Somente `documents-local`
@@ -224,3 +226,67 @@ node apps/api/scripts/verify-documents.mjs
 O smoke verifica upload PDF, leitura do dono/admin, isolamento entre contas, revisão antiga recusada,
 retirada e privacidade após publicar a ONG. Ao terminar, pare o Worker com Ctrl+C. Sessões sintéticas expiram
 em uma hora; repetições do seed podem deixar bytes órfãos somente no simulador R2 local.
+
+## Retirada administrativa — `0009_ngo_withdrawals.sql`
+
+[IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md) adiciona `ngo_withdrawals`, sem reconstruir `ngos`,
+alterar seu CHECK ou apagar tabelas filhas. É independente da migration 0007 de progresso. Cada ONG tem no
+máximo um registro, com token exclusivo da operação, motivo privado, ID do administrador, data, revisão e
+lista JSON dos terrenos associados no momento da retirada. O ator não tem FK, preservando identidade de
+auditoria após exclusão da conta; a FK para ONG impede apagar o registro histórico por cascade.
+
+A primeira instrução do batch insere o registro somente se a revisão e o estado `published` ainda forem os
+esperados e não houver retirada. Instruções seguintes conferem o token exclusivo: incrementam revisão,
+liberam **todas as associações atuais** em `lots` e auditam uma única decisão. Uma transação perdedora não
+altera terreno, revisão ou histórico, mesmo com timestamps iguais. Falha em qualquer instrução reverte tudo.
+`requested_lot_id`, `review_note`, aprovação armazenada, fotos, documentos e progresso permanecem intactos.
+
+O estado `withdrawn` é uma projeção privada: `ngos.status='published'` conserva a aprovação histórica e a
+existência no registro determina a retirada. Lista, detalhe e candidatura própria leem essa projeção com a
+revisão no mesmo snapshot. Consultas públicas e decisões sobre novas fotos também verificam o registro;
+desligar a flag de escrita não volta a publicar conteúdo retirado. Não há rota de restauração ou apagamento
+da retirada. Reentrada, retenção e atendimento operacional continuam em OQ-14/OQ-13.
+
+**Ordem de operação:** aplicar 0009 no ambiente autorizado **antes** de publicar a nova API, inclusive quando
+`NGO_WITHDRAWAL_ENABLED=false`; consultas públicas/privadas já dependem da tabela. Nenhuma migration remota
+foi aplicada neste PR. Depois de haver retiradas, voltar à versão antiga da API não é rollback seguro: ela
+ignora o registro em indicadores, projeções privadas e mutações de fotos. Preservar o registro e usar versão
+que respeite essa exclusão; não remover tabela ou registros como tentativa de rollback. OQ-09 continua
+pendente para missões cujo alvo desapareça. A interface precisa ser integrada antes da ativação operacional.
+
+### Prova local da retirada
+
+Somente simulador isolado, com dados e sessões sintéticos. O seed reinicia sua ONG de teste, histórico e
+`plaza-01`; não usar em banco local com dados que precise preservar. Na raiz do repositório:
+
+```bash
+pnpm --filter @vila/api exec wrangler d1 migrations apply ngo-withdrawal-local --env withdrawal-local --local
+node apps/api/scripts/verify-withdrawal.mjs --seed > .withdrawal-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute ngo-withdrawal-local --env withdrawal-local --local --file ../../.withdrawal-smoke-seed.sql
+rm .withdrawal-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --env withdrawal-local --local --port 8793 --inspector-port 9243
+# Em outro terminal, após o Worker ficar pronto:
+node apps/api/scripts/verify-withdrawal.mjs http://127.0.0.1:8793
+```
+
+O smoke envia documento/foto, aprova foto/candidatura, disputa duas retiradas, verifica terreno livre,
+revogação pública, acesso privado, auditoria única e XP existente preservado. Pare o Worker com Ctrl+C ao
+terminar. Repetir o seed pode deixar objetos órfãos apenas no R2 local; não usar sobre recursos remotos.
+Produção e staging mantêm `NGO_WITHDRAWAL_ENABLED=false`; só `withdrawal-local` usa D1/R2 sintéticos e
+`remote:false`. A configuração não cria recursos na Cloudflare.
+
+Após esse smoke, é possível verificar a compatibilidade do painel existente em desktop e celular. Faça o
+build antes de iniciar os servidores; mantenha o Worker local da API ativo e sirva o painel já compilado:
+
+```bash
+pnpm --filter @vila/dash build
+pnpm --filter @vila/dash exec wrangler dev --local --port 8797 --inspector-port 9247
+# Em outro terminal:
+node apps/dash/scripts/verify-withdrawal.mjs http://localhost:8797 http://127.0.0.1:8793
+```
+
+O script usa Chromium (`/usr/bin/chromium`, substituível por `CHROMIUM_PATH`) com diretório temporário curto.
+Uma ponte de transporte encaminha somente leituras para a API local com a sessão administrativa sintética
+do seed. Verifica filtro/status “Retirada da Vila”, detalhe sem ações de aprovação e terreno disponível sem
+a antiga ocupante. Não testa o login real nem fornece botão de retirada; bloqueia serviços externos e fecha
+seu navegador ao terminar. Pare os dois Workers com Ctrl+C.

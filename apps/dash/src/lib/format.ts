@@ -53,7 +53,7 @@ export function flagText(value: unknown): string {
   return value === true ? "Ligado" : value === false ? "Desligado" : JSON.stringify(value);
 }
 
-/** The application occupying a lot: a rejected one no longer holds it. */
+/** Rejection and withdrawal release the lot; requested lot ids remain historical. */
 export function occupantOf(lot: { id: string }, applications: ApplicationSummary[]): ApplicationSummary | undefined {
-  return applications.find((a) => a.lotId === lot.id && a.status !== "rejected");
+  return applications.find((a) => a.lotId === lot.id && a.status !== "rejected" && a.status !== "withdrawn");
 }

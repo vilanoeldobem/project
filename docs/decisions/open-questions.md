@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 7 abertas · **Atualizado em:** 2026-11-12
+> **Status:** 8 abertas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -17,6 +17,8 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); só mutações gravam `audit_events`; menu atual como PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), DEC-037 |
 | OQ-12 | Fotos institucionais: quais formatos, dimensões, tamanho e quantidade aceitar; quem comprova direitos e consentimento; como tratar EXIF/GPS, substituição, retirada, retenção e objetos órfãos? | Ratificar limites e revisão individual propostos / alterar antes da ativação; decidir remoção de metadados ou exigência de arquivo previamente saneado | Upload privado e imutável, publicação individual por outro administrador, sem sanitização automática; `NGO_PHOTOS_ENABLED` desligada até aceite operacional. Documentos comprobatórios seguem fora deste fluxo | Ativar fotos e receber arquivos reais em homologação ou produção | [IMPL-0017](0017-private-ngo-photos.md), DEC-028/037, PEN-019 |
 | OQ-13 | Comprovantes de candidatura: quais documentos solicitar, quem pode consultar, quais formatos e limites aceitar, como analisar conteúdo potencialmente ativo e definir retenção, exclusão de conta, retirada após publicação e limpeza de órfãos? | Ratificar ou ajustar a proposta técnica; definir procedimento operacional antes de receber arquivos reais | Rótulo genérico, bucket privado separado, acesso autenticado, edição congelada durante análise/publicação e bandeira `NGO_DOCUMENTS_ENABLED` desligada; validação estrutural sem antivírus ou sanitização | Receber documentos reais e ativar em homologação ou produção; remoção administrativa e retirada após publicação | [IMPL-0019](0019-private-ngo-documents.md), D07, DEC-015/037, PEN-019 |
+
+| OQ-14 | Retirada de ONG publicada: qual procedimento administrativo, comunicação do motivo, retenção e reentrada; como atualizar cenas já abertas? | Ratificar/ajustar proposta antes da ativação; definir restauração/reentrada separadamente | Terreno liberado para outra ONG, confirmado por Nicolas em 2026-11-12. Registro permanente de retirada, histórico e arquivos preservados, sem restauração ou reenvio; bandeira de novas retiradas desligada. Visibilidade pública sempre respeita retirada já registrada, mesmo com a bandeira desligada. Missão da última casa depende de OQ-09 | Ativar retirada em homologação/produção; futura restauração ou reentrada | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; confirmação direta do responsável sobre o terreno |
 
 ## Resolvidas
 

@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 18 ADRs · **Atualizado em:** 2026-11-12
+> **Status:** 19 ADRs · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -37,5 +37,6 @@
 | [IMPL-0016](0016-click-navigation-and-colliders.md) | Navegação por clique com desvio de obstáculos e colisores medidos pelo que é desenhado | Proposta — implementada, a validar (layout do mundo segue PROPOSTA, PEN-017) |
 | [IMPL-0017](0017-private-ngo-photos.md) | Fotos de ONGs em R2 privado, publicação autorizada pelo D1 | Proposta — implementação para revisão, desligada; ativação depende de OQ-12 |
 | [IMPL-0019](0019-private-ngo-documents.md) | Documentos privados da candidatura de ONG, revisão e acesso autenticado | Proposta — implementação para revisão, desligada; ativação depende de OQ-13 |
+| [IMPL-0020](0020-ngo-publication-withdrawal.md) | Retirada administrativa da publicação de ONG, histórico e visibilidade | Proposta — implementação para revisão, desligada; ativação depende de OQ-14 e política de missões OQ-09 |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

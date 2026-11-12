@@ -604,3 +604,39 @@ server 23, site 9, total 481. Real local workerd with D1 migrations 0001–0006 
 passed owner/admin download, cross-account/session denial, stale approval, withdrawal and privacy after
 publication. See storage reference for reproduction. Jobs ran serially with two-worker/CPU caps.
 No UI changed, so no browser suite was required. OQ-13, UI integration and remote activation remain pending.
+
+## Published NGO withdrawal — backend increment — 2026-11-12
+
+Scope: admin-only audited withdrawal, release actual lots (confirmed by Nicolas), preserve private records.
+Contract: [IMPL-0020](../docs/decisions/0020-ngo-publication-withdrawal.md). Branch/PR only; Augusto reviews.
+
+- [x] Reuse account/origin/session guards, D1 transaction adapter and private application projection.
+- [x] Add additive migration 0009, immutable withdrawal record and unique-operation guarded atomic batch.
+- [x] Release actual associated lots, protect another NGO's lot and support historical rows without applicant/requested lot.
+- [x] Revoke every public NGO/photo projection and exclude withdrawals from indicators independently of write flag.
+- [x] Preserve private evidence, original review note and progress; block reentry and new photo moderation/upload.
+- [x] Return effective withdrawn status and private reason/date; minimally update shared label and dashboard occupant helper.
+- [x] Author SQL tests for authorization, races, rollback, populated migration preservation and released-lot reuse.
+- [x] Document API/storage, migration-before-deploy prerequisite, rollback constraints and pending activation policy.
+- [x] Lead ran preliminary API typecheck and real local workerd/D1/R2 lifecycle smoke; no remote mutations.
+- [x] Final workspace typechecks and 500 tests passed (shared 127, API 144, client 164, dash 33, server 23, site 9).
+- [x] Lead completed builds, final API typecheck/146 tests, and desktop/mobile browser compatibility smoke.
+- [x] Final AIOX QA approved: no remaining P1/P2; concurrent approval-response finding fixed and tested.
+- [ ] Publish PR for Augusto; no merge, deployment or remote migrations.
+
+IDS: SEARCH found publication projections in public-ngo/photos/api, shared application status and existing
+occupantOf. REUSE account guards, applicationView, tests and audit_events. ADAPT one joined private projection
+and photo guards. CREATE only a dedicated withdrawal module/table so existing NGO constraints and evidence
+FKs need no table rebuild. The test adapter accepts a migration cutoff for a real populated upgrade test.
+No dependency or general workflow engine added; this repository has no lint command. Root coordinates all
+runtime checks serially under the shared machine's two-worker/CPU limits; authored tests alone are not PASS.
+
+Validation recorded by root (Node 24.22.2 / pnpm 10.32.1): final workspace typecheck and 500 tests passed.
+Local workerd/D1/R2 smoke passed document/photo upload, photo/application approval, competing withdrawal
+200/409, public profile/photo GET/HEAD 404 no-store, free lot, count decrement, private evidence access,
+single audit and existing 40 XP preserved. All six package builds passed (Workers dry-run only).
+After the Unicode/NUL reason validation fix, final API typecheck, 146 tests and build passed; the other
+packages are unchanged (502 tests covered overall). Desktop/mobile Chromium check passed withdrawal
+filter/status, read-only detail, free-lot occupancy and no overflow/errors against real local API reads
+with a synthetic session bridge; this is not a login-flow test. All task-owned servers/browser were stopped.
+Final AIOX QA approved without remaining P1/P2. The PR link remains to be recorded.

@@ -21,6 +21,7 @@ const ERROR_TEXT: Record<string, string> = {
   account_changed: "Você entrou ou saiu da conta em outra aba. Confira a conta e tente de novo.",
   stale_revision: "A organização enviou uma nova versão enquanto esta tela estava aberta. Revise a versão atual.",
   checks_required: "Marque as três verificações antes de aprovar.",
+  application_withdrawn: "Esta organização foi retirada da Vila. Entre em contato com a administração.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */

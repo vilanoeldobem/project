@@ -30,6 +30,7 @@ import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
 import { decidePhoto, listPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 import { documentContent, listDocuments, uploadDocument, withdrawDocument } from "./ngo-documents";
+import { withdrawNgo } from "./ngo-withdrawal";
 
 export interface Env {
   DB?: D1Database;
@@ -39,6 +40,8 @@ export interface Env {
   /** PROPOSTA: private supporting documents; approval never publishes these objects. */
   NGO_DOCUMENTS_ENABLED?: string;
   NGO_DOCUMENTS?: R2Bucket;
+  /** Administrative withdrawal is disabled until the integration/mission review (IMPL-0020). */
+  NGO_WITHDRAWAL_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -89,7 +92,7 @@ export interface Indicator {
 async function indicators(env: Env): Promise<Indicator[]> {
   let approved: number | null = null;
   if (env.DB) {
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM ngos WHERE status = 'published'").first<{ n: number }>();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM ngos WHERE status = 'published' AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = ngos.id)").first<{ n: number }>();
     approved = row?.n ?? 0;
   }
   return [
@@ -108,7 +111,7 @@ async function lots(env: Env): Promise<LotRow[] | null> {
             CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
             CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
             CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary
-       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
+       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id)
       ORDER BY l.street, l.slot`
   ).all<LotRow>();
   return results;
@@ -210,6 +213,8 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
+  const ngoWithdrawal = /^\/admin\/ngos\/([^/]+)\/withdraw$/.exec(pathname);
+  if (ngoWithdrawal && method === "POST") return withdrawNgo(request, env, ngoWithdrawal[1]);
   if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
   if (is("POST", "/ngo/documents")) return uploadDocument(request, env);
   if (is("GET", "/ngo/documents")) return listDocuments(request, env, url.searchParams.get("ngoId") ?? "", false);
