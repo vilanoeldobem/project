@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Vila Noel do Bem game client (IMPL-0009): SPA on Workers Static Assets. Data comes from
   // api.vilanoeldobem.com.br (apps/api), presence from server.vilanoeldobem.com.br (apps/server).
-  // The Worker runs first only to redirect the old app.* host; see worker/index.ts.
+  // The Worker runs first only to redirect its other hosts (app.*, client.*) to play.*; see worker/handle.ts.
   "name": "vilanoeldobem",
   "account_id": "9119b7496767fec497f6627c5ca56f32",
   "main": "worker/index.ts",
@@ -16,6 +16,7 @@
   "vars": { "ENVIRONMENT": "production" },
   "routes": [
     { "pattern": "play.vilanoeldobem.com.br", "custom_domain": true },
+    { "pattern": "client.vilanoeldobem.com.br", "custom_domain": true },
     { "pattern": "app.vilanoeldobem.com.br", "custom_domain": true }
   ],
   "observability": { "enabled": true },
