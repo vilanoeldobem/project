@@ -23,7 +23,10 @@ export const LOT_STATE_LABEL: Record<string, string> = {
 export const ROLE_LABEL: Record<string, string> = { player: "Jogador", admin: "Administrador" };
 
 /** Feature flags of `GET /config`; a flag the dashboard does not know yet is shown by its key. */
-export const FLAG_LABEL: Record<string, string> = { accounts: "Contas, XP no servidor, candidaturas e análise" };
+export const FLAG_LABEL: Record<string, string> = {
+  accounts: "Contas, XP no servidor, candidaturas e análise",
+  quests: "Missões narrativas quests-v1 (PROPOSTA)",
+};
 
 export const dateTime = (iso: string): string => {
   const d = new Date(iso);

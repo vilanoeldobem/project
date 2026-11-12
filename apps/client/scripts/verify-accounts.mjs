@@ -333,11 +333,13 @@ const lot = lots.lots.find((l) => l.id === lotValue);
 if (lot?.state !== "published" || !lot.ngo_name?.includes(run)) errors.push(`public: lot ${lotValue} not published (${JSON.stringify(lot)})`);
 // Close the applicant and admin pages first: three software-rendered WebGL canvases at once starve the
 // renderer here (frame p95 over 300 ms on SwiftShader) and the final screenshot times out.
-await a.context().close();
-await b.context().close();
+// Only the pages close: steps 6 and 7 reuse the two contexts for their session cookies.
+await a.close();
+await b.close();
 const c = await newPage("visitor");
 await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });
+await c.context().close();
 
 // 6. The game no longer reviews: with the same session (the cookie belongs to the API host), an admin gets a
 // plain link to the dashboard in the account panel.
@@ -351,12 +353,12 @@ else {
   if (target !== "_blank" || !/\bnoopener\b/.test(rel ?? "")) errors.push(`game: the dashboard link must open a new tab with rel=noopener (target=${target}, rel=${rel})`);
 }
 if (await ga.getByRole("button", { name: "Análise de ONGs" }).count()) errors.push("game: the admin review is still in the game");
-// The applicant, who is not an admin, has no such link.
-await a.reload({ waitUntil: "load" });
-await click(a.getByRole("button", { name: "Entrar na Vila" }));
-await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
-await a.getByRole("button", { name: "Minha candidatura de ONG" }).waitFor({ timeout: API_WAIT });
-if (await a.getByRole("link", { name: "Abrir painel administrativo" }).count()) errors.push("game: the dashboard link is shown to a non-admin");
+await ga.close();
+// 7. The applicant, who is not an admin, has no such link.
+const ap = await newPage("applicant (game)", a.context());
+await click(ap.getByRole("button", { name: `Sua conta: ${nick}` }));
+await ap.getByRole("button", { name: "Minha candidatura de ONG" }).waitFor({ timeout: API_WAIT });
+if (await ap.getByRole("link", { name: "Abrir painel administrativo" }).count()) errors.push("game: the dashboard link is shown to a non-admin");
 
 await browser.close();
 if (errors.length) {
