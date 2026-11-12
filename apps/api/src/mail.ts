@@ -14,12 +14,16 @@ const DEFAULT_FROM = "acesso@vilanoeldobem.com.br";
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-export function loginEmail(link: string, nickname: string) {
+/** Where the link opens: the game, or the backoffice dashboard for an admin who asked from it (IMPL-0015). */
+export type LinkTarget = "game" | "dash";
+
+export function loginEmail(link: string, nickname: string, target: LinkTarget = "game") {
   const subject = "Seu link para entrar na Vila Noel do Bem";
+  const place = target === "dash" ? "no painel administrativo da Vila Noel do Bem" : "na Vila Noel do Bem";
   const text = [
     `Olá, ${nickname}!`,
     "",
-    "Use o link abaixo para entrar na Vila Noel do Bem. Ele vale por 15 minutos e só funciona uma vez:",
+    `Use o link abaixo para entrar ${place}. Ele vale por 15 minutos e só funciona uma vez:`,
     link,
     "",
     "Se não foi você que pediu, é só ignorar este e-mail.",
@@ -27,8 +31,8 @@ export function loginEmail(link: string, nickname: string) {
     "Vila Noel do Bem",
   ].join("\n");
   const html = `<p>Olá, ${escape(nickname)}!</p>
-<p>Use o botão abaixo para entrar na Vila Noel do Bem. Ele vale por 15 minutos e só funciona uma vez.</p>
-<p><a href="${escape(link)}" style="display:inline-block;padding:12px 20px;background:#173D35;color:#FFF9ED;border-radius:10px;text-decoration:none;font-weight:700">Entrar na Vila</a></p>
+<p>Use o botão abaixo para entrar ${place}. Ele vale por 15 minutos e só funciona uma vez.</p>
+<p><a href="${escape(link)}" style="display:inline-block;padding:12px 20px;background:#173D35;color:#FFF9ED;border-radius:10px;text-decoration:none;font-weight:700">${target === "dash" ? "Entrar no painel" : "Entrar na Vila"}</a></p>
 <p style="color:#555">Se não foi você que pediu, é só ignorar este e-mail.</p>
 <p>Vila Noel do Bem</p>`;
   return { subject, text, html };
@@ -51,12 +55,12 @@ async function errorName(res: Response): Promise<string> {
 }
 
 /** Sends the sign-in link; returns it only in development/test (see `linkVisibleToCaller`). */
-export async function sendLoginLink(env: Env, to: string, nickname: string, link: string): Promise<string | undefined> {
+export async function sendLoginLink(env: Env, to: string, nickname: string, link: string, target: LinkTarget = "game"): Promise<string | undefined> {
   if (!mailConfigured(env)) {
     if (!linkVisibleToCaller(env)) throw new HttpError(503, "mail_unavailable");
     return link;
   }
-  const { subject, text, html } = loginEmail(link, nickname);
+  const { subject, text, html } = loginEmail(link, nickname, target);
   let res: Response;
   try {
     res = await fetch(RESEND_URL, {
