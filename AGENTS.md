@@ -72,6 +72,16 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   dark code behind `NGO_WITHDRAWAL_ENABLED` ("false" in production and staging). What a withdrawal means for the
   account, the CNPJ, re-entry and retention is the product owner's to answer (OQ-14): never flip the flag before
   that, and never decide it in code. The text an admin writes is a message the organisation reads, not a private note.
+- Roles and moderation ([IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md)): two roles, default
+  (`player` in code, "Padrão" on screen) and administrator (`admin`, "Administrador"). Roles are granted and revoked
+  from dash by an administrator (audited); the first administrator is still created with the documented database
+  command. Two parts are **PROPOSTA**, dark code behind flags that are "false" in production and staging:
+  `ACCOUNT_BLOCK_ENABLED` (account block; which sanctions exist, who applies them, appeal, duration and notice are
+  the product owner's to answer, OQ-11) and `PRESENCE_MODERATION_ENABLED` (removing a visitor from a room; on the
+  API and on the realtime server, and it needs both Workers deployed with the service binding). Never flip either
+  flag without explicit approval, and never decide the sanction policy in code. The text an admin writes when
+  blocking is a message the blocked person reads, not a private note; a block never takes away reading the reason
+  or deleting the account.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -86,12 +96,15 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   its `ALLOWED_ORIGINS`; the client and dash CSP `connect-src` are generated per build from each app's
   `src/lib/endpoints.ts`. Changing a hostname means changing every place that lists it (also `GAME_ORIGIN` /
   `DASH_ORIGIN`; list in `docs/reference/architecture.md` §7).
-- Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
+- Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game, with one deliberate, narrow exception
+  (IMPL-0021): the game may show moderation *actions* to a signed-in administrator; lists, review queues and audit
+  stay in dash. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
   association and reads no table newer than the one it serves: production runs behind the code (schema v3). Never
-  join `ngo_withdrawals` in an always-on public route; signed-in routes that need a newer schema answer
+  join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
+  `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
 - D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
   application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket

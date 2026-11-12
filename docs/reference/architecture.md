@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -132,9 +132,9 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
 | `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
 | `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
-| `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
+| `crypto.ts` | UUID, token aleatório (256 bits por padrão; 192 bits em 32 caracteres para o bilhete de moderação), SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
-| `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
+| `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin`. `requireUser` recusa a sessão de conta bloqueada (`403 session_blocked`); `requireSession` é só para o que a pessoa bloqueada mantém: `GET /me`, sair e excluir a conta (IMPL-0021) |
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
 | `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
@@ -144,9 +144,26 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `ngo-photos.ts` | Galeria institucional PROPOSTA, bandeira `NGO_PHOTOS_ENABLED` desligada em produção, separada de comprovantes; aprovação por foto, bytes privados em `FILES` e publicação condicionada à revisão técnica/operacional |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
 | `ngo-withdrawal.ts` | Retirada administrativa de ONG publicada (IMPL-0020, **PROPOSTA**, bandeira `NGO_WITHDRAWAL_ENABLED` desligada): registro em `ngo_withdrawals`, liberação dos terrenos e auditoria num batch com token exclusivo; a mensagem é para a organização |
-| `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
+| `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome; com papel e bloqueio), paginadas |
+| `account-moderation.ts` | Papéis e bloqueio de conta ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)): `POST /admin/users/:id/role`, `…/block`, `…/unblock`. Um batch por mudança, conferindo no SQL o estado da conta-alvo e que quem pede ainda é administrador; só o vencedor grava registro e auditoria. O bloqueio é **PROPOSTA** (`ACCOUNT_BLOCK_ENABLED` desligada); a mensagem é para a pessoa bloqueada |
+| `presence-moderation.ts` | Remoção de visitante de uma sala (IMPL-0021, **PROPOSTA**, `PRESENCE_MODERATION_ENABLED` desligada): bilhete de uso único para o administrador (`POST /admin/moderation/ticket`) e consumo pelo servidor de tempo real (`POST /moderation/consume`, sem sessão e sem CORS) |
 
 Único app com acesso ao D1 e ao bucket R2. Detalhes em [api.md](api.md) e [storage.md](storage.md).
+
+**Administrador e moderação ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)):** dois papéis,
+Padrão (`player`) e Administrador (`admin`); o painel continua com o login próprio da aplicação, e os papéis são
+concedidos e retirados pelo painel, com auditoria (o primeiro administrador segue sendo criado no banco). Um
+administrador também tem, **dentro do jogo**, as ações de moderação — exceção estreita à regra da IMPL-0015: o
+jogo pode mostrar *ações* de moderação a um administrador conectado; listas, filas de análise e auditoria ficam
+no painel. Duas partes são **PROPOSTA** e ficam desligadas em produção e homologação:
+
+- **Bloqueio de conta** (`ACCOUNT_BLOCK_ENABLED`; política PENDENTE na [OQ-11](../decisions/open-questions.md)):
+  encerra as sessões e deixa à conta uma sessão restrita (ler o motivo, sair, excluir a conta). A conferência é
+  feita em toda leitura de sessão (`users.blocked`, migration 0010), então as rotas com sessão respondem
+  `503 schema_outdated` num banco sem a 0010. Nenhuma rota pública lê as tabelas novas.
+- **Remover um visitante de uma sala** (`PRESENCE_MODERATION_ENABLED`, na API e no servidor): a presença continua
+  anônima. A API só emite e confere um bilhete de uso único; a sala o devolve por um binding de serviço e nunca
+  fica sabendo quem é o administrador. É uma cortesia, não um banimento: um visitante anônimo pode voltar.
 
 **Retirada de publicação (PROPOSTA, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)):** desligada em
 produção e homologação (`NGO_WITHDRAWAL_ENABLED`); a política é PENDENTE ([OQ-14](../decisions/open-questions.md)).
@@ -271,6 +288,9 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | segredo `RESEND_API_KEY` | fora do `wrangler.jsonc` (`wrangler secret put`) | Chave do Resend (só o link de acesso, IMPL-0012) |
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
+| api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala (IMPL-0021) |
+| api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
+| api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
 | api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, **ainda não criado** (IMPL-0017) |
 | api | `vars.NGO_FILES_ENABLED` | `"false"` | Envio de logo e documentos desligado até a lista de documentos (PEN-019) e a revisão LGPD |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
@@ -290,6 +310,12 @@ origens exatas; o servidor recusa WebSocket de outra origem (`403`), o que bloqu
 Rotas de conta: só respondem a `Origin` permitida (`403 forbidden_origin`); mutações exigem
 `Content-Type: application/json` (`415`), o que força o preflight de CORS; sessão e links guardados só como hash;
 cookie `HttpOnly`, `Secure`, `SameSite=Lax`; nenhum dado pessoal em log.
+
+`POST /moderation/consume` (IMPL-0021, PROPOSTA) é a única rota de escrita sem sessão e sem conferência de
+`Origin`: quem a chama é o servidor de tempo real, por binding de serviço, e a credencial é o bilhete (192 bits
+aleatórios, guardado como hash, 30 segundos, uso único, preso a um administrador, uma sala e um alvo). Ela não
+envia nenhum cabeçalho CORS e só aceita JSON, então nenhuma página consegue usá-la; responde o mesmo `404` a tudo
+o que não é um bilhete válido e tem limite de requisições próprio.
 
 Arquivos de ONG ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): bucket R2 privado, lido só pela API; o formato é
 conferido pelos bytes (SVG e HTML recusados), imagens perdem os metadados antes de serem guardadas, e os bytes saem
@@ -360,6 +386,11 @@ de sanção (regras não definidas, DEC-037).
 - Retirada de ONG publicada implementada como PROPOSTA e desligada (`NGO_WITHDRAWAL_ENABLED`): sem restauração,
   sem aviso por e-mail, sem atualização de cenas abertas; o que ela significa para a conta e o CNPJ é pergunta
   aberta (OQ-14).
+- Papéis geridos pelo painel e remoção de logo por administrador valem com as contas ligadas (IMPL-0021). Bloqueio
+  de conta e remoção de visitante de uma sala são PROPOSTA e estão desligados (`ACCOUNT_BLOCK_ENABLED`,
+  `PRESENCE_MODERATION_ENABLED`): o bloqueio é da conta, não da pessoa (excluir a conta libera o e-mail), não tem
+  prazo, recurso nem aviso por e-mail (OQ-11); a remoção de sala não impede o visitante anônimo de voltar. As telas
+  do painel e do jogo para essas ações ainda não existem.
 - Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo

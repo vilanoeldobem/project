@@ -9,6 +9,44 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — papel de administrador e moderação (API e contrato compartilhado; bloqueio e remoção de sala PROPOSTA, desligados)
+
+- [IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md): dois papéis, Padrão (`player`) e
+  Administrador (`admin`); o painel mantém o login próprio; os papéis passam a ser concedidos e retirados pelo
+  painel; o jogo pode mostrar *ações* de moderação a um administrador conectado (listas, filas de análise e
+  auditoria ficam no painel). **Schema D1 v10** (`0010_account_blocks.sql`, aditiva, não aplicada no remoto). Esta
+  entrega é a API e o contrato compartilhado; as telas do painel e do jogo e a parte do servidor de tempo real são
+  entregas separadas.
+- API: `POST /admin/users/:id/role {accountId, role}` (auditoria `user.role_change`). Ninguém muda o próprio papel,
+  conta bloqueada não é promovida, e de dois administradores que se rebaixam ao mesmo tempo exatamente um vence
+  (`409 last_admin`). `GET /admin/users` passa a trazer `blocked`. Sem bandeira própria.
+- API: `POST /admin/ngos/:id/logo/remove {accountId, revision}`: um administrador remove o logo de uma ONG em
+  qualquer estado, com as guardas da remoção feita pelo responsável (auditoria `ngo.logo_remove`). Exige o bucket.
+- **PROPOSTA**, atrás de `ACCOUNT_BLOCK_ENABLED` (`"false"` em produção e homologação; política PENDENTE,
+  [OQ-11](docs/decisions/open-questions.md)): `POST /admin/users/:id/block {accountId, message}` e
+  `POST /admin/users/:id/unblock {accountId}` (auditoria `user.block` / `user.unblock`, sem o texto). `message` é a
+  **mensagem para a pessoa bloqueada**: ela a lê como foi escrita em `GET /me` (`user.blocked`). O bloqueio encerra
+  as sessões; o link de acesso responde como para qualquer e-mail e abre uma sessão restrita (ler o motivo, sair,
+  excluir a conta); todo o resto responde `403 session_blocked`. Candidatura, progresso e envios em andamento são
+  recusados no SQL. A bandeira controla só novos bloqueios; desfazer um bloqueio funciona com ela desligada.
+- **PROPOSTA**, atrás de `PRESENCE_MODERATION_ENABLED` (`"false"` em produção e homologação): bilhete de uso único
+  para remover um visitante de uma sala (`POST /admin/moderation/ticket`; 32 caracteres, 30 segundos, 10 por
+  administrador por minuto) e `POST /moderation/consume`, chamada pelo servidor de tempo real por binding de
+  serviço (sem sessão, sem CORS, limite próprio; auditoria `presence.remove`, que registra a remoção autorizada). A
+  presença continua anônima; é uma cortesia, não um banimento.
+- `GET /config` informa `moderation: {presence, block}`.
+- Contrato compartilhado (`packages/shared/src/accounts`): `ROLE_LABEL` ("Padrão", "Administrador"), `Me.blocked`,
+  `UserSummary.blocked`, `ModerationConfig`, `ModerationTicket`, regras da mensagem e do bilhete
+  (`moderation.ts`, com `MODERATION_TICKET_TTL_MS`) e frases em pt-BR para os novos erros.
+
+### Changed — a conferência de sessão exige a migration 0010
+
+- Toda rota que lê a sessão passa a ler `users.blocked`: num banco sem a 0010, com as contas ligadas, elas
+  respondem `503 schema_outdated` (antes, sessão, progresso e exclusão de conta funcionavam num banco na v9). Com as
+  contas ligadas, a migration vem antes da API ([deploy §10](docs/guides/deploy.md#10-administrador-e-moderação-impl-0021)).
+  As rotas públicas respondem igual nos schemas v3 a v10, com qualquer combinação de bandeiras.
+- Um cadastro não confirmado deixa de expirar em 24 horas enquanto estiver bloqueado.
+
 ### Added — apelido `client.*` para o jogo
 
 - `client.vilanoeldobem.com.br` passa a ser um Custom Domain do Worker do jogo e redireciona (302) para

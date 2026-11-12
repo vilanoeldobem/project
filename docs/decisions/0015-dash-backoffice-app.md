@@ -147,3 +147,18 @@ confirmou: só um admin autorizado publica ou remove ONGs e aplica sanções, e 
 [open-questions.md](open-questions.md) (OQ-10, OQ-11) · [IMPL-0002](0002-donations-disabled-until-partner-contract.md) ·
 [IMPL-0009](0009-split-client-api-server-shared.md) · [IMPL-0011](0011-accounts-magic-link-ngo-review.md) ·
 [IMPL-0012](0012-resend-transactional-email.md) · DEC-015 · DEC-027 · DEC-028 · DEC-037 · DEC-038
+
+## Adendo (2026-11-12): papéis pelo painel e exceção de moderação no jogo
+
+[IMPL-0021](0021-administrator-role-and-moderation.md) revê dois pontos desta decisão; o restante continua valendo
+(inclusive o login próprio, sem Cloudflare Access, e a ausência de e-mail e nome nas listas):
+
+- **"Nenhuma rota concede papel: `admin` continua sendo dado à mão no D1"** deixa de valer para todos menos o
+  primeiro administrador: os papéis passam a ser concedidos e retirados pelo painel, por um administrador, com
+  auditoria.
+- **"A interface de administração vive só em `apps/dash`, nunca no jogo"** ganha uma exceção deliberada e
+  estreita: o jogo pode mostrar *ações* de moderação a um administrador conectado; listas, filas de análise e
+  auditoria ficam no painel.
+
+A seção "Usuários" continua sem ação de sanção na interface: o bloqueio de conta é PROPOSTA, desligado, e depende
+da OQ-11.

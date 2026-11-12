@@ -135,3 +135,10 @@ Uma comparação com a implementação paralela da equipe apontou lacunas reais,
 O item 4 da decisão (Cloudflare Email Service) e a alternativa descartada "provedor de e-mail externo" foram
 substituídos por [IMPL-0012](0012-resend-transactional-email.md): o link de acesso passa a sair pelo Resend. O
 restante desta decisão continua valendo.
+
+## Adendo (2026-11-12): papéis pelo painel
+
+A parte do item 8 que dizia "papel `admin` concedido à mão no D1 (sem tela de concessão)" foi revista por
+[IMPL-0021](0021-administrator-role-and-moderation.md): só o **primeiro** administrador continua sendo criado pelo
+comando no banco; os demais recebem e perdem o papel pelo painel, por um administrador, com auditoria
+(`POST /admin/users/:id/role`). O restante desta decisão continua valendo.

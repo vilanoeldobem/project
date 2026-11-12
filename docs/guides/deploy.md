@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -61,17 +61,20 @@ Exige autorização humana explícita. Confira o histórico remoto e aplique a s
 disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007,
 a gravação de progresso requer a 0008 (`progress_writes`, IMPL-0019; sem ela `POST /progress/events` responde `500`)
 e as rotas de candidatura e de análise de ONG requerem a 0009 (`ngo_withdrawals`, IMPL-0020), **mesmo com
-`NGO_WITHDRAWAL_ENABLED` desligada**; operações que encontrem colunas novas ou essa tabela ausentes retornam
+`NGO_WITHDRAWAL_ENABLED` desligada**; **toda rota que lê a sessão requer a 0010** (`users.blocked`, IMPL-0021),
+com qualquer combinação de bandeiras; operações que encontrem colunas novas ou essas tabelas ausentes retornam
 `503 schema_outdated`. As rotas públicas continuam tolerantes à v3, inclusive `/lots`, `/indicators`, `/ngos/:id`,
-logo e fotos: nenhuma delas lê a tabela de retiradas. Isso não dispensa o upgrade antes de ativar as contas. O
+logo e fotos: nenhuma delas lê a tabela de retiradas nem o que a 0010 cria. Isso não dispensa o upgrade antes de ativar as contas. O
 último estado registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
 
 **Ordem com as contas ligadas: migration antes da API.** `db:migrate:remote` aplica todas as migrations pendentes
-de uma vez (levar a 0009 a um banco na v3 aplica também 0004–0008). Com `ACCOUNTS_ENABLED = "false"` a API desta
-versão pode ser publicada antes de qualquer migration: as rotas públicas respondem igual nos schemas v3 a v9
+de uma vez (levar a 0010 a um banco na v3 aplica também 0004–0009). Com `ACCOUNTS_ENABLED = "false"` a API desta
+versão pode ser publicada antes de qualquer migration: as rotas públicas respondem igual nos schemas v3 a v10
 (teste em `apps/api/src/public-ngo.test.ts`). Com as contas ligadas, publicar a API antes da 0009 deixa
 `/ngo/application`, `/admin/applications*`, o envio de fotos e de arquivos respondendo `503 schema_outdated` até a
-migration ser aplicada; sessão, progresso e exclusão de conta continuam funcionando.
+migration ser aplicada. Publicá-la antes da **0010** deixa **toda requisição com sessão** (inclusive `GET /me`,
+progresso e exclusão de conta), o cadastro e a confirmação do link respondendo `503 schema_outdated`: na prática,
+ninguém entra até a migration ser aplicada ([§10](#10-administrador-e-moderação-impl-0021)).
 
 ## 4. Publicar
 
@@ -190,7 +193,7 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 
 ### 7.1 Ordem do deploy da 0.4.0
 
-1. **Migrations sequenciais até 0009 + API**, nesta ordem (ambas exigem autorização):
+1. **Migrations sequenciais até 0010 + API**, nesta ordem (ambas exigem autorização):
 
    ```bash
    pnpm --filter @vila/api db:migrate:remote     # aplica somente as migrations pendentes da sequência revisada
@@ -200,8 +203,8 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
    ```
 
    Aplique a sequência revisada antes de ativar o fluxo de contas. 0006 contém os arquivos canônicos, 0007
-   contém a galeria e guardas e 0009 contém o registro de retiradas, lido pelas rotas de candidatura e análise
-   ([§3](#3-aplicar-migrations-remotas)). O perfil público funciona na v3 com campos opcionais ausentes tratados como
+   contém a galeria e guardas, 0009 contém o registro de retiradas, lido pelas rotas de candidatura e análise, e
+   0010 contém o bloqueio lido em toda conferência de sessão ([§3](#3-aplicar-migrations-remotas)). O perfil público funciona na v3 com campos opcionais ausentes tratados como
    vazios; teste uma ONG inexistente em `GET /ngos/00000000-0000-4000-8000-000000000000` → 404. Isso não afirma
    que o banco remoto já recebeu as migrations.
 2. **Cliente** (`pnpm deploy:client`): lê `/config` e esconde a interface de conta enquanto `accounts` for `false`.
@@ -248,8 +251,9 @@ Para desligar de novo, volte a bandeira para `"false"` e publique a API: os dado
 
 ### 7.4 Conceder o papel de administrador
 
-Não há tela para isso (DEC-037). A pessoa cria a conta normalmente e confirma o link; depois, alguém com acesso à
-conta Cloudflare roda, em `apps/api`:
+**O primeiro administrador** é criado à mão ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md),
+DEC-037). A pessoa cria a conta normalmente e confirma o link; depois, alguém com acesso à conta Cloudflare roda,
+em `apps/api`:
 
 ```bash
 pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET role='admin' WHERE nickname='...'"
@@ -257,8 +261,13 @@ pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET
 
 É uma escrita remota no D1: **proibida para agentes sem autorização humana explícita** (AGENTS.md). Com o papel, a
 pessoa entra no painel administrativo (`dash.*`, [§8](#8-painel-administrativo-appsdash)); no jogo, o painel da conta
-ganha o link "Abrir painel administrativo" depois de recarregar. Para retirar, `role='player'`. Nenhuma rota da API
-concede ou retira papel.
+ganha o link "Abrir painel administrativo" depois de recarregar.
+
+**Os demais administradores** recebem e perdem o papel pelo painel, por um administrador, com auditoria
+(`POST /admin/users/:id/role`, [api.md](../reference/api.md#papéis-impl-0021)). Ninguém muda o próprio papel, então
+sempre resta um administrador; se o único administrador excluir a própria conta, o comando acima volta a ser o
+caminho. Esse comando continua valendo como recuperação, e não grava `audit_events`: registre quem o rodou e por
+quê.
 
 ### 7.5 Reverter
 
@@ -340,10 +349,11 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
    `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
    já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
-2. **Migrations sequenciais até 0009 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
+2. **Migrations sequenciais até 0010 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
    explícita. A 0006 contém arquivos canônicos; a 0007 contém galeria e guardas usados em todas as rotas de
-   sessão; a 0009 contém o registro de retiradas usado nas rotas de candidatura e análise. **Se contas já
-   estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado** e, antes da 0009, as
+   sessão; a 0009 contém o registro de retiradas usado nas rotas de candidatura e análise; a 0010 contém o
+   bloqueio lido em toda conferência de sessão. **Se contas já
+   estiverem ligadas, publicar esta API antes da 0007 ou da 0010 interrompe o acesso autenticado** e, antes da 0009, as
    rotas de candidatura e análise, com `503 schema_outdated`, mesmo com fotos e retirada desligadas. Cadastro/link/logout não provam que a sessão funciona.
    Aplicar a sequência antes da API e conferir `/me` com sessão sintética de homologação. O código anterior é
    compatível com as colunas/tabelas adicionais. Esta orientação não afirma aplicação no banco remoto.
@@ -395,8 +405,80 @@ Depois de existir alguma retirada, não reverta a API para uma versão anterior 
 e trataria a organização como publicada nas telas privadas e voltaria a contá-la no indicador público
 `approved_ngos` (perfil, logo, fotos e terreno continuam sem mostrá-la, porque o terreno foi liberado). Desligar a bandeira só impede novas retiradas; nunca republica uma organização retirada.
 
+## 10. Administrador e moderação (IMPL-0021)
+
+Papéis geridos pelo painel, remoção de logo por administrador, bloqueio de conta e remoção de visitante de uma
+sala ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)). Nada aqui autoriza deploy, migration
+remota ou ativação de bandeira: cada passo exige autorização humana explícita (AGENTS.md).
+
+### 10.1 Ordem
+
+1. **Migration 0010 antes da API, sempre que as contas estiverem ligadas.** A conferência de sessão desta versão
+   lê `users.blocked`: sem a 0010, toda requisição com sessão responde `503 schema_outdated`
+   ([§3](#3-aplicar-migrations-remotas)). Com `ACCOUNTS_ENABLED = "false"` (produção hoje) a ordem não importa: as
+   rotas públicas respondem igual nos schemas v3 a v10. A 0010 é aditiva (duas colunas em `users`, duas tabelas).
+2. **API** (`pnpm deploy:api`). Conferir:
+
+   ```bash
+   curl -s https://api.vilanoeldobem.com.br/config
+   # … "moderation":{"presence":false,"block":false}
+   ```
+
+3. Painel e jogo quando as telas dessas ações existirem (entrega posterior).
+
+Gestão de papéis (`POST /admin/users/:id/role`) e remoção de logo (`POST /admin/ngos/:id/logo/remove`) não têm
+bandeira própria: passam a existir assim que as contas estiverem ligadas com a API desta versão. A remoção de logo
+exige o bucket `FILES` ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
+
+### 10.2 As duas bandeiras — ainda desligadas (PROPOSTA)
+
+| Bandeira | Onde | Produção e homologação | Script local `dev` | Depende de |
+|---|---|---|---|---|
+| `ACCOUNT_BLOCK_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | `true` | respostas do dono do produto à [OQ-11](../decisions/open-questions.md); contas ligadas; migration 0010 |
+| `PRESENCE_MODERATION_ENABLED` | `apps/api/wrangler.jsonc` **e** `apps/server/wrangler.jsonc` | `"false"` | `true` | contas ligadas; migration 0010; os dois Workers publicados, com o binding de serviço do servidor para a API |
+
+- `ACCOUNT_BLOCK_ENABLED` controla só **novos** bloqueios. Desligá-la não desfaz bloqueios gravados (continuam
+  valendo, e um administrador ainda pode desfazê-los pelo painel). Uma implementação testada não autoriza a
+  ativação: a política de sanções é PENDENTE (OQ-11).
+- `PRESENCE_MODERATION_ENABLED` precisa estar ligada **nos dois Workers**. Só na API, o jogo recebe bilhetes que a
+  sala recusa; só no servidor, a API responde `404` ao pedido de bilhete e ao consumo. `/config` da API mostra só o
+  lado da API (`moderation.presence`).
+- O limite `MODERATION_LIMITER` (60 requisições / 60 s; por endereço no domínio público, por sala nas chamadas do
+  binding de serviço, que não têm endereço) está declarado em `ratelimits` de `apps/api/wrangler.jsonc` (produção).
+  Homologação não tem bindings de limite (`ratelimits: []`): lá nada é limitado pela API.
+
+### 10.3 Binding de serviço do servidor de tempo real
+
+**Lado da API (esta entrega):** a API não declara nada novo para ser chamada. O serviço que o servidor de tempo real
+deve apontar é o Worker `vilanoeldobem-api` (produção), e a rota é `POST /moderation/consume`, em qualquer nome de
+host (a sala usa `https://api.internal/moderation/consume`), sem sessão, sem `Origin` e sem segredo compartilhado;
+a resposta de sucesso é `200` com o corpo exato `{"ok":true}`; o bilhete é a credencial ([api.md](../reference/api.md#remover-um-visitante-de-uma-sala-impl-0021-proposta)).
+Como toda rota da API, ela também fica acessível pelo domínio público `api.*`; por isso responde o mesmo `404` a
+tudo o que não é um bilhete válido, não envia CORS e tem limite próprio.
+
+> **A PREENCHER PELA ENTREGA DO SERVIDOR DE TEMPO REAL (`apps/server`):** declaração do binding `API` em
+> `apps/server/wrangler.jsonc` (produção e homologação), a bandeira `PRESENCE_MODERATION_ENABLED` do servidor, a
+> ordem de publicação dos dois Workers e a conferência depois do deploy. Esta seção documenta só o lado da API.
+
+Em desenvolvimento local, o registro do `wrangler dev` é global por máquina: o binding `API` de um servidor local
+alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para uma conferência isolada, defina
+`WRANGLER_REGISTRY_PATH` para um diretório temporário nos dois processos.
+
+### 10.4 Reverter
+
+- Reverter a API para uma versão anterior com `wrangler rollback` é seguro **enquanto não houver bloqueio em
+  vigor**: a versão anterior ignora as colunas e tabelas novas. **Com algum bloqueio gravado, não reverta**: a
+  versão anterior não lê `users.blocked` e a conta bloqueada voltaria a usar tudo. Desbloqueie antes, ou mantenha
+  esta versão.
+- A migration 0010 não é revertida; as tabelas ficam (vazias, se as bandeiras nunca foram ligadas).
+- Desligar `PRESENCE_MODERATION_ENABLED` faz a API responder `404` a bilhetes e consumos; bilhetes pendentes
+  expiram sozinhos em 30 segundos.
+
 ## Limitações conhecidas
 
+- Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
+  `PRESENCE_MODERATION_ENABLED` desligadas; o binding de serviço do servidor de tempo real e as telas do painel e
+  do jogo são entregas separadas.
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
