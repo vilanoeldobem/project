@@ -33,6 +33,8 @@ export function App() {
   const latest = useRef(0);
   /** True while a session read is in flight: its own refusals must not start another one. */
   const opening = useRef(false);
+  /** Extra flags the screens need (donations, IMPL-0021); read once per admin session. */
+  const [donations, setDonations] = useState(false);
 
   const follow = useCallback((reading: Promise<Session>) => {
     const mine = ++latest.current;
@@ -51,6 +53,21 @@ export function App() {
     },
     [follow]
   );
+
+  useEffect(() => {
+    if (session.kind !== "signed_in" || !isAdmin(session)) {
+      setDonations(false);
+      return;
+    }
+    let live = true;
+    api.config().then(
+      (config) => live && setDonations(config.donations === true),
+      () => live && setDonations(false)
+    );
+    return () => {
+      live = false;
+    };
+  }, [session]);
 
   useEffect(() => {
     follow(start());
@@ -104,7 +121,9 @@ export function App() {
       {route.section === "audit" && <Audit locked={locked} />}
       {route.section === "users" && <Users locked={locked} />}
       {route.section === "system" && <System />}
-      {route.section === "pending" && <Pending />}
+      {route.section === "pending" && (
+        <Pending locked={locked} donationsOn={!locked && donations} accountId={session.kind === "signed_in" ? session.user.id : undefined} />
+      )}
     </Shell>
   );
 }

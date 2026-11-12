@@ -1,8 +1,8 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v9 · **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
+> **Schema D1:** v10 · **Atualizado em:** 2026-11-13
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
 > `packages/shared/src/net/protocol.ts`
@@ -69,7 +69,7 @@ Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (bindi
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false, "quests": false, "files": false, "withdrawal": false }
+{ "accounts": false, "quests": false, "files": false, "withdrawal": false, "donations": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
@@ -91,6 +91,12 @@ painel não oferece a retirada de ONG publicada e a rota responde `404`. A retir
 ([IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md), OQ-14): desligada em produção, em staging e no
 script local `dev`.
 
+`donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
+existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
+(IMPL-0002) e nenhuma rota `/donations/*` existe. Doações são **PROPOSTA**
+([IMPL-0021](../decisions/0021-donations-abacatepay.md), PEN-004/PEN-006/PEN-026): ligada no script local `dev`,
+desligada em produção e staging.
+
 ### GET /indicators
 
 Indicadores públicos (P02, DEC-027). `value: null` quando não há fonte verificável; a interface mostra "—" e `note`.
@@ -100,8 +106,8 @@ Cache 30 s.
 |---|---|---|
 | `approved_ngos` | ONGs com `status='published'` ligadas a um terreno `published` (o que a Vila mostra; uma ONG retirada não tem terreno e não é contada) | número (ou `null` sem D1) |
 | `registered_users` | — | `null` (o código ainda traz a nota "Cadastro ainda não implementado.") |
-| `confirmed_donations` | — | `null` (PEN-004, PEN-006) |
-| `confirmed_amount` | — | `null` |
+| `confirmed_donations` | `donations` com `status='paid'`, lida só com `DONATIONS_ENABLED = "true"` | número, ou `null` com a bandeira desligada (PEN-004, PEN-006) |
+| `confirmed_amount` | soma de `donations.amount_cents` das mesmas doações | número em **centavos**, ou `null` |
 | `people_impacted` | — | `null` (exige metodologia) |
 
 ```json
@@ -654,6 +660,61 @@ de conta continuam funcionando. Com as contas ligadas, a migration vem antes da 
 ([deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)). Provas locais em
 [development.md](../guides/development.md#retirada-de-ong-publicada-local-impl-0020-proposta).
 
+### Doações e conciliação com AbacatePay (IMPL-0021, PROPOSTA)
+
+**PROPOSTA**, atrás de `DONATIONS_ENABLED` (`"false"` em produção e staging; `"true"` no script local `dev`).
+Depende da migration 0010 e, nas rotas administrativas, de `ACCOUNTS_ENABLED`. A política — contrato da parceira,
+provedor e Título — segue PENDENTE (PEN-004, PEN-006, PEN-026): o código não decide tarifas, repasses nem a regra
+do Título para links externos. Nenhuma doação é concluída sem confirmação do provedor (ou de um comprovante
+conferido por admin, no caso do link próprio).
+
+Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.000,00 por Pix):
+
+| Método e rota | Quem | Resposta |
+|---|---|---|
+| `GET /donations/config` | público | `{global: {enabled, recipientName, ngoPercentBps, fixedFeeCents, minAmountCents}}`; nunca CNPJ nem subconta |
+| `GET /ngos/:id/donation-info` | público | ONG publicada em terreno publicado: `{ngoId, name, method, enabled, ngoPercentBps, fixedFeeCents, minAmountCents, confirmedDonations, confirmedAmountCents}`; sem URL, subconta ou CNPJ |
+| `POST /donations/pix` | visitante ou conta | `{targetKind: "global" \| "ngo", ngoId?, amountCents}` → `201 {donation}`, com `brCode`, `brCodeBase64`, `expiresAt`, `devMode` |
+| `GET /donations/:id[?refresh=1]` | público | `{donation}`; com `refresh=1` e status `pending`, consulta o provedor e concilia antes de responder |
+| `POST /donations/:id/simulate` | sandbox | só fora de produção e com cobrança `devMode`: simula o pagamento e concilia |
+| `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
+| `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
+| `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects}` |
+| `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
+| `POST /admin/ngos/:id/payment-config` | admin | `{accountId, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
+| `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
+
+Regras:
+
+- **Split**: `ngoShare = floor(amount × ngoPercentBps / 10000) − fixedFeeCents`; o resto (incluindo a taxa fixa)
+  fica com a Vila. Padrões: 95,00% e R$ 0,80. A configuração é recusada se, na doação mínima, a ONG receberia
+  menos de 1 centavo ou a Vila menos que a taxa base de R$ 0,80 — o mesmo limite que o split da AbacatePay exige
+  (`soma(splits) ≤ valor − platformFee`). Tudo é inteiro em centavos; não há arredondamento em tela.
+- **Doação global**: uma única instituição parceira (DEC-010..013), na subconta dela. Nunca é dividida entre as
+  ONGs da Vila. Sem instituição configurada, a rota responde `409 global_donation_not_configured`.
+- **Doação da ONG**: subconta da própria ONG (criada/localizada pelo CNPJ) ou link próprio HTTPS da organização.
+  O link só fica ativo depois de a administração abri-lo e marcar `linkValidated`; a URL é validada (HTTPS, host
+  público, sem credenciais, `javascript:`/`data:` recusados). Redirecionar não conta doação nem Título.
+- **Título (P15, DEC-041; PROPOSTA)**: cada doação Pix `paid` de uma conta credita **uma vez**
+  (`title_credited = 1`); a soma é lida de `donations`, não de um contador, então repetir webhook não duplica.
+  Estorno ou disputa perdida desfazem o crédito. Doação não concede XP (DEC-042). Comprovante externo entra nos
+  indicadores com `title_credited = 0`: a regra do Título para link externo segue PENDENTE (PEN-026).
+- **Webhook**: exige `X-Webhook-Secret` (ou `?webhookSecret=`) igual a `ABACATEPAY_WEBHOOK_SECRET` **e**
+  `X-Webhook-Signature` = base64(HMAC-SHA256(corpo bruto, chave pública da AbacatePay)), comparados em tempo
+  constante. O corpo é lido como bytes, nunca re-serializado. O id do evento (`log_…`) entra em
+  `abacatepay_webhook_events`: repetição responde `{ok: true, duplicate: true}` e não altera nada.
+- **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
+  configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
+  gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um
+  `sacc_…` existente.
+- **Privacidade**: CNPJ, subconta e URL do link próprio nunca aparecem em rota pública; a auditoria
+  (`donation.settings_update`, `ngo.payment_config`, `donation.external_proof`) guarda ids, método, percentual e
+  valores, nunca CNPJ, URL ou referência do comprovante. Nenhuma chave, segredo ou dado do pagador é registrado.
+- **Schema**: com a bandeira ligada e o banco sem a migration 0010, as rotas de doação respondem
+  `503 schema_outdated` (inclusive o webhook); com a bandeira desligada nenhuma rota pública lê as tabelas novas
+  e `/indicators` continua `null` (teste cobre v3 a v10).
+
 ### Listas do painel administrativo (IMPL-0015)
 
 Só leitura, só `role = 'admin'` (`401 not_signed_in` sem sessão, `403 admin_only` sem o papel), `Cache-Control:
@@ -744,7 +805,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 405 | `method_not_allowed` | rota pública com método diferente de GET/HEAD/OPTIONS |
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
 | API | 503 | `db_unavailable` | rota dependente de D1 (incluindo `/lots`, `/ngos/:id` e rotas de conta) sem binding |
-| API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ou da tabela `ngo_withdrawals` (0009) ausentes; atualizar esquema antes de ativar o fluxo |
+| API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ou de tabelas das migrations 0009/0010 ausentes; atualizar esquema antes de ativar o fluxo |
 | API | 409 | `account_deleting` | exclusão pendente bloqueia candidatura/arquivos, análise/aprovação/ajustes e a retirada; dono pode repetir exclusão, admin pode rejeitar candidatura aberta e liberar terreno |
 | API | 503 | `files_unavailable` | exclusão/recuperação exige armazenamento de arquivos, mas o binding `FILES` está ausente |
 | API | 503 | `file_cleanup_pending` | remoção/recuperação canônica não concluiu a limpeza; repetir `files/recover`, sem interpretar a retirada do metadado como descarte físico |
@@ -786,6 +847,14 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `too_many_files` (+ `fields.file`) | sexto documento |
 | API | 429 | `too_many_file_changes` (+ `fields.file`) | mais de 60 envios e remoções de arquivo na mesma candidatura em 24 horas |
 | API | 409 | `application_changed` | a candidatura mudou enquanto o arquivo era enviado ou removido |
+| API | 404 | `not_found` | rota de doação com `DONATIONS_ENABLED` desligado; ONG não publicada; doação inexistente |
+| API | 400 | `invalid_donation_amount` | valor fora de R$ 2,00 a R$ 50.000,00 ou que não é inteiro em centavos |
+| API | 409 | `global_donation_not_configured` | instituição parceira ou subconta da doação global ainda não configurada |
+| API | 409 | `ngo_payment_not_configured` | ONG sem subconta ativa ou com link próprio ainda não conferido |
+| API | 503 | `payment_provider_unavailable` | AbacatePay sem chave, fora do ar ou recusando a chamada |
+| API | 409 | `subaccounts_unavailable` | em produção, a AbacatePay ainda não habilitou subcontas na conta |
+| API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
+| API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante |
 | API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
 | API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |
@@ -798,4 +867,5 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
+[IMPL-0021](../decisions/0021-donations-abacatepay.md) ·
 [IMPL-0015](../decisions/0015-dash-backoffice-app.md)

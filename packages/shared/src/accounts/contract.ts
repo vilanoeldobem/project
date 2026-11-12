@@ -39,10 +39,26 @@ export interface Application extends NgoApplication {
   createdAt: string;
   updatedAt: string;
   /**
+   * Present once the administration configured how this NGO receives donations (IMPL-0021, PROPOSTA). Absent
+   * when the donations flag is off or an older API answers. `donationUrl` never reaches public routes.
+   */
+  ngoPayment?: NgoPayment;
+  /**
    * Present once the administration withdrew the NGO (IMPL-0020, PROPOSTA). `reason` is the message the admin
    * wrote to the organisation: the applicant reads it as written. It is not an internal note.
    */
   withdrawal?: { reason: string; at: string };
+}
+
+/** Donation receiving configuration of one NGO (`GET /admin/applications/:id`, IMPL-0021; admin only). */
+export interface NgoPayment {
+  method: "abacatepay" | "external_link";
+  donationUrl: string | null;
+  subAccountId: string | null;
+  ngoPercentBps: number;
+  fixedFeeCents: number;
+  linkValidated: boolean;
+  updatedAt: string | null;
 }
 
 /** `GET /ngo/application` and the answer of `POST /ngo/application`. `files` is empty unless uploads are on (IMPL-0017). */

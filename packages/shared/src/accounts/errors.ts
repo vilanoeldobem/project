@@ -31,6 +31,12 @@ const ERROR_TEXT: Record<string, string> = {
   application_locked: "Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.",
   application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
   application_withdrawn: "Esta organização foi retirada da Vila pela administração. Não é possível enviar arquivos, reenviar a candidatura nem registrar novas decisões.",
+  donations_disabled: "As doações ainda não estão habilitadas neste ambiente.",
+  payment_provider_unavailable: "O provedor de pagamento está indisponível no momento. Tente novamente em instantes.",
+  ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
+  global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",
+  invalid_donation_amount: "O valor mínimo para doação via Pix é R$ 2,00.",
+  subaccounts_unavailable: "A AbacatePay ainda não habilitou subcontas nesta conta. Peça a ativação ao suporte e informe o ID da subconta no painel.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */

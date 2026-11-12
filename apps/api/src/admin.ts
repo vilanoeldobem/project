@@ -18,6 +18,7 @@
  * ngo-withdrawal.ts); lists and details here show its effective status `withdrawn`.
  */
 import { newId } from "./crypto";
+import { readNgoPayment } from "./donations";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { APPLICATION_QUERY, applicationSnapshot, applicationView, type NgoRow } from "./ngo";
 import { requireAdmin } from "./session";
@@ -63,7 +64,8 @@ export async function getApplicationAdmin(request: Request, env: Env, id: string
     )
     .bind(`ngo:${id}`)
     .all();
-  return json({ application: applicationView(row), applicant, history: results, files }, { headers: NO_STORE });
+  const payment = await readNgoPayment(env, id);
+  return json({ application: { ...applicationView(row), ...(payment ? { ngoPayment: payment } : {}) }, applicant, history: results, files }, { headers: NO_STORE });
 }
 
 export async function decide(request: Request, env: Env, id: string): Promise<Response> {

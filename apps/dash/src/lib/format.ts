@@ -14,6 +14,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "ngo.file_remove": "Arquivo removido",
   "ngo.file_read": "Documento baixado pela administração",
   "user.delete": "Conta excluída pela própria pessoa",
+  "donation.settings_update": "Configuração da doação global atualizada",
+  "ngo.payment_config": "Recebimento de doações configurado",
+  "donation.external_proof": "Doação externa comprovada registrada",
 };
 
 const FILE_KIND_LABEL = new Map([
@@ -52,6 +55,7 @@ export const FLAG_LABEL: Record<string, string> = {
   quests: "Missões narrativas quests-v1 (PROPOSTA)",
   files: "Logo e documentos nas candidaturas (PROPOSTA)",
   withdrawal: "Retirada de ONG publicada (PROPOSTA)",
+  donations: "Doações e conciliação com a AbacatePay (PROPOSTA)",
 };
 
 /** File formats the API accepts (IMPL-0017); an unknown one is shown by its media type. */

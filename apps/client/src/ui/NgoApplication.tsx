@@ -12,6 +12,7 @@ import { type Application, lotNumber, STATUS_LABEL } from "@vila/shared/accounts
 import { errorText } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { APPLICATION_STEP, NGO_TAGS, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
+import type { NgoPaymentMethod } from "@vila/shared/donations/contract";
 import { LOTS } from "@vila/shared/game/world";
 
 import { useVila } from "../game/store";
@@ -240,6 +241,38 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
             <Field label="Como os recursos podem ser confirmados? *" error={shown.fundsConfirmation} hint="Ex.: extratos da conta da organização, relatório conciliável, página de campanha identificada.">
               <textarea value={form.fundsConfirmation} onChange={(e) => set("fundsConfirmation", e.target.value)} maxLength={1000} rows={4} />
             </Field>
+            <Field
+              label="Meio de recebimento de doações"
+              error={shown.paymentMethod}
+              hint="A administração confere esta configuração antes de a casa receber qualquer doação."
+            >
+              <select
+                value={form.paymentMethod ?? "abacatepay"}
+                onChange={(e) => {
+                  const next: NgoPaymentMethod = e.target.value === "external_link" ? "external_link" : "abacatepay";
+                  set("paymentMethod", next);
+                  // The link only exists in the "link próprio" mode: switching back clears it.
+                  if (next === "abacatepay") set("donationUrl", "");
+                }}
+              >
+                <option value="abacatepay">AbacatePay (Subconta Pix com CNPJ da ONG)</option>
+                <option value="external_link">Link próprio de pagamento (HTTPS)</option>
+              </select>
+            </Field>
+            {(form.paymentMethod ?? "abacatepay") === "external_link" && (
+              <Field
+                label="Link de doação da organização *"
+                error={shown.donationUrl}
+                hint="Página https:// da própria ONG. A administração abre e confere o link antes de ativá-lo."
+              >
+                <input
+                  value={form.donationUrl ?? ""}
+                  onChange={(e) => set("donationUrl", e.target.value)}
+                  maxLength={500}
+                  placeholder="https://ong.org.br/doar"
+                />
+              </Field>
+            )}
             {filesOn ? (
               <p className="note">Depois de enviar a candidatura, você pode anexar o logo e documentos na tela da candidatura. É opcional.</p>
             ) : (

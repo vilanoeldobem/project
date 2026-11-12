@@ -9,6 +9,7 @@ import type {
   AuditEvent,
   EligibilityChecks,
   Me,
+  NgoPayment,
   ReviewAction,
   UserSummary,
 } from "@vila/shared/accounts/contract";
@@ -33,7 +34,63 @@ export interface Config {
   quests?: boolean;
   files?: boolean;
   withdrawal?: boolean;
+  /** Donations and the AbacatePay reconciliation (IMPL-0021, PROPOSTA); absent on an older API (= off). */
+  donations?: boolean;
   [flag: string]: unknown;
+}
+
+/** `GET /admin/donations/overview`: the global split and the partner institution (admin only). */
+export interface DonationSettings {
+  primaryNgoName: string | null;
+  primaryNgoCnpj: string | null;
+  subAccountId: string | null;
+  ngoPercentBps: number;
+  fixedFeeCents: number;
+  configured: boolean;
+  updatedAt: string | null;
+}
+
+/** One NGO row of the overview: its payment mode, as stored (snake keys come from the API's SQL row). */
+export interface NgoPaymentRow {
+  id: string;
+  name: string;
+  status: string;
+  lotId: string | null;
+  payment_method: "abacatepay" | "external_link" | null;
+  donation_url: string | null;
+  sub_account_id: string | null;
+  link_validated: number | null;
+  ngo_percent_bps: number | null;
+  fixed_fee_cents: number | null;
+}
+
+/** A donation as the admin routes return it (`amountCents` etc. are already integers in cents). */
+export interface DonationRow {
+  id: string;
+  targetKind: "global" | "ngo";
+  ngoId: string | null;
+  recipientName: string;
+  amountCents: number;
+  ngoShareCents: number;
+  vilaShareCents: number;
+  status: string;
+  titleCredited: boolean;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface DonationRedirect {
+  id: string;
+  ngo_id: string;
+  ngo_name: string | null;
+  created_at: string;
+}
+
+export interface DonationOverview {
+  settings: DonationSettings;
+  ngos: NgoPaymentRow[];
+  recentDonations: DonationRow[];
+  recentRedirects: DonationRedirect[];
 }
 
 /** Row of `GET /lots` (public): the NGO name appears only once published. */
@@ -89,6 +146,32 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
 
   return {
     health: () => call<Health>("GET", "/health"),
+    /** Global donation and provider settings (IMPL-0021; only when `/config` says `donations`). */
+    donationOverview: () => call<DonationOverview>("GET", "/admin/donations/overview"),
+    saveDonationSettings: (body: {
+      accountId: string;
+      primaryNgoName: string;
+      primaryNgoCnpj: string;
+      ngoPercentBps: number;
+      fixedFeeCents: number;
+      subAccountId?: string;
+    }) => call<{ settings: DonationSettings }>("POST", "/admin/donations/settings", body),
+    /** Confirms how one NGO receives donations (sub-account by CNPJ, or a validated external HTTPS link). */
+    saveNgoPayment: (
+      id: string,
+      body: {
+        accountId: string;
+        paymentMethod: "abacatepay" | "external_link";
+        donationUrl?: string;
+        linkValidated?: boolean;
+        ngoPercentBps: number;
+        fixedFeeCents: number;
+        subAccountId?: string;
+      }
+    ) => call<{ payment: NgoPayment | null }>("POST", `/admin/ngos/${id}/payment-config`, body),
+    /** A donation paid on the NGO's own page, verified by an admin: it counts publicly, it grants no Título. */
+    registerExternalProof: (body: { accountId: string; ngoId: string; amountCents: number; proofReference: string; note?: string }) =>
+      call<{ donation: DonationRow }>("POST", "/admin/donations/external-proof", body),
     config: () => call<Config>("GET", "/config"),
     lots: () => call<{ lots: Lot[] }>("GET", "/lots"),
     requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),

@@ -51,7 +51,7 @@ async function call<T>(method: string, path: string, body?: unknown, headers: Re
 const accountId = () => useAccount.getState().user?.id ?? "";
 
 export const api = {
-  config: () => call<{ accounts: boolean; quests?: boolean; files?: boolean }>("GET", "/config"),
+  config: () => call<{ accounts: boolean; quests?: boolean; files?: boolean; donations?: boolean }>("GET", "/config"),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -83,6 +83,8 @@ interface AccountState {
   enabled: boolean;
   /** Files of an NGO application turned on by the API (`/config`, IMPL-0017); every file control hides when false. */
   files: boolean;
+  /** Donations turned on by the API (`/config`, IMPL-0021, PROPOSTA); the donation panels stay disabled when false. */
+  donations: boolean;
   user: Me | null;
   ready: boolean;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
@@ -93,6 +95,7 @@ interface AccountState {
 export const useAccount = create<AccountState>((set) => ({
   enabled: false,
   files: false,
+  donations: false,
   user: null,
   ready: false,
   sync: "saved",
@@ -281,9 +284,10 @@ function takeLoginToken(): string | null {
  */
 export async function initAccount() {
   try {
-    const { accounts, quests, files } = await api.config();
+    const { accounts, quests, files, donations } = await api.config();
     setServerQuests(quests === true);
-    useAccount.setState({ enabled: accounts, files: accounts && files === true });
+    // Donations work for visitors too, so this flag is independent of the accounts flag.
+    useAccount.setState({ enabled: accounts, files: accounts && files === true, donations: donations === true });
     if (!accounts) return;
     const token = takeLoginToken();
     if (token) {

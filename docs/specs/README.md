@@ -30,9 +30,9 @@ Caminhos relativos a `apps/client/src/`, salvo indicação.
 
 | Tela | Código | Status |
 |---|---|---|
-| P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx` | Parcial |
+| P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx`, `ui/PixDonation.tsx` (doação Pix atrás de `DONATIONS_ENABLED`, PROPOSTA: IMPL-0021) | Parcial |
 | P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
-| P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx` ("Candidatar minha ONG" em terreno disponível), `ui/Explore.tsx` | Parcial |
+| P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx` ("Candidatar minha ONG" em terreno disponível; doação da casa atrás de `DONATIONS_ENABLED`, PROPOSTA: IMPL-0021), `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |
 | P12 | `ui/NgoApplication.tsx` (4 etapas, situação), `apps/dash/src/ui/Applications.tsx` (análise administrativa, no painel `dash.*`, IMPL-0015), `apps/api/src/{ngo,admin}.ts`, `packages/shared/src/accounts/{validate,contract}.ts` | Implementado, desligado em produção (IMPL-0011); campos PROPOSTA; envio de logo e documentos atrás de `NGO_FILES_ENABLED`, desligado em produção (IMPL-0017, PEN-019) |
 | P13 | `ui/Account.tsx` (chip "Entrar"/"@nickname", painel da conta), `lib/account.ts`, `apps/api/src/{auth,session,mail}.ts` | Implementado, desligado em produção (IMPL-0011); campos CONFIRMADOS (DEC-038), regras de formato PROPOSTA |

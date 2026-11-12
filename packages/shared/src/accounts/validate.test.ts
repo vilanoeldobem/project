@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isAtLeastOneYearOld, isValidCnpj, validateApplication, validateRegistration } from "./validate";
+import { APPLICATION_STEP, isAtLeastOneYearOld, isValidCnpj, validateApplication, validateRegistration } from "./validate";
 
 const TODAY = new Date("2026-11-11T12:00:00Z");
 const VALID_APP = {
@@ -72,4 +72,23 @@ describe("NGO application (P12; DEC-015)", () => {
     const { errors } = validateApplication({ ...VALID_APP, declarations: { activeCnpj: true, oneYear: true } }, TODAY);
     expect(errors.declarations).toBeDefined();
   });
+
+  it("keeps the requested donation mode, validating only the external link", () => {
+    const base = { ...VALID_APP, summary: "Apoio escolar às crianças da comunidade." };
+    // Omitted: AbacatePay, as every application sent before IMPL-0021.
+    const omitted = validateApplication(base, TODAY);
+    expect(omitted.errors).toEqual({});
+    expect([omitted.value.paymentMethod, omitted.value.donationUrl]).toEqual(["abacatepay", ""]);
+    // AbacatePay mode with a URL keeps the URL out (it is not used there).
+    expect(validateApplication({ ...base, paymentMethod: "abacatepay", donationUrl: "https://ong.org.br/doar" }, TODAY).value.donationUrl).toBe("");
+    // External link: required and strictly HTTPS/public.
+    expect(validateApplication({ ...base, paymentMethod: "external_link" }, TODAY).errors.donationUrl).toMatch(/link HTTPS/);
+    expect(validateApplication({ ...base, paymentMethod: "external_link", donationUrl: "http://ong.org.br/doar" }, TODAY).errors.donationUrl).toMatch(/link HTTPS/);
+    const valid = validateApplication({ ...base, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar" }, TODAY);
+    expect(valid.errors).toEqual({});
+    expect([valid.value.paymentMethod, valid.value.donationUrl]).toEqual(["external_link", "https://ong.org.br/doar"]);
+    // Both fields belong to step 2, so the wizard jumps there on an error.
+    expect([APPLICATION_STEP.paymentMethod, APPLICATION_STEP.donationUrl]).toEqual([2, 2]);
+  });
+
 });

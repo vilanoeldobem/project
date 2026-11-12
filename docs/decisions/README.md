@@ -39,5 +39,6 @@
 | [IMPL-0018](0018-ngo-files-reconciliation.md) | Conciliação de logo/documentos e galeria sobre o fluxo do PR #32 | Proposta — implementada, sem ativação; conciliação de arquivos e galeria |
 | [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementada, bandeiras inalteradas |
 | [IMPL-0020](0020-ngo-publication-withdrawal.md) | Retirada administrativa da publicação de ONG: registro aditivo, leituras públicas pelo terreno | Proposta — implementada, desligada em produção e homologação (`NGO_WITHDRAWAL_ENABLED`); política PENDENTE (OQ-14), missões na OQ-09 |
+| [IMPL-0021](0021-donations-abacatepay.md) | Doações Pix com split e conciliação pela AbacatePay (global e por ONG), Título creditado uma vez | Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); depende de PEN-004, PEN-006 e PEN-026 |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

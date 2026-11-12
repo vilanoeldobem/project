@@ -1,12 +1,12 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
-> **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal}.ts`
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
+> **Atualizado em:** 2026-11-13
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,donations,abacatepay}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v9 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v10 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -26,10 +26,12 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
 | `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
+| `0010_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0021](../decisions/0021-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
 
-Esta versão contém 0001–0009, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+Esta versão contém 0001–0010, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
-retiradas. A 0007 chamava-se 0010
+retiradas; a 0010 acrescenta as doações e a conciliação com a AbacatePay, sem tocar nas tabelas existentes.
+A 0007 chamava-se 0010
 enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
 Simuladores locais com a antiga 0010 são bases alternativas: usar nova base isolada, sem renomear seu histórico
 ou apagá-los.
@@ -40,8 +42,9 @@ Operações de conta que encontrem ausência das novas colunas retornam `503 sch
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
 ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
-`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v9 (com as contas ligadas, a migration
-vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v10 enquanto as bandeiras de arquivos,
+galeria, retirada e doações estiverem desligadas (com as contas ligadas, a migration vem antes da API; ver
+[deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -151,6 +154,32 @@ As leituras públicas não consultam esta tabela (exigem o terreno publicado, qu
 candidatura e de análise a consultam para projetar `withdrawn` e recusar envios; ver
 [api.md](api.md#retirada-administrativa-de-ong-publicada-impl-0020-proposta).
 
+### donation_settings, ngo_payment_configs, donations, donation_redirects e abacatepay_webhook_events (v10, PROPOSTA)
+
+Doações e conciliação com a AbacatePay ([IMPL-0021](../decisions/0021-donations-abacatepay.md)). **PROPOSTA**: só
+recebem linhas com `DONATIONS_ENABLED = "true"` (desligada em produção e homologação). O que o produto decide sobre
+parceira, provedor e Título segue PENDENTE (PEN-004, PEN-006, PEN-026); a migration não decide nada disso.
+Valores são inteiros em **centavos**.
+
+| Tabela | Papel | Campos que importam |
+|---|---|---|
+| `donation_settings` | linha única (`id = 'global'`) da instituição parceira e do split padrão | `primary_ngo_name` (público), `primary_ngo_cnpj` (privado), `primary_sub_account_id` (`sacc_…`/`dev_sacc_…`), `ngo_percent_bps` 100–10000, `fixed_fee_cents` 80–190 |
+| `ngo_payment_configs` | uma linha por ONG: modo pedido na candidatura e confirmação do admin | `payment_method` (`abacatepay`/`external_link`), `donation_url`, `sub_account_id`, `link_validated` 0/1, percentual e taxa |
+| `donations` | cobranças Pix do provedor e comprovantes externos conferidos | `provider` (`abacatepay`/`external_proof`), `provider_charge_id` UNIQUE, `status` (`pending`/`paid`/`refunded`/`under_dispute`/`expired`/`cancelled`), `title_credited` 0/1, split e valores, `br_code`/`br_code_base64`, `dev_mode` |
+| `donation_redirects` | clique que enviou alguém ao link próprio da ONG; **não é doação** | `ngo_id`, `user_id`, `target_url` (a URL não é exibida em lista pública) |
+| `abacatepay_webhook_events` | deduplicação do webhook pelo id do evento (`log_…`) | `id` PK, `event`, `charge_id`, `processed_at` |
+
+Índices: `idx_donations_ngo_status`, `idx_donations_user_title`, `idx_donations_status` e
+`idx_donation_redirects_ngo`. `donations.user_id` e `donation_redirects.user_id` referenciam `users` com
+`ON DELETE SET NULL` (a doação e o registro ficam, sem ligação nominal); `ngo_id` em `donations` também usa
+`SET NULL`, e em `ngo_payment_configs`/`donation_redirects` usa `ON DELETE CASCADE`.
+
+A confirmação de pagamento (webhook, `?refresh=1` ou simulação de sandbox) atualiza a linha sob a transição de
+status permitida; `title_credited` vira 1 só em `paid` de uma conta, e 0 em estorno ou disputa perdida. A soma do
+Título e os indicadores públicos são lidos de `donations` (sem contador paralelo), então repetir o webhook não
+duplica crédito. Nenhuma rota pública lê estas tabelas com a bandeira desligada; com ela ligada e o banco sem a
+0010, as rotas respondem `503 schema_outdated`.
+
 ### lots
 
 | Coluna | Tipo | Notas |
@@ -255,13 +284,16 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Galeria (R2) | todas as fotos são removidas ao excluir a conta, inclusive as aprovadas; falha de limpeza permite repetição |
 | Registro de retirada (`ngo_withdrawals`, D1; PROPOSTA) | fica, com a mensagem enviada à organização, inclusive depois da exclusão da conta do responsável; **sem prazo definido** (OQ-14) |
 | Intenção de arquivo (D1) | até finalizar o upload ou confirmar a limpeza; cancelamento de envio abandonado pode ser solicitado após 15 min, sem prazo automático de retenção |
+| Doação Pix ou comprovante externo (`donations`, D1; PROPOSTA) | o vínculo `user_id` vira `NULL` em `DELETE /me`; valor, destino, status e crédito de Título ficam para os indicadores e a conciliação; **sem prazo definido** (PEN-026) |
+| Redirecionamento para link próprio (`donation_redirects`, D1; PROPOSTA) | o vínculo `user_id` vira `NULL` em `DELETE /me`; a linha permanece como registro do envio; **sem prazo definido** |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
 
 Progresso de visitantes sem conta (só `localStorage` do navegador, chave `vila.progress.v2`; migra para
 `progress_events` ao entrar e é apagado do navegador; o progresso de uma conta nunca é gravado nessa chave, e eventos
-ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), os bytes de logos e documentos de ONG (ficam no R2, [§ 5](#5-arquivos-no-r2-impl-0017)), pagamentos. Logs de pagamento ficarão
-separados dos dados de gamificação (dossiê §13).
+ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), os bytes de logos e documentos de ONG (ficam no R2, [§ 5](#5-arquivos-no-r2-impl-0017)), pagamentos são a exceção das doações confirmadas
+(`donations`, sem nome, e-mail ou dado de cartão; o vínculo com a conta é anulado na exclusão). Logs de pagamento
+ficarão separados dos dados de gamificação (dossiê §13).
 
 ## 5. Arquivos no R2 (IMPL-0017)
 
