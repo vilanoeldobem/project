@@ -48,7 +48,7 @@ const SCENES: Scene[] = [
     label: "Praça nevada",
     webp: "/img/praca.webp",
     jpg: "/img/praca.jpg",
-    alt: "A praça nevada da Vila em voxel art ao entardecer: árvore de Natal ao centro, cordões de lâmpadas coloridas, bonecos de neve, barracas do mercado e o banco da doação global.",
+    alt: "A praça nevada da Vila em voxel art ao entardecer: árvore de Natal ao centro, cordões de lâmpadas coloridas, bonecos de neve, barracas do mercado e o ponto da doação global.",
     caption: "Praça nevada ao entardecer · árvore central, cordões de lâmpadas, bonecos de neve e o mercado.",
   },
   {
@@ -64,8 +64,8 @@ const SCENES: Scene[] = [
     label: "Missões e visual",
     webp: "/img/praca-missoes.webp",
     jpg: "/img/praca-missoes.jpg",
-    alt: "Avatar em voxel, visto de costas, com gorro e cachecol na praça nevada; ao fundo, a árvore de Natal e o ponto da doação global.",
-    caption: "Missões gratuitas · gorro e cachecol desbloqueados sem precisar doar, com a árvore e a doação global ao fundo.",
+    alt: "Avatar em voxel de gorro vermelho, visto de costas, na praça nevada diante da árvore de Natal; ao lado, o ponto da doação global; no canto, o painel de missões marca 0 de 4 missões, nível 1 e 0 de 100 XP.",
+    caption: "Missões da Vila · no canto, o painel mostra as missões, o nível e a experiência; adiante, a árvore e o ponto da doação global.",
   },
 ];
 
@@ -402,7 +402,7 @@ export function App() {
               <article className="donation-path">
                 <div className="donation-path__head">
                   <VoxelTreeGlobeIcon />
-                  <h3>Doação global (na árvore central)</h3>
+                  <h3>Doação global</h3>
                 </div>
                 <p>
                   Na praça, você pode doar sem escolher uma ONG específica. O valor vai para{" "}
@@ -410,7 +410,7 @@ export function App() {
                   programas. A Vila não divide essas doações entre as ONGs.
                 </p>
                 <p className="pill">
-                  <VoxelCheckShieldIcon size={18} />
+                  <VoxelClockIcon size={18} />
                   Instituição parceira: em definição
                 </p>
               </article>

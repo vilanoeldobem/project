@@ -140,7 +140,7 @@ export function VoxelChaletHeartIcon({ size = 44 }: { size?: number }) {
   );
 }
 
-/** 24×24: DEC-015 verification badge (shield + block check). */
+/** 24×24: DEC-015 verification badge (shield + block check). Never used for pending items. */
 export function VoxelCheckShieldIcon({ size = 22 }: { size?: number }) {
   return (
     <svg className="voxel-icon" width={size} height={size} viewBox="0 0 24 24" {...crisp}>
@@ -156,7 +156,7 @@ export function VoxelCheckShieldIcon({ size = 22 }: { size?: number }) {
   );
 }
 
-/** 20×20: clock face for the São Paulo village time pill. */
+/** 20×20: clock face for the São Paulo village time pill and for pending ("em definição") notes. */
 export function VoxelClockIcon({ size = 18 }: { size?: number }) {
   return (
     <svg className="voxel-icon" width={size} height={size} viewBox="0 0 20 20" {...crisp}>
