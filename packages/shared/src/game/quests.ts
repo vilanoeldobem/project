@@ -13,11 +13,13 @@
  * `content/proposals/quests-v1/{quests,npcs,dialogues}.csv`.
  */
 import type { Mission, Progress } from "./progress";
-import { LOTS } from "./world";
+import { LOTS, type NpcId } from "./world";
+
+// The NPC ids live with the NPC placements in `./world`; re-exported for the quest callers.
+export { NPC_IDS, type NpcId } from "./world";
 
 export type ObjectiveType = "talk" | "collect" | "deliver" | "visit" | "read" | "minigame" | "interact";
 export type QuestState = "locked" | "available" | "active" | "ready_to_turn_in" | "completed";
-export type NpcId = "sleigh-keeper" | "market-keeper" | "postmaster" | "pond-keeper" | "storyteller";
 
 export interface Quest extends Mission {
   chainId: string;
@@ -54,8 +56,6 @@ export const CHAIN_TITLES: Record<string, string> = {
   "lake-lights": "A noite das luzes do lago",
   "village-story": "O livro da Vila",
 };
-
-export const NPC_IDS: readonly NpcId[] = ["sleigh-keeper", "market-keeper", "postmaster", "pond-keeper", "storyteller"];
 
 export const QUESTS: Quest[] = [
   {

@@ -8,6 +8,7 @@ import {
   OBSTACLES,
   POND,
   QUEST_INTERACTIONS,
+  QUEST_OBSTACLES,
   QUEST_SPAWNS,
   SLEIGH,
   surfaceAt,
@@ -130,11 +131,20 @@ describe("world helpers", () => {
 });
 
 describe("quest placements (PROPOSTA quests-v1)", () => {
-  it("keeps every NPC clear of the pre-existing scenery, lots, pond and each other", () => {
-    // The last entries of OBSTACLES are the quest NPCs plus the donation lectern (appended in world.ts).
-    const scenery = OBSTACLES.slice(0, OBSTACLES.length - NPCS.length - 1);
+  it("keeps the quest colliders out of OBSTACLES (quests off: nothing invisible blocks the avatar)", () => {
+    const at = (list: typeof OBSTACLES, x: number, z: number) => list.filter((o) => o.x === x && o.z === z);
     for (const { id, x, z } of NPCS) {
-      for (const o of scenery) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius + 0.3);
+      expect(at(OBSTACLES, x, z), `${id} in OBSTACLES`).toEqual([]);
+      expect(at(QUEST_OBSTACLES, x, z), `${id} in QUEST_OBSTACLES`).toEqual([{ x, z, r: 0.5 }]);
+    }
+    expect(at(OBSTACLES, DONATION_PANEL.x, DONATION_PANEL.z), "lectern in OBSTACLES").toEqual([]);
+    expect(at(QUEST_OBSTACLES, DONATION_PANEL.x, DONATION_PANEL.z), "lectern in QUEST_OBSTACLES").toEqual([{ x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r }]);
+    expect(QUEST_OBSTACLES).toHaveLength(NPCS.length + 1);
+  });
+
+  it("keeps every NPC clear of the pre-existing scenery, lots, pond and each other", () => {
+    for (const { id, x, z } of NPCS) {
+      for (const o of OBSTACLES) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius + 0.3);
       for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
       expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
       expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
@@ -147,7 +157,7 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
   it("keeps every quest spawn reachable and off lots, pond, tree and scenery", () => {
     expect(new Set(QUEST_SPAWNS.map((s) => s.id)).size).toBe(QUEST_SPAWNS.length);
     for (const { id, x, z } of QUEST_SPAWNS) {
-      for (const o of OBSTACLES) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius);
+      for (const o of [...OBSTACLES, ...QUEST_OBSTACLES]) expect(Math.hypot(x - o.x, z - o.z), `${id} obstacles`).toBeGreaterThanOrEqual(o.r + MOTION.radius);
       for (const l of LOTS) expect(Math.hypot(x - l.x, z - l.z), `${id} vs ${l.id}`).toBeGreaterThan(5.5);
       expect(Math.hypot(x - POND.x, z - POND.z), `${id} pond`).toBeGreaterThan(POND.radius + 1);
       expect(Math.hypot(x, z), `${id} tree`).toBeGreaterThan(TREE_RADIUS);
@@ -156,7 +166,7 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
   });
 
   it("places the donation lectern clear of props, lots, sleigh, pond and NPCs", () => {
-    for (const o of OBSTACLES) {
+    for (const o of [...OBSTACLES, ...QUEST_OBSTACLES]) {
       if (o.x === DONATION_PANEL.x && o.z === DONATION_PANEL.z) continue;
       expect(Math.hypot(DONATION_PANEL.x - o.x, DONATION_PANEL.z - o.z), "lectern obstacles").toBeGreaterThan(o.r + MOTION.radius);
     }

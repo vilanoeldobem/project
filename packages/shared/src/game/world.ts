@@ -154,13 +154,17 @@ export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
 
 export const SPAWN = { x: 0, z: 9 } as const;
 
+/** Ids of the fictional quest NPCs (PROPOSTA quests-v1, PEN-025); `NpcId` is derived from this list. */
+export const NPC_IDS = ["sleigh-keeper", "market-keeper", "postmaster", "pond-keeper", "storyteller"] as const;
+export type NpcId = (typeof NPC_IDS)[number];
+
 /**
  * Fictional quest NPCs (PROPOSTA quests-v1, PEN-025). Seed = npc_id, so every visitor sees the same
- * villager. Positions are suggestions (final layout: PEN-017/PEN-023); they block the avatar like the
- * decorative villagers. `rot` faces the approach from the plaza.
+ * villager. Positions are suggestions (final layout: PEN-017/PEN-023); while quests are on they block the
+ * avatar like the decorative villagers (see QUEST_OBSTACLES). `rot` faces the approach from the plaza.
  */
 export interface NpcPlacement {
-  id: "sleigh-keeper" | "market-keeper" | "postmaster" | "pond-keeper" | "storyteller";
+  id: NpcId;
   name: string;
   role: string;
   seed: string;
@@ -210,7 +214,10 @@ export const QUEST_INTERACTIONS: QuestInteraction[] = [
   { id: "sled-ride", questId: "kids-sled-run", objectId: "kids-sled", x: 2.5, z: 27, radius: 3.5 },
 ];
 
-/** Permanent global donation point (DEC-026): the reading lectern next to the tree (PROPOSTA quests-v1). */
+/**
+ * Reading lectern next to the tree (PROPOSTA quests-v1): a second way into the global donation panel
+ * (DEC-026), used by `donation-promise-reading`. Exists only while quests are on, like the NPCs.
+ */
 export const DONATION_PANEL = { x: 4.6, z: 6.4, rot: Math.atan2(SPAWN.x - 4.6, SPAWN.z - 6.4), r: 0.5 } as const;
 
 /** Keeps the avatar inside the world and outside the tree. */
@@ -255,7 +262,14 @@ export const OBSTACLES: Obstacle[] = [
   { x: SLEIGH.x + 7.8, z: SLEIGH.z + 0.9, r: 0.8 },
   ...PLACED_PROPS.filter((p) => p.r > 0).flatMap((p) => p.at.map(({ x, z }) => ({ x, z, r: p.r }))),
   ...CRITTERS.filter((c) => !c.y && (c.kind === "villager" || c.kind === "dog")).map((c) => ({ x: c.x, z: c.z, r: c.kind === "villager" ? 0.5 : 0.4 })),
-  // Quest NPCs block at the decorative villager radius; the donation lectern is a permanent prop.
+];
+
+/**
+ * Obstacles that exist only while quests are on (PROPOSTA quests-v1): the quest NPCs, at the decorative
+ * villager radius, and the donation lectern. Kept out of OBSTACLES so that, with quests off, nothing
+ * invisible blocks the avatar; the client adds them to its colliders together with the meshes.
+ */
+export const QUEST_OBSTACLES: Obstacle[] = [
   ...NPCS.map((n) => ({ x: n.x, z: n.z, r: 0.5 })),
   { x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r },
 ];

@@ -9,7 +9,11 @@
  *
  * `applyEvent` has two paths that share `Progress`: the four quick missions below (unchanged behaviour)
  * and the quest catalog in `./quests` (accept → objectives → turn-in). The server and the client both
- * replay events through this function, in any order, with the same input and output.
+ * replay events through this function. What replay guarantees: the same list in the same order always
+ * gives the same progress, and repeating an event changes nothing. The four missions do not depend on the
+ * order. Quests do: an event that is not a valid transition at its position in the list is ignored, so
+ * another order can leave a quest behind, never ahead (no order grants more XP than the catalog holds).
+ * For that reason the API stores a quest event only when it is a valid transition (IMPL-0013).
  */
 import type { Quest } from "./quests";
 import { canAccept, QUESTS, questState } from "./quests";
