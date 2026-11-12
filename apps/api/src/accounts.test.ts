@@ -4,6 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { devVar, productionVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
 import { loginEmail } from "./mail";
@@ -662,6 +663,19 @@ describe("backoffice dashboard (IMPL-0015)", () => {
       // From the game, a registration link always opens the game.
       const ok = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
       expect(new URL(ok.body.devLink).origin).toBe(ORIGIN);
+    });
+
+    it("is configured as an exact origin that is also an account origin (production vars and the dev script)", () => {
+      // `fromDash` compares text: a DASH_ORIGIN that differs from the ACCOUNT_ORIGINS entry by a slash or a letter
+      // would silently send dashboard links to the game.
+      for (const [where, read] of [["wrangler.jsonc", productionVar], ["dev script", devVar]] as const) {
+        const list = (name: string) => (read(name) ?? "").split(",");
+        const dash = read("DASH_ORIGIN");
+        expect([where, dash]).toEqual([where, expect.stringMatching(/^https?:\/\/[a-z0-9.-]+(:\d+)?$/)]);
+        expect([where, list("ALLOWED_ORIGINS")]).toEqual([where, expect.arrayContaining([dash])]);
+        expect([where, list("ACCOUNT_ORIGINS")]).toEqual([where, expect.arrayContaining([dash, read("GAME_ORIGIN")])]);
+        expect([where, read("GAME_ORIGIN")]).not.toEqual([where, dash]);
+      }
     });
 
     it("says in the e-mail that the link opens the dashboard", async () => {
