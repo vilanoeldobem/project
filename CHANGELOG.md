@@ -16,7 +16,7 @@ Cada versão indica o schema D1 que entrega.
 - Eventos de quest incompatíveis com o estado salvo são omitidos e a resposta devolve o progresso da conta,
   preservando o login quando o visitante tinha outra quest ativa. Contenção após três tentativas com jitter
   retorna `409 progress_conflict`. Regressão conecta cliente real à API real e confere proprietário, XP e reload.
-- Nova migration `0008_progress_write_guard.sql`, após arquivos e galeria; nenhuma migration remota ou flag foi ativada.
+- Nova migration `0008_progress_write_guard.sql` (schema D1 v8), após arquivos e galeria; nenhuma migration remota ou flag foi ativada.
   Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
   duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0019](docs/decisions/0019-progress-concurrency-and-acknowledgment.md)).
 

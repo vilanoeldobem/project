@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -57,7 +57,8 @@ pnpm --filter @vila/api db:migrate:remote
 ```
 
 Exige autorização humana explícita. Confira o histórico remoto e aplique a sequência efetiva antes de
-disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007;
+disponibilizar as operações que dependem dela. O código de contas/arquivos desta versão requer até 0007
+e a gravação de progresso requer a 0008 (`progress_writes`, IMPL-0019; sem ela `POST /progress/events` responde `500`);
 operações que encontrem colunas novas ausentes retornam `503 schema_outdated`. As rotas públicas continuam
 tolerantes à v3, inclusive `/ngos/:id`; isso não dispensa o upgrade antes de ativar as contas. O último estado
 registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
@@ -177,7 +178,7 @@ Contas, link mágico, XP no servidor, candidatura e análise de ONGs
 
 ### 7.1 Ordem do deploy da 0.4.0
 
-1. **Migrations sequenciais até 0007 + API** (ambas exigem autorização):
+1. **Migrations sequenciais até 0008 + API** (ambas exigem autorização):
 
    ```bash
    pnpm --filter @vila/api db:migrate:remote     # aplica somente as migrations pendentes da sequência revisada
@@ -326,7 +327,7 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    `wrangler deploy` puro **cria o bucket sozinho**, sem perguntar e sem a localização `enam`. O script
    `pnpm deploy:api` passa `--x-provision=false`; com ele, sem o bucket, o esperado é o deploy falhar e a versão que
    já está no ar continuar valendo (lido no código do wrangler; não testado com um deploy real).
-2. **Migrations sequenciais até 0007 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
+2. **Migrations sequenciais até 0008 + API**, como no [§7.1](#71-ordem-do-deploy-da-040), com autorização
    explícita. A 0006 contém arquivos canônicos; a 0007 contém galeria e guardas usados em todas as rotas de
    sessão. **Se contas já estiverem ligadas, publicar esta API antes da 0007 interrompe o acesso autenticado**
    com `503 schema_outdated`, mesmo com fotos desligadas. Cadastro/link/logout não provam que a sessão funciona.

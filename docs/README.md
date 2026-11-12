@@ -1,6 +1,6 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v7 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
