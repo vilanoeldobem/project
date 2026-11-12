@@ -43,8 +43,11 @@ export interface ApplicationFile {
   createdAt: string;
 }
 
-/** Statuses in which the applicant may add or remove files; a published application is frozen (DEC-037). */
-export const FILES_EDITABLE_STATUSES = ["submitted", "under_review", "changes_requested", "rejected"] as const;
+/**
+ * Statuses in which the applicant may add or remove files. While an admin is reviewing ("under_review") the files
+ * are locked, so what gets decided is what was seen; a published application is frozen (DEC-037).
+ */
+export const FILES_EDITABLE_STATUSES = ["submitted", "changes_requested", "rejected"] as const;
 export const filesEditable = (status: string): boolean => (FILES_EDITABLE_STATUSES as readonly string[]).includes(status);
 
 /** Download name built from what the API knows: "logo.png", "documento-2.pdf" (`position` counts from 1). */
@@ -73,8 +76,9 @@ export interface CleanImage {
   width: number;
   height: number;
   /**
-   * The same picture without metadata (EXIF, GPS, comments, text chunks, anything after the end marker). A JPEG
-   * keeps one thing from its EXIF: the orientation.
+   * The same picture without the metadata this module knows (EXIF with GPS and device, XMP, IPTC, comments, text
+   * chunks, thumbnails, anything after the end marker). A JPEG keeps one thing from its EXIF: the orientation.
+   * Only re-encoding the pixels removes everything; an ICC profile and the pixel data are kept as sent.
    */
   bytes: Uint8Array;
 }
@@ -92,12 +96,48 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
-/** PNG chunks that change how the picture looks. Everything else (tEXt, iTXt, zTXt, eXIf, tIME, APNG…) is dropped. */
-const PNG_KEEP = new Set(["IHDR", "PLTE", "IDAT", "IEND", "tRNS", "gAMA", "cHRM", "sRGB", "iCCP", "sBIT", "bKGD", "pHYs"]);
+/**
+ * Separate byte ranges one cleaned image may be made of. Real files need a handful; a hostile file built from
+ * hundreds of thousands of tiny pieces is refused instead of costing an object per piece.
+ */
+const MAX_PARTS = 10_000;
+
+/** The byte ranges of the source to keep, in order. Neighbouring ranges become one, so many small chunks cost nothing. */
+class Kept {
+  readonly parts: Uint8Array[] = [];
+  private readonly bytes: Uint8Array;
+  private from = -1;
+  private to = -1;
+  constructor(bytes: Uint8Array) {
+    this.bytes = bytes;
+  }
+  /** Keeps `bytes[start, end)`. */
+  range(start: number, end: number): void {
+    if (start === this.to) this.parts[this.parts.length - 1] = this.bytes.subarray(this.from, (this.to = end));
+    else this.parts.push(this.bytes.subarray((this.from = start), (this.to = end)));
+  }
+  /** Adds bytes that are not in the source. */
+  add(part: Uint8Array): void {
+    this.parts.push(part);
+    this.to = -1;
+  }
+  get tooMany(): boolean {
+    return this.parts.length > MAX_PARTS;
+  }
+}
+
+/**
+ * Ancillary PNG chunks that change how the picture looks, with the largest payload each may have. One of each,
+ * and only before the pixel data; a bigger or repeated one is dropped (it would be a place to hide data).
+ * Everything else (tEXt, iTXt, zTXt, eXIf, tIME, APNG…) is always dropped.
+ */
+const PNG_ANCILLARY: Record<string, number> = { tRNS: 256, gAMA: 4, cHRM: 32, sRGB: 1, sBIT: 4, bKGD: 6, pHYs: 9, iCCP: 1024 * 1024 };
 
 function cleanPng(bytes: Uint8Array): CleanImage | null {
   if (!startsWith(bytes, PNG_SIGNATURE)) return null;
-  const parts: Uint8Array[] = [bytes.subarray(0, 8)];
+  const kept = new Kept(bytes);
+  kept.range(0, 8);
+  const seen = new Set<string>();
   let at = 8;
   let width = 0;
   let height = 0;
@@ -112,24 +152,47 @@ function cleanPng(bytes: Uint8Array): CleanImage | null {
       if (type !== "IHDR" || length !== 13) return null;
       width = u32(bytes, at + 8);
       height = u32(bytes, at + 12);
+      kept.range(at, end);
     } else if (type === "IHDR") return null;
-    if (type === "IDAT") hasData = true;
-    if (PNG_KEEP.has(type)) parts.push(bytes.subarray(at, end));
+    else if (type === "PLTE") {
+      // The palette is part of the picture: one, before the pixel data, at most 256 colours.
+      if (seen.has(type) || hasData || length > 768 || length % 3 !== 0) return null;
+      kept.range(at, end);
+    } else if (type === "IDAT") {
+      hasData = true;
+      kept.range(at, end);
+    } else if (type === "IEND") {
+      if (length !== 0) return null;
+      kept.range(at, end);
+    } else if (Object.hasOwn(PNG_ANCILLARY, type) && !seen.has(type) && !hasData && length <= PNG_ANCILLARY[type]) kept.range(at, end);
+    seen.add(type);
+    if (kept.tooMany) return null;
     at = end;
     if (type === "IEND") break;
   }
   if (!hasData || !width || !height) return null;
-  return { width, height, bytes: concat(parts) };
+  return { width, height, bytes: concat(kept.parts) };
 }
 
 const ICC_PROFILE = [0x49, 0x43, 0x43, 0x5f, 0x50, 0x52, 0x4f, 0x46, 0x49, 0x4c, 0x45, 0x00]; // "ICC_PROFILE\0"
 
-/** JPEG segments kept: everything the decoder needs, plus JFIF (APP0), an ICC profile (APP2) and Adobe (APP14, colour transform). */
-function keepJpegSegment(bytes: Uint8Array, marker: number, at: number): boolean {
-  if (marker === 0xfe) return false; // COM
-  if (marker < 0xe0 || marker > 0xef) return true;
-  if (marker === 0xe0 || marker === 0xee) return true;
-  return marker === 0xe2 && startsWith(bytes, ICC_PROFILE, at + 4);
+const JFIF = [0x4a, 0x46, 0x49, 0x46, 0x00]; // "JFIF\0"
+const ADOBE = [0x41, 0x64, 0x6f, 0x62, 0x65]; // "Adobe"
+
+/** Start of frame: the segment that carries the picture size (every SOFn; C4, C8 and CC are other things). */
+const isFrame = (marker: number) => marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+
+/**
+ * JPEG segments kept: what the decoder needs (frame, tables, restart interval, scans) plus three that change the
+ * colours: a plain JFIF header (APP0 without a thumbnail), an ICC profile (APP2) and the Adobe colour transform
+ * (APP14). Every other segment is dropped: EXIF, XMP, IPTC, MPF, JFXX thumbnails, comments, reserved markers.
+ */
+function keepJpegSegment(bytes: Uint8Array, marker: number, at: number, length: number): boolean {
+  if (isFrame(marker) || marker === 0xc4 || marker === 0xcc || marker === 0xda || marker === 0xdb || marker === 0xdc || marker === 0xdd) return true;
+  if (marker === 0xe0) return length === 16 && startsWith(bytes, JFIF, at + 4);
+  if (marker === 0xe2) return startsWith(bytes, ICC_PROFILE, at + 4);
+  if (marker === 0xee) return length === 14 && startsWith(bytes, ADOBE, at + 4);
+  return false;
 }
 
 const EXIF_HEADER = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
@@ -166,24 +229,26 @@ const orientationSegment = (orientation: number) =>
 
 function cleanJpeg(bytes: Uint8Array): CleanImage | null {
   if (!startsWith(bytes, JPEG_SIGNATURE)) return null;
-  const parts: Uint8Array[] = [bytes.subarray(0, 2)];
+  const kept = new Kept(bytes);
+  kept.range(0, 2);
   let at = 2;
   let width = 0;
   let height = 0;
+  let hasFrame = false;
   let hasScan = false;
-  let orientation = 0;
+  let sawExif = false;
   for (;;) {
     if (at + 2 > bytes.length || bytes[at] !== 0xff) return null;
     // Fill bytes before a marker.
     while (bytes[at + 1] === 0xff) if (++at + 2 > bytes.length) return null;
     const marker = bytes[at + 1];
     if (marker === 0xd9) {
-      parts.push(bytes.subarray(at, at + 2));
+      kept.range(at, at + 2);
       break;
     }
     if (marker === 0x00 || marker === 0xd8) return null;
+    // Markers without a payload have no business between segments (restarts live inside a scan): dropped.
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-      parts.push(bytes.subarray(at, at + 2));
       at += 2;
       continue;
     }
@@ -191,20 +256,25 @@ function cleanJpeg(bytes: Uint8Array): CleanImage | null {
     const length = u16(bytes, at + 2);
     const end = at + 2 + length;
     if (length < 2 || end > bytes.length) return null;
-    const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
-    if (isFrame) {
-      if (length < 7) return null;
+    if (isFrame(marker)) {
+      // One frame, before the first scan: decoders take the size from it. A second one (or one after the pixel
+      // data, which decoders never read) would let the size checked here differ from the size decoded.
+      if (hasFrame || hasScan || length < 8) return null;
+      hasFrame = true;
       height = u16(bytes, at + 5);
       width = u16(bytes, at + 7);
     }
-    if (keepJpegSegment(bytes, marker, at)) parts.push(bytes.subarray(at, end));
-    else if (marker === 0xe1 && !orientation && startsWith(bytes, EXIF_HEADER, at + 4)) {
+    if (keepJpegSegment(bytes, marker, at, length)) kept.range(at, end);
+    else if (marker === 0xe1 && !sawExif && startsWith(bytes, EXIF_HEADER, at + 4)) {
       // EXIF goes away (GPS, device, thumbnail), except the rotation: without it a phone photo shows sideways.
-      const value = exifOrientation(bytes, at + 10, end);
-      if (value >= 2 && value <= 8) parts.push(orientationSegment((orientation = value)));
+      // Only the first EXIF segment counts, as for the browsers that read it.
+      sawExif = true;
+      const orientation = exifOrientation(bytes, at + 10, end);
+      if (orientation >= 2 && orientation <= 8) kept.add(orientationSegment(orientation));
     }
     at = end;
     if (marker === 0xda) {
+      if (!hasFrame) return null;
       // Entropy-coded data runs until the next real marker (0xFF00 is a stuffed byte, 0xFFD0–D7 are restarts).
       const start = at;
       while (at < bytes.length) {
@@ -214,12 +284,13 @@ function cleanJpeg(bytes: Uint8Array): CleanImage | null {
         else if (bytes[at + 1] === 0xff) at++;
         else break;
       }
-      parts.push(bytes.subarray(start, at));
+      kept.range(start, at);
       hasScan = true;
     }
+    if (kept.tooMany) return null;
   }
   if (!hasScan || !width || !height) return null;
-  return { width, height, bytes: concat(parts) };
+  return { width, height, bytes: concat(kept.parts) };
 }
 
 /** Reads the size of a PNG or JPEG and returns it without metadata; null when the file is not a well-formed image. */

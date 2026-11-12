@@ -23,7 +23,7 @@ const ERROR_TEXT: Record<string, string> = {
   checks_required: "Marque as três verificações antes de aprovar.",
   files_disabled: "O envio de arquivos não está disponível agora.",
   no_application: "Envie a candidatura antes de anexar arquivos.",
-  application_locked: "A organização já foi publicada: os arquivos não podem mais ser alterados.",
+  application_locked: "Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.",
   application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
 };
 
