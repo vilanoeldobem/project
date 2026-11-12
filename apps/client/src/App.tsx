@@ -4,7 +4,6 @@ import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { Account } from "./ui/Account";
-import { AdminPanel } from "./ui/Admin";
 import { Donation } from "./ui/Donation";
 import { EnvironmentDebug, EnvironmentPanel, GameSound, Presence } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
@@ -14,6 +13,7 @@ import { Lot } from "./ui/Lot";
 import { MemoryGame } from "./ui/MemoryGame";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
+import { NpcDialog } from "./ui/NpcDialog";
 import { Welcome } from "./ui/Welcome";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -40,12 +40,12 @@ export function App() {
       {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} />}
       {panel.kind === "explore" && <Explore lots={lots} />}
       {panel.kind === "memory" && <MemoryGame />}
-      {panel.kind === "missions" && <Missions />}
+      {panel.kind === "missions" && <Missions lots={lots} />}
+      {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
       {panel.kind === "account" && <Account then={panel.then} />}
       {panel.kind === "ngo" && <NgoApplicationPanel lotId={panel.lotId} />}
-      {panel.kind === "admin" && <AdminPanel />}
       <GameSound />
       <Presence />
       <EnvironmentDebug />

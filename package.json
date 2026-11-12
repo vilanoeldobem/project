@@ -3,10 +3,11 @@
   "private": true,
   "version": "0.3.0",
   "license": "MIT",
-  "description": "Vila Noel do Bem — virtual 3D voxel Christmas village (monorepo: site, client, api, server, shared)",
+  "description": "Vila Noel do Bem — virtual 3D voxel Christmas village (monorepo: site, client, api, server, dash, shared)",
   "scripts": {
     "dev": "pnpm --parallel --filter @vila/client --filter @vila/api --filter @vila/server run dev",
     "dev:site": "pnpm --filter @vila/site dev",
+    "dev:dash": "pnpm --filter @vila/dash dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
@@ -15,7 +16,8 @@
     "deploy:api": "pnpm --filter @vila/api run deploy",
     "deploy:server": "pnpm --filter @vila/server run deploy",
     "deploy:client": "pnpm --filter @vila/client run deploy",
-    "deploy:site": "pnpm --filter @vila/site run deploy"
+    "deploy:site": "pnpm --filter @vila/site run deploy",
+    "deploy:dash": "pnpm --filter @vila/dash run deploy"
   },
   "packageManager": "pnpm@10.32.1"
 }

@@ -3,13 +3,13 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db, mail }
- *   GET /config      → { accounts }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *
  * Accounts, server XP, NGO applications and admin review (IMPL-0011; only when ACCOUNTS_ENABLED = "true"):
- * see auth.ts, progress.ts, ngo.ts, admin.ts. Mutations require an allowed `Origin` and a JSON body (which
+ * see auth.ts, progress.ts, ngo.ts, admin.ts, backoffice.ts. Mutations require an allowed `Origin` and a JSON body (which
  * forces a CORS preflight); the session cookie is HttpOnly, Secure, SameSite=Lax.
  *
  * CORS: `Access-Control-Allow-Origin` (+ credentials) only for exact origins on ALLOWED_ORIGINS.
@@ -21,6 +21,7 @@ import { localSnapshot } from "@vila/shared/environment/config";
 
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
+import { listAudit, listUsers } from "./backoffice";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
@@ -32,14 +33,19 @@ export interface Env {
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
   /**
-   * Exact origins allowed on account routes and to receive credentialed CORS (the game only; the public
-   * website does not need the session). Defaults to ALLOWED_ORIGINS when unset (local development).
+   * Exact origins allowed on account routes and to receive credentialed CORS (the game and the backoffice
+   * dashboard; the public website does not need the session). Defaults to ALLOWED_ORIGINS when unset (local
+   * development).
    */
   ACCOUNT_ORIGINS?: string;
   /** Base URL of sign-in links (the game). Defaults to the request origin (local development). */
   GAME_ORIGIN?: string;
+  /** Origin of the backoffice dashboard (apps/dash). A sign-in link asked from exactly this origin opens it (IMPL-0015). */
+  DASH_ORIGIN?: string;
   /** "true" turns on accounts, server XP, NGO applications and admin (IMPL-0011). */
   ACCOUNTS_ENABLED?: string;
+  /** "true" accepts quests-v1 events (PROPOSTA; DEC-039..042, PEN-025). Off in production. */
+  QUESTS_V1_ENABLED?: string;
   /** Resend API key (Worker secret, never a `var`), see mail.ts. Without it sign-in e-mails fail closed. */
   RESEND_API_KEY?: string;
   /** Sender address of the sign-in e-mail; its domain must be verified in Resend. */
@@ -115,10 +121,11 @@ export function corsHeaders(origin: string | null, env: Env): Record<string, str
 }
 
 export async function handleApi(request: Request, env: Env): Promise<Response> {
+  // Every route builds its own Response (json(), errorResponse(), the empty preflight), so the CORS
+  // headers are set on it in place. Re-wrapping `res.body` would turn a fixed-length body into a stream.
   const res = await route(request, env);
-  const headers = new Headers(res.headers);
-  for (const [k, v] of Object.entries(corsHeaders(request.headers.get("Origin"), env))) headers.set(k, v);
-  return new Response(res.body, { status: res.status, headers });
+  for (const [k, v] of Object.entries(corsHeaders(request.headers.get("Origin"), env))) res.headers.set(k, v);
+  return res;
 }
 
 const ACCOUNT_PREFIXES = ["/auth/", "/me", "/progress", "/ngo/", "/admin/"];
@@ -138,7 +145,7 @@ async function route(request: Request, env: Env): Promise<Response> {
       case "/health":
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env) }, { headers: NO_STORE });
       case "/config":
-        return json({ accounts: env.ACCOUNTS_ENABLED === "true" }, { headers: NO_STORE });
+        return json({ accounts: env.ACCOUNTS_ENABLED === "true", quests: env.QUESTS_V1_ENABLED === "true" }, { headers: NO_STORE });
       case "/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });
       case "/environment":
@@ -186,6 +193,8 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/ngo/application")) return getApplication(request, env);
   if (is("POST", "/ngo/application")) return submitApplication(request, env);
   if (is("GET", "/admin/applications")) return listApplications(request, env);
+  if (is("GET", "/admin/audit")) return listAudit(request, env);
+  if (is("GET", "/admin/users")) return listUsers(request, env);
   const m = ADMIN_APP.exec(pathname);
   if (m && method === "GET" && !m[2]) return getApplicationAdmin(request, env, m[1]);
   if (m && method === "POST" && m[2]) return decide(request, env, m[1]);

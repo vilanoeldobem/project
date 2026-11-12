@@ -23,6 +23,7 @@
 - [ ] `pnpm build`
 - [ ] `node apps/client/scripts/verify.mjs http://localhost:8799` (se o jogo mudou) — capturas desktop e celular anexadas
 - [ ] `node apps/site/scripts/verify.mjs` (se o site mudou)
+- [ ] `node apps/dash/scripts/verify.mjs` (se o painel administrativo mudou)
 - [ ] `sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799` (se API, servidor ou hosts mudaram)
 - [ ] Migrations aplicadas no D1 local (se houver)
 

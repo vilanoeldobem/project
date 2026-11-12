@@ -2,9 +2,10 @@
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
 > **Schema D1:** v5 · **Atualizado em:** 2026-11-11
-> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,http}.ts`, `apps/api/src/api.test.ts`,
+> **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `packages/shared/src/accounts/validate.ts`, `apps/server/src/handler.ts`,
-> `apps/server/src/room.ts`, `packages/shared/src/net/protocol.ts`
+> `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
+> `packages/shared/src/net/protocol.ts`
 
 Dois Workers ([IMPL-0009](../decisions/0009-split-client-api-server-shared.md)):
 
@@ -26,19 +27,25 @@ bandeira `ACCOUNTS_ENABLED` ligada ([§ Contas](#contas-impl-0011)).
 
 ### CORS
 
-A página do jogo e a do site estão em outra origem, então a API responde com CORS **só** para origens exatas da lista
-`ALLOWED_ORIGINS` (`apps/api/wrangler.jsonc`): `https://play.vilanoeldobem.com.br` e
-`https://www.vilanoeldobem.com.br`. Sem curingas: um host parecido nunca passa. Em desenvolvimento local a lista vem
-do script `dev` (`http://localhost:5173`, `http://localhost:8799`).
+As páginas do jogo, do site e do painel administrativo estão em outra origem, então a API responde com CORS **só**
+para origens exatas da lista `ALLOWED_ORIGINS` (`apps/api/wrangler.jsonc`): `https://play.vilanoeldobem.com.br`,
+`https://www.vilanoeldobem.com.br` e `https://dash.vilanoeldobem.com.br`. Sem curingas: um host parecido nunca
+passa. `Access-Control-Allow-Credentials` só vai para as origens de `ACCOUNT_ORIGINS` (o jogo e o painel); o site lê
+dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do script `dev` (`http://localhost:5173` e
+`http://localhost:8799` do jogo, `http://localhost:5175` e `http://localhost:8797` do painel).
 
 | Requisição | Resposta |
 |---|---|
-| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true`, `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
+| `Origin` na lista | `Access-Control-Allow-Origin: <origin>`, `Access-Control-Allow-Credentials: true` (só para origens de `ACCOUNT_ORIGINS`), `Access-Control-Allow-Methods: GET, HEAD, POST, DELETE, OPTIONS`, `Access-Control-Allow-Headers: Content-Type`, `Access-Control-Max-Age: 86400`, `Vary: Origin` |
 | `Origin` ausente ou fora da lista | só `Vary: Origin` (o navegador bloqueia a leitura; `curl` e servidores continuam lendo as rotas públicas) |
 | `OPTIONS` (preflight) | `204` sem corpo, com os cabeçalhos acima quando a origem é permitida |
 
 `Access-Control-Allow-Credentials` existe por causa do cookie de sessão das rotas de conta; o cliente chama com
 `credentials: "include"`.
+
+`handleApi` aplica esses cabeçalhos na própria resposta devolvida pelo roteador (`res.headers.set`) e devolve a mesma
+`Response`, em vez de reembrulhar `res.body` num `Response` novo: reembrulhar transforma um corpo de tamanho fixo
+(`Content-Length`) em fluxo, e o navegador local podia ficar esperando o fim do corpo depois de um `POST`.
 
 ### GET /health
 
@@ -56,11 +63,17 @@ Worker (nunca o valor).
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false }
+{ "accounts": false, "quests": false }
 ```
 
-`accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o cliente esconde toda a interface de conta
-(chip "Entrar", candidatura de ONG, painel de análise) e a Vila segue jogável sem conta (OQ-02).
+`accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
+(chip "Entrar", candidatura de ONG) e a Vila segue jogável sem conta (OQ-02); o painel administrativo mostra o
+aviso "Contas desligadas" e só dados públicos. O painel lista todas as chaves que esta rota devolver.
+
+`quests` é `true` só quando `QUESTS_V1_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
+staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
+`quests` é `true` **e** a bandeira dele também está ligada (`VITE_QUESTS_V1_ENABLED=true` no build ou `?quests=1` em
+localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
 
 ### GET /indicators
 
@@ -118,8 +131,8 @@ Avaliadas nesta ordem, para toda rota de conta:
 
 1. `ACCOUNTS_ENABLED` diferente de `"true"` → `404 {"error":"accounts_disabled"}`.
 2. Sem binding D1 → `503 db_unavailable`.
-3. `Origin` ausente ou fora de `ALLOWED_ORIGINS` → `403 forbidden_origin` (inclusive em `GET`; `curl` sem `Origin`
-   não chega às rotas de conta).
+3. `Origin` ausente ou fora de `ACCOUNT_ORIGINS` (o jogo e o painel administrativo; sem essa variável, vale
+   `ALLOWED_ORIGINS`) → `403 forbidden_origin` (inclusive em `GET`; `curl` sem `Origin` não chega às rotas de conta).
 4. `/auth/*`: limite por IP com o binding `AUTH_LIMITER` (10 requisições a cada 60 s por `CF-Connecting-IP`; o IP é
    só a chave do limite, nunca gravado) → `429 too_many_requests`.
 5. Corpo (`POST`): exige `Content-Type: application/json` (`415 json_required`; também força o preflight de CORS),
@@ -135,14 +148,15 @@ espaços repetidos são juntados. Erros de validação vêm como
 `{"error":"invalid","fields":{"campo":"mensagem em pt-BR"}}`.
 
 **Sessão:** cookie `__Host-vila_session` (`HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`, 30 dias) no host da
-API. O D1 guarda só o SHA-256 do valor. `play.*` e `api.*` são o mesmo site, então o navegador envia o cookie nas
-chamadas com `credentials: "include"`. Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
+API. O D1 guarda só o SHA-256 do valor. `play.*`, `dash.*` e `api.*` são o mesmo site, então o navegador envia o
+cookie nas chamadas com `credentials: "include"`: a sessão criada no jogo vale no painel administrativo e vice-versa.
+Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
 
 ### Cadastro e link mágico (P13, OQ-03)
 
 | Método e rota | Corpo | Resposta |
 |---|---|---|
-| `POST /auth/register` | `{name, nickname, city, email}` | `202 {"ok":true}` e envia o link |
+| `POST /auth/register` | `{name, nickname, city, email}` | `202 {"ok":true}` e envia o link. Só o jogo: vindo do painel (`Origin` = `DASH_ORIGIN`) → `403 forbidden_origin` |
 | `POST /auth/link` | `{email}` | `202 {"ok":true}` (sempre a mesma resposta) |
 | `POST /auth/verify` | `{token}` | `200 {user}` + `Set-Cookie: __Host-vila_session=…` |
 | `POST /auth/logout` | — | `204`, apaga a sessão e o cookie |
@@ -179,8 +193,13 @@ com e-mail já cadastrado responde `202` como um cadastro novo (e reenvia o link
 (ausente, `production`, `staging`…) nunca devolve o link: ele só vai por e-mail (falha fechada — devolver o link
 permitiria entrar na conta de qualquer pessoa).
 
-**Link sempre para o jogo:** a base do link é `GAME_ORIGIN` (`https://play.vilanoeldobem.com.br`), nunca o site
-que fez o pedido. **Limites por conta:** 3 links a cada 15 minutos e 10 por dia, contados e gravados num único
+**Destino do link:** a base do link é `GAME_ORIGIN` (`https://play.vilanoeldobem.com.br`), nunca o site que fez o
+pedido. Uma única exceção ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)): em `POST /auth/link`, quando o
+cabeçalho `Origin` é **exatamente** igual a `DASH_ORIGIN` (`https://dash.vilanoeldobem.com.br`), o link abre o painel
+administrativo (`https://dash.vilanoeldobem.com.br/#login=<token>`) e o e-mail diz isso. A comparação é de texto
+(sem curinga, prefixo ou barra final); nada no corpo, na query ou em outros cabeçalhos muda o destino, e sem
+`DASH_ORIGIN` configurado vale sempre o jogo. `POST /auth/register` nunca aponta para o painel.
+**Limites por conta:** 3 links a cada 15 minutos e 10 por dia, contados e gravados num único
 comando (pedidos em paralelo não passam do limite). Acima do limite a resposta continua `202`, sem envio.
 
 **Sem enumeração:** o nickname é conferido antes do e-mail (mesma resposta com ou sem conta); `/auth/link` responde
@@ -216,18 +235,28 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 | `GET /progress` | — | `{progress}` |
 | `POST /progress/events` | `{accountId, events: [{missionId, eventId}]}` (1 a 50) | `{progress}` |
 
-- `missionId` precisa existir em `MISSIONS` (`packages/shared/src/game/progress.ts`) e `eventId` precisa ser um que
-  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`) ou `panel`
-  (`KNOWN_EVENTS` em `apps/api/src/progress.ts`). Qualquer item inválido → `400 bad_events` (nada é gravado).
-- Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo
-  (`INSERT OR IGNORE`). O progresso é refeito repetindo os eventos pelo mesmo `applyEvent` do cliente: cada missão dá
-  XP uma vez.
+- `missionId` precisa existir em `MISSIONS` ou em `QUESTS` (`packages/shared/src/game/`); `eventId` precisa ser um que
+  o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`), `panel`, ou, nas quests,
+  `accept`, `turn-in` e os ids de objetivo de `objectiveEventIds` (`KNOWN_EVENTS` em `apps/api/src/progress.ts`).
+  Qualquer item inválido → `400 bad_events` (nada é gravado).
+- Eventos de quest só são gravados com `QUESTS_V1_ENABLED = "true"`. Com a flag desligada eles são ignorados (o lote
+  responde `200` e os demais eventos são gravados); as quatro missões rápidas valem sempre. A flag é exposta em
+  `GET /config` (`quests`). O conteúdo e os valores de XP são PROPOSTA (PEN-025); ver [quests.md](quests.md).
+- Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo. O progresso é
+  refeito repetindo os eventos gravados, na ordem em que foram gravados, pelo mesmo `applyEvent` do cliente: cada
+  missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
+- Quests dependem de ordem ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)): um evento de quest só é gravado se
+  for uma transição válida sobre o progresso já gravado (o lote é aplicado na ordem recebida). Evento ainda inválido
+  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `200`, nada gravado para ele; o mesmo id pode
+  ser reenviado depois. Eventos das quatro missões rápidas são sempre gravados (`INSERT OR IGNORE`).
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
   são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
-- Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos e idempotência; não prova que o
-  presente foi achado na cena. XP não dá nada que dinheiro compre, e doação não dá XP.
+- Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
+  ordem das transições; não prova que o presente foi achado nem que o NPC foi visitado na cena. Uma conta consegue
+  forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
+  dá XP.
 
 ### Candidatura de ONG (P12, DEC-015, DEC-037)
 
@@ -313,6 +342,31 @@ histórico é o nickname do admin.
 - A aprovação publica a casa: `/lots` passa a trazer nome e resumo, e o jogo desenha o chalé gerado pela semente do
   terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
 
+A tela dessas rotas é a seção "Candidaturas" do painel administrativo (`apps/dash`); o jogo não as chama mais.
+
+### Listas do painel administrativo (IMPL-0015)
+
+Só leitura, só `role = 'admin'` (`401 not_signed_in` sem sessão, `403 admin_only` sem o papel), `Cache-Control:
+no-store`. Mais recentes primeiro. Consultar não grava `audit_events` (só mutações são auditadas).
+
+| Método e rota | Resposta |
+|---|---|
+| `GET /admin/audit[?before=<ISO>&limit=<1..100>]` | `{events: [{at, action, subject, detail, actor}], next}` |
+| `GET /admin/users[?before=<ISO>&limit=<1..100>]` | `{users: [{id, nickname, role, city, createdAt, verified}], next}` |
+
+- `limit`: inteiro de 1 a 100 (padrão 50); fora disso → `400 bad_limit`.
+- `before`: instante UTC em ISO 8601 terminado em `Z`, com ou sem milissegundos (`2026-11-11T12:00:00.000Z`); só
+  vêm linhas **estritamente anteriores**. Outro formato → `400 bad_before`.
+- `next`: o `before` da página seguinte, ou `null` na última. Linhas com o mesmo instante da última linha da página
+  vêm todas juntas, então a página pode passar um pouco de `limit` (sem isso, a página seguinte as pularia).
+- `events`: `actor` é o **nickname** de quem agiu (`null` se a conta foi excluída), nunca id ou e-mail; `subject` é
+  `ngo:<id>` ou `user:<id>`; `detail` é o texto JSON gravado (sem dados pessoais) ou `null`. Ações e detalhes em
+  [storage.md](storage.md#audit_events).
+- `users`: **sem e-mail e sem nome** (só o nickname é público; o painel guarda o mínimo — LGPD, ECA Digital).
+  `verified` diz se a conta já confirmou um link; cadastros não confirmados aparecem com `false` até expirarem.
+- Não existe rota que conceda papel, altere ou apague contas de terceiros, nem ação de sanção (regras não
+  definidas, DEC-037).
+
 ## Servidor de tempo real (`server.vilanoeldobem.com.br`)
 
 Só `GET`; outros métodos → `405`. Respostas HTTP com `Cache-Control: no-store`.
@@ -337,7 +391,8 @@ texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada 
 | Direção | Mensagem | Significado |
 |---|---|---|
 | cliente → sala | `["p", x, z, yaw, speed]` | pose, no máximo 10 Hz e só quando muda |
-| cliente → sala | `"ping"` | mantém a conexão; resposta `"pong"` sem acordar a sala |
+| cliente → sala | `["a"]` | a pessoa clicou, tocou ou digitou sem que uma pose ou visual tenha saído nos últimos 20 s (`ACTIVE_MS`); conta como atividade ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) |
+| cliente → sala | `"ping"` | mantém a conexão; resposta `"pong"` sem acordar a sala; **não** conta como atividade |
 | sala → cliente | `["w", id, sala]` | boas-vindas com o id anônimo |
 | sala → cliente | `["s", tickMs, [[id, x, z, yaw, speed, idadeMs], …]]` | poses que mudaram (10 Hz); na entrada, a lista toda |
 | sala → cliente | `["l", id]` | alguém saiu |
@@ -348,6 +403,23 @@ A sala corrige a pose recebida: dentro do mundo, velocidade até a máxima do av
 limitado ao que daria para andar desde a última pose; a primeira pose é livre). Limite de 20 mensagens/s por
 conexão (rajada de 40); mais de 200 descartadas → fecha com `1008`. Sala cheia → fecha com `4001` e o cliente tenta
 a próxima.
+
+**Inatividade** ([IMPL-0014](../decisions/0014-realtime-idle-timeout.md)): a sala guarda, por conexão, a hora da
+última atividade real: pose que move ou gira o avatar, visual (`["k", …]`) ou `["a"]`. `"ping"`, pose repetida,
+mensagem inválida ou descartada pelo limite não contam. Conexão sem atividade por mais de `IDLE_TIMEOUT_SECONDS`
+(`apps/server/wrangler.jsonc`, padrão `300`; inteiro de `60` a `86400`, qualquer outro valor cai no padrão) é
+fechada pela sala com o código **`4002`** e motivo `idle`; os outros recebem `["l", id]` como em qualquer saída.
+Quando a última conexão sai ou é fechada, a sala para o timer e hiberna.
+
+| Código de fechamento | Motivo | O que o cliente faz |
+|---|---|---|
+| `4001` | `full` (sala cheia) | tenta a próxima sala na hora; depois de uma volta completa, espera 30 s |
+| `4002` | `idle` (inatividade) | **não** reconecta sozinho: mostra "👥 em pausa" e reconecta no próximo toque, clique ou tecla |
+| `1008` | `rate` (abuso do protocolo) | nova tentativa com espera exponencial (1–30 s) |
+| outros (`1006`, queda de rede, deploy) | — | nova tentativa com espera exponencial (1–30 s) |
+
+O cliente também desliga sozinho (fecha com `1000`, motivo `hidden`) quando a aba fica oculta por 2 minutos e
+volta do mesmo jeito: no próximo toque, clique ou tecla com a aba visível.
 
 Carga medida (`apps/server/scripts/load.mjs`, `wrangler dev` local, 2026-11-11): 41 robôs → 40 conectados e 1
 recusado como cheio; cada visitante recebe ~9,7 mensagens/s e ~10 kB/s; do tick à chegada p95 9 ms (sem rede real).
@@ -363,7 +435,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
 | API | 503 | `db_unavailable` | `/lots` ou rota de conta sem binding D1 |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
-| API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
+| API | 403 | `forbidden_origin` | rota de conta com `Origin` ausente ou fora de `ACCOUNT_ORIGINS`; `POST /auth/register` vindo do painel administrativo |
 | API | 429 | `too_many_requests` | `/auth/*` acima de 10 requisições/60 s pelo mesmo IP |
 | API | 415 | `json_required` | `POST` de conta sem `Content-Type: application/json` |
 | API | 413 | `too_large` | corpo acima de 16 000 bytes (32 000 na candidatura) |
@@ -386,6 +458,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `stale_revision` | decisão sobre versão que já não é a atual |
 | API | 400 | `revision_required` | decisão sem `revision` inteiro |
 | API | 400 | `checks_required` | aprovação sem as três verificações do DEC-015 |
+| API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
+| API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |
 | servidor | 403 | `forbidden_origin` | `/room` com `Origin` ausente ou fora de `ALLOWED_ORIGINS` |
 | servidor | 400 | `bad_room` | `/room` com `i` fora de `0…7` |
@@ -395,4 +469,5 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 ## Ver também
 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
-[IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
+[IMPL-0015](../decisions/0015-dash-backoffice-app.md)

@@ -9,12 +9,51 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — painel administrativo (`apps/dash`, não publicado)
+
+- Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em
+  `dash.vilanoeldobem.com.br`, Worker `vilanoeldobem-dash` só com Static Assets (sem script, sem bindings). **Não
+  publicado**: criar o Worker e o domínio exige autorização. Seções: Candidaturas (análise de ONGs, movida do jogo),
+  ONGs e terrenos, Auditoria, Usuários (só leitura, sem ação de sanção), Sistema (`/health` e bandeiras da API) e
+  Pendentes (Doações, Indicadores, Documentos e logos das ONGs — só avisos, sem função).
+- Entrada no painel pelo mesmo link mágico e pelo mesmo cookie de sessão do jogo; o painel não cria contas. Conta sem
+  papel `admin` vê só "Apenas administradores" e "Sair". Com as contas desligadas, o painel mostra "Contas desligadas"
+  e só dados públicos.
+- API: `GET /admin/audit` e `GET /admin/users` (admin, só leitura, paginadas por `before` e `limit`; a lista de contas
+  não traz e-mail nem nome). Nova variável `DASH_ORIGIN`; `https://dash.vilanoeldobem.com.br` entra em
+  `ALLOWED_ORIGINS` e `ACCOUNT_ORIGINS`.
+- Cabeçalhos do painel gerados por build: CSP sem inline e sem terceiros, `connect-src` só com a API da build,
+  `noindex`, `no-referrer`, HTML `no-store`. Sem analytics nem Google Tag Manager.
+- `apps/dash/scripts/verify.mjs` (Chrome real, desktop e celular) e scripts `pnpm dev:dash` / `pnpm deploy:dash`.
+- `packages/shared/src/accounts/{contract,errors}.ts`: formas das respostas de conta e de análise e textos de erro,
+  usados pelo jogo e pelo painel.
+
+### Changed — análise de ONGs fora do jogo
+
+- O painel "Análise de ONGs" saiu do jogo (`ui/Admin.tsx` removido). Admins veem, no painel da conta, o link "Abrir
+  painel administrativo" (nova aba) para `dash.*`.
+- `POST /auth/link`: o link abre o painel administrativo quando o pedido vem exatamente de `DASH_ORIGIN`; nos demais
+  casos continua abrindo o jogo. `POST /auth/register` vindo do painel é recusado (`403 forbidden_origin`).
+- `apps/client/scripts/verify-accounts.mjs`: os passos de admin rodam no painel (terceiro argumento, padrão
+  `http://localhost:8797`); esperas reais no lugar de `isVisible`, 30 s depois de chamadas à API e mensagem clara
+  quando o limite de `/auth/*` é atingido (esperar 60 s entre execuções).
+
 ### Changed — e-mail
 
 - O link de acesso passa a sair pelo Resend ([IMPL-0012](docs/decisions/0012-resend-transactional-email.md)) no
   lugar do Cloudflare Email Service: segredo `RESEND_API_KEY` no Worker da API, sem binding `send_email`. Sem a
   chave o envio falha fechado (`503 mail_unavailable`), como antes. `GET /health` ganhou `mail` (se a chave existe).
 - Workflow manual `api-secrets` grava `RESEND_API_KEY` no Worker a partir dos segredos do GitHub.
+
+### Added — presença: limite de inatividade
+
+- A sala de presença fecha conexões sem atividade real por mais de `IDLE_TIMEOUT_SECONDS` (padrão 300 s; código de
+  fechamento `4002`, motivo `idle`), para que abas esquecidas não mantenham o Durable Object acordado e cobrando
+  duração ([IMPL-0014](docs/decisions/0014-realtime-idle-timeout.md)). O `"ping"` não conta como atividade; cliques,
+  toques e teclas contam, pela nova mensagem `["a"]` (no máximo uma a cada 20 s).
+- No jogo, a conexão com os outros visitantes entra em pausa (chip "👥 em pausa") e volta no próximo toque, clique
+  ou tecla, sem reconectar sozinha; aba oculta por 2 minutos também pausa. Quedas de rede seguem reconectando com
+  espera exponencial. Deploy: servidor antes do cliente.
 
 ### Added — medição
 
@@ -74,6 +113,31 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Runtime das quests narrativas `quests-v1` (PROPOSTA, DEC-039 a DEC-042; PEN-025) atrás de flags
+  (`VITE_QUESTS_V1_ENABLED=true` ou `?quests=1` em localhost/dev no cliente **e** `QUESTS_V1_ENABLED` na API, lida
+  pelo cliente em `GET /config`; as duas precisam estar ligadas), com catálogo em
+  `packages/shared/src/game/quests.ts`, máquina de estados pura, cinco NPCs (`villager`), coleta por proximidade,
+  bolsa derivada, diálogos, Caderno de cadeias, integração com XP idempotente na API, testes em
+  `packages/shared/src/game/quests.test.ts`, verificação no navegador (`apps/client/scripts/verify-quests.mjs`) e
+  referência em [quests.md](docs/reference/quests.md).
+- Painel de doação global físico (`DONATION_PANEL`, gerador `quest-donation-panel`; PROPOSTA `quests-v1`), montado só
+  com as quests ligadas: abre o mesmo painel de doação da árvore (DEC-026) e serve à leitura da promessa.
+- Regras do runtime de `quests-v1` ([IMPL-0013](docs/decisions/0013-quests-v1-runtime.md)): com as flags desligadas o
+  mundo é o de antes (moradores, atril e os obstáculos deles só existem com as quests ligadas); a API grava um evento
+  de quest apenas quando ele é uma transição válida (um `accept` de aba desatualizada ou um objetivo antes do
+  `accept` não travam mais a missão e podem ser reenviados); com `QUESTS_V1_ENABLED` desligada a API ignora os
+  eventos de quest e grava o resto do lote, em vez de recusar tudo com `400`; clicar num morador de longe faz o
+  avatar andar até ele em vez de abrir o diálogo; o foco do teclado fica no diálogo quando a próxima missão aparece.
+- Itens de quest (PROPOSTA, `quests-v1`): cinco geradores em `apps/client/src/scene/gen/quest-items.ts` —
+  `quest-reindeer-bell` (Sino do arreio), `quest-lucky-charm` (Patuá da sorte), `quest-ornament-crate` (Caixa de
+  enfeites), `quest-donation-panel` (Painel de doação global) e `quest-story-page` (Página da história) — com
+  receitas visuais pesquisadas em `content/proposals/quests-v1/object-references.md`, todos dentro de 80 voxels e
+  200 faces (itens) ou 220 e 600 (adereço de mundo).
+- Proposta estruturada `content/proposals/quests-v1/` (15 missões em 5 cadeias de NPC, diálogos, bíblia de
+  história, catálogo normalizado de 8 objetos em `objects.csv`/`objects.md`, fila de prompts em `object-prompts/`,
+  auditoria em `review.md`, plano de piloto em `pilot-plan.md` e validadores `validate-quests.mjs` e
+  `validate-objects.mjs`).
+
 - Adereços gerados na Vila (PROPOSTA): mercado com barraca de panetone, lanternas, placa, caixa de correio e trenó,
   fundidos numa só geometria por material (+3 chamadas de desenho para todos).
 
@@ -126,6 +190,12 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- Rótulos de missão sobre os cinco NPCs e o atril da doação (`@react-three/drei` `Html`), um botão de ação no HUD
+  por alvo (NPC, interação de quest, painel de doação, árvore, terreno) com `E`/`Enter`, diálogo modal
+  (`ui/Panel.tsx`) seguindo o padrão APG de foco, copy cardinal corrigida para **ao sul** para o trenó, cabeçalhos
+  de CORS aplicados na própria `Response` em `apps/api/src/api.ts`, teste de coordenadas exatas em
+  `packages/shared/src/game/motion.test.ts` e atualização de [api.md](docs/reference/api.md),
+  [architecture.md](docs/reference/architecture.md) e [content.md](docs/reference/content.md).
 - Referências atuais ao repositório de documentação atualizadas para `vilanoeldobem/docs`; nomes anteriores mantidos apenas onde registram contexto histórico.
 - Desempenho do primeiro carregamento: o chunk `three` caiu de 317 para 245 kB gzip (meta ≤ 250 kB). React e
   zustand foram para um chunk `react` próprio (69 kB gzip), então a interface não espera mais o Three.js; o bloom
@@ -141,6 +211,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- Contador "Missões n/4" do HUD restrito às quatro missões rápidas (`MISSIONS`), mantendo as 15 quests narrativas
+  em seção própria no Caderno.
 - Clicar do outro lado da árvore podia deixar o avatar parado contra ela: a árvore agora é um obstáculo com
   deslizamento.
 
@@ -148,6 +220,11 @@ Cada versão indica o schema D1 que entrega.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
 - Rota 404 passou a compartilhar o tema do site e direcionar para o endereço correto do jogo.
 - Verificação automatizada passou a cobrir rotas, temas, tamanhos de tela, acessibilidade e estados extremos.
+
+### Fixed — verificação
+
+- `apps/client/scripts/verify.mjs`: o toque de teste no celular caía na árvore (abria o painel de doação e escondia
+  os botões de zoom); agora toca no chão da praça, ao lado do avatar.
 
 ## [0.3.0] - 2026-11-08
 

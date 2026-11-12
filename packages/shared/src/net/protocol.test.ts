@@ -43,3 +43,11 @@ describe("look messages", () => {
     expect(decodeServer('["k",4,["x","y","z","w"]]')).toBeNull();
   });
 });
+
+describe("activity report", () => {
+  it("decodes the exact activity message and nothing that merely looks like it", async () => {
+    const { ACTIVE_MESSAGE, decodeClient } = await import("./protocol");
+    expect(decodeClient(ACTIVE_MESSAGE)).toEqual({ t: "a" });
+    for (const bad of ['["a",1]', '["a"] ', "a", "ping", '["A"]']) expect(decodeClient(bad)).toBeNull();
+  });
+});

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { activeQuest, questState } from "@vila/shared/game/quests";
+import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { Panel } from "./Panel";
 
@@ -38,7 +40,13 @@ export function MemoryGame() {
   }, [flipped, deck]);
 
   useEffect(() => {
-    if (won) record("play-memory", "win");
+    if (!won) return;
+    record("play-memory", "win");
+    // Quest routing (PROPOSTA quests-v1): one win advances the single active minigame quest, if any.
+    if (!questsEnabled()) return;
+    const progress = useVila.getState().progress;
+    const quest = activeQuest(progress);
+    if (quest && quest.objectiveType === "minigame" && questState(progress, quest.id) === "active") record(quest.id, "memory-win");
   }, [won, record]);
 
   const flip = (i: number) => {

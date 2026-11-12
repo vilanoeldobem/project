@@ -102,10 +102,15 @@ Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nad
 | `ngo.start_review`, `ngo.approve`, `ngo.request_changes`, `ngo.reject` | admin | `ngo:<id>` | `{from, to, lot, revision, hasNote}` (sem o texto da mensagem) |
 | `user.delete` | a própria conta | `user:<id>` | `NULL` |
 
+Lida pelo painel administrativo em `GET /admin/audit` (o autor aparece pelo nickname; consultar não grava nada
+aqui: só mutações são auditadas — [IMPL-0015](../decisions/0015-dash-backoffice-app.md)).
+
 ## 3. Dados pessoais e retenção
 
 Dados pessoais guardados (P13, DEC-038): **Nome, Nickname, Cidade e E-mail**, só na tabela `users`. Só o nickname
-aparece para outras pessoas (inclusive para o admin, que vê quem enviou a candidatura só pelo nickname). Tokens e
+aparece para outras pessoas (inclusive para o admin, que vê quem enviou a candidatura só pelo nickname). A lista de
+contas do painel administrativo (`GET /admin/users`) traz nickname, papel, cidade, data de criação e se a conta foi
+verificada — nunca e-mail ou nome. Tokens e
 sessões ficam só como hash. IP é usado apenas como chave do limite de requisições (`AUTH_LIMITER`) e não é gravado.
 Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 

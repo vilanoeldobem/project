@@ -9,7 +9,8 @@ This file governs *this* repository only. Never rewrite other projects' `AGENTS.
 minigames, meet approved NGOs and donate voluntarily. Monorepo (IMPL-0009), one Cloudflare Worker per app:
 `apps/client` (React 19 + Three.js game, Static Assets, play.vilanoeldobem.com.br), `apps/api` (HTTP API + D1,
 api.vilanoeldobem.com.br), `apps/server` (realtime presence, Durable Object, server.vilanoeldobem.com.br),
-`apps/site` (public website, www.vilanoeldobem.com.br) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
+`apps/site` (public website, www.vilanoeldobem.com.br), `apps/dash` (backoffice dashboard for admins, static assets only,
+dash.vilanoeldobem.com.br; IMPL-0015, not deployed yet) and `packages/shared` (pure logic used by all of them). Product source of truth is the docs repository `vilanoeldobem/docs`
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 
@@ -26,7 +27,9 @@ pnpm --filter @vila/server dev                                  # server → :87
 pnpm --filter @vila/client dev:worker                           # client → :8799 (build --mode workers)
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
-node apps/client/scripts/verify-accounts.mjs   # accounts / NGO / admin flow (local only)
+pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
+node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
+node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)
 # website changes
 pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other terminal
 node apps/site/scripts/verify.mjs http://localhost:4173
@@ -59,9 +62,14 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   `apps/server`, the `VillageRoom` class); logic lives in tested modules beside them.
 - Code shared by more than one app lives in `packages/shared` (pure: no DOM, three.js or Workers runtime) and is
   imported as `@vila/shared/<dir>/<module>`. Never import across apps.
-- Cross-origin rules: the API sends CORS only to exact origins in `ALLOWED_ORIGINS`; the realtime server accepts
-  WebSockets only from exact origins in its `ALLOWED_ORIGINS`; the client CSP `connect-src` is generated per build
-  from `apps/client/src/lib/endpoints.ts`. Changing a hostname means changing all three.
+- Cross-origin rules: the API sends CORS only to exact origins in `ALLOWED_ORIGINS` (credentials and account routes
+  only for `ACCOUNT_ORIGINS`: the game and dash); the realtime server accepts WebSockets only from exact origins in
+  its `ALLOWED_ORIGINS`; the client and dash CSP `connect-src` are generated per build from each app's
+  `src/lib/endpoints.ts`. Changing a hostname means changing every place that lists it (also `GAME_ORIGIN` /
+  `DASH_ORIGIN`; list in `docs/reference/architecture.md` §7).
+- Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
+  code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
+  explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - D1 is the only persistent server-side store. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.

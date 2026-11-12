@@ -12,7 +12,10 @@
   "vars": {
     "ENVIRONMENT": "production",
     // Exact page origins allowed to join a room (local dev overrides it in package.json "dev").
-    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br"
+    "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br",
+    // Seconds without real activity before a connection is closed (IMPL-0014). Whole number, 60 to 86400;
+    // anything else falls back to 300.
+    "IDLE_TIMEOUT_SECONDS": "300"
   },
   "routes": [{ "pattern": "server.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },

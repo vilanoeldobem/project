@@ -4,9 +4,14 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { MISSIONS } from "@vila/shared/game/progress";
+import { QUESTS } from "@vila/shared/game/quests";
+
+import { devVar, productionVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
 import { loginEmail } from "./mail";
+import { KNOWN_EVENTS } from "./progress";
 
 const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
@@ -61,7 +66,7 @@ const APP = {
 
 beforeEach(() => {
   db = createD1();
-  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
+  env = { DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", QUESTS_V1_ENABLED: "true" };
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -80,7 +85,10 @@ function stubResend(respond: () => Response | Promise<Response> = () => Response
 describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {
     env.ACCOUNTS_ENABLED = "false";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false });
+    env.QUESTS_V1_ENABLED = "false";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false });
+    env.QUESTS_V1_ENABLED = "true";
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true });
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });
@@ -260,10 +268,115 @@ describe("server XP (P14, DEC-042)", () => {
       expect((await events(a, [{ missionId, eventId }])).status).toBe(200);
   });
 
-  it("knows the event ids of every mission", async () => {
-    const { MISSIONS } = await import("@vila/shared/game/progress");
-    const { KNOWN_EVENTS } = await import("./progress");
-    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual(MISSIONS.map((m) => m.id).sort());
+  it("knows the event ids of every mission and quest", () => {
+    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual([...MISSIONS, ...QUESTS].map((m) => m.id).sort());
+  });
+
+  it("accepts a full quest chain once and replays it without extra XP", async () => {
+    const a = await signUp();
+    const flightNight = [
+      { missionId: "harness-bells", eventId: "accept" },
+      { missionId: "harness-bells", eventId: "bell-pine-north" },
+      { missionId: "harness-bells", eventId: "bell-pine-east" },
+      { missionId: "harness-bells", eventId: "turn-in" },
+      { missionId: "route-memory-game", eventId: "accept" },
+      { missionId: "route-memory-game", eventId: "memory-win" },
+      { missionId: "route-memory-game", eventId: "turn-in" },
+      { missionId: "charm-for-the-flight", eventId: "accept" },
+      { missionId: "charm-for-the-flight", eventId: "turn-in" },
+    ];
+    const first = await events(a, flightNight);
+    expect(first.status).toBe(200);
+    expect(first.body.progress.xp).toBe(100);
+    expect(first.body.progress.completed["charm-for-the-flight"]).toBe(true);
+    const replay = await events(a, flightNight);
+    expect(replay.status).toBe(200);
+    expect(replay.body.progress.xp).toBe(100);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(100);
+  });
+
+  it("rejects an unknown quest event id", async () => {
+    const a = await signUp();
+    expect((await events(a, [{ missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "charm-for-the-flight", eventId: "memory-win" }])).status).toBe(400);
+  });
+
+  it("skips quest events while the flag is off and still stores the missions of the same batch", async () => {
+    env.QUESTS_V1_ENABLED = "false";
+    const a = await signUp();
+    const alone = await events(a, [{ missionId: "harness-bells", eventId: "accept" }]);
+    expect([alone.status, alone.body.progress.seen]).toEqual([200, {}]);
+    const mixed = await events(a, [
+      { missionId: "harness-bells", eventId: "accept" },
+      { missionId: "causes-global-donation", eventId: "panel" },
+      { missionId: "harness-bells", eventId: "bell-pine-north" },
+    ]);
+    expect(mixed.status).toBe(200);
+    expect(mixed.body.progress.xp).toBe(20);
+    expect(mixed.body.progress.seen).toEqual({ "causes-global-donation:panel": true });
+    expect(db.sql("SELECT mission_id, event_id FROM progress_events")).toEqual([{ mission_id: "causes-global-donation", event_id: "panel" }]);
+    // Ids the game cannot produce still fail the whole batch, quest or not.
+    expect((await events(a, [{ missionId: "play-memory", eventId: "win" }, { missionId: "donate-1000", eventId: "x" }])).status).toBe(400);
+    expect((await events(a, [{ missionId: "play-memory", eventId: "win" }, { missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(1);
+    // Flag back on: the skipped quest event was never stored, so it can be sent again and applies.
+    env.QUESTS_V1_ENABLED = "true";
+    const again = await events(a, [{ missionId: "harness-bells", eventId: "accept" }]);
+    expect(again.body.progress.seen["harness-bells:accept"]).toBe(true);
+  });
+
+  it("does not store an accept sent while another quest is active, so it applies later (stale tab)", async () => {
+    const a = await signUp();
+    const q = (missionId: string, eventId: string) => ({ missionId, eventId });
+    await events(a, [q("harness-bells", "accept")]);
+    // A stale tab still offers lake-lanterns: answered 200, ignored, and not stored.
+    const stale = await events(a, [q("lake-lanterns", "accept")]);
+    expect(stale.status).toBe(200);
+    expect(stale.body.progress.seen["lake-lanterns:accept"]).toBeUndefined();
+    expect(db.sql("SELECT mission_id, event_id FROM progress_events")).toEqual([{ mission_id: "harness-bells", event_id: "accept" }]);
+    await events(a, [q("harness-bells", "bell-pine-north"), q("harness-bells", "bell-pine-east"), q("harness-bells", "turn-in")]);
+    // With harness-bells finished, the very same event id is now a valid transition.
+    const later = await events(a, [q("lake-lanterns", "accept"), q("lake-lanterns", "lantern-lake-1"), q("lake-lanterns", "lantern-lake-2"), q("lake-lanterns", "turn-in")]);
+    expect(later.body.progress.completed["lake-lanterns"]).toBe(true);
+    expect(later.body.progress.xp).toBe(40);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(40);
+  });
+
+  it("does not store an objective that arrives before its accept, so it can be sent again", async () => {
+    const a = await signUp();
+    const q = (eventId: string) => ({ missionId: "harness-bells", eventId });
+    const early = await events(a, [q("bell-pine-north")]);
+    expect([early.status, early.body.progress.seen]).toEqual([200, {}]);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(0);
+    // Out of order inside one batch: the objective before the accept is skipped, the one after it counts.
+    const mixed = await events(a, [q("bell-pine-east"), q("accept"), q("bell-pine-north")]);
+    expect(mixed.body.progress.counters["harness-bells"]).toBe(1);
+    const done = await events(a, [q("bell-pine-east"), q("turn-in")]);
+    expect(done.body.progress.completed["harness-bells"]).toBe(true);
+    expect(done.body.progress.xp).toBe(20);
+  });
+
+  it("re-applies a quest event whose stored row was never a valid transition (older rows, concurrent tabs)", async () => {
+    const a = await signUp();
+    const q = (missionId: string, eventId: string) => ({ missionId, eventId });
+    await events(a, [q("harness-bells", "accept")]);
+    // What the previous rule (or two requests racing) leaves behind: a stored accept that replays as a no-op.
+    db.sql("INSERT INTO progress_events (user_id, mission_id, event_id) VALUES (?, 'lake-lanterns', 'accept')", a.user.id);
+    await events(a, [q("harness-bells", "bell-pine-north"), q("harness-bells", "bell-pine-east"), q("harness-bells", "turn-in")]);
+    const later = await events(a, [q("lake-lanterns", "accept")]);
+    expect(later.body.progress.seen["lake-lanterns:accept"]).toBe(true);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE mission_id = 'lake-lanterns'")[0].n).toBe(1);
+  });
+
+  it("keeps mission events idempotent next to quest events (same rows, same response shape)", async () => {
+    const a = await signUp();
+    const gift = (eventId: string) => ({ missionId: "explore-gifts", eventId });
+    const r = await events(a, [gift("gift-bench"), gift("gift-palm"), gift("gift-street"), gift("gift-bench")]);
+    expect(Object.keys(r.body)).toEqual(["progress"]);
+    expect(Object.keys(r.body.progress).sort()).toEqual(["completed", "counters", "seen", "xp"]);
+    expect(r.body.progress.xp).toBe(30);
+    // Every whitelisted mission event is stored once, even past the mission's target.
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(3);
   });
 });
 
@@ -579,5 +692,241 @@ describe("hardening ported from the parallel accounts work (#9–#12)", () => {
     const a = await signUp();
     const r = await apply(a, { ...APP, openedOn: "2021-02-29" });
     expect(r.body.fields.openedOn).toBeDefined();
+  });
+});
+
+describe("backoffice dashboard (IMPL-0015)", () => {
+  const DASH = "https://dash.example";
+  async function asAdmin() {
+    const a = await signUp("admin_vila", "admin@example.com");
+    db.sql("UPDATE users SET role = 'admin' WHERE nickname = 'admin_vila'");
+    return a;
+  }
+  /** Audit rows at known instants (the default `at` is "now", too close together to page through). */
+  const audit = (id: string, at: string, actor = "nobody") =>
+    db.sql("INSERT INTO audit_events (id, at, actor, action, subject, detail) VALUES (?, ?, ?, 'test.event', ?, NULL)", id, at, actor, `test:${id}`);
+
+  describe("sign-in link target", () => {
+    beforeEach(() => {
+      env.GAME_ORIGIN = ORIGIN;
+      env.DASH_ORIGIN = DASH;
+      env.ALLOWED_ORIGINS = `${ORIGIN},${DASH},https://www.example,https://dash.example.evil.example`;
+      env.ACCOUNT_ORIGINS = `${ORIGIN},${DASH},https://dash.example.evil.example`;
+    });
+    const linkFrom = async (origin: string | null, body: object = { email: "ana@example.com" }) => {
+      const r = await call("POST", "/auth/link", body, undefined, origin);
+      return { status: r.status, origin: r.body?.devLink ? new URL(r.body.devLink).origin : null, link: r.body?.devLink as string | undefined };
+    };
+
+    it("opens the dashboard only for a link asked from exactly DASH_ORIGIN", async () => {
+      await signUp();
+      const dash = await linkFrom(DASH);
+      expect([dash.status, dash.origin]).toEqual([202, DASH]);
+      // Same token format as the game's link: fragment only.
+      expect(new URL(dash.link!).search).toBe("");
+      expect(new URL(dash.link!).hash).toMatch(/^#login=[A-Za-z0-9_-]{40,}$/);
+      expect((await linkFrom(ORIGIN)).origin).toBe(ORIGIN);
+      // A dashboard link signs in with the same session cookie as any other.
+      const v = await call("POST", "/auth/verify", { token: tokenOf(dash.link!) }, undefined, DASH);
+      expect(v.status).toBe(200);
+      expect(v.headers.get("Access-Control-Allow-Origin")).toBe(DASH);
+      expect(v.headers.get("Access-Control-Allow-Credentials")).toBe("true");
+      expect((await call("GET", "/me", undefined, v.headers.get("Set-Cookie")!.split(";")[0], DASH)).body.user.nickname).toBe("ana_lima");
+    });
+
+    it("never lets a foreign Origin or request data redirect the link", async () => {
+      await signUp();
+      // Not an account origin at all: refused before any link exists.
+      for (const origin of ["https://evil.example", "https://www.example", null]) {
+        const r = await linkFrom(origin);
+        expect([origin, r.status, r.link]).toEqual([origin, 403, undefined]);
+      }
+      expect(db.sql("SELECT COUNT(*) AS n FROM login_tokens WHERE used_at IS NULL")[0].n).toBe(0);
+      // An allowed origin that merely looks like the dashboard still gets a link to the game.
+      expect((await linkFrom("https://dash.example.evil.example")).origin).toBe(ORIGIN);
+      // Nothing in the body, the query string or other headers chooses the target.
+      db.sql("DELETE FROM login_tokens"); // stay under the 3 links per 15 minutes of the account
+      const body ={ email: "ana@example.com", origin: "https://evil.example", base: "https://evil.example", redirect: "https://evil.example", dash: true };
+      expect((await linkFrom(ORIGIN, body)).origin).toBe(ORIGIN);
+      const res = await handleApi(
+        new Request(`https://api.example/auth/link?origin=${encodeURIComponent(DASH)}&redirect=https://evil.example`, {
+          method: "POST",
+          headers: { Origin: ORIGIN, Referer: `${DASH}/`, "X-Forwarded-Host": "evil.example", "Content-Type": "application/json" },
+          body: JSON.stringify({ email: "ana@example.com" }),
+        }),
+        env
+      );
+      expect(new URL(((await res.json()) as { devLink: string }).devLink).origin).toBe(ORIGIN);
+    });
+
+    it("keeps today's behaviour without DASH_ORIGIN, and never matches a near miss", async () => {
+      await signUp();
+      for (const configured of [undefined, "", `${DASH}/`, "https://DASH.example"]) {
+        env.DASH_ORIGIN = configured;
+        expect([configured, (await linkFrom(DASH)).origin]).toEqual([configured, ORIGIN]);
+        db.sql("DELETE FROM login_tokens");
+      }
+    });
+
+    it("keeps registration game-only: the dashboard creates no accounts", async () => {
+      const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" }, undefined, DASH);
+      expect([r.status, r.body.error]).toEqual([403, "forbidden_origin"]);
+      expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
+      // From the game, a registration link always opens the game.
+      const ok = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
+      expect(new URL(ok.body.devLink).origin).toBe(ORIGIN);
+    });
+
+    it("is configured as an exact origin that is also an account origin (production vars and the dev script)", () => {
+      // `fromDash` compares text: a DASH_ORIGIN that differs from the ACCOUNT_ORIGINS entry by a slash or a letter
+      // would silently send dashboard links to the game.
+      for (const [where, read] of [["wrangler.jsonc", productionVar], ["dev script", devVar]] as const) {
+        const list = (name: string) => (read(name) ?? "").split(",");
+        const dash = read("DASH_ORIGIN");
+        expect([where, dash]).toEqual([where, expect.stringMatching(/^https?:\/\/[a-z0-9.-]+(:\d+)?$/)]);
+        expect([where, list("ALLOWED_ORIGINS")]).toEqual([where, expect.arrayContaining([dash])]);
+        expect([where, list("ACCOUNT_ORIGINS")]).toEqual([where, expect.arrayContaining([dash, read("GAME_ORIGIN")])]);
+        expect([where, read("GAME_ORIGIN")]).not.toEqual([where, dash]);
+      }
+    });
+
+    it("says in the e-mail that the link opens the dashboard", async () => {
+      await signUp();
+      const sent = stubResend();
+      env.ENVIRONMENT = "production";
+      env.RESEND_API_KEY = "re_test_key";
+      expect((await call("POST", "/auth/link", { email: "ana@example.com" }, undefined, DASH)).status).toBe(202);
+      expect(sent[0].body.text).toContain(`${DASH}/#login=`);
+      expect(sent[0].body.text).toContain("painel administrativo");
+      expect(sent[0].body.html).toContain("Entrar no painel");
+      await call("POST", "/auth/link", { email: "ana@example.com" });
+      expect(sent[1].body.text).toContain(`${ORIGIN}/#login=`);
+      expect(sent[1].body.html).toContain("Entrar na Vila");
+    });
+  });
+
+  describe("read-only lists", () => {
+    it("answers admins only, never cached, and not at all while accounts are off", async () => {
+      const player = await signUp();
+      const admin = await asAdmin();
+      for (const path of ["/admin/audit", "/admin/users"]) {
+        const out = await call("GET", path);
+        expect([path, out.status, out.body.error]).toEqual([path, 401, "not_signed_in"]);
+        const no = await call("GET", path, undefined, player.cookie);
+        expect([path, no.status, no.body.error]).toEqual([path, 403, "admin_only"]);
+        const ok = await call("GET", path, undefined, admin.cookie);
+        expect([path, ok.status, ok.headers.get("Cache-Control")]).toEqual([path, 200, "no-store"]);
+        expect([path, no.headers.get("Cache-Control")]).toEqual([path, "no-store"]);
+        // Read-only: no other method reaches a handler.
+        expect([path, (await call("POST", path, {}, admin.cookie)).status]).toEqual([path, 404]);
+        expect([path, (await call("DELETE", path, undefined, admin.cookie)).status]).toEqual([path, 404]);
+      }
+      env.ACCOUNTS_ENABLED = "false";
+      for (const path of ["/admin/audit", "/admin/users"]) {
+        const off = await call("GET", path, undefined, admin.cookie);
+        expect([path, off.status, off.body.error]).toEqual([path, 404, "accounts_disabled"]);
+      }
+    });
+
+    it("lists audit events newest first with the actor's nickname and no personal data", async () => {
+      const applicant = await signUp();
+      const admin = await asAdmin();
+      const id = (await apply(applicant, APP)).body.application.id;
+      await decide(id, { action: "request_changes", note: "Envie o relatório de recursos de 2025." }, admin.cookie);
+      // Two events in the same millisecond would have no defined order: pin the instants.
+      db.sql("UPDATE audit_events SET at = '2026-01-01T00:00:00.000Z' WHERE action = 'ngo.submit'");
+      db.sql("UPDATE audit_events SET at = '2026-01-02T00:00:00.000Z' WHERE action = 'ngo.request_changes'");
+      const before = db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n;
+      const r = await call("GET", "/admin/audit", undefined, admin.cookie);
+      expect(r.body.next).toBeNull();
+      expect(r.body.events).toEqual([
+        { at: "2026-01-02T00:00:00.000Z", action: "ngo.request_changes", subject: `ngo:${id}`, detail: expect.stringContaining('"to":"changes_requested"'), actor: "admin_vila" },
+        { at: "2026-01-01T00:00:00.000Z", action: "ngo.submit", subject: `ngo:${id}`, detail: expect.any(String), actor: "ana_lima" },
+      ]);
+      // Never ids of people, e-mails, names or the free-text note.
+      expect(JSON.stringify(r.body)).not.toMatch(/@example\.com|Ana Lima|relatório/);
+      expect(JSON.stringify(r.body)).not.toContain(applicant.user.id);
+      // Reading is not a mutation: nothing new in the audit trail.
+      expect(db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n).toBe(before);
+      // An actor whose account is gone shows as null.
+      await call("DELETE", "/me", undefined, applicant.cookie);
+      const after = (await call("GET", "/admin/audit", undefined, admin.cookie)).body.events;
+      expect(after.map((e: { action: string; actor: string | null }) => [e.action, e.actor])).toEqual([["user.delete", null], ["ngo.request_changes", "admin_vila"], ["ngo.submit", null]]);
+    });
+
+    it("pages through the audit trail without skipping events that share an instant", async () => {
+      const admin = await asAdmin();
+      audit("e1", "2026-01-01T00:00:00.000Z");
+      audit("e2", "2026-01-02T00:00:00.000Z");
+      audit("e3", "2026-01-02T00:00:00.000Z");
+      audit("e4", "2026-01-02T00:00:00.000Z");
+      audit("e5", "2026-01-03T00:00:00.000Z");
+      const page = async (query: string) => {
+        const r = await call("GET", `/admin/audit${query}`, undefined, admin.cookie);
+        return { ids: r.body.events.map((e: { subject: string }) => e.subject.slice(5)), next: r.body.next as string | null };
+      };
+      // The page ends inside the three events of 2 January: all three come along.
+      const first = await page("?limit=2");
+      expect(first).toEqual({ ids: ["e5", "e4", "e3", "e2"], next: "2026-01-02T00:00:00.000Z" });
+      const second = await page(`?limit=2&before=${first.next}`);
+      expect(second).toEqual({ ids: ["e1"], next: null });
+      expect(await page("?limit=1")).toEqual({ ids: ["e5"], next: "2026-01-03T00:00:00.000Z" });
+      expect((await page("?limit=100")).ids).toEqual(["e5", "e4", "e3", "e2", "e1"]);
+      // `before` without milliseconds means the same instant as the stored form.
+      expect((await page("?before=2026-01-02T00:00:00Z")).ids).toEqual(["e1"]);
+      expect(await page("?before=2000-01-01T00:00:00.000Z")).toEqual({ ids: [], next: null });
+    });
+
+    it("validates the paging parameters", async () => {
+      const admin = await asAdmin();
+      for (const path of ["/admin/audit", "/admin/users"]) {
+        for (const limit of ["0", "101", "-1", "1.5", "abc", "", "1e2", " 5"]) {
+          const r = await call("GET", `${path}?limit=${encodeURIComponent(limit)}`, undefined, admin.cookie);
+          expect([path, limit, r.status, r.body.error]).toEqual([path, limit, 400, "bad_limit"]);
+        }
+        for (const before of ["yesterday", "2026-01-01", "2026-13-01T00:00:00Z", "2026-01-01T00:00:00+03:00", "", "1' OR '1'='1"]) {
+          const r = await call("GET", `${path}?before=${encodeURIComponent(before)}`, undefined, admin.cookie);
+          expect([path, before, r.status, r.body.error]).toEqual([path, before, 400, "bad_before"]);
+        }
+        for (const limit of ["1", "100"]) expect((await call("GET", `${path}?limit=${limit}`, undefined, admin.cookie)).status).toBe(200);
+      }
+    });
+
+    it("lists users by nickname without e-mail or name, and pages through them", async () => {
+      await signUp("ana_lima", "ana@example.com");
+      await call("POST", "/auth/register", { name: "Bia Souza", nickname: "bia_souza", city: "Natal", email: "bia@example.com" }); // never verified
+      const admin = await asAdmin();
+      db.sql("UPDATE users SET created_at = '2026-01-01T00:00:00.000Z' WHERE nickname = 'ana_lima'");
+      db.sql("UPDATE users SET created_at = '2026-01-02T00:00:00.000Z' WHERE nickname = 'bia_souza'");
+      db.sql("UPDATE users SET created_at = '2026-01-03T00:00:00.000Z' WHERE nickname = 'admin_vila'");
+
+      const all = await call("GET", "/admin/users", undefined, admin.cookie);
+      expect(all.body.next).toBeNull();
+      expect(all.body.users).toEqual([
+        { id: admin.user.id, nickname: "admin_vila", role: "admin", city: "Recife", createdAt: "2026-01-03T00:00:00.000Z", verified: true },
+        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "bia_souza", role: "player", city: "Natal", createdAt: "2026-01-02T00:00:00.000Z", verified: false },
+        { id: expect.stringMatching(/^[0-9a-f-]{36}$/), nickname: "ana_lima", role: "player", city: "Recife", createdAt: "2026-01-01T00:00:00.000Z", verified: true },
+      ]);
+      for (const u of all.body.users) expect(Object.keys(u).sort()).toEqual(["city", "createdAt", "id", "nickname", "role", "verified"]);
+      expect(JSON.stringify(all.body)).not.toMatch(/@example\.com|Ana Lima|Bia Souza|email|"name"/);
+
+      const first = await call("GET", "/admin/users?limit=2", undefined, admin.cookie);
+      expect(first.body.users.map((u: { nickname: string }) => u.nickname)).toEqual(["admin_vila", "bia_souza"]);
+      expect(first.body.next).toBe("2026-01-02T00:00:00.000Z");
+      const second = await call("GET", `/admin/users?limit=2&before=${first.body.next}`, undefined, admin.cookie);
+      expect(second.body.users.map((u: { nickname: string }) => u.nickname)).toEqual(["ana_lima"]);
+      expect(second.body.next).toBeNull();
+    });
+
+    it("has no route that grants a role", async () => {
+      const admin = await asAdmin();
+      const player = await signUp();
+      const body = { role: "admin", name: "Ana Lima", nickname: "ana_lima", city: "Recife" };
+      for (const path of ["/admin/users", `/admin/users/${player.user.id}`, `/admin/users/${player.user.id}/role`])
+        expect([path, (await call("POST", path, body, admin.cookie)).status]).toEqual([path, 404]);
+      // The profile correction ignores a `role` field.
+      expect((await call("POST", "/me", body, player.cookie)).body.user.role).toBe("player");
+      expect(db.sql("SELECT role FROM users WHERE id = ?", player.user.id)[0].role).toBe("player");
+    });
   });
 });

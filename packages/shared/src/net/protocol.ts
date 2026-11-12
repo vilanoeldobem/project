@@ -6,12 +6,16 @@
  *
  *   client → server  ["p", x, z, yaw, speed]                 pose, ≤ 10 Hz, only when it changed
  *                    ["k", hat, scarf, sweater, palette]     avatar look (catalogue ids only, IMPL-0010)
+ *                    ["a"]                                   the person clicked, tapped or typed; ≤ 1 per ACTIVE_MS
  *                    "ping"                                  keep-alive (answered "pong" without waking the room)
  *   server → client  ["w", selfId, room]                     welcome
  *                    ["s", tickMs, [[id, x, z, yaw, speed, ageMs], …]]  poses that changed since the last tick
  *                    ["k", id, [hat, scarf, sweater, palette]] someone's look (on change; all of them on join)
  *                    ["l", id]                                someone left
- *   close 4001 = room full (try the next room) · 1008 = protocol abuse
+ *   close 4001 = room full (try the next room) · 4002 = idle (IMPL-0014: reconnect on the next real input) ·
+ *         1008 = protocol abuse
+ *
+ * Activity (IMPL-0014): a pose that moves or turns the avatar, a look and ["a"] count; "ping" never does.
  */
 import { COSMETICS, type Look, SLOTS } from "../game/cosmetics";
 import { MOTION } from "../game/motion";
@@ -23,7 +27,13 @@ export const TICK_MS = 100;
 export const SEND_MS = 100;
 export const MAX_MESSAGE_BYTES = 96;
 export const CLOSE_FULL = 4001;
+/** The room closed a connection with no real activity for the idle limit (IMPL-0014). */
+export const CLOSE_IDLE = 4002;
 export const CLOSE_ABUSE = 1008;
+/** Minimum spacing of the client's ["a"] activity reports; the room's idle limit must stay well above it. */
+export const ACTIVE_MS = 20_000;
+/** "The person is here": sent after a real click, tap or key when no pose or look went out recently. */
+export const ACTIVE_MESSAGE = '["a"]';
 
 export interface Pose {
   x: number;
@@ -87,9 +97,10 @@ export function parseLook(raw: unknown): Look | null {
 
 export const encodeLook = (l: Look) => JSON.stringify(["k", ...lookArray(l)]);
 
-/** Client message → pose or look (null = junk). */
-export function decodeClient(raw: string): { t: "p"; pose: Pose } | { t: "k"; look: Look } | null {
+/** Client message → pose, look or activity report (null = junk). */
+export function decodeClient(raw: string): { t: "p"; pose: Pose } | { t: "k"; look: Look } | { t: "a" } | null {
   if (raw.length > MAX_MESSAGE_BYTES) return null;
+  if (raw === ACTIVE_MESSAGE) return { t: "a" };
   if (raw.startsWith('["k"')) {
     try {
       const m = JSON.parse(raw) as unknown[];
