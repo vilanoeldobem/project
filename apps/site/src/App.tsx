@@ -18,6 +18,7 @@ import {
   VoxelVillageSkyline,
 } from "./VoxelArt";
 import { VoxelSnow } from "./VoxelSnow";
+import { villageNow, type VillageNow } from "./villageClock";
 
 /**
  * Public landing page (www.*). Copy is pt-BR and uses only approved wording: purpose and promise
@@ -68,36 +69,6 @@ const SCENES: Scene[] = [
     caption: "Missões da Vila · no canto, o painel mostra as missões, o nível e a experiência; adiante, a árvore e o ponto da doação global.",
   },
 ];
-
-interface VillageNow {
-  time: string;
-  phase: string;
-}
-
-/** Same civil clock and artistic phases as the game (IMPL-0006): America/Sao_Paulo, via Intl. */
-function villageNow(): VillageNow {
-  const parts = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(new Date());
-  const read = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
-  const hour = read("hour") % 24;
-  const minute = read("minute");
-  const fraction = hour + minute / 60;
-  return {
-    time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    phase:
-      fraction >= 5 && fraction < 6
-        ? "Amanhecer na Vila"
-        : fraction >= 6 && fraction < 17
-          ? "Dia na Vila"
-          : fraction >= 17 && fraction < 18.5
-            ? "Entardecer na Vila"
-            : "Noite na Vila",
-  };
-}
 
 function readStored(key: string): string | null {
   try {
@@ -496,9 +467,9 @@ function activeNeighbour(current: number, step: 1 | -1, last: number): number {
 
 /** São Paulo village clock, refreshed every 30 s (minute precision). */
 function useVillageClock(): VillageNow {
-  const [now, setNow] = useState<VillageNow>(villageNow);
+  const [now, setNow] = useState<VillageNow>(() => villageNow(Date.now()));
   useEffect(() => {
-    const id = window.setInterval(() => setNow(villageNow()), 30_000);
+    const id = window.setInterval(() => setNow(villageNow(Date.now())), 30_000);
     return () => window.clearInterval(id);
   }, []);
   return now;
