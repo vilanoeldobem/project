@@ -11,8 +11,8 @@ import {
   VoxelGameIcon,
   VoxelGarland,
   VoxelMissionIcon,
+  VoxelMoonIcon,
   VoxelPlazaIcon,
-  VoxelSkyIcon,
   VoxelSnowflakeIcon,
   VoxelTreeGlobeIcon,
   VoxelVillageSkyline,
@@ -172,6 +172,7 @@ export function App() {
 
       <header className="top">
         <div className="top__bar">
+          {/* DOM order is the visual order at every width (WCAG 2.4.3): brand, comfort toggles, nav, CTA. */}
           <div className="top__row top__row--brand">
             <a className="brand" href="/" aria-label="Vila Noel do Bem — início">
               <VoxelCrestMark size={34} />
@@ -180,25 +181,20 @@ export function App() {
                 <span>DO BEM</span>
               </span>
             </a>
+            {/* Toggle buttons: the name never changes, `aria-pressed` alone carries the state. */}
             <button
               type="button"
               className="chip-btn top__theme"
               aria-pressed={theme === "dark"}
-              aria-label={theme === "dark" ? "Tema noturno ativo (noite). Mudar para o dia" : "Tema diurno ativo (dia). Mudar para a noite"}
+              aria-label="Noite: tema noturno"
               onClick={toggleTheme}
             >
               <span className="chip-btn__icon">
-                <VoxelSkyIcon night={theme === "dark"} />
+                <VoxelMoonIcon />
               </span>
-              <span className="chip-btn__label">{theme === "dark" ? "Noite" : "Dia"}</span>
+              <span className="chip-btn__label">Noite</span>
             </button>
-            <button
-              type="button"
-              className="chip-btn top__snow"
-              aria-pressed={snow}
-              aria-label={snow ? "Neve ligada. Desligar a neve" : "Neve desligada. Ligar a neve"}
-              onClick={toggleSnow}
-            >
+            <button type="button" className="chip-btn top__snow" aria-pressed={snow} aria-label="Neve" onClick={toggleSnow}>
               <span className="chip-btn__icon">
                 <VoxelSnowflakeIcon />
               </span>
@@ -410,10 +406,6 @@ export function App() {
               <div className="ngo-copy">
                 <h2 id="ongs-title">Para organizações sociais</h2>
                 <p className="lead">Os terrenos da Vila estão abertos para organizações que atendem a três critérios:</p>
-                <p className="note">
-                  Toda candidatura passa por análise; só a aprovação publica a casa na Vila. O cadastro de ONGs abre em
-                  breve.
-                </p>
               </div>
 
               <ol className="criteria-list">
@@ -430,6 +422,11 @@ export function App() {
                   <span>Um meio confiável de confirmar os valores destinados à organização.</span>
                 </li>
               </ol>
+
+              <p className="note ngo-note">
+                Toda candidatura passa por análise; só a aprovação publica a casa na Vila. O cadastro de ONGs abre em
+                breve.
+              </p>
             </div>
           </div>
         </section>

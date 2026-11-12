@@ -192,30 +192,18 @@ export function VoxelSnowflakeIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-/** 18×18: theme control icon (voxel sun for the day, block crescent for the night). */
-export function VoxelSkyIcon({ night, size = 18 }: { night: boolean; size?: number }) {
-  if (night) {
-    return (
-      <svg className="voxel-icon" width={size} height={size} viewBox="0 0 18 18" {...crisp}>
-        <rect x="6" y="2" width="8" height="2" fill="currentColor" />
-        <rect x="4" y="4" width="6" height="2" fill="currentColor" />
-        <rect x="2" y="6" width="6" height="6" fill="currentColor" />
-        <rect x="4" y="12" width="6" height="2" fill="currentColor" />
-        <rect x="6" y="14" width="8" height="2" fill="currentColor" />
-        <rect x="1" y="1" width="2" height="2" fill="currentColor" />
-        <rect x="15" y="4" width="2" height="2" fill="currentColor" />
-        <rect x="13" y="14" width="2" height="2" fill="currentColor" />
-      </svg>
-    );
-  }
+/** 18×18: night-theme toggle icon (block crescent with stars). */
+export function VoxelMoonIcon({ size = 18 }: { size?: number }) {
   return (
     <svg className="voxel-icon" width={size} height={size} viewBox="0 0 18 18" {...crisp}>
-      <rect x="6" y="2" width="6" height="14" fill="currentColor" />
-      <rect x="2" y="6" width="14" height="6" fill="currentColor" />
-      <rect x="4" y="4" width="2" height="2" fill="currentColor" />
-      <rect x="12" y="4" width="2" height="2" fill="currentColor" />
-      <rect x="4" y="12" width="2" height="2" fill="currentColor" />
-      <rect x="12" y="12" width="2" height="2" fill="currentColor" />
+      <rect x="6" y="2" width="8" height="2" fill="currentColor" />
+      <rect x="4" y="4" width="6" height="2" fill="currentColor" />
+      <rect x="2" y="6" width="6" height="6" fill="currentColor" />
+      <rect x="4" y="12" width="6" height="2" fill="currentColor" />
+      <rect x="6" y="14" width="8" height="2" fill="currentColor" />
+      <rect x="1" y="1" width="2" height="2" fill="currentColor" />
+      <rect x="15" y="4" width="2" height="2" fill="currentColor" />
+      <rect x="13" y="14" width="2" height="2" fill="currentColor" />
     </svg>
   );
 }

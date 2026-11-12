@@ -44,7 +44,7 @@
 
   --border-subtle: oklch(0.315 0.052 175 / 0.18);
   --border-strong: oklch(0.315 0.052 175 / 0.85);
-  --focus-ring: var(--accent-gold-strong);
+  --focus-ring: var(--accent-gold-strong); /* 5.3:1 on canvas; too dark on the masthead, see .top :focus-visible */
 
   --status-success: oklch(0.44 0.095 152); /* #206137 */
   --status-warning: oklch(0.5 0.11 72); /* #895700 */
@@ -273,6 +273,16 @@ button {
   outline-offset: 3px;
 }
 
+/*
+ * On the deep-pine masthead the light-theme ring (#8F5F02) is only 2.3:1. Rings drawn over the
+ * masthead use the gold accent in both themes (#E4B863: 6.8:1 light, 9.6:1 dark). The skip link
+ * lands on top of the masthead, so its ring follows the same rule.
+ */
+.top :focus-visible,
+.skip-link:focus-visible {
+  outline-color: var(--accent-gold);
+}
+
 :target {
   scroll-margin-block-start: 96px;
 }
@@ -338,7 +348,7 @@ button {
   width: 100%;
   max-width: var(--container);
   margin-inline: auto;
-  padding-block: max(var(--space-3), env(safe-area-inset-top)) var(--space-1);
+  padding-block: max(var(--space-3), env(safe-area-inset-top)) var(--space-2);
   padding-inline: var(--gutter);
 }
 
@@ -382,21 +392,16 @@ button {
   transition: color 140ms var(--ease);
 }
 
+/* Section links wrap instead of scrolling sideways: every link stays visible at any width or text size. */
 .nav {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-  padding-block-end: var(--space-1);
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
-}
-
-.nav::-webkit-scrollbar {
-  display: none;
+  /* Pushes the CTA to the far edge; when the row is too narrow the CTA wraps to a row of its own. */
+  margin-inline-end: auto;
 }
 
 .nav-link {
@@ -1182,7 +1187,7 @@ button {
   }
 }
 
-/* Below the sidebar breakpoint the section links read as a scrollable chip bar. */
+/* On small screens the section links read as a wrapping chip bar. */
 @media (max-width: 767px) {
   .nav-link {
     background: var(--tint-on-pine);
@@ -1192,10 +1197,6 @@ button {
 @media (min-width: 768px) {
   .top__bar {
     gap: var(--space-2) var(--space-3);
-  }
-
-  .nav {
-    padding-block-end: var(--space-2);
   }
 
   .donation-split,
@@ -1217,6 +1218,11 @@ button {
   .criteria-list li {
     padding-block: var(--space-6);
   }
+
+  /* Reading order: lead, criteria, note. The note sits under the list it qualifies. */
+  .ngo-note {
+    grid-column: 2;
+  }
 }
 
 @media (min-width: 1024px) {
@@ -1225,41 +1231,31 @@ button {
     inset-block-start: 0;
   }
 
+  /* One row in DOM order (brand, toggles, nav, CTA), so the tab order is the visual order. */
   .top__bar {
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-4);
+    gap: var(--space-2) var(--space-4);
     padding-block: var(--space-3);
   }
 
-  .top__row {
-    display: contents;
+  .top__row--brand {
+    flex: none;
+    max-width: 100%;
+  }
+
+  .top__row--nav {
+    flex: 1 1 auto;
   }
 
   .brand {
-    order: 1;
-    margin-inline-end: 0;
+    margin-inline-end: var(--space-2);
   }
 
   .nav {
-    order: 2;
-    flex: 1 1 auto;
-    padding-block-end: 0;
-    mask-image: none;
-    -webkit-mask-image: none;
-  }
-
-  .top__theme {
-    order: 3;
-  }
-
-  .top__snow {
-    order: 4;
-  }
-
-  .top__cta {
-    order: 5;
+    margin-inline-start: auto;
+    margin-inline-end: 0;
   }
 
   .hero__inner {
