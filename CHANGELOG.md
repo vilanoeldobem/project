@@ -9,13 +9,12 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Changed — deploy de 2026-11-12
+### Added — conferência do jogo em produção
 
-- Os cinco Workers foram publicados a partir da `main` (`e2fa200`): API, servidor, painel administrativo
-  (`vilanoeldobem-dash`, criado nesse deploy, em `dash.vilanoeldobem.com.br`), jogo e site. Nenhuma migration remota
-  foi aplicada e as contas seguem desligadas.
-- Novo `apps/client/scripts/verify-live.mjs`: conferência do jogo em produção (carrega, entra na Vila, sem erro de
-  console ou de CSP, presença conectada). O `verify.mjs` passa a ser documentado como só local.
+- `apps/client/scripts/verify-live.mjs`: conferência do jogo publicado (carrega, entra na Vila, sem erro de console
+  ou de CSP, presença respondendo). O `verify.mjs` passa a ser documentado como só local.
+- A documentação registra o deploy de 2026-11-12 (painel administrativo publicado) e a pergunta aberta OQ-13
+  (destinos de medição do Google bloqueados pela CSP do jogo).
 
 ### Added — arquivos das candidaturas de ONG no R2 (desligado em produção)
 
@@ -51,7 +50,18 @@ Cada versão indica o schema D1 que entrega.
 - `packages/shared/src/accounts/files.ts`: limites, detecção de formato, limpeza de metadados e frases de erro,
   usados pela API, pelo jogo e pelo painel.
 
-### Added — painel administrativo (`apps/dash`, não publicado)
+## [0.4.0] - 2026-11-12
+
+**Contas e ONGs, painel administrativo, presença em tempo real e navegação por clique**
+([IMPL-0006](docs/decisions/0006-christmas-environment-real-time-procedural-weather.md) a
+[IMPL-0016](docs/decisions/0016-click-navigation-and-colliders.md)). Schema D1 **v5** no código; **produção segue na
+v3**: as migrations `0004` e `0005` não foram aplicadas e as contas continuam desligadas (`ACCOUNTS_ENABLED`), assim
+como as missões narrativas (`QUESTS_V1_ENABLED`). Os cinco Workers foram publicados a partir da `main` em 2026-11-12,
+na ordem API, servidor, painel administrativo (`vilanoeldobem-dash`, criado nesse deploy), jogo e site; esse deploy
+foi feito antes deste commit de versão, então `GET /health` em produção responde `"version": "0.3.0"` até a próxima
+publicação da API.
+
+### Added — painel administrativo (`apps/dash`)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em
   `dash.vilanoeldobem.com.br`, Worker `vilanoeldobem-dash` só com Static Assets (sem script, sem bindings). **Não
