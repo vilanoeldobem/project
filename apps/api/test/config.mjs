@@ -11,6 +11,16 @@ export function productionVar(name) {
   return new RegExp(`"${name}":\\s*"([^"]*)"`).exec(read("wrangler.jsonc"))?.[1];
 }
 
+/** Every value of a var in wrangler.jsonc, in file order: production first, then each `env` (staging). */
+export function configuredVars(name) {
+  return [...read("wrangler.jsonc").matchAll(new RegExp(`"${name}":\\s*"([^"]*)"`, "g"))].map((match) => match[1]);
+}
+
+/** Names of the environments of the deployable wrangler.jsonc (local simulators live in their own config files). */
+export function environments() {
+  return [...read("wrangler.jsonc").split(/^\s*"env":\s*\{/m)[1].matchAll(/^    "([\w-]+)":\s*\{/gm)].map((match) => match[1]);
+}
+
 /** Value of `--var NAME:value` in the `dev` script. */
 export function devVar(name) {
   return new RegExp(`--var ${name}:(\\S+)`).exec(JSON.parse(read("package.json")).scripts.dev)?.[1];

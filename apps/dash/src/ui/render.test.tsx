@@ -199,6 +199,65 @@ describe("review of an application", () => {
   });
 });
 
+describe("withdrawal of a published NGO (IMPL-0020, PROPOSTA)", () => {
+  const MESSAGE = "A organização pediu para sair da Vila.";
+  const withdrawalReview = (over: Partial<ApplicationDetail["application"]>, rest: Partial<ApplicationDetail> = {}, withdrawalOn = true, accountId: string | undefined = ADMIN.id) =>
+    html(<Review id={DETAIL.application.id} d={{ ...DETAIL, ...rest, application: { ...DETAIL.application, ...over } }} filesOn withdrawalOn={withdrawalOn} accountId={accountId} onDetail={() => {}} />);
+  const buttons = (page: string) => [...page.matchAll(/<button class="btn[^"]*"( disabled="")?[^>]*>([^<]+)<\/button>/g)].map((m) => `${m[2]}${m[1] ? " (disabled)" : ""}`);
+
+  it("offers the action only for a published NGO and only when the API has it on", () => {
+    expect(buttons(withdrawalReview({ status: "published" }))).toEqual(["Retirar da Vila (disabled)"]);
+    expect(buttons(withdrawalReview({ status: "published" }, {}, false))).toEqual([]);
+    expect(withdrawalReview({ status: "published" }, {}, false)).not.toContain("<textarea");
+    for (const status of ["submitted", "under_review", "changes_requested", "rejected", "withdrawn"] as const)
+      expect([status, buttons(withdrawalReview({ status })).includes("Retirar da Vila (disabled)"), withdrawalReview({ status }).includes('data-action="withdraw"')]).toEqual([status, false, false]);
+  });
+
+  it("names the text as a message the organisation reads, says what cannot be undone and asks to confirm", () => {
+    const page = withdrawalReview({ status: "published" });
+    expect(page).toContain('data-action="withdraw"');
+    expect(page).toContain("Mensagem para a organização (obrigatória, de 10 a 1000 caracteres)");
+    expect(page).toContain("A organização lê este texto como foi escrito");
+    expect(page).toContain("Não é uma anotação interna");
+    expect(page).toContain('data-state="withdrawal-proposal"');
+    expect(page).toContain("PROPOSTA (IMPL-0020)");
+    for (const effect of ["O painel não tem como desfazer", "não consegue enviar outra candidatura", "o CNPJ continua em uso"]) expect(page).toContain(effect);
+    expect(page).toContain("Entendo que a retirada não pode ser desfeita pelo painel");
+    expect(count(page, "<textarea")).toBe(1);
+    // Nothing is sent before the confirmation: the button starts disabled.
+    expect(page).toMatch(/<button class="btn" disabled="" title="Confirme antes de retirar">Retirar da Vila<\/button>/);
+  });
+
+  it("keeps the action disabled while the owner's account erasure is pending", () => {
+    const page = withdrawalReview({ status: "published" }, { applicant: { nickname: "ong_teste", deletionPending: true } });
+    expect(page).toMatch(/<button class="btn" disabled="" title="Exclusão da conta pendente">Retirar da Vila<\/button>/);
+    expect(page).toContain("A retirada fica indisponível enquanto a exclusão da conta do responsável não terminar.");
+  });
+
+  it("shows a withdrawn NGO with its status, the message sent and no action at all", () => {
+    const page = withdrawalReview(
+      { status: "withdrawn", revision: 3, withdrawal: { reason: MESSAGE, at: "2026-11-12T10:00:00.000Z" } },
+      { history: [...DETAIL.history, { at: "2026-11-12T10:00:00.000Z", action: "ngo.withdraw", detail: '{"from":"published","to":"withdrawn","revision":3,"lots":["plaza-03"],"hasReason":true}', actor: "ana_lima" }] }
+    );
+    expect(page).toContain('<span class="status" data-status="withdrawn">Retirada da Vila</span>');
+    expect(page).toContain('data-state="withdrawn"');
+    expect(page).toContain(`<strong>Mensagem enviada à organização</strong> em ${dateTime("2026-11-12T10:00:00.000Z")}:`);
+    expect(page).toContain(`<p data-field="withdrawal-message">${MESSAGE}</p>`);
+    expect(page).toContain("o painel não tem como desfazer a retirada");
+    expect(page).toContain(`${dateTime("2026-11-12T10:00:00.000Z")} · Retirada da Vila pela administração · @ana_lima`);
+    expect(buttons(page)).toEqual([]);
+    expect(page).not.toContain("<textarea");
+    // The audit detail (lot ids, flags) is never printed in the history.
+    expect(page).not.toContain("hasReason");
+  });
+
+  it("still shows the status when an older API sends no message", () => {
+    const page = withdrawalReview({ status: "withdrawn" });
+    expect(page).toContain('data-state="withdrawn"');
+    expect(page).not.toContain("Mensagem enviada à organização");
+  });
+});
+
 describe("files of an application (IMPL-0017)", () => {
   afterEach(() => vi.unstubAllGlobals());
 

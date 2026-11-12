@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import type { ApplicationStatus } from "@vila/shared/accounts/contract";
-import { type ApplicationFile, fileDownloadName, fileErrorText, type FileKind, FILE_RULES, filesEditable } from "@vila/shared/accounts/files";
+import { type ApplicationFile, fileDownloadName, fileErrorText, type FileKind, FILE_RULES, filesEditable, filesRemovable } from "@vila/shared/accounts/files";
 
 import { api, ApiError } from "../lib/account";
 import { checkUpload, fileAccept, fileFailure, fileHint, fileSize, filesStale, fileTypeLabel, withFile } from "../lib/files";
@@ -43,6 +43,8 @@ export function ApplicationFiles({
   onStale: () => Promise<unknown>;
 }) {
   const editable = filesEditable(status);
+  /** After a withdrawal (IMPL-0020, PROPOSTA) nothing can be sent, but the person may still remove their own files. */
+  const removable = filesRemovable(status);
   const logo = files.find((f) => f.kind === "logo");
   const documents = files.filter((f) => f.kind === "document");
   const [busy, setBusy] = useState(false);
@@ -117,6 +119,11 @@ export function ApplicationFiles({
       <h3 id="files-title">Arquivos da candidatura</h3>
       {editable ? (
         <p className="note">Enviar arquivos é opcional. Só você e a administração da Vila veem os documentos. O logo só fica público se a organização for aprovada.</p>
+      ) : status === "withdrawn" ? (
+        <p className="note">
+          A organização foi retirada da Vila: não é possível enviar nem trocar arquivos. O logo não aparece mais na Vila. Você ainda pode baixar os documentos e
+          remover os seus arquivos.
+        </p>
       ) : status === "published" ? (
         <p className="note">
           A organização já foi publicada: os arquivos não podem mais ser alterados. O logo aparece na casa da organização; os documentos continuam visíveis só para você e a
@@ -137,7 +144,7 @@ export function ApplicationFiles({
             <strong>Logo atual</strong>
             <small>{details(logo)}</small>
           </span>
-          {editable && (
+          {removable && (
             <button type="button" className="btn btn--small" disabled={busy} onClick={remove(logo, "Logo")}>
               Remover logo
             </button>
@@ -164,7 +171,7 @@ export function ApplicationFiles({
               <button type="button" className="btn btn--small" disabled={busy} aria-label={`Baixar documento ${i + 1}`} onClick={download(file, i + 1)}>
                 Baixar
               </button>
-              {editable && (
+              {removable && (
                 <button type="button" className="btn btn--small" disabled={busy} aria-label={`Remover documento ${i + 1}`} onClick={remove(file, `Documento ${i + 1}`)}>
                   Remover
                 </button>

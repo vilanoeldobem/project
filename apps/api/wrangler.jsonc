@@ -36,6 +36,9 @@
     // list of documents and the LGPD review covers them. Needs ACCOUNTS_ENABLED and migration 0006.
     "NGO_FILES_ENABLED": "false",
     "NGO_PHOTOS_ENABLED": "false",
+    // Administrative withdrawal of a published NGO (PROPOSTA, IMPL-0020). Off until the product owner answers
+    // OQ-14 (what a withdrawal means for the account, the CNPJ, re-entry and retention). Needs ACCOUNTS_ENABLED
+    // and migration 0009; it only gates new withdrawals.
     "NGO_WITHDRAWAL_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").

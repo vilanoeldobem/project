@@ -69,7 +69,7 @@ Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (bindi
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false, "quests": false, "files": false }
+{ "accounts": false, "quests": false, "files": false, "withdrawal": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
@@ -85,6 +85,11 @@ localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decision
 Worker. Com `false`, o jogo e o painel não mostram nada de arquivo e as rotas de arquivo respondem
 `404 files_disabled`. O envio de logo e documentos é PROPOSTA ([IMPL-0017](../decisions/0017-ngo-files-r2.md),
 PEN-019): ligado no script local `dev`, desligado em produção e staging.
+
+`withdrawal` é `true` só quando as contas estão ligadas **e** `NGO_WITHDRAWAL_ENABLED = "true"`. Com `false`, o
+painel não oferece a retirada de ONG publicada e a rota responde `404`. A retirada é **PROPOSTA**
+([IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md), OQ-14): desligada em produção, em staging e no
+script local `dev`.
 
 ### GET /indicators
 

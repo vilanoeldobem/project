@@ -38,7 +38,10 @@ export interface Application extends NgoApplication {
   reviewNote: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Private explanation; absent before administrative withdrawal (IMPL-0020). */
+  /**
+   * Present once the administration withdrew the NGO (IMPL-0020, PROPOSTA). `reason` is the message the admin
+   * wrote to the organisation: the applicant reads it as written. It is not an internal note.
+   */
   withdrawal?: { reason: string; at: string };
 }
 

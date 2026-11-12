@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configuredVars, devVar, environments } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { pdf, png } from "../test/fixtures.mjs";
 import { createR2 } from "../test/r2.mjs";
@@ -130,6 +131,31 @@ describe("administrative NGO withdrawal", () => {
     for (const origin of [null, `${ORIGIN}.evil`]) expect((await call("POST", `/admin/ngos/${NGO}/withdraw`, {}, "admin", origin)).status).toBe(403);
     await db.prepare("UPDATE users SET role='admin' WHERE id='owner'").run(); expect((await withdraw({}, "owner")).status).toBe(403);
     expect(db.sql("SELECT * FROM ngo_withdrawals")).toHaveLength(0); expect(db.sql("SELECT * FROM audit_events")).toHaveLength(0);
+  });
+
+  it("ships switched off: production and staging say \"false\", the dev script does not turn it on, no local environment in the deployable config", () => {
+    expect(configuredVars("NGO_WITHDRAWAL_ENABLED")).toEqual(["false", "false"]);
+    expect(environments()).toEqual(["staging"]);
+    expect(devVar("NGO_WITHDRAWAL_ENABLED")).toBeUndefined();
+  });
+
+  it("tells the apps in /config whether the withdrawal is on, and only with accounts on", async () => {
+    const flag = async () => ((await (await publicGet("/config")).json()) as { withdrawal: boolean }).withdrawal;
+    expect(await flag()).toBe(true);
+    env.NGO_WITHDRAWAL_ENABLED = "false"; expect(await flag()).toBe(false);
+    env.NGO_WITHDRAWAL_ENABLED = undefined; expect(await flag()).toBe(false);
+    env.NGO_WITHDRAWAL_ENABLED = "true"; env.ACCOUNTS_ENABLED = "false"; expect(await flag()).toBe(false);
+  });
+
+  it("names the reason as the message the organisation reads, and hands it to the applicant as written", async () => {
+    const refused = await withdraw({ reason: "short" });
+    expect(await refused.json()).toEqual({ error: "reason_required", fields: { reason: "Escreva a mensagem para a organização (10 a 1000 caracteres). Ela lê este texto." } });
+    expect((await withdraw()).status).toBe(200);
+    const own = await (await call("GET", "/ngo/application", undefined, "owner")).json() as { application: { withdrawal: { reason: string } } };
+    expect(own.application.withdrawal.reason).toBe(REASON);
+    // Nobody else reads it: not another account, not the list, not the audit trail.
+    expect(await (await call("GET", "/ngo/application", undefined, "other")).json()).toEqual({ application: null, files: [] });
+    for (const path of ["/admin/applications", "/admin/audit"]) expect(await (await call("GET", path)).text()).not.toContain(REASON);
   });
 
   it("validates reason, revision and identity without partial writes", async () => {

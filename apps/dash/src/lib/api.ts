@@ -24,13 +24,15 @@ export interface Health {
 }
 
 /**
- * `GET /config`: feature flags. `files` is true only when uploads work (IMPL-0017); an older API does not send
- * it. Every key the API sends is kept (the system screen prints them all).
+ * `GET /config`: feature flags. `files` is true only when uploads work (IMPL-0017) and `withdrawal` only when
+ * the withdrawal of a published NGO is on (IMPL-0020, PROPOSTA); an older API sends neither. Every key the API
+ * sends is kept (the system screen prints them all).
  */
 export interface Config {
   accounts?: boolean;
   quests?: boolean;
   files?: boolean;
+  withdrawal?: boolean;
   [flag: string]: unknown;
 }
 
@@ -99,6 +101,13 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
     /** `revision` is the version on screen: a newer resubmission makes the API refuse (409 stale_revision). */
     adminDecide: (id: string, action: ReviewAction, revision: number, note?: string, checks?: EligibilityChecks) =>
       call<{ application: ApplicationDetail["application"] }>("POST", `/admin/applications/${id}/decision`, { action, revision, note, checks }),
+    /**
+     * Withdraws a published NGO from the village (IMPL-0020, PROPOSTA; only when `/config` says `withdrawal`).
+     * `message` is what the organisation will read, word for word; `accountId` is the admin this page believes is
+     * signed in and `revision` the version on screen (a newer one makes the API refuse: 409 stale_revision).
+     */
+    adminWithdraw: (id: string, accountId: string, revision: number, message: string) =>
+      call<{ application: ApplicationDetail["application"] }>("POST", `/admin/ngos/${id}/withdraw`, { accountId, revision, reason: message }),
     /**
      * The bytes of one file of an application (IMPL-0017). They can only be read this way: the route checks the
      * `Origin`, so a plain link or `<img src>` is refused. The API audits every read of a document

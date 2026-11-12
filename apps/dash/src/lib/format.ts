@@ -9,6 +9,7 @@ export const ACTION_LABEL: Record<string, string> = {
   "ngo.approve": "Aprovada e publicada",
   "ngo.request_changes": "Ajustes solicitados",
   "ngo.reject": "Não aprovada",
+  "ngo.withdraw": "Retirada da Vila pela administração",
   "ngo.file_add": "Arquivo enviado",
   "ngo.file_remove": "Arquivo removido",
   "ngo.file_read": "Documento baixado pela administração",
@@ -50,6 +51,7 @@ export const FLAG_LABEL: Record<string, string> = {
   accounts: "Contas, XP no servidor, candidaturas e análise",
   quests: "Missões narrativas quests-v1 (PROPOSTA)",
   files: "Logo e documentos nas candidaturas (PROPOSTA)",
+  withdrawal: "Retirada de ONG publicada (PROPOSTA)",
 };
 
 /** File formats the API accepts (IMPL-0017); an unknown one is shown by its media type. */

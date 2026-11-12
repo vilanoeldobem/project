@@ -3,7 +3,7 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db, mail, files }
- *   GET /config      → { accounts, quests, files }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests, files, withdrawal }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
@@ -40,7 +40,11 @@ export interface Env {
   DB?: D1Database;
   /** Institutional gallery on the canonical private FILES bucket (IMPL-0018). */
   NGO_PHOTOS_ENABLED?: string;
-  /** Administrative withdrawal is disabled until the integration/mission review (IMPL-0020). */
+  /**
+   * "true" turns on the administrative withdrawal of a published NGO (PROPOSTA; IMPL-0020, OQ-14). Needs
+   * ACCOUNTS_ENABLED and migration 0009. Off in production and staging until the product owner answers OQ-14.
+   * It only gates new withdrawals: one already recorded stays in force with the flag off.
+   */
   NGO_WITHDRAWAL_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
@@ -189,7 +193,7 @@ async function route(request: Request, env: Env): Promise<Response> {
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env), files: Boolean(env.FILES) }, { headers: NO_STORE });
       case "/config": {
         const accounts = env.ACCOUNTS_ENABLED === "true";
-        return json({ accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)) }, { headers: NO_STORE });
+        return json({ accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true" }, { headers: NO_STORE });
       }
       case "/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });

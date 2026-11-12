@@ -10,7 +10,7 @@ import { type Api, createApi } from "./api";
 import { downloadDocument, REVOKE_AFTER_MS, saveBlob } from "./files";
 import { ACTION_LABEL, actionText, applicationIdOf, FLAG_LABEL, fileSize, flagText, occupantOf, prettyJson } from "./format";
 import { splitLoginFragment } from "./login-token";
-import { sendDecision } from "./review";
+import { sendDecision, sendWithdrawal } from "./review";
 import { hrefOf, parseRoute, SECTIONS } from "./router";
 import { EXPIRED_LINK, isAdmin, openSession } from "./session";
 import { THEME } from "./theme";
@@ -77,6 +77,7 @@ describe("API client", () => {
       "GET /admin/applications": [200, { applications: [] }],
       "GET /admin/applications?status=under_review": [200, { applications: [] }],
       "POST /admin/applications/abc/decision": [200, { application: {} }],
+      "POST /admin/ngos/abc/withdraw": [200, { application: {} }],
       "GET /admin/audit": [200, { events: [{ at: "2026-01-02T00:00:00.000Z", action: "ngo.submit", subject: "ngo:x", detail: null, actor: null }], next: "2026-01-02T00:00:00.000Z" }],
       "GET /admin/audit?before=2026-01-02T00%3A00%3A00.000Z": [200, { events: [], next: null }],
       "GET /admin/users": [200, { users: [], next: null }],
@@ -90,6 +91,11 @@ describe("API client", () => {
     expect([first.items.length, first.next]).toEqual([1, "2026-01-02T00:00:00.000Z"]);
     expect(await api.audit(first.next!)).toEqual({ items: [], next: null });
     expect(await api.users()).toEqual({ items: [], next: null });
+    // Withdrawal (IMPL-0020): the admin on screen, the revision on screen and the message to the organisation.
+    await api.adminWithdraw("abc", "u1", 4, "Mensagem para a organização.");
+    const withdrawal = sent[sent.length - 1];
+    expect([withdrawal.init.method, withdrawal.url.slice(BASE.length)]).toEqual(["POST", "/admin/ngos/abc/withdraw"]);
+    expect(JSON.parse(String(withdrawal.init.body))).toEqual({ accountId: "u1", revision: 4, reason: "Mensagem para a organização." });
   });
 
   it("reads the bytes of a file with the session cookie, as a Blob of the type the API declares", async () => {
@@ -116,9 +122,9 @@ describe("API client", () => {
   });
 
   it("types the feature flags and keeps the ones it does not know", async () => {
-    const { fetcher } = fakeFetch({ "GET /config": [200, { accounts: true, quests: false, files: true, later: "beta" }] });
+    const { fetcher } = fakeFetch({ "GET /config": [200, { accounts: true, quests: false, files: true, withdrawal: false, later: "beta" }] });
     const config = await createApi(BASE, fetcher).config();
-    expect([config.accounts, config.files, config.later]).toEqual([true, true, "beta"]);
+    expect([config.accounts, config.files, config.withdrawal, config.later]).toEqual([true, true, false, "beta"]);
   });
 });
 
@@ -218,6 +224,47 @@ describe("decision", () => {
     expect(offline).toMatchObject({ ok: true, status: "published", detail: { application: { status: "published" }, history: [], files: [LOGO] } });
     const online = await sendDecision(createApi(BASE, fakeFetch({ ...answers, [`GET /admin/applications/${APP}`]: [200, fresh] }).fetcher), APP, DETAIL, "approve", "", checks);
     expect(online).toMatchObject({ ok: true, status: "published", detail: { history: [{ action: "ngo.approve" }] } });
+  });
+});
+
+describe("withdrawal (IMPL-0020, PROPOSTA)", () => {
+  const PUBLISHED = { ...DETAIL, application: { ...DETAIL.application, status: "published" } } as ApplicationDetail;
+  const MESSAGE = "A organização pediu para sair da Vila.";
+  const route = `POST /admin/ngos/${APP}/withdraw`;
+
+  it("sends the admin on screen, the revision on screen and the message, then shows the fresh history", async () => {
+    const withdrawn = { ...PUBLISHED.application, status: "withdrawn", revision: 3, withdrawal: { reason: MESSAGE, at: "2026-11-12T10:00:00.000Z" } };
+    const fresh = { ...PUBLISHED, application: withdrawn, history: [{ at: "2026-11-12T10:00:00.000Z", action: "ngo.withdraw", detail: null, actor: "ana_lima" }] };
+    const { fetcher, sent } = fakeFetch({ [route]: [200, { application: withdrawn }], [`GET /admin/applications/${APP}`]: [200, fresh] });
+    const result = await sendWithdrawal(createApi(BASE, fetcher), APP, PUBLISHED, "u1", MESSAGE);
+    expect(result).toMatchObject({ ok: true, status: "withdrawn", detail: { application: { withdrawal: { reason: MESSAGE } }, history: [{ action: "ngo.withdraw" }] } });
+    expect(JSON.parse(String(sent[0].init.body))).toEqual({ accountId: "u1", revision: 2, reason: MESSAGE });
+    // The withdrawal is recorded: it is shown even when re-reading the history fails.
+    const offline = await sendWithdrawal(createApi(BASE, fakeFetch({ [route]: [200, { application: withdrawn }] }).fetcher), APP, PUBLISHED, "u1", MESSAGE);
+    expect(offline).toMatchObject({ ok: true, status: "withdrawn", detail: { application: { status: "withdrawn", revision: 3 }, files: [LOGO] } });
+  });
+
+  it.each(["stale_revision", "account_deleting", "application_withdrawn", "bad_transition"])("re-reads the application when the screen is out of date (%s)", async (code) => {
+    const current = { ...PUBLISHED, application: { ...PUBLISHED.application, revision: 3 }, applicant: { nickname: "ong_teste", deletionPending: code === "account_deleting" } };
+    const { fetcher, sent } = fakeFetch({ [route]: [409, { error: code }], [`GET /admin/applications/${APP}`]: [200, current] });
+    const result = await sendWithdrawal(createApi(BASE, fetcher), APP, PUBLISHED, "u1", MESSAGE);
+    expect(result).toMatchObject({ ok: false, stale: true, error: { code }, detail: { application: { revision: 3 } } });
+    expect(sent.map((s) => `${s.init.method} ${s.url.slice(BASE.length)}`)).toEqual([route, `GET /admin/applications/${APP}`]);
+  });
+
+  it("keeps what is on screen when the message is refused, without another request", async () => {
+    const fields = { reason: "Escreva a mensagem para a organização (10 a 1000 caracteres). Ela lê este texto." };
+    const { fetcher, sent } = fakeFetch({ [route]: [400, { error: "reason_required", fields }] });
+    const result = await sendWithdrawal(createApi(BASE, fetcher), APP, PUBLISHED, "u1", "curta");
+    expect(result).toMatchObject({ ok: false, stale: false, error: { code: "reason_required", fields } });
+    expect(result.detail).toBe(PUBLISHED);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("labels the audit action and the flag, and prints nothing from the audit detail", () => {
+    expect(ACTION_LABEL["ngo.withdraw"]).toBe("Retirada da Vila pela administração");
+    expect(actionText("ngo.withdraw", JSON.stringify({ from: "published", to: "withdrawn", revision: 3, lots: ["plaza-03"], hasReason: true }))).toBe("Retirada da Vila pela administração");
+    expect(FLAG_LABEL.withdrawal).toBe("Retirada de ONG publicada (PROPOSTA)");
   });
 });
 
