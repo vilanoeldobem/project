@@ -38,10 +38,10 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 
 | Camada | Arquivos | Responsabilidade |
 |---|---|---|
-| Lógica | `shared/game/world.ts`, `shared/game/progress.ts`, `shared/game/quests.ts` | Layout do mundo, obstáculos, superfícies, paleta, missões/XP e o catálogo/estado das quests (puro, testado) |
-| Simulação | `shared/game/motion.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos (puro, testado); estado vivo mutável fora do zustand ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
+| Lógica | `shared/game/world.ts`, `shared/game/collision.ts`, `shared/game/progress.ts`, `shared/game/quests.ts` | Layout do mundo, colisores (um por peça sólida, medidos pelo desenho), superfícies, paleta, missões/XP e o catálogo/estado das quests (puro, testado) |
+| Simulação | `shared/game/motion.ts`, `shared/game/navigation.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos; rota do clique em volta dos obstáculos, planejada uma vez por clique (puro, testado; [IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)); estado vivo mutável fora do zustand: corpo, pose, campo de navegação e rota ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
 | Eventos | `game/events.ts` | Barramento `step` / `gift` / `mission`: pegadas, partículas e som reagem à jogabilidade |
-| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto, alvo próximo, destino do clique, progresso, avisos (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local, **e** `quests` de `GET /config`) |
+| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto, alvo próximo, destino resolvido do clique, progresso, avisos (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local, **e** `quests` de `GET /config`) |
 | Missões narrativas | `shared/game/quests.ts`, `scene/Props.tsx` (NPCs, itens, atril), `ui/NpcDialog.tsx`, `ui/Missions.tsx`, `ui/Donation.tsx`, `ui/Lot.tsx` | Quests `quests-v1` (PROPOSTA, DEC-039..042, PEN-025): uma missão ativa, diálogo, entrega, bolsa derivada e Caderno de cadeias ([quests.md](quests.md)) |
 | Ambiente | `shared/environment/*`, `environment/runtime.ts`, `settings.ts`, `audio.ts`, `labels.ts` | Hora real de SP, relógio de rede, clima procedural, eventos, keyframes (puros, em `shared`); sincronização, presets, som e rótulos (navegador) ([environment.md](environment.md)) |
 | Cena 3D | `scene/*` | react-three-fiber; `World` (canvas, presets), `Ground` (chão nevado + clique), `Props` (árvore, postes, terrenos, presentes), `Scenery` (pinheiros, montanhas, lago, bonecos de neve, trenó, cordões de luz), `Player` (movimento, câmera, vista do céu, proximidade) |
@@ -58,10 +58,13 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 
 ### 2.1 Loop por quadro (`Player`)
 
-1. Intenção = teclas pressionadas ou destino de clique/toque (painel aberto = parado).
-2. Simulação em passos fixos de 1/60 s (`stepBody`): velocidade máxima `8,5 u/s` com aceleração e frenagem
-   exponenciais, desaceleração ao chegar ao destino, colisão com círculos (`OBSTACLES` + chalés publicados)
-   deslizando pelo obstáculo, limite do mundo e da árvore (`clampToWorld`). Destino bloqueado por 0,5 s é abandonado.
+1. Intenção = a rota do último clique/toque (`sim.route`; painel aberto = parado, a rota fica guardada). A rota é
+   planejada no clique (`setTarget` → `planWalk` → `planRoute`), nunca por quadro; ver §2.2.
+2. Simulação em passos fixos de 1/60 s (`stepWalk` → `stepBody`): mira no ponto atual da rota e passa ao seguinte
+   quando ele fica à vista; velocidade máxima `8,5 u/s` com aceleração e frenagem exponenciais, desaceleração só ao
+   chegar ao destino, colisão com os colisores da cena (`OBSTACLES` + terrenos + `QUEST_OBSTACLES` com as quests
+   ligadas) deslizando pelo obstáculo, limite do mundo (`clampToWorld`). Sem progresso por 0,5 s, a rota é
+   replanejada de onde o avatar está (até duas vezes) antes de o destino ser abandonado.
 3. A cada `0,75 u` andados: evento `step` com a superfície (`surfaceAt`) → pegadas, neve levantada, som de passo.
 4. Coleta presentes a < 1,4 u (missão `explore-gifts`; evento `gift`). Concluída a missão, os restantes somem. Com
    `quests-v1` ligada, coleta os itens da missão de coleta ativa (`QUEST_SPAWNS`) e registra a visita à árvore.
@@ -71,6 +74,53 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 7. Câmera segue com amortecimento e leve antecipação na direção da velocidade; deslocamento `(0, 24, 21)`,
    multiplicado até 1,8× em telas retrato. Na vista "Olhar o céu", deslocamento `(0, 2.6, 10)` mirando para cima;
    andar encerra a vista.
+
+### 2.2 Colisores e navegação por clique
+
+Decisão e alternativas em [IMPL-0016](../decisions/0016-click-navigation-and-colliders.md). O layout é
+**PROPOSTA** (PEN-017/PEN-023); o que segue descreve só o que bloqueia o avatar.
+
+**Colisor** (`shared/game/collision.ts`): um retângulo arredondado no chão. `{ x, z, r }` é um círculo; com `hx`/`hz`
+(meias-medidas do núcleo) e `ux`/`uz` (direção do eixo), uma cápsula ou caixa orientada. Raio do avatar: `0,45`.
+Cada peça declara a pegada em unidades locais do modelo (`Solid` em `world.ts`), medida pelos voxels abaixo da
+cabeça do avatar e girada com a peça.
+
+| Peça | Colisor | Observação |
+|---|---|---|
+| Árvore | círculo `r 4,5` (avatar a 4,95 u do eixo) | rama mais baixa; `TREE_RADIUS = 3,5` segue como âncora da interação |
+| Pinheiro pequeno / alto | círculo `r 2,2` / `r 3,2` | rama mais baixa menos 0,3 u de folga; posição arredondada como no desenho |
+| Poste | círculo `r 0,55`, 0,2 u para `+z` | poste + guirlanda |
+| Banco | cápsula 1,5 × 0,5 | ao longo do banco |
+| Boneco de neve | círculo `r 0,85` | |
+| Trenó | caixa 4,5 × 2,5 (cantos 0,25) | inclui as pontas dos patins |
+| Rena | cápsula 2,7 × 1,04 | pernas, corpo e cauda; pescoço e cabeça ficam acima do avatar |
+| Barraca / barraca de panetone | caixa 2,94 × 1,68 / 3,78 × 1,68 | balcão + beirada do toldo à altura do peito |
+| Cerca | cápsula 2,26 × 0,26 | antes era atravessável |
+| Lanterna, placa, caixa de correio, trenó pequeno | círculo `r 0,45`; cápsulas e caixa pela pegada | |
+| Morador, NPC de quest | cápsula 1,5 × 0,9 | girada com o morador; NPCs só com as quests ligadas |
+| Cachorro, gato, coelho | cápsulas pela pegada | passarinhos e coruja (empoleirados) não bloqueiam |
+| Atril de doação | círculo `r 0,5` | só com as quests ligadas |
+| Terreno disponível | 4 estacas `r 0,5` + placa (cápsula 3 × 1) | o piso do terreno é caminhável |
+| Chalé (ONG publicada) | caixas das paredes e da varanda | pegada do próprio modelo (`GenModel.solid`) |
+| Presentes, itens de quest, lago, borda do mundo | nenhum | a borda é o limite `WORLD_RADIUS = 34` |
+
+`apps/client/src/scene/colliders.test.ts` compara cada modelo desenhado com o seu colisor nos dois sentidos: nenhum
+voxel sólido fica mais de 0,3 u fora de um colisor e nenhum contorno de colisor fica a mais de 0,35 u de um voxel.
+
+**Navegação** (`shared/game/navigation.ts`):
+
+- `createNavField(colisores)`: grade de 0,25 u sobre o disco do mundo; célula livre = avatar a pelo menos 0,25 u de
+  todo colisor. Refeita só quando os colisores mudam (casa publicada, bandeira das quests): ≈ 3 ms.
+- `planRoute`: resolve o destino (o clique, ou o ponto caminhável mais próximo, do lado de quem chega), vai em linha
+  reta se ele está à vista, senão A* na grade e "puxar a corda" para sobrarem poucos trechos retos. Limite: as
+  células caminháveis (≈ 44 000).
+- `stepWalk`: segue a rota no passo fixo, sem alocar; replaneja se o avatar parar de progredir.
+- O alvo guardado no estado (`target`) é o destino resolvido: o marcador e o brilho do clique aparecem onde o avatar
+  vai parar.
+- Alcance dos terrenos: `LOT_INTERACT_DISTANCE = 6` (a varanda do chalé termina a 4,5 u do centro); árvore, NPCs e
+  atril usam `INTERACT_DISTANCE = 4,5`.
+
+Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http://localhost:8799` (só local).
 
 ## 3. API (`apps/api/src`)
 
@@ -135,7 +185,7 @@ Cloudflare.
 
 | Pasta | Módulos | Usado por |
 |---|---|---|
-| `game/` | `world.ts`, `motion.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
+| `game/` | `world.ts`, `collision.ts`, `motion.ts`, `navigation.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
 | `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura), dash (rótulos das áreas) |
 | `accounts/` | `contract.ts`, `errors.ts` | client e dash: formas das respostas de conta e de análise, rótulos de situação, `ApiError` e a frase em pt-BR de cada código de erro |
 | `environment/` | `config.ts`, `time.ts`, `random.ts`, `weather.ts`, `events.ts`, `keyframes.ts`, `network-clock.ts`, `frame.ts` | client, api (`/environment`) |

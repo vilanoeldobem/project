@@ -100,6 +100,7 @@ desligadas ([IMPL-0011](decisions/0011-accounts-magic-link-ngo-review.md)).
 pnpm check                                         # typecheck + testes + build
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
+node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # clique para andar e colisores (só local)
 node apps/dash/scripts/verify.mjs                  # painel: cabeçalhos, tela de entrada e estados com contas desligadas
 node apps/client/scripts/verify-accounts.mjs       # contas e candidatura no jogo, análise no painel (só local)
 ```
