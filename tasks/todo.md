@@ -518,7 +518,7 @@ delivery in `fix/progress-persistence`, based on main independently of the NGO P
 - [x] Add SQL-backed regressions for session persistence, concurrent requests, cap, rollback and account isolation.
 - [x] Update API/storage contract and changelog; preserve flags, game rules and frontend implementation.
 - [x] Root completed typecheck, tests, build and real local D1 smoke against the final implementation.
-- [ ] Publish PR for Augusto; no merge, deploy, remote migration or activation.
+- [x] Published [PR #30](https://github.com/vilanoeldobem/project/pull/30) against main; review requested from `augustobr1to`. No merge, deploy, remote migration or activation.
 
 IDS: reused existing reducer, request/session guards and D1 adapter; added one guard table because independent
 Worker isolates cannot share a reliable in-memory mutex. No dependencies or new game rules introduced.
