@@ -5,12 +5,26 @@
  * requested → resubmit → approve) and the read-only sections in the DASHBOARD; then the published house on the
  * lot. Fails on console errors.
  *
+ * Files of the application (IMPL-0017), only when `/config` of the API in use says `files: true` (otherwise the
+ * steps are skipped with a note): in the GAME the applicant sends a logo and documents, sees them listed, gets the
+ * pt-BR refusal for a wrong file (nothing stored), downloads and removes a document; in the DASHBOARD the admin
+ * sees the logo previewed, downloads the document (the read shows in the audit trail); after the approval the
+ * published lot panel shows the logo and the applicant's files are read-only. The file names used here never
+ * appear on screen, in the console or in a URL.
+ *
  * Needs, all running locally:
  *   pnpm --filter @vila/api dev            (:8787; ACCOUNTS_ENABLED=true, ENVIRONMENT=development, DASH_ORIGIN=:8797)
  *   pnpm --filter @vila/server dev         (:8788)
  *   pnpm --filter @vila/client dev:worker  (:8799)
  *   pnpm --filter @vila/dash dev:worker    (:8797)
  * The admin role is granted with `wrangler d1 execute --local` (never remote).
+ *
+ * An API on another port: local builds of the game and the dashboard always call http://localhost:8787. When the
+ * `api` argument is another origin, the browser's requests to :8787 are sent to it instead (the pages do not
+ * notice), so nothing has to be rebuilt. If that API keeps its data elsewhere (`wrangler dev --persist-to <dir>`),
+ * give the same directory in VILA_API_PERSIST_TO, so the admin role is granted in its database:
+ *   VILA_API_PERSIST_TO=/path/to/state node scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8791
+ * Without the variable, wrangler's default local state of apps/api is used.
  *
  * Rate limit: the API allows 10 `/auth/*` requests per 60 s per IP (`AUTH_LIMITER`) and one run makes 11 of them
  * (3 sign-ups, 4 link confirmations, 2 link requests, 2 sign-outs). The run paces itself: before each of those it
@@ -22,6 +36,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
+import { crc32, deflateSync } from "node:zlib";
 
 import { chromium } from "playwright-core";
 
@@ -30,6 +45,9 @@ if (![url, apiUrl, dashUrl].every((u) => /^https?:\/\/(localhost|127\.0\.0\.1)(:
   console.error("local only (creates accounts and grants admin)");
   process.exit(1);
 }
+/** The API origin every local build of the game and of the dashboard calls (`src/lib/endpoints.ts` of each app). */
+const BUILD_API = "http://localhost:8787";
+const apiOrigin = new URL(apiUrl).origin;
 const out = new URL("../verify-output/", import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const run = Date.now().toString(36);
@@ -69,12 +87,55 @@ function cnpj() {
   return d.join("");
 }
 
+/** A real PNG of the given size (a red field with a cream square), built here so the run needs no sample files. */
+function png(width, height) {
+  const row = width * 3 + 1;
+  const pixels = Buffer.alloc(row * height);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const inside = Math.abs(x - width / 2) < width / 4 && Math.abs(y - height / 2) < height / 4;
+      pixels.set(inside ? [0xff, 0xf9, 0xed] : [0x9e, 0x3b, 0x3b], y * row + 1 + x * 3);
+    }
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const size = Buffer.alloc(4);
+    size.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc32(body));
+    return Buffer.concat([size, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8 bits per channel, RGB
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(pixels)), chunk("IEND", Buffer.alloc(0))]);
+}
+const PDF = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
+/** Part of every file name this run uploads: it must never show up on screen, in the console or in a URL. */
+const FILE_NAME = `nome-da-pessoa-${run}`;
+const upload = (extension, mimeType, buffer) => ({ name: `${FILE_NAME}.${extension}`, mimeType, buffer });
+
 const apiDir = new URL("../../api/", import.meta.url).pathname;
+/** Where the API under test keeps its local data, when not in wrangler's default place (see the header). */
+const persistTo = process.env.VILA_API_PERSIST_TO;
 /** Runs SQL on the LOCAL D1 of the API (never remote). */
 const localSql = (command) =>
-  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", "--command", command], { cwd: apiDir, stdio: "pipe" });
+  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], {
+    cwd: apiDir,
+    stdio: "pipe",
+  });
 
-// Local only: drop applications left by earlier runs of this script (they would use up the 8 lots).
+/** Uploads on in the API in use (IMPL-0017)? An API that does not know them has no `files` in `/config`. */
+const filesOn = (await (await fetch(`${apiUrl}/config`)).json()).files === true;
+if (!filesOn) console.log("note: /config says files are off in this API; the upload steps are skipped");
+
+// Local only: drop applications left by earlier runs of this script (they would use up the 8 lots). Their file
+// rows go first (the table exists from migration 0006 on); the bytes stay, unreachable, in the local bucket.
+try {
+  localSql("DELETE FROM ngo_files WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %')");
+} catch {
+  /* a local database without the ngo_files table */
+}
 localSql(
   "UPDATE lots SET state = 'available', ngo_id = NULL WHERE ngo_id IN (SELECT id FROM ngos WHERE name LIKE 'Associação Teste %'); " +
     "DELETE FROM audit_events WHERE subject IN (SELECT 'ngo:' || id FROM ngos WHERE name LIKE 'Associação Teste %'); " +
@@ -100,13 +161,30 @@ async function fail(reason) {
 process.on("uncaughtException", (e) => void fail(e));
 process.on("unhandledRejection", (e) => void fail(e));
 
-/** Collects console/page errors of a page under `name`, and notices a 429 from `/auth/*` (the rate limit). */
+/**
+ * A browser context. When the API under test is not the one the builds call, their requests go to it instead
+ * (see the header); the pages still see the build's API origin.
+ */
+async function newContext() {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  if (apiOrigin !== BUILD_API) await ctx.route(`${BUILD_API}/**`, (route) => route.continue({ url: apiOrigin + route.request().url().slice(BUILD_API.length) }));
+  return ctx;
+}
+
+/**
+ * Collects console/page errors of a page under `name`, notices a 429 from `/auth/*` (the rate limit) and an
+ * uploaded file's name in the console or in a URL.
+ */
 function watch(page, name) {
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => {
+    if (m.type() === "error") errors.push(`${name}: ${m.text()}`);
+    if (m.text().includes(FILE_NAME)) errors.push(`${name}: a file name was written to the console`);
+  });
   page.on("request", (r) => {
     const target = new URL(r.url());
-    if (r.method() !== "OPTIONS" && target.origin === new URL(apiUrl).origin && target.pathname.startsWith("/auth/")) authCalls.push(Date.now());
+    if (r.method() !== "OPTIONS" && target.origin === BUILD_API && target.pathname.startsWith("/auth/")) authCalls.push(Date.now());
+    if (decodeURIComponent(r.url()).includes(FILE_NAME)) errors.push(`${name}: a file name was sent in a URL`);
   });
   page.on("response", (r) => {
     if (r.status() === 429 && new URL(r.url()).pathname.startsWith("/auth/")) rateLimited = true;
@@ -115,7 +193,7 @@ function watch(page, name) {
 
 /** Opens the game (low quality, no multiplayer) and enters the Vila. `ctx`: reuse a browser context (its cookies). */
 async function newPage(name, ctx) {
-  ctx ??= await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  ctx ??= await newContext();
   const page = await ctx.newPage();
   watch(page, name);
   await page.addInitScript(() => {
@@ -132,7 +210,7 @@ async function newPage(name, ctx) {
 
 /** Opens the backoffice dashboard in its own browser context. */
 async function newDashPage(name) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const ctx = await newContext();
   const page = await ctx.newPage();
   watch(page, name);
   await page.goto(dashUrl, { waitUntil: "load" });
@@ -205,14 +283,14 @@ await signUp(a, nick, `${nick}@example.com`);
 await a
   .waitForFunction(
     async (api) => (await (await fetch(`${api}/progress`, { credentials: "include" })).json()).progress?.seen?.["explore-gifts:gift-bench"] === true,
-    apiUrl,
+    BUILD_API,
     { timeout: API_WAIT, polling: 500 }
   )
   .catch(() => errors.push("applicant: local progress not migrated to the server"));
 await a.screenshot({ path: `${out}accounts-1-signed-in.png` });
 
 // 1b. Shared browser: after signing out, the guest starts empty and the next account inherits nothing.
-const serverXp = (page) => page.evaluate(async (api) => (await (await fetch(`${api}/progress`, { credentials: "include" })).json()).progress, apiUrl);
+const serverXp = (page) => page.evaluate(async (api) => (await (await fetch(`${api}/progress`, { credentials: "include" })).json()).progress, BUILD_API);
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await authBudget();
 await click(a.getByRole("button", { name: "Sair" }));
@@ -260,6 +338,48 @@ await click(a.getByRole("button", { name: "Enviar candidatura" }));
 await a.getByRole("dialog").getByText("Candidatura enviada", { exact: true }).first().waitFor({ timeout: API_WAIT });
 await a.screenshot({ path: `${out}accounts-3-submitted.png` });
 
+/** The applicant's application as the API has it: `{application, files}` (the page's own session). */
+const ownApplication = (page) => page.evaluate(async (api) => (await fetch(`${api}/ngo/application`, { credentials: "include" })).json(), BUILD_API);
+/** "logo:image/png document:application/pdf": what the API holds for the applicant, in order. */
+const storedFiles = async (page) => ((await ownApplication(page)).files ?? []).map((f) => `${f.kind}:${f.contentType}`).join(" ");
+/** The files section of the applicant's application panel. */
+const filesOf = (page) => page.getByRole("region", { name: "Arquivos da candidatura" });
+
+// 1c. Files of the application (IMPL-0017): logo, documents, refusals, download and removal.
+if (filesOn) {
+  const files = filesOf(a);
+  const said = (text) => visible(files.getByText(text, { exact: true }));
+  await files.getByLabel("Enviar logo").setInputFiles(upload("png", "image/png", png(256, 256)));
+  if (!(await said("Logo enviado."))) errors.push("files: the logo upload was not confirmed");
+  const preview = files.getByRole("img", { name: "Logo enviado" });
+  if (!(await visible(preview)) || !(await preview.evaluate((img) => img.src.startsWith("blob:") && img.naturalWidth === 256))) errors.push("files: no preview of the stored logo");
+  await files.getByLabel("Adicionar documento").setInputFiles(upload("pdf", "application/pdf", PDF));
+  if (!(await said("Documento 1 enviado."))) errors.push("files: the document upload was not confirmed");
+  if ((await storedFiles(a)) !== "logo:image/png document:application/pdf") errors.push(`files: after two uploads the API holds "${await storedFiles(a)}"`);
+
+  // A wrong file is refused in pt-BR before anything is sent, and what was stored stays as it was.
+  const before = JSON.stringify((await ownApplication(a)).files);
+  await files.getByLabel("Trocar logo").setInputFiles(upload("png", "image/png", png(1440, 900)));
+  if (!(await said("A imagem pode ter no máximo 1024 × 1024 pixels."))) errors.push("files: an image too large for a logo was not refused");
+  await a.screenshot({ path: `${out}accounts-3a-file-refused.png` });
+  await files.getByLabel("Trocar logo").setInputFiles(upload("pdf", "application/pdf", PDF));
+  if (!(await said("Envie o logo em PNG ou JPEG."))) errors.push("files: a PDF as logo was not refused");
+  if (JSON.stringify((await ownApplication(a)).files) !== before) errors.push("files: a refused file changed what the API holds");
+
+  await files.getByLabel("Adicionar documento").setInputFiles(upload("png", "image/png", png(640, 480)));
+  if (!(await said("Documento 2 enviado."))) errors.push("files: the second document was not confirmed");
+  const [download] = await Promise.all([a.waitForEvent("download", { timeout: API_WAIT }), click(files.getByRole("button", { name: "Baixar documento 2" }))]);
+  if (download.suggestedFilename() !== "documento-2.png") errors.push(`files: document 2 downloads as "${download.suggestedFilename()}"`);
+  await download.cancel();
+  await click(files.getByRole("button", { name: "Remover documento 1" }));
+  if (!(await said("Documento 1 removido."))) errors.push("files: the removal was not confirmed");
+  if ((await storedFiles(a)) !== "logo:image/png document:image/png") errors.push(`files: after removing document 1 the API holds "${await storedFiles(a)}"`);
+  if ((await files.getByRole("listitem").count()) !== 1 || !(await files.getByRole("listitem").innerText()).includes("PNG")) errors.push("files: the list does not show the one document left");
+  if ((await a.getByRole("dialog").innerText()).includes(FILE_NAME)) errors.push("files: a file name is shown");
+  if (await files.locator('input[type="file"]').evaluateAll((inputs) => inputs.some((i) => i.value))) errors.push("files: a file input still holds the chosen file (its name shows)");
+  await a.screenshot({ path: `${out}accounts-3b-files.png` });
+} else if (await filesOf(a).count()) errors.push("files: the files section is shown although the API has uploads off");
+
 // 2. Admin. The account is created in the game (the dashboard has no sign-up); its link is left unused, because
 // the admin signs in on the dashboard, whose link must open the dashboard.
 const admin = `adm_${run}`;
@@ -300,15 +420,30 @@ await click(a.getByRole("button", { name: "Entrar na Vila" }));
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await click(a.getByRole("button", { name: "Minha candidatura de ONG" }));
 if (!(await visible(a.getByText("Envie o relatório de recursos de 2025")))) errors.push("applicant: review note not shown");
+// Sending again makes a new version (file changes made versions too, so the number is read, not assumed).
+const { revision } = (await ownApplication(a)).application;
 await click(a.getByRole("button", { name: "Editar e reenviar" }));
 for (let i = 0; i < 3; i++) await click(a.getByRole("button", { name: "Continuar" }));
 await click(a.getByRole("button", { name: "Enviar candidatura" }));
-await a.getByText(/versão 2/).waitFor({ timeout: API_WAIT });
+await a.getByText(`versão ${revision + 1}`, { exact: false }).waitFor({ timeout: API_WAIT });
+if (filesOn && (await storedFiles(a)) !== "logo:image/png document:image/png") errors.push(`files: sending the application again changed its files ("${await storedFiles(a)}")`);
 
 // 4. Admin (dashboard) approves the new version, only after ticking the three checks.
 await b.getByRole("link", { name: "Voltar à lista" }).click();
 await application.click({ timeout: API_WAIT });
 await reviewStatus("submitted");
+// 4a. The admin sees the files of the version under review: the logo previewed, the document only as a download.
+await b.getByRole("heading", { name: "Arquivos", exact: true }).waitFor({ timeout: API_WAIT });
+if (filesOn) {
+  const logo = b.getByRole("img", { name: "Logo enviado pela organização" });
+  if (!(await visible(logo)) || !(await logo.evaluate((img) => img.src.startsWith("blob:") && img.naturalWidth === 256))) errors.push("admin: no preview of the application's logo");
+  if ((await b.locator('[data-file="document"]').count()) !== 1) errors.push("admin: the review does not list exactly the one document the application holds");
+  const [download] = await Promise.all([b.waitForEvent("download", { timeout: API_WAIT }), b.getByRole("button", { name: "Baixar documento 1" }).click()]);
+  if (download.suggestedFilename() !== "documento-1.png") errors.push(`admin: document 1 downloads as "${download.suggestedFilename()}"`);
+  await download.cancel();
+  if ((await b.locator(".detail").innerText()).includes(FILE_NAME)) errors.push("admin: a file name is shown in the review");
+  await b.screenshot({ path: `${out}accounts-4a-admin-files.png`, fullPage: true });
+} else if (!(await b.locator('[data-state="files-off"]').count())) errors.push("admin: no notice that file uploads are off in this API");
 const approve = b.getByRole("button", { name: "Aprovar", exact: true });
 if (!(await approve.isDisabled({ timeout: API_WAIT }))) errors.push("admin: approve enabled before the checks");
 for (const label of ["CNPJ ativo (consultado na Receita Federal)", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos"]) await b.getByLabel(label).check();
@@ -322,6 +457,8 @@ await menu.getByRole("link", { name: "ONGs e terrenos" }).click();
 if (!(await visible(b.getByRole("row").filter({ hasText: lotLabel }).filter({ hasText: `Associação Teste ${run}` })))) errors.push(`dashboard: ${lotLabel} does not show the approved organisation`);
 await menu.getByRole("link", { name: "Auditoria" }).click();
 if (!(await visible(b.getByRole("row").filter({ hasText: "ngo.approve" }).filter({ hasText: `@${admin}` }).first()))) errors.push("dashboard: the approval is not in the audit trail");
+// Reading a document is on record, with the admin who read it.
+if (filesOn && !(await visible(b.getByRole("row").filter({ hasText: "ngo.file_read" }).filter({ hasText: `@${admin}` }).first()))) errors.push("dashboard: the document download is not in the audit trail");
 await menu.getByRole("link", { name: "Usuários" }).click();
 if (!(await visible(b.getByRole("row").filter({ hasText: `@${admin}` }).filter({ hasText: "Administrador" })))) errors.push("dashboard: the admin is not in the users list");
 if (/@example\.com|Pessoa (ong|out|adm)_/.test(await b.getByRole("main").innerText())) errors.push("dashboard: the users list shows an e-mail or a name");
@@ -331,6 +468,7 @@ await b.screenshot({ path: `${out}accounts-4b-dash-users.png`, fullPage: true })
 const lots = await (await fetch(`${apiUrl}/lots`)).json();
 const lot = lots.lots.find((l) => l.id === lotValue);
 if (lot?.state !== "published" || !lot.ngo_name?.includes(run)) errors.push(`public: lot ${lotValue} not published (${JSON.stringify(lot)})`);
+if (filesOn && !lot?.ngo_logo) errors.push(`public: lot ${lotValue} has no logo path`);
 // Close the applicant and admin pages first: three software-rendered WebGL canvases at once starve the
 // renderer here (frame p95 over 300 ms on SwiftShader) and the final screenshot times out.
 // Only the pages close: steps 6 and 7 reuse the two contexts for their session cookies.
@@ -339,6 +477,19 @@ await b.close();
 const c = await newPage("visitor");
 await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });
+if (filesOn) {
+  // 5b. A visitor walks to the front of the house (5.5 u from the lot's centre) and opens it: the logo is there.
+  const angle = (2 * Math.PI * (Number(lotValue.split("-")[1]) - 1)) / 8 + Math.PI / 8;
+  await c.evaluate(([x, z]) => window.__vila.walkTo(x, z), [16.5 * Math.cos(angle), 16.5 * Math.sin(angle)]);
+  const enter = c.getByRole("button", { name: /Ver terreno/ });
+  if (!(await visible(enter, 90000))) errors.push("visitor: did not reach the published lot");
+  else {
+    await click(enter);
+    const logo = c.getByRole("dialog", { name: `Associação Teste ${run}` }).getByRole("img", { name: `Logo de Associação Teste ${run}` });
+    if (!(await visible(logo)) || !(await logo.evaluate((img) => img.src.startsWith("blob:") && img.naturalWidth === 256))) errors.push("visitor: the published lot panel does not show the logo");
+    await c.screenshot({ path: `${out}accounts-5b-lot-logo.png` });
+  }
+}
 await c.context().close();
 
 // 6. The game no longer reviews: with the same session (the cookie belongs to the API host), an admin gets a
@@ -359,6 +510,15 @@ const ap = await newPage("applicant (game)", a.context());
 await click(ap.getByRole("button", { name: `Sua conta: ${nick}` }));
 await ap.getByRole("button", { name: "Minha candidatura de ONG" }).waitFor({ timeout: API_WAIT });
 if (await ap.getByRole("link", { name: "Abrir painel administrativo" }).count()) errors.push("game: the dashboard link is shown to a non-admin");
+if (filesOn) {
+  // 7b. Published: the applicant still sees the files and can read them, but no longer change them.
+  await click(ap.getByRole("button", { name: "Minha candidatura de ONG" }));
+  const files = filesOf(ap);
+  if (!(await visible(files.getByText(/os arquivos não podem mais ser alterados/)))) errors.push("files: no note that a published application's files are frozen");
+  if (!(await visible(files.getByRole("img", { name: "Logo enviado" }))) || !(await visible(files.getByRole("button", { name: "Baixar documento 1" })))) errors.push("files: a published application does not show its files");
+  if ((await files.locator('input[type="file"]').count()) || (await files.getByRole("button", { name: /Remover/ }).count())) errors.push("files: a published application still offers to change its files");
+  await ap.screenshot({ path: `${out}accounts-7b-files-frozen.png` });
+}
 
 await browser.close();
 if (errors.length) {

@@ -17,6 +17,8 @@ export interface LotInfo {
   state: LotState;
   ngo_name: string | null;
   ngo_summary: string | null;
+  /** Path on the API of the public logo of a published NGO (IMPL-0017); absent from an older API. */
+  ngo_logo?: string | null;
 }
 
 async function getJson<T>(path: string): Promise<T | null> {
@@ -31,3 +33,16 @@ async function getJson<T>(path: string): Promise<T | null> {
 
 export const fetchIndicators = () => getJson<{ updatedAt: string; indicators: Indicator[] }>("/indicators");
 export const fetchLots = () => getJson<{ lots: LotInfo[] }>("/lots");
+
+/**
+ * The public logo of a published NGO (`LotInfo.ngo_logo`). Fetched instead of pointed at by an `<img>`: the
+ * game's CSP lets images come only from the game itself, `data:` and `blob:`, while the API is in `connect-src`.
+ */
+export async function fetchLogo(path: string): Promise<Blob | null> {
+  try {
+    const res = await fetch(`${SERVICES.api}${path}`);
+    return res.ok && res.headers.get("content-type")?.startsWith("image/") ? await res.blob() : null;
+  } catch {
+    return null;
+  }
+}

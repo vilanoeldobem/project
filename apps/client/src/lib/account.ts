@@ -1,13 +1,14 @@
 /**
  * Accounts on the client (P13, OQ-02, OQ-03; IMPL-0011): config flag, magic-link sign-in, the signed-in
- * user, progress sync with the server and the NGO application calls. The session lives in an HttpOnly cookie on
- * the API host; this module never sees it. Exploring the Vila never requires an account. The admin review lives
- * in the backoffice dashboard (apps/dash, IMPL-0015).
+ * user, progress sync with the server and the NGO application calls (with its files, IMPL-0017). The session
+ * lives in an HttpOnly cookie on the API host; this module never sees it. Exploring the Vila never requires an
+ * account. The admin review lives in the backoffice dashboard (apps/dash, IMPL-0015).
  */
 import { create } from "zustand";
 
-import type { Application, Me } from "@vila/shared/accounts/contract";
+import type { Application, FileUploaded, Me, OwnApplication } from "@vila/shared/accounts/contract";
 import { ApiError } from "@vila/shared/accounts/errors";
+import type { ApplicationFile, FileKind, FileType } from "@vila/shared/accounts/files";
 import type { NgoApplication } from "@vila/shared/accounts/validate";
 import type { Progress } from "@vila/shared/game/progress";
 
@@ -19,33 +20,38 @@ import { SERVICES } from "./services";
 export type { Application, Me };
 export { ApiError };
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+/** One request to the API. Throws `ApiError` when there is no answer or the answer is an error. */
+async function request(method: string, path: string, headers: Record<string, string>, body?: BodyInit): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`${SERVICES.api}${path}`, {
-      method,
-      credentials: "include",
-      headers: body === undefined ? { Accept: "application/json" } : { Accept: "application/json", "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    res = await fetch(`${SERVICES.api}${path}`, { method, credentials: "include", headers, body });
   } catch {
     throw new ApiError(0, "network");
   }
-  if (res.status === 204) return null as T;
+  if (res.ok) return res;
   const data = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
-  if (!res.ok) {
-    // Another tab switched accounts: this page is out of date, so re-read who is signed in.
-    if (data.error === "account_changed") void refreshAccount();
-    throw new ApiError(res.status, data.error ?? "unknown", data.fields);
-  }
-  return data as T;
+  // Another tab switched accounts: this page is out of date, so re-read who is signed in.
+  if (data.error === "account_changed") void refreshAccount();
+  throw new ApiError(res.status, data.error ?? "unknown", data.fields);
+}
+
+/** A JSON call. `headers` are added to the request (a write without a JSON body names its account there). */
+async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  const res = await request(
+    method,
+    path,
+    { Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
+    body === undefined ? undefined : JSON.stringify(body)
+  );
+  if (res.status === 204) return null as T;
+  return (await res.json().catch(() => ({}))) as T;
 }
 
 /** Writes carry the account this page believes is signed in (the API refuses them for any other). */
 const accountId = () => useAccount.getState().user?.id ?? "";
 
 export const api = {
-  config: () => call<{ accounts: boolean; quests?: boolean }>("GET", "/config"),
+  config: () => call<{ accounts: boolean; quests?: boolean; files?: boolean }>("GET", "/config"),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -56,13 +62,27 @@ export const api = {
   progress: () => call<{ progress: Progress }>("GET", "/progress"),
   postEvents: (owner: string, events: Array<{ missionId: string; eventId: string }>) =>
     call<{ progress: Progress }>("POST", "/progress/events", { accountId: owner, events }),
-  application: () => call<{ application: Application | null }>("GET", "/ngo/application"),
+  /** `files` is missing in the answer of an API older than IMPL-0017. */
+  application: () => call<Pick<OwnApplication, "application"> & { files?: ApplicationFile[] }>("GET", "/ngo/application"),
   submitApplication: (a: NgoApplication) => call<{ application: Application }>("POST", "/ngo/application", { ...a, accountId: accountId() }),
+  /**
+   * Sends a file of the caller's application (IMPL-0017): the body is the file itself, so the account goes in a
+   * header. (The copy is for `fetch`, which takes a view of a plain `ArrayBuffer` only.)
+   */
+  uploadFile: (kind: FileKind, type: FileType, bytes: Uint8Array) =>
+    request("POST", `/ngo/application/files?kind=${kind}`, { Accept: "application/json", "Content-Type": type, "X-Vila-Account": accountId() }, new Uint8Array(bytes)).then(
+      (res) => res.json() as Promise<FileUploaded>
+    ),
+  deleteFile: (id: string) => call<{ revision: number }>("DELETE", `/ngo/application/files/${id}`, undefined, { "X-Vila-Account": accountId() }),
+  /** The bytes of one of the caller's own files. The route needs the session and the page's `Origin`, so a plain link or `<img src>` cannot read it. */
+  fileBlob: (id: string) => request("GET", `/ngo/application/files/${id}`, {}).then((res) => res.blob()),
 };
 
 interface AccountState {
   /** Accounts turned on by the API (`/config`); everything account-related hides when false. */
   enabled: boolean;
+  /** Files of an NGO application turned on by the API (`/config`, IMPL-0017); every file control hides when false. */
+  files: boolean;
   user: Me | null;
   ready: boolean;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
@@ -72,6 +92,7 @@ interface AccountState {
 
 export const useAccount = create<AccountState>((set) => ({
   enabled: false,
+  files: false,
   user: null,
   ready: false,
   sync: "saved",
@@ -244,16 +265,16 @@ function takeLoginToken(): string | null {
 }
 
 /**
- * Startup: reads the flags (accounts, quests), consumes a `#login=` link (then removes it from the address
+ * Startup: reads the flags (accounts, quests, files), consumes a `#login=` link (then removes it from the address
  * bar) or restores the session. The token travels in the fragment, which the browser never sends to any
  * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
  * which need the API's flag, stay off).
  */
 export async function initAccount() {
   try {
-    const { accounts, quests } = await api.config();
+    const { accounts, quests, files } = await api.config();
     setServerQuests(quests === true);
-    useAccount.setState({ enabled: accounts });
+    useAccount.setState({ enabled: accounts, files: accounts && files === true });
     if (!accounts) return;
     const token = takeLoginToken();
     if (token) {

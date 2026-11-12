@@ -247,3 +247,13 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .callout p { margin: 4px 0 0; }
 .danger { margin-top: 12px; }
 .danger summary { cursor: pointer; font-weight: 700; color: var(--red); }
+
+/* Files of an NGO application and the NGO logo on its house panel (IMPL-0017) */
+.files h4 { margin: 14px 0 4px; color: var(--pine); font-size: 0.95rem; }
+.file-list { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; border: 2px solid rgba(23, 61, 53, 0.15); border-radius: 12px; }
+.file__name { display: flex; flex-direction: column; margin-right: auto; }
+.files .field { margin-top: 8px; }
+.field input[type="file"] { padding: 6px; }
+.logo { flex: none; width: 56px; height: 56px; object-fit: contain; border-radius: 10px; background: #fff; border: 2px solid rgba(23, 61, 53, 0.15); }
+.panel__mark + div { flex: 1; min-width: 0; }
