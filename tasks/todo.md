@@ -573,3 +573,34 @@ Photo validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): all six packages pas
 passed upload → private preview → approval → public profile/bytes/HEAD → stale review rejection → removal.
 All heavy jobs ran serially with two-worker/CPU limits. Static AIOX QA reported no remaining P1/P2.
 No browser UI test: no frontend changes. Production/staging flags remain off; activation and OQ-12 remain pending.
+
+## Private NGO supporting documents — D07 backend increment — 2026-11-12
+
+Scope authorised: private upload/list/download/withdrawal, applicant ownership and admin reading, separate R2
+storage and revision-bound evidence. Augusto reviews the PR; no game/dashboard UI or remote mutation.
+Contract: [IMPL-0019](../docs/decisions/0019-private-ngo-documents.md) and
+[implementation plan](../docs/implementation/ngo-private-documents-plan.md). Product policy remains OQ-13.
+
+- [x] Reuse account/session/origin/body guards, existing PNG/JPEG parser and SQL test adapter.
+- [x] Add independent migration 0008 and local-only documents environment; production/staging flags stay off.
+- [x] Add immutable private evidence, active-set listing from one snapshot and attachment-only download.
+- [x] Restrict mutations to editable application states; CAS exact state, owner, revision and count.
+- [x] Increment application revision and audit in the same batch; reject stale admin decisions.
+- [x] Compensate failed upload metadata; tombstone withdrawal before R2 deletion, keeping failed cleanup private.
+- [x] Add SQL-backed tests for authorization, publication privacy, both race orders, cap and storage failures.
+- [x] Document API/storage, proposed limits, absence of sanitization/AV and unresolved activation policy.
+- [x] Lead ran API typecheck and real local workerd D1/R2 smoke; no remote resource was changed.
+- [x] Lead completed workspace typecheck, 481 tests and all builds; final AIOX QA has no remaining P1/P2.
+- [ ] Publish branch PR for Augusto; no merge or deployment.
+
+IDS: SEARCH found reusable photoBytes, readJson, account/session helpers and audit_events. ADAPT wraps the raster
+parser for the document error contract and adds bounded PDF headers. CREATE adds only private document routes,
+the minimal metadata schema and revision CAS token; no dependency, duplicate image parser, required-document
+catalog or background media pipeline. API code/tests and docs are the owned scope. Repository has no lint script.
+
+Document validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): all six package typechecks/builds passed
+(Worker builds were deploy dry-runs only). Workspace tests: shared 127, API 125, client 164, dash 33,
+server 23, site 9, total 481. Real local workerd with D1 migrations 0001–0006 + 0008 and simulated R2
+passed owner/admin download, cross-account/session denial, stale approval, withdrawal and privacy after
+publication. See storage reference for reproduction. Jobs ran serially with two-worker/CPU caps.
+No UI changed, so no browser suite was required. OQ-13, UI integration and remote activation remain pending.

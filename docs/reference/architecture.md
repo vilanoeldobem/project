@@ -147,6 +147,13 @@ de servir cada imagem. Prévias usam sessão e origem autorizadas. Configuraçã
 [OQ-12](../decisions/open-questions.md); o contrato e as limitações de consistência estão em
 [IMPL-0017](../decisions/0017-private-ngo-photos.md). O `VillageRoom` continua efêmero.
 
+**Documentos de candidatura (PROPOSTA, IMPL-0019):** `NGO_DOCUMENTS` usa outro bucket privado, separado das fotos.
+D1 autoriza toda leitura e registra a revisão da candidatura a cada upload ou retirada. Aprovar a ONG mantém
+os documentos privados; downloads exigem sessão e são anexos, sem URL pública. `NGO_DOCUMENTS_ENABLED` permanece
+desligada em produção e homologação. A API entrega o contrato para futura integração no painel; ativação depende
+de [OQ-13](../decisions/open-questions.md). Estados editáveis, concorrência e limites em
+[IMPL-0019](../decisions/0019-private-ngo-documents.md).
+
 ### 3.1 Fluxo de entrada (link mágico)
 
 ```

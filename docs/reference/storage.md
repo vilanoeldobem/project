@@ -131,7 +131,7 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 
 Progresso de visitantes sem conta (só `localStorage` do navegador, chave `vila.progress.v2`; migra para
 `progress_events` ao entrar e é apagado do navegador; o progresso de uma conta nunca é gravado nessa chave, e eventos
-ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), documentos de ONG (sem upload nesta versão), pagamentos. Logs de pagamento ficarão
+ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), bytes de documentos de ONG (R2 privado na proposta abaixo), pagamentos. Logs de pagamento ficarão
 separados dos dados de gamificação (dossiê §13).
 
 ## Ver também
@@ -166,3 +166,61 @@ de retenção e retirada deve ser fechada antes da ativação. Dados privados de
 
 Flag `NGO_PHOTOS_ENABLED=false` em produção/staging, sem bindings remotos. Só `photos-local` tem R2 e D1 sintéticos
 com `remote:false`. Migration nova não foi executada remotamente; versões remotas dependem de autorização.
+
+## Documentos comprobatórios privados — `0008_ngo_private_documents.sql` (PROPOSTA)
+
+[IMPL-0019](../decisions/0019-private-ngo-documents.md) e [contrato da API](api.md#documentos-privados-das-ongs--backend-d07-proposta-desativado).
+A migration 0008 é independente da 0007 reservada ao trabalho de progresso. Não altera as tabelas desse trabalho.
+`ngo_documents` contém UUID, vínculo à ONG, chave R2 única, rótulo, MIME, tamanho, revisão de inclusão,
+revisão de retirada e data de criação. `ngos.document_write_token` guarda o token exclusivo da última mutação
+de documento. Nenhum nome original/caminho local é persistido. A lista ativa é `removed_revision IS NULL`,
+com índice `(ngo_id,removed_revision,created_at,id)`; anexos antigos continuam ativos após reenvio da candidatura.
+
+Bytes imutáveis ficam em **bucket privado separado**, binding `NGO_DOCUMENTS`, chave gerada
+`ngo-documents/<ngo UUID>/<document UUID>`. Nunca configurar r2.dev, domínio público ou URL assinada para ele;
+nunca reutilizar o bucket de fotos institucionais. Somente a API entrega bytes após conferir sessão, Origin,
+papel/dono e estado ativo em D1 a cada pedido. Publicação da ONG não muda essa autorização.
+
+Upload grava R2 e depois tenta, em um único batch D1, incrementar revisão da ONG sob CAS de dono, revisão e
+estado exato; o mesmo UPDATE verifica limite de dez ativos. INSERT e auditoria dependem do token vencedor.
+Uma análise administrativa concorrente bloqueia a escrita; uma alteração de anexos invalida a revisão que
+o admin havia lido. A consulta de listagem devolve revisão e documentos no mesmo snapshot. Não há trava global.
+
+Se D1 falhar ou o CAS perder, tenta-se apagar somente a chave gerada por aquele envio. Falha na compensação
+deixa órfão privado, sem caminho de leitura pela API. Retirada faz CAS, tombstone `removed_revision` e auditoria
+antes de excluir bytes R2; falha de exclusão não restaura leitura e libera a vaga ativa. A operação não é uma
+transação distribuída entre D1 e R2. Erros de limpeza são genéricos e não registram chave, rótulo ou conteúdo.
+
+**Operação/retenção pendentes (OQ-13):** não existe TTL, limpeza automática, antivírus, sanitização ou política
+aprovada de quais evidências recolher. Antes de habilitar uploads reais, definir acesso, remoção, retenção,
+formatos aceitos e tratamento de arquivos potencialmente perigosos. Recuperação deve reconciliar R2 contra D1
+e remover órfãos/tombstones somente com autorização operacional, em janela sem uploads ou com margem de idade
+definida para não apagar envio em curso. Este PR não executa exclusões remotas.
+
+Excluir a conta mantém candidatura/documentos, mas limpa `applicant_id`, encerrando o acesso do dono anterior.
+O admin continua autorizado a ler anexos ativos; essa retenção exige decisão antes da ativação. Excluir a ONG
+diretamente faz cascade dos metadados, mas não apaga R2: exige reconciliação autorizada. Auditoria de mutações
+contém apenas IDs/revisão; leituras não são auditadas nesta versão.
+
+Produção/staging: `NGO_DOCUMENTS_ENABLED=false`, sem bucket/binding remoto novo. Somente `documents-local`
+tem D1/R2 sintéticos `remote:false`. Nenhuma migration remota ou ativação foi feita por esta entrega.
+
+### Reprodução local com arquivos sintéticos
+
+Na raiz do repositório, com as dependências instaladas, use exclusivamente o ambiente isolado abaixo.
+O seed recria a candidatura sintética e ocupa `plaza-01` nesse banco local; não usar sobre dados que precise preservar.
+Não executar estes comandos contra banco remoto. O script recusa URLs fora de localhost.
+
+```bash
+pnpm --filter @vila/api exec wrangler d1 migrations apply ngo-documents-local --env documents-local --local
+node apps/api/scripts/verify-documents.mjs --seed > .document-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute ngo-documents-local --env documents-local --local --file ../../.document-smoke-seed.sql
+rm .document-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --env documents-local --local --port 8794 --inspector-port 9244
+# Com o Worker ativo, em outro terminal:
+node apps/api/scripts/verify-documents.mjs
+```
+
+O smoke verifica upload PDF, leitura do dono/admin, isolamento entre contas, revisão antiga recusada,
+retirada e privacidade após publicar a ONG. Ao terminar, pare o Worker com Ctrl+C. Sessões sintéticas expiram
+em uma hora; repetições do seed podem deixar bytes órfãos somente no simulador R2 local.

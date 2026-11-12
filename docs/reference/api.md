@@ -583,3 +583,76 @@ node apps/api/scripts/verify-photos.mjs http://127.0.0.1:8796
 
 O arquivo de seed contém somente credenciais sintéticas locais; excluir `.photo-smoke-seed.sql` depois da prova.
 O smoke cobre envio, prévia, aprovação, leitura pública, revisão repetida e retirada. Não aplica mudanças na nuvem.
+
+## Documentos privados das ONGs — backend D07 (PROPOSTA, desativado)
+
+[IMPL-0019](../decisions/0019-private-ngo-documents.md) implementa o transporte privado de evidências da
+candidatura. Não define quais comprovantes são obrigatórios, nem substitui a conferência humana dos critérios
+DEC-015. `NGO_DOCUMENTS_ENABLED="true"`, contas habilitadas, migration `0008_ngo_private_documents.sql` e
+binding **separado** `NGO_DOCUMENTS` são necessários. Produção/staging continuam desligados, sem binding remoto.
+
+| Rota | Autorização / entrada | Saída |
+|---|---|---|
+| `POST /ngo/documents` | Dono verificado; `{accountId, ngoId, applicationRevision, label, contentType, dataBase64}` | `201 {applicationRevision, document}` |
+| `GET /ngo/documents?ngoId=UUID` | Dono da candidatura | `{applicationRevision, documents}` |
+| `GET /ngo/documents/:id/content` | Dono da candidatura | Download privado como anexo |
+| `POST /ngo/documents/:id/withdraw` | Dono verificado; `{accountId, applicationRevision}` | `{applicationRevision, withdrawn: documentId}` |
+| `GET /admin/ngos/:ngoId/documents` | Admin | `{applicationRevision, documents}` |
+| `GET /admin/ngo-documents/:id/content` | Admin | Download privado como anexo |
+
+`document` contém somente `id`, `ngoId`, `label`, `contentType`, `byteSize`, `addedRevision`, `createdAt` e
+`contentUrl`. Esta URL é um caminho relativo à **origem da API**, autenticado, nunca URL pública do bucket.
+O navegador deve usar `fetch` com `credentials: "include"` a partir do Origin permitido do jogo/dashboard e
+baixar o Blob retornado. Navegação direta por link normalmente não envia Origin e é recusada com `403`.
+O nome do download pode ser derivado de UUID e MIME; nome original e caminho local do arquivo não são guardados.
+
+Todas as rotas exigem sessão e Origin exato existente; escritas verificam `accountId` igual à sessão.
+Downloads também aceitam `HEAD`, usam `Content-Disposition: attachment` com nome gerado
+`document-<UUID>.pdf|png|jpg`, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff` e CSP
+`default-src 'none'; sandbox`. Dono de outra ONG, documento retirado e documento inexistente recebem o mesmo
+`404 not_found`. **Aprovar a ONG não publica documentos**: nenhum campo, link ou byte entra no perfil público,
+nas fotos institucionais ou na lista de terrenos. Dono/admin mantêm leitura privada após aprovação.
+
+Propostas técnicas: até **10 anexos ativos** por ONG, **2 MiB por arquivo**, corpo JSON até **3 MiB** inclusive
+sem Content-Length, rótulo de 1–120 caracteres, PDF/PNG/JPEG e base64 canônico. PNG/JPEG reutilizam os limites
+estruturais das fotos (4096 pixels por lado e 16 milhões de pixels). Para PDF, verificam-se somente assinatura
+de versão `%PDF-1.0` a `%PDF-1.7` ou `%PDF-2.0` e marcador final `%%EOF`; isso **não valida o documento inteiro,
+não remove scripts/metadados, não sanitiza e não faz varredura de malware**. Imagens também não removem EXIF/GPS.
+Validação de cabeçalhos não atesta que o arquivo seja seguro para abrir. OQ-13 bloqueia recebimento real até a
+equipe definir política, formatos, retenção e proteção operacional. Não há coleta de consentimento nesta entrega.
+
+Envio/retirada aceitam apenas `submitted`, `changes_requested` e `rejected`; ficam bloqueados durante
+`under_review` e `published`. Arquivo e rótulo são imutáveis: para substituir, retirar e enviar novamente.
+Toda alteração incrementa a **revisão da candidatura**, com CAS de dono, revisão e estado exato na mesma
+transação que metadados e auditoria. Disputas com análise administrativa retornam `409 stale_revision`;
+nenhuma revisão antiga pode aprovar um conjunto de evidências alterado. A listagem lê anexos e revisão num
+único snapshot. O consumidor administrativo deve comparar `applicationRevision` com `application.revision`
+dos detalhes antes de permitir a decisão e recarregar ambos se divergirem; sua interface está fora deste PR.
+Anexos ativos de versões anteriores permanecem na candidatura após reenvio, com `addedRevision` original.
+
+Retirada grava primeiro o tombstone e a nova revisão; falha ao apagar R2 não restaura acesso. Não há retirada
+por admin, expiração automática ou job de limpeza nesta versão. Auditoria de upload/retirada registra apenas
+IDs e revisão, sem rótulo, chave R2 ou conteúdo. Leituras não geram eventos de auditoria nesta entrega.
+
+Erros específicos: `400 invalid_document`, `invalid_document_label`, `revision_required`; `409 documents_locked`,
+`document_limit`, `stale_revision`; `413 document_too_large`/`too_large`; `503 documents_unavailable`.
+Aplicam-se também os erros de conta, Origin e JSON existentes. Flag desligada retorna `404 not_found`;
+falhas inesperadas de armazenamento retornam `500 internal` sem revelar conteúdo ou chaves.
+
+### Prova local de documentos D1 + R2
+
+Somente dados sintéticos, Node 24/pnpm 10, ambiente `documents-local`. Nunca executar deploy deste ambiente,
+nem retirar `--local`. A migration 0008 é independente da 0007 reservada ao PR de progresso.
+
+```bash
+pnpm --filter @vila/api exec wrangler d1 migrations apply DB --env documents-local --local
+node apps/api/scripts/verify-documents.mjs --seed > .document-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute DB --env documents-local --local --file ../../.document-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --env documents-local --local --port 8794 --inspector-port 9244
+# Em outro terminal, após o Worker ficar pronto:
+node apps/api/scripts/verify-documents.mjs http://127.0.0.1:8794
+```
+
+Excluir `.document-smoke-seed.sql` depois da prova. O seed reinicia apenas a ONG sintética e suas sessões;
+repeti-lo pode deixar bytes órfãos no simulador R2. Use o ambiente isolado. O smoke cobre dono/admin, negação
+de visitante/terceiro, revisão obsoleta, retirada, aprovação e permanência privada após publicação.

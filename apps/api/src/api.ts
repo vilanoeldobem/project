@@ -29,12 +29,16 @@ import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
 import { decidePhoto, listPhotos, photoContent, uploadPhoto } from "./ngo-photos";
+import { documentContent, listDocuments, uploadDocument, withdrawDocument } from "./ngo-documents";
 
 export interface Env {
   DB?: D1Database;
   /** PROPOSTA: private NGO photos; disabled until rights/privacy and storage review. */
   NGO_PHOTOS_ENABLED?: string;
   NGO_PHOTOS?: R2Bucket;
+  /** PROPOSTA: private supporting documents; approval never publishes these objects. */
+  NGO_DOCUMENTS_ENABLED?: string;
+  NGO_DOCUMENTS?: R2Bucket;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -207,6 +211,14 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
   if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
+  if (is("POST", "/ngo/documents")) return uploadDocument(request, env);
+  if (is("GET", "/ngo/documents")) return listDocuments(request, env, url.searchParams.get("ngoId") ?? "", false);
+  const adminDocuments = /^\/admin\/ngos\/([^/]+)\/documents$/.exec(pathname);
+  if (adminDocuments && method === "GET") return listDocuments(request, env, adminDocuments[1], true);
+  const documentPreview = /^\/(ngo\/documents|admin\/ngo-documents)\/([^/]+)\/content$/.exec(pathname);
+  if (documentPreview && (method === "GET" || method === "HEAD")) return documentContent(request, env, documentPreview[2], documentPreview[1].startsWith("admin"));
+  const documentWithdrawal = /^\/ngo\/documents\/([^/]+)\/withdraw$/.exec(pathname);
+  if (documentWithdrawal && method === "POST") return withdrawDocument(request, env, documentWithdrawal[1]);
   if (is("GET", "/ngo/photos")) return listPhotos(request, env, url.searchParams.get("ngoId") ?? "", false);
   const adminPhotos = /^\/admin\/ngos\/([^/]+)\/photos$/.exec(pathname);
   if (adminPhotos && method === "GET") return listPhotos(request, env, adminPhotos[1], true);

@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 6 abertas · **Atualizado em:** 2026-11-12
+> **Status:** 7 abertas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -16,6 +16,7 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-09 | Uma missão aceita pode ser abandonada? Hoje não há essa transição. `newest-house-visit` pede a visita a uma casa publicada: se a única ONG publicada sair da Vila depois do `accept`, a missão não termina e, como só há uma missão ativa por vez, nenhuma outra pode ser aceita | permitir abandonar (volta a "disponível") / concluir ou liberar a missão automaticamente quando o objetivo deixa de existir / manter como está | Sem transição de abandono; a missão só é oferecida enquanto existe uma casa publicada; `quests-v1` desligada em produção (IMPL-0013) | Ligar `quests-v1` em produção (PEN-025) | revisão do PR #19; [IMPL-0013](0013-quests-v1-runtime.md) |
 | OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); só mutações gravam `audit_events`; menu atual como PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), DEC-037 |
 | OQ-12 | Fotos institucionais: quais formatos, dimensões, tamanho e quantidade aceitar; quem comprova direitos e consentimento; como tratar EXIF/GPS, substituição, retirada, retenção e objetos órfãos? | Ratificar limites e revisão individual propostos / alterar antes da ativação; decidir remoção de metadados ou exigência de arquivo previamente saneado | Upload privado e imutável, publicação individual por outro administrador, sem sanitização automática; `NGO_PHOTOS_ENABLED` desligada até aceite operacional. Documentos comprobatórios seguem fora deste fluxo | Ativar fotos e receber arquivos reais em homologação ou produção | [IMPL-0017](0017-private-ngo-photos.md), DEC-028/037, PEN-019 |
+| OQ-13 | Comprovantes de candidatura: quais documentos solicitar, quem pode consultar, quais formatos e limites aceitar, como analisar conteúdo potencialmente ativo e definir retenção, exclusão de conta, retirada após publicação e limpeza de órfãos? | Ratificar ou ajustar a proposta técnica; definir procedimento operacional antes de receber arquivos reais | Rótulo genérico, bucket privado separado, acesso autenticado, edição congelada durante análise/publicação e bandeira `NGO_DOCUMENTS_ENABLED` desligada; validação estrutural sem antivírus ou sanitização | Receber documentos reais e ativar em homologação ou produção; remoção administrativa e retirada após publicação | [IMPL-0019](0019-private-ngo-documents.md), D07, DEC-015/037, PEN-019 |
 
 ## Resolvidas
 

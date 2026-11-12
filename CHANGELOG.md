@@ -9,6 +9,16 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — documentos privados das candidaturas de ONG (PROPOSTA, desativado)
+
+- Envio/listagem/download/retirada de comprovantes pelo dono e leitura administrativa, em R2 privado separado
+  com metadados D1 na migration 0008. A aprovação da ONG nunca publica os documentos.
+- Alterações de anexos incrementam a revisão da candidatura de forma atômica com auditoria; análise em curso
+  e publicação bloqueiam mudanças. Decisões administrativas com evidências obsoletas são recusadas.
+- Limites propostos, download como anexo, testes de permissões/concorrência/falhas e prova local D1/R2.
+  Produção/staging ficam desligados até definição de política de documentos, retenção e segurança (OQ-13).
+  Não há alteração de interface, configuração remota, sanitização ou varredura de malware.
+
 ### Added — fotos institucionais das ONGs (PROPOSTA, desativado)
 
 - Upload privado pelo dono verificado, metadados no D1 v6 e bytes imutáveis em R2 privado. Revisão de fotos por
