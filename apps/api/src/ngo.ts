@@ -1,8 +1,8 @@
 /**
  * NGO application (P12; DEC-015, DEC-037; IMPL-0011). A signed-in, verified account applies for one lot.
  *
- *   GET  /ngo/application  → {application | null}   (the caller's own)
- *   POST /ngo/application {accountId, …} → 201/200 {application}   (submit, or resubmit after "changes requested" / rejection)
+ *   GET  /ngo/application  → {application | null, files}   (the caller's own; `files` is empty unless IMPL-0017 is on)
+ *   POST /ngo/application {accountId, …} → 201/200 {application, files}   (submit, or resubmit after "changes requested" / rejection)
  *
  * States (PROPOSTA names from the plan): submitted → under_review → published | changes_requested | rejected.
  * The lot is reserved on submission (`application_sent`), follows the review (`under_review`), is published
@@ -11,6 +11,7 @@
 import { validateApplication, type NgoApplication } from "@vila/shared/accounts/validate";
 
 import { newId } from "./crypto";
+import { listFiles } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { assertAccount, requireUser } from "./session";
 import type { Env } from "./api";
@@ -65,7 +66,7 @@ export async function myApplication(env: Env, userId: string): Promise<NgoRow | 
 export async function getApplication(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const row = await myApplication(env, user.id);
-  return json({ application: row ? applicationView(row) : null }, { headers: NO_STORE });
+  return json({ application: row ? applicationView(row) : null, files: row ? await listFiles(env, row.id) : [] }, { headers: NO_STORE });
 }
 
 export async function submitApplication(request: Request, env: Env, today = new Date()): Promise<Response> {
@@ -155,5 +156,5 @@ export async function submitApplication(request: Request, env: Env, today = new 
     throw new HttpError(409, "lot_unavailable", { lotId: "Esse terreno acabou de ser escolhido. Escolha outro." });
   }
   const row = await myApplication(env, user.id);
-  return json({ application: applicationView(row!) }, { status: current ? 200 : 201, headers: NO_STORE });
+  return json({ application: applicationView(row!), files: await listFiles(env, row!.id) }, { status: current ? 200 : 201, headers: NO_STORE });
 }

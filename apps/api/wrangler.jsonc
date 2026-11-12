@@ -16,14 +16,23 @@
   ],
   // E-mail goes through Resend (IMPL-0012): the API key is the Worker secret RESEND_API_KEY (never a var; see
   // docs/guides/deploy.md). Without it sign-in e-mails fail closed with 503 "mail_unavailable".
-  // Sign-in requests per client IP (the IP is only a rate-limit key, never stored).
-  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }],
+  // Sign-in requests per client IP (the IP is only a rate-limit key, never stored); uploads per account.
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } },
+    { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }
+  ],
+  // Files of NGO applications (IMPL-0017): private bucket, no public bucket URL and no custom domain; every
+  // byte is served by this Worker. The bucket must exist before the first deploy (docs/guides/deploy.md §9).
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "vilanoeldobem-files" }],
   "vars": {
     "ENVIRONMENT": "production",
     // Accounts, server XP, NGO applications and admin (IMPL-0011). Off until the LGPD / ECA Digital review.
     "ACCOUNTS_ENABLED": "false",
     // Quests-v1 events (PROPOSTA, DEC-039..042, PEN-025). Off until the owner approves the catalog.
     "QUESTS_V1_ENABLED": "false",
+    // NGO logo and document uploads to R2 (PROPOSTA, IMPL-0017, PEN-019). Off until the owner approves the
+    // list of documents and the LGPD review covers them. Needs ACCOUNTS_ENABLED and migration 0006.
+    "NGO_FILES_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -38,8 +47,8 @@
   "workers_dev": true,
   "preview_urls": false,
   // Staging (docs/guides/staging-database.md): own D1, no routes, no workers.dev, no browser origins, accounts off.
-  // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed) and no
-  // AUTH_LIMITER.
+  // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed), no
+  // AUTH_LIMITER and no FILES bucket (uploads answer 404 files_disabled).
   "env": {
     "staging": {
       "name": "vilanoeldobem-api-staging",
@@ -47,10 +56,12 @@
       "workers_dev": false,
       "preview_urls": false,
       "ratelimits": [],
+      "r2_buckets": [],
       "vars": {
         "ENVIRONMENT": "staging",
         "ACCOUNTS_ENABLED": "false",
         "QUESTS_V1_ENABLED": "false",
+        "NGO_FILES_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

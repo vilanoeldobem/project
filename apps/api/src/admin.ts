@@ -4,7 +4,7 @@
  * admin's id (never an e-mail) and no personal data; the message to the applicant lives on the application.
  *
  *   GET  /admin/applications?status=…        → {applications}
- *   GET  /admin/applications/:id             → {application, applicant: {nickname}, history}
+ *   GET  /admin/applications/:id             → {application, applicant: {nickname}, history, files}
  *   POST /admin/applications/:id/decision {action, revision, note?, checks?} → {application}
  *
  * Actions: start_review, approve, request_changes (note required), reject (note required). `revision` is the
@@ -13,6 +13,7 @@
  * checks (`checks: {activeCnpj, oneYear, fundsConfirmable}`, all true), recorded in the audit detail.
  */
 import { newId } from "./crypto";
+import { listFiles } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { applicationView, type NgoRow } from "./ngo";
 import { requireAdmin } from "./session";
@@ -55,7 +56,7 @@ export async function getApplicationAdmin(request: Request, env: Env, id: string
     )
     .bind(`ngo:${id}`)
     .all();
-  return json({ application: applicationView(row), applicant, history: results }, { headers: NO_STORE });
+  return json({ application: applicationView(row), applicant, history: results, files: await listFiles(env, id) }, { headers: NO_STORE });
 }
 
 export async function decide(request: Request, env: Env, id: string): Promise<Response> {
