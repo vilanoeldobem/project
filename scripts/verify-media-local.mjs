@@ -71,6 +71,8 @@ async function ready(worker, address = `${base}/health`) {
 
 async function main() {
   const browser = process.argv.includes("--browser");
+  const progress = process.argv.includes("--progress");
+  const progressSmoke = join(api, "scripts/verify-progress.mjs");
   if (browser) assert.ok(process.env.CI && process.env.CHROMIUM_PATH, "Browser orchestration requires CI and installed Chromium");
   const config = JSON.parse((await readFile(join(api, "wrangler.reconciliation-local.jsonc"), "utf8"))
     .replace(/^\s*\/\/.*$/gm, ""));
@@ -92,6 +94,7 @@ async function main() {
   // A private config directory prevents loading the developer's .dev.vars or local database.
   config.main = resolve(api, config.main);
   database.migrations_dir = resolve(api, database.migrations_dir);
+  if (progress) config.vars.QUESTS_V1_ENABLED = "true"; // Only this fresh local Worker's generated config.
   const configPath = join(directory, "wrangler.json");
   await writeFile(configPath, JSON.stringify(config));
   await writeFile(join(directory, ".dev.vars"), "");
@@ -104,12 +107,22 @@ async function main() {
   const seed = join(directory, "seed.sql");
   await writeFile(seed, await run([smoke, "--seed"], env));
   await run([cli, "d1", "execute", database.database_name, ...local, "--file", seed], env);
+  if (progress) {
+    const progressSeed = join(directory, "progress-seed.sql");
+    await writeFile(progressSeed, await run([progressSmoke, "--seed"], env));
+    await run([cli, "d1", "execute", database.database_name, ...local, "--file", progressSeed], env);
+  }
   const worker = child([cli, "dev", ...local, "--ip", "127.0.0.1", "--port", "8792",
     "--inspector-port", String(inspector), "--log-level", "warn"], env);
   await ready(worker);
   const output = await run([smoke, base], env);
   assert.match(output, /PASS: canonical files/);
   console.log("PASS: isolated local media lifecycle (workerd, D1, conditional R2 writes)");
+  if (progress) {
+    const result = await run([progressSmoke, base], env);
+    assert.match(result, /PASS: local D1 authoritative state, two-session concurrency/);
+    console.log(result.trim());
+  }
   if (browser) {
     for (const [app, port] of [["client", 8799], ["dash", 8797], ["server", 8788]]) {
       await freePort(port);
