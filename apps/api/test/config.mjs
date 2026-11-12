@@ -15,3 +15,6 @@ export function productionVar(name) {
 export function devVar(name) {
   return new RegExp(`--var ${name}:(\\S+)`).exec(JSON.parse(read("package.json")).scripts.dev)?.[1];
 }
+
+/** The `deploy` script of package.json (what `pnpm deploy:api` runs). */
+export const deployScript = () => JSON.parse(read("package.json")).scripts.deploy;

@@ -5,13 +5,17 @@
  * script or style, and `connect-src` lists exactly one remote origin — the API of this build (IMPL-0015). The
  * dashboard is never indexed, never framed, sends no referrer, and its HTML is never stored: every visit gets
  * the current build and the current policy.
+ *
+ * `img-src` also allows `blob:` (IMPL-0017): the logo of an application is fetched from the API with the admin's
+ * session and shown through an object URL. The API origin is not an image source: its file routes refuse a
+ * plain `<img src>`.
  */
 export function contentSecurityPolicy(apiOrigin: string): string {
   return [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self'",
-    "img-src 'self'",
+    "img-src 'self' blob:",
     "font-src 'self'",
     `connect-src 'self' ${apiOrigin}`,
     "object-src 'none'",

@@ -20,6 +20,7 @@
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
 
 import { isoIn, newId, randomToken, sha256Hex } from "./crypto";
+import { accountFilesRemoval } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { sendLoginLink } from "./mail";
 import { clearCookie, currentUser, meView, readSessionToken, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
@@ -170,9 +171,14 @@ export async function me(request: Request, env: Env): Promise<Response> {
 export async function deleteMe(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const db = env.DB!;
-  await db.batch([
+  // The applicant's documents (and an unpublished logo) leave R2 first, then their rows in this transaction;
+  // rows an upload added in between are removed here too and their objects right after (IMPL-0017).
+  const files = await accountFilesRemoval(env, user.id);
+  const results = await db.batch([
+    ...files.statements,
     db.prepare("INSERT INTO audit_events (id, actor, action, subject, detail) VALUES (?, ?, 'user.delete', ?, NULL)").bind(newId(), user.id, `user:${user.id}`),
     db.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
   ]);
+  await files.after(results);
   return new Response(null, { status: 204, headers: { ...NO_STORE, "Set-Cookie": clearCookie() } });
 }

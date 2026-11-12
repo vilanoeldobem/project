@@ -3,6 +3,7 @@
  * call them: the game (`apps/client`) and the backoffice dashboard (`apps/dash`, IMPL-0015). Types and pt-BR
  * labels only; no fetch, no DOM.
  */
+import type { ApplicationFile } from "./files";
 import type { NgoApplication } from "./validate";
 
 /** What `GET /me` returns about the signed-in person (never sent to anyone else). */
@@ -36,6 +37,18 @@ export interface Application extends NgoApplication {
   updatedAt: string;
 }
 
+/** `GET /ngo/application` and the answer of `POST /ngo/application`. `files` is empty unless uploads are on (IMPL-0017). */
+export interface OwnApplication {
+  application: Application | null;
+  files: ApplicationFile[];
+}
+
+/** `POST /ngo/application/files?kind=…`: the stored file and the application's new revision. */
+export interface FileUploaded {
+  file: ApplicationFile;
+  revision: number;
+}
+
 /** Row of `GET /admin/applications`. */
 export type ApplicationSummary = Pick<Application, "id" | "name" | "city" | "status" | "revision" | "lotId" | "createdAt" | "updatedAt">;
 
@@ -53,6 +66,8 @@ export interface ApplicationDetail {
   application: Application;
   applicant: { nickname: string } | null;
   history: AuditEntry[];
+  /** Logo first, then documents in the order they were sent; empty unless uploads are on (IMPL-0017). */
+  files: ApplicationFile[];
 }
 
 export type ReviewAction = "start_review" | "approve" | "request_changes" | "reject";

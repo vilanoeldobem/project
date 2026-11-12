@@ -1,12 +1,14 @@
 /**
  * NGO application (P12; DEC-015 criteria, DEC-037 admin approval, DEC-028 house content). Four steps from the
  * wireframe: "Dados da organização", "Documentos e comprovações", "Apresentação e projetos", "Revisão e
- * envio". The field list is PROPOSTA (G08/PEN-019); documents are declared, not uploaded, in this version.
+ * envio". The field list is PROPOSTA (G08/PEN-019); documents are declared in the form. With uploads on in the API
+ * (IMPL-0017, PROPOSTA) a sent application also takes a logo and optional documents: see `ApplicationFiles`.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type Application, lotNumber, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
+import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { APPLICATION_STEP, NGO_TAGS, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
 import { LOTS } from "@vila/shared/game/world";
 
@@ -14,6 +16,7 @@ import { useVila } from "../game/store";
 import { api, ApiError, useAccount } from "../lib/account";
 import { fetchLots, type LotInfo } from "../lib/api";
 import { Field } from "./Account";
+import { ApplicationFiles } from "./ApplicationFiles";
 import { Panel, Status } from "./Panel";
 
 const STEPS = ["Dados da organização", "Documentos e comprovações", "Apresentação e projetos", "Revisão e envio"] as const;
@@ -36,12 +39,22 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
   const user = useAccount((s) => s.user);
   const open = useVila((s) => s.open);
   const [app, setApp] = useState<Application | null | undefined>(undefined);
+  /** Metadata only (IMPL-0017); empty with uploads off or an API that does not know them. */
+  const [files, setFiles] = useState<ApplicationFile[]>([]);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState("");
+  const load = useCallback(
+    () =>
+      api.application().then((r) => {
+        setApp(r.application);
+        setFiles(r.files ?? []);
+      }),
+    []
+  );
   useEffect(() => {
     if (!user) return;
-    api.application().then((r) => setApp(r.application), (e) => setError(errorText(e)));
-  }, [user]);
+    load().catch((e) => setError(errorText(e)));
+  }, [user, load]);
 
   if (!user)
     return (
@@ -58,14 +71,40 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
         {error ? <p className="form__error">{error}</p> : <p>Carregando sua candidatura…</p>}
       </Panel>
     );
-  if (app && !editing) return <ApplicationStatusView app={app} onEdit={() => setEditing(true)} />;
+  if (app && !editing)
+    return (
+      <ApplicationStatusView
+        app={app}
+        files={files}
+        onEdit={() => setEditing(true)}
+        onFiles={(changed, revision) => {
+          setFiles(changed);
+          setApp((current) => current && { ...current, revision });
+        }}
+        onStale={load}
+      />
+    );
   return <Wizard initial={app ?? { ...EMPTY, lotId: lotId ?? "" }} heldLot={app?.lotId} onDone={(a) => (setApp(a), setEditing(false))} />;
 }
 
-function ApplicationStatusView({ app, onEdit }: { app: Application; onEdit: () => void }) {
+function ApplicationStatusView({
+  app,
+  files,
+  onEdit,
+  onFiles,
+  onStale,
+}: {
+  app: Application;
+  files: ApplicationFile[];
+  onEdit: () => void;
+  onFiles: (files: ApplicationFile[], revision: number) => void;
+  onStale: () => Promise<unknown>;
+}) {
   const canEdit = app.status === "changes_requested" || app.status === "rejected";
+  const filesOn = useAccount((s) => s.files);
   return (
-    <Panel kicker="Cadastro de ONGs" title={app.name}>
+    // A removed file takes its buttons away: the key sends the focus back to the dialog.
+    <Panel kicker="Cadastro de ONGs" title={app.name} contentKey={files.map((f) => f.id).join()}>
       <p>
         <Status>{STATUS_LABEL[app.status]}</Status> · Terreno {lotNumber(app.lotId)} · versão {app.revision}
       </p>
@@ -86,6 +125,7 @@ function ApplicationStatusView({ app, onEdit }: { app: Application; onEdit: () =
           Editar e reenviar
         </button>
       )}
+      {filesOn && <ApplicationFiles status={app.status} files={files} onChange={onFiles} onStale={onStale} />}
     </Panel>
   );
 }
@@ -97,6 +137,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [lots, setLots] = useState<LotInfo[]>([]);
+  const filesOn = useAccount((s) => s.files);
   useEffect(() => void fetchLots().then((r) => r && setLots(r.lots)), []);
   const available = useMemo(() => LOTS.filter((l) => l.id === heldLot || lots.find((x) => x.id === l.id)?.state === "available"), [lots, heldLot]);
   const errors = validateApplication(form, new Date()).errors;
@@ -178,7 +219,11 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
             <Field label="Como os recursos podem ser confirmados? *" error={shown.fundsConfirmation} hint="Ex.: extratos da conta da organização, relatório conciliável, página de campanha identificada.">
               <textarea value={form.fundsConfirmation} onChange={(e) => set("fundsConfirmation", e.target.value)} maxLength={1000} rows={4} />
             </Field>
-            <p className="note">Os documentos serão pedidos pela administração durante a análise. Não envie documentos por aqui.</p>
+            {filesOn ? (
+              <p className="note">Depois de enviar a candidatura, você pode anexar o logo e documentos na tela da candidatura. É opcional.</p>
+            ) : (
+              <p className="note">Os documentos serão pedidos pela administração durante a análise. Não envie documentos por aqui.</p>
+            )}
           </>
         )}
         {step === 3 && (

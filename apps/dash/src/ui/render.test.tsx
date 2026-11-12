@@ -5,9 +5,12 @@
  */
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ApplicationDetail, Me } from "@vila/shared/accounts/contract";
+import type { ApplicationFile } from "@vila/shared/accounts/files";
+
+import { dateTime } from "../lib/format";
 
 import { Applications, Review } from "./Applications";
 import { Audit } from "./Audit";
@@ -44,9 +47,14 @@ const DETAIL: ApplicationDetail = {
   },
   applicant: { nickname: "ong_teste" },
   history: [{ at: "2026-11-10T12:00:00.000Z", action: "ngo.submit", detail: null, actor: "ong_teste" }],
+  files: [],
 };
-const review = (over: Partial<ApplicationDetail["application"]>) =>
-  html(<Review id={DETAIL.application.id} d={{ ...DETAIL, application: { ...DETAIL.application, ...over } }} onDetail={() => {}} />);
+const review = (over: Partial<ApplicationDetail["application"]>, rest: Partial<ApplicationDetail> = {}, filesOn = true) =>
+  html(<Review id={DETAIL.application.id} d={{ ...DETAIL, ...rest, application: { ...DETAIL.application, ...over } }} filesOn={filesOn} onDetail={() => {}} />);
+
+const LOGO: ApplicationFile = { id: "aaaaaaaa-0000-4000-8000-000000000001", kind: "logo", contentType: "image/png", size: 186_368, createdAt: "2026-11-10T12:05:00.000Z" };
+const PDF: ApplicationFile = { id: "aaaaaaaa-0000-4000-8000-000000000002", kind: "document", contentType: "application/pdf", size: 1_572_864, createdAt: "2026-11-10T12:06:00.000Z" };
+const SCAN: ApplicationFile = { id: "aaaaaaaa-0000-4000-8000-000000000003", kind: "document", contentType: "image/jpeg", size: 734, createdAt: "2026-11-11T09:00:00.000Z" };
 
 describe("sign-in", () => {
   it("asks only for the e-mail and offers no account creation", () => {
@@ -128,8 +136,19 @@ describe("pending areas", () => {
     const page = html(<Pending />);
     expect(count(page, 'data-state="pending"')).toBe(3);
     for (const title of ["Doações", "Indicadores", "Documentos e logos das ONGs"]) expect(page).toContain(`>${title}</strong>`);
-    for (const id of ["PEN-004", "PEN-006", "IMPL-0002", "DEC-027", "R2"]) expect(page).toContain(id);
+    for (const id of ["PEN-004", "PEN-006", "IMPL-0002", "DEC-027", "PEN-019", "OQ-12", "IMPL-0017"]) expect(page).toContain(id);
     expect(page).not.toMatch(/<button|<a |<input|R\$|\d+%/);
+  });
+
+  it("say that uploads exist behind a flag and what is still undecided, without naming a document", () => {
+    const page = html(<Pending />);
+    expect(page).not.toContain("ainda não recebe arquivos");
+    expect(page).toContain("<code>NGO_FILES_ENABLED</code>");
+    expect(page).toContain("desligada em produção");
+    expect(page).toContain("quais documentos uma ONG deve enviar (PEN-019)");
+    expect(page).toContain("por quanto tempo os arquivos ficam guardados (OQ-12)");
+    expect(page).toContain("nenhum documento é exigido");
+    expect(page).not.toMatch(/estatuto|\bata\b|certid|comprovante|balanço/i);
   });
 });
 
@@ -166,5 +185,92 @@ describe("review of an application", () => {
 
   it("shows the last message sent to the organisation", () => {
     expect(review({ status: "changes_requested", reviewNote: "Envie o relatório de 2025." })).toMatch(/Última mensagem enviada<\/strong><p>Envie o relatório de 2025\.<\/p>/);
+  });
+});
+
+describe("files of an application (IMPL-0017)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  /** The part of the review between the "Arquivos" heading and the eligibility checks. */
+  const filesOf = (page: string) => page.slice(page.indexOf("<h2>Arquivos</h2>"), page.indexOf('<fieldset class="checks">'));
+
+  it("lists the logo and the numbered documents with type, size and date, and no file name or id", () => {
+    const section = filesOf(review({}, { files: [LOGO, PDF, SCAN] }));
+    expect(section).toContain("<h3>Logo</h3>");
+    expect(section).toContain(`PNG · 182 KB · enviado em ${dateTime(LOGO.createdAt)}`);
+    expect(section).toContain("<h3>Documentos</h3>");
+    expect(section).toContain(`<strong>Documento 1</strong> <span class="muted">PDF · 1,5 MB · enviado em ${dateTime(PDF.createdAt)}</span>`);
+    expect(section).toContain(`<strong>Documento 2</strong> <span class="muted">JPEG · 734 bytes · enviado em ${dateTime(SCAN.createdAt)}</span>`);
+    expect(count(section, 'data-file="logo"')).toBe(1);
+    expect(count(section, 'data-file="document"')).toBe(2);
+    expect(section).toContain("Cada download de documento fica registrado na auditoria.");
+    for (const file of [LOGO, PDF, SCAN]) expect(section).not.toContain(file.id);
+    expect(section).not.toMatch(/data-state="(empty|files-off)"/);
+  });
+
+  it("offers a document only as a download button: no link, no preview, nothing the browser fetches by itself", () => {
+    const fetched = vi.fn();
+    vi.stubGlobal("fetch", fetched);
+    const section = filesOf(review({}, { files: [LOGO, PDF, SCAN] }));
+    expect([...section.matchAll(/<button class="btn btn--small" aria-label="([^"]+)">([^<]+)<\/button>/g)].map((m) => [m[1], m[2]])).toEqual([
+      ["Baixar documento 1", "Baixar"],
+      ["Baixar documento 2", "Baixar"],
+    ]);
+    expect(count(section, "<button")).toBe(2);
+    // The logo preview appears only once its bytes arrive (an object URL); until then, no image at all.
+    expect(section).toContain("Carregando o logo…");
+    expect(section).not.toMatch(/<img|<a |<iframe|<embed|<object|href=|src=|\/files\//);
+    expect(fetched).not.toHaveBeenCalled();
+  });
+
+  it("says which kind is missing when only one was sent", () => {
+    const onlyLogo = filesOf(review({}, { files: [LOGO] }));
+    expect(onlyLogo).toContain("Nenhum documento enviado.");
+    expect(onlyLogo).not.toMatch(/<button|registrado na auditoria/);
+    const onlyDocument = filesOf(review({}, { files: [PDF] }));
+    expect(onlyDocument).toContain("Nenhum logo enviado.");
+    expect(onlyDocument).not.toContain("Carregando o logo");
+    expect(count(onlyDocument, "<button")).toBe(1);
+  });
+
+  it("has an explicit empty state when nothing was sent", () => {
+    const section = filesOf(review({}));
+    expect(section).toContain('<p class="muted" data-state="empty">Nenhum arquivo enviado.</p>');
+    expect(section).not.toMatch(/<button|<h3|data-state="files-off"/);
+  });
+
+  it("says uploads are off instead of showing an empty list (flag off, or an API that sends no files)", () => {
+    for (const rest of [{}, { files: undefined as unknown as ApplicationFile[] }]) {
+      const section = filesOf(review({}, rest, false));
+      expect(count(section, 'data-state="files-off"')).toBe(1);
+      expect(section).toContain("Envio de arquivos desligado");
+      expect(section).toContain("<code>NGO_FILES_ENABLED</code>");
+      expect(section).not.toMatch(/Nenhum arquivo enviado|<button|<h3|data-state="empty"/);
+    }
+  });
+
+  it("still shows the files that exist when uploads are off: an approval must not publish a logo nobody saw", () => {
+    const logo: ApplicationFile = { id: "f0000000-0000-4000-8000-000000000001", kind: "logo", contentType: "image/png", size: 2048, createdAt: "2026-11-12T12:00:00.000Z" };
+    const document: ApplicationFile = { id: "f0000000-0000-4000-8000-000000000002", kind: "document", contentType: "application/pdf", size: 4096, createdAt: "2026-11-12T12:01:00.000Z" };
+    const section = filesOf(review({}, { files: [logo, document] }, false));
+    expect(count(section, 'data-state="files-off"')).toBe(1);
+    expect(section).toContain("continuam valendo");
+    expect(count(section, 'data-file="logo"')).toBe(1);
+    expect(count(section, 'data-file="document"')).toBe(1);
+    expect(section).toContain("Baixar documento 1");
+  });
+
+  it("labels file events in the history by kind, never by the file id", () => {
+    const history = [
+      { at: "2026-11-10T12:05:00.000Z", action: "ngo.file_add", detail: JSON.stringify({ kind: "logo", file: LOGO.id, revision: 2 }), actor: "ong_teste" },
+      { at: "2026-11-10T12:06:00.000Z", action: "ngo.file_remove", detail: JSON.stringify({ kind: "document", file: PDF.id, revision: 3 }), actor: "ong_teste" },
+      { at: "2026-11-11T10:00:00.000Z", action: "ngo.file_read", detail: JSON.stringify({ kind: "document", file: PDF.id }), actor: "ana_lima" },
+    ];
+    const page = review({}, { history });
+    const list = page.slice(page.indexOf('<ol class="history">'));
+    expect(list).toContain("Arquivo enviado (logo) · @ong_teste");
+    expect(list).toContain("Arquivo removido (documento) · @ong_teste");
+    expect(list).toContain("Documento baixado pela administração · @ana_lima");
+    expect(list).not.toMatch(/aaaaaaaa-0000|ngo\.file_/);
   });
 });

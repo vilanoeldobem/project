@@ -40,8 +40,11 @@ export async function readJson(request: Request, max = 16_000): Promise<Record<s
 }
 
 /** Reads the body as UTF-8 text, aborting once more than `max` bytes arrived (never buffers a huge body). */
-async function readCapped(request: Request, max: number): Promise<string> {
-  if (!request.body) return "";
+const readCapped = async (request: Request, max: number): Promise<string> => new TextDecoder().decode(await readBytesCapped(request, max));
+
+/** Reads the body as bytes, aborting once more than `max` bytes arrived (never buffers a huge body). */
+async function readBytesCapped(request: Request, max: number): Promise<Uint8Array> {
+  if (!request.body) return new Uint8Array();
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -61,7 +64,17 @@ async function readCapped(request: Request, max: number): Promise<string> {
     bytes.set(c, at);
     at += c.byteLength;
   }
-  return new TextDecoder().decode(bytes);
+  return bytes;
+}
+
+/**
+ * Reads a raw upload of at most `max` bytes. A declared length over the limit is refused before a byte is read;
+ * the limit is enforced again while reading, because the header is only a claim.
+ */
+export async function readBytes(request: Request, max: number): Promise<Uint8Array> {
+  const declared = request.headers.get("Content-Length");
+  if (declared !== null && !(Number(declared) <= max)) throw new HttpError(413, "too_large");
+  return readBytesCapped(request, max);
 }
 
 /** Every response that may carry personal data (all account routes, errors included) is never cached. */

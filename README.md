@@ -11,7 +11,7 @@ Este repositório contém o código; a definição do produto vive no repositór
 > Doações estão **desabilitadas** até a definição e o contrato da instituição parceira (PEN-004)
 > e do provedor de pagamento (PEN-006). Visual, paleta e logo são provisórios (DEC-023/024).
 
-**Versão atual: 0.4.0** (2026-11-12) · schema D1 v5 (produção na v3, contas desligadas) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
+**Versão atual: 0.4.0** (2026-11-12) · schema D1 v6 (produção na v3, contas desligadas) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
 prazo oficial **30/11/2026** (DEC-043)
 
 **Site:** <https://www.vilanoeldobem.com.br> · **Jogo:** <https://play.vilanoeldobem.com.br>
@@ -25,7 +25,7 @@ prazo oficial **30/11/2026** (DEC-043)
 | P03 Terrenos | 8 terrenos ao redor da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
-| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel **não publicado** ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |
+| P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel publicado em 2026-11-12 ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |
 | P13 Cadastro de usuário | Nome, Nickname, Cidade e E-mail; entrada por link mágico; só o nickname é público | **Implementado, desligado em produção** (aguarda revisão LGPD / ECA Digital) |
 | P14 Missões / XP / níveis | Caderno de Missões, 4 missões em 3 trilhas, XP local e, com conta, no servidor | **Parcial** — sem conta, progresso só no navegador |
 | P05–P08, P10, P11, P15 | Chat, emotes, avatar, skins, expansão, indicação, badges | Planejado ([roadmap](ROADMAP.md)) |
@@ -48,7 +48,7 @@ apps/client/     jogo: cliente 3D (React + Three.js, Static Assets) — play.vil
 apps/api/        API HTTP + D1 (rotas públicas e, atrás de ACCOUNTS_ENABLED, contas e ONGs) — api.vilanoeldobem.com.br
 apps/server/     presença em tempo real (Durable Object VillageRoom) — server.vilanoeldobem.com.br
 apps/site/       site público (React + Vite) — www.vilanoeldobem.com.br
-apps/dash/       painel administrativo (React + Vite, Static Assets) — dash.vilanoeldobem.com.br (não publicado)
+apps/dash/       painel administrativo (React + Vite, Static Assets) — dash.vilanoeldobem.com.br
 packages/shared/ lógica pura usada por mais de um app (@vila/shared/…): mundo, movimento, missões, ambiente, protocolo
 migrations/      migrations D1 NNNN_nome.sql (imutáveis depois de aplicadas)
 docs/            documentação técnica (Diátaxis) — índice em docs/README.md

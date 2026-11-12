@@ -1,6 +1,6 @@
 # IMPL-0015: Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`)
 
-**Status:** Aceita pelo responsável técnico (2026-11-11) para o app em si — implementado e testado; **não publicado**
+**Status:** Aceita pelo responsável técnico (2026-11-11) para o app em si — implementado e testado; **publicado em 2026-11-12** (contas desligadas)
 (o Worker `vilanoeldobem-dash` e o domínio `dash.vilanoeldobem.com.br` ainda não existem na Cloudflare). O menu de
 seções e as áreas "pendentes" são **PROPOSTA** até o dono do produto validar
 **Data:** 2026-11-11

@@ -17,10 +17,16 @@ describe("dashboard security headers (IMPL-0015)", () => {
 
   it("allows no inline code, no third party and no framing", () => {
     const csp = contentSecurityPolicy("https://api.vilanoeldobem.com.br");
-    expect(csp).not.toMatch(/unsafe-inline|unsafe-eval|\*|data:|blob:/);
+    expect(csp).not.toMatch(/unsafe-inline|unsafe-eval|\*|data:/);
     expect(csp).not.toMatch(/google|cloudflareinsights|gstatic/);
     for (const directive of ["default-src 'self'", "script-src 'self'", "style-src 'self'", "frame-ancestors 'none'", "object-src 'none'", "base-uri 'none'"])
       expect(csp.split("; ")).toContain(directive);
+  });
+
+  it("allows object URLs for images only (the logo preview, IMPL-0017), and no remote image", () => {
+    const directives = contentSecurityPolicy("https://api.vilanoeldobem.com.br").split("; ");
+    expect(directives).toContain("img-src 'self' blob:");
+    for (const directive of directives.filter((d) => !d.startsWith("img-src "))) expect(directive).not.toContain("blob:");
   });
 
   it("keeps the dashboard out of search engines and its HTML out of caches", () => {
