@@ -172,10 +172,20 @@ export async function deleteMe(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const db = env.DB!;
   // Durable intent freezes NGO/file decisions while R2 cleanup runs. A failed cleanup is retried by DELETE /me.
-  await db.prepare("UPDATE users SET files_deleting = 1 WHERE id = ?").bind(user.id).run();
+  const frozen = await db.prepare("UPDATE users SET files_deleting = 1 WHERE id = ? AND files_deleting = 0").bind(user.id).run();
+  let removals: D1PreparedStatement[];
+  try {
+    removals = await removeFilesOfAccount(env, user.id);
+  } catch (error) {
+    // Refused before any object was touched (no bucket): nothing was erased, so the freeze this request set is
+    // undone and the account stays as it was. A freeze left by an earlier attempt, or an R2 failure, is kept.
+    if (frozen.meta.changes && error instanceof HttpError && error.code === "files_unavailable")
+      await db.prepare("UPDATE users SET files_deleting = 0 WHERE id = ?").bind(user.id).run();
+    throw error;
+  }
   await db.batch([
     // The applicant's documents (and an unpublished logo) leave R2 first, then their rows in this transaction.
-    ...(await removeFilesOfAccount(env, user.id)),
+    ...removals,
     // Removal of evidence/ownership invalidates reviews that were read before deletion began.
     db.prepare("UPDATE ngos SET revision = revision + 1, updated_at = ? WHERE applicant_id = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND files_deleting = 1)").bind(new Date().toISOString(), user.id, user.id),
     db.prepare("INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'user.delete', ?, NULL WHERE EXISTS (SELECT 1 FROM users WHERE id = ?)").bind(newId(), user.id, `user:${user.id}`, user.id),

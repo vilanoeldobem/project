@@ -94,7 +94,9 @@ conta oferece tentar concluir a exclusão; o painel explica por que não pode ap
 rejeitar uma candidatura ainda aberta para liberar o terreno. Rejeição conserva CAS, justificativa, auditoria
 e proibição de autoanálise; não cancela a intenção nem decide retenção da galeria. Ações bloqueadas respondem
 `account_deleting`, inclusive numa corrida, para que o painel releia o estado. Não se permite cancelar a exclusão
-depois de um possível descarte parcial.
+depois de um possível descarte parcial. O único caso em que a marca é desfeita é o do pedido recusado **antes** de
+qualquer descarte: metadados sem binding `FILES` (`503 files_unavailable`). Esse pedido desfaz a marca que ele
+mesmo pôs, e a conta e a análise seguem como antes da tentativa; uma marca de tentativa anterior é mantida.
 Não afirmar atomicidade entre D1 e R2 nem comprovar exclusão física só pelo início da operação. Não há serviço
 novo de fila, rotina de expiração ou cancelamento da intenção neste incremento; recuperação é repetir a
 exclusão autorizada. A referência de armazenamento descreve o procedimento; a validação desta rodada está

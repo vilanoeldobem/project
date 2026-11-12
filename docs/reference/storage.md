@@ -248,8 +248,10 @@ publicado durante a limpeza. R2 falhou: mantém conta/sessão/intenção; repeti
 `GET /me` e o responsável no detalhe administrativo expõem `deletionPending`. As telas explicam a pendência e
 o caminho de repetição. Rejeitar uma candidatura ainda aberta é a exceção ao bloqueio administrativo: libera o
 terreno, preserva a intenção e não pode publicar evidências. Estado/revisão exatos e auditoria continuam exigidos.
-Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta. Não se deve zerar a marca para
-"destravar" uma conta: alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
+Metadados sem binding `FILES`: `503 files_unavailable`, sem excluir a conta e sem tocar em nenhum objeto; como
+nada foi apagado, o próprio pedido desfaz a marca que acabou de pôr e a conta não fica congelada. Fora desse caso
+não se deve zerar a marca para "destravar" uma conta: depois de uma falha do R2, ou quando a marca veio de uma
+tentativa anterior, alguns bytes já podem ter sido removidos. A transação final remove metadados, incrementa
 as revisões das candidaturas, remove as intenções de upload/limpeza da conta, registra uma única auditoria e apaga o usuário. A revisão invalida decisões antigas
 mesmo depois que o vínculo e a linha do usuário desaparecerem.
 

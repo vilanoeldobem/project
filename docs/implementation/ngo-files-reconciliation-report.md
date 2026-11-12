@@ -76,7 +76,7 @@ contra a árvore atual, sem tratar a aprovação técnica ou a OQ-15 como resolv
 | Item | Encaminhamento | Evidência / limite |
 |---|---|---|
 | #35.1 | Perfil compatível com v3, agora exercitado nas 16 combinações de flags/bucket | `public-ngo.test.ts` |
-| #35.2 | Exclusão pendente visível na conta/painel; admin pode rejeitar candidatura aberta e liberar o terreno | contratos de conta/admin, UI e testes; validado localmente nesta rodada |
+| #35.2 | Exclusão pendente visível na conta/painel; admin pode rejeitar candidatura aberta e liberar o terreno; pedido recusado sem bucket, antes de apagar qualquer objeto, não congela a conta | contratos de conta/admin, UI e testes; validado localmente nesta rodada |
 | #35.3 | Remoção pelo responsável, rejeição individual, cota, retry, bloqueio de upload após rejeição e exclusão da conta corrigidos | Consentimento e retenção após rejeitar a candidatura continuam abertos na OQ-15; galeria desligada |
 | #35.4 | Sequência 0007/IMPL-0018; regra original de logo público preservada | Exceção da galeria continua PROPOSTA, exige aceite explícito do responsável técnico |
 | #35.5 | Aviso de campos públicos, cidade privada e módulo marcado PROPOSTA | fluxo real de candidatura; `NgoApplication.tsx` e `public-ngo.ts` |
