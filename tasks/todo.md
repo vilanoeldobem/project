@@ -504,3 +504,32 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 - Worktrees share remote-tracking refs: `origin/main` moved under this branch while other sessions fetched.
   Check `git log origin/main` again before the last commit and rebase the work onto it.
 - The old "click across the plaza" test passed only through the squeeze bug: a green test can encode a defect.
+
+## Reliable saved progress — D12 — 2026-11-12
+
+Scope: preserve missions, XP and levels across sessions, duplicate requests and concurrent writes. API/database
+delivery in `fix/progress-persistence`, based on main independently of the NGO PRs; Augusto reviews the PR.
+
+- [x] Reuse shared progress reducer, account assertions, SQL test adapter and client retry behavior.
+- [x] Add independent migration 0007 and per-account revision/token guard; single-query snapshot, atomic batch.
+- [x] Preserve accepted quest order and guarded recovery of ignored legacy rows; monotonic append timestamp.
+- [x] Count only unique new event keys toward the per-account cap.
+- [x] Keep retryable quest events pending with non-success response; save valid subset and permit safe full retry.
+- [x] Add SQL-backed regressions for session persistence, concurrent requests, cap, rollback and account isolation.
+- [x] Update API/storage contract and changelog; preserve flags, game rules and frontend implementation.
+- [x] Root completed typecheck, tests, build and real local D1 smoke against the final implementation.
+- [ ] Publish PR for Augusto; no merge, deploy, remote migration or activation.
+
+IDS: reused existing reducer, request/session guards and D1 adapter; added one guard table because independent
+Worker isolates cannot share a reliable in-memory mutex. No dependencies or new game rules introduced.
+Runtime evidence is recorded by root; authored tests alone are not a pass.
+
+D12 validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): the first nine regression tests against unchanged
+main progress.ts reproduced six failures (acknowledgment, duplicate/cap, delayed accept, competing quests, clock
+rollback and concurrent cap); all pass after the fix. Final workspace: 440 tests passed (shared 127, API 83,
+client 165, dash 33, server 23, site 9), all six package typechecks/builds passed; Worker builds were dry-runs.
+Real local workerd/D1 with migrations 0001–0005 + 0007 passed two-session concurrency, replay, pending-event
+acknowledgment, recovery of 100 XP/level 2 and account isolation via scripts/verify-progress.mjs in apps/api.
+Client regression confirms a 409 retains the pending batch across reload and clears it only after success.
+Jobs ran serially with two-worker/CPU limits. AIOX QA and architecture found no remaining P1/P2. No UI runtime
+changed, no browser suite run. Local Worker stopped; no remote migrations, deploy or flag activation performed.

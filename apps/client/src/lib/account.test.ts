@@ -90,6 +90,35 @@ describe("quests flag (build AND server)", () => {
 });
 
 describe("progress sync and quest events", () => {
+  it("retains a pending batch after 409 and resends it after a reload before clearing it", async () => {
+    stubPage({ accounts: true, quests: true });
+    const queued = [{ missionId: "harness-bells", eventId: "accept" }];
+    const saved = { ...EMPTY, counters: { "harness-bells": 0 }, seen: { "harness-bells:accept": true } };
+    storage.set("vila.pending.v1:u1", JSON.stringify(queued));
+    let ready = false;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path === "/progress/events" && init?.method === "POST") {
+        posted.push(JSON.parse(String(init.body)).events);
+        return Response.json(ready ? { progress: saved } : { error: "progress_pending" }, { status: ready ? 200 : 409 });
+      }
+      return Response.json(path === "/config" ? { accounts: true, quests: true } :
+        path === "/me" ? { user: USER } : { progress: ready ? saved : EMPTY });
+    }));
+    let page = await load(true);
+    await page.initAccount();
+    expect(page.useAccount.getState().sync).toBe("pending");
+    expect(JSON.parse(storage.get("vila.pending.v1:u1")!)).toEqual(queued);
+
+    ready = true;
+    page = await load(true);
+    await page.initAccount();
+    expect(posted).toEqual([queued, queued]);
+    expect(storage.get("vila.pending.v1:u1")).toBeUndefined();
+    expect(page.useAccount.getState().sync).toBe("saved");
+    expect(page.useVila.getState().progress).toEqual(saved);
+  });
+
   it("does not send or queue quest events while quests are off", async () => {
     stubPage({ accounts: true, quests: false });
     guestProgress();

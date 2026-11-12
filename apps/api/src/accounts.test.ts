@@ -329,10 +329,10 @@ describe("server XP (P14, DEC-042)", () => {
     const a = await signUp();
     const q = (missionId: string, eventId: string) => ({ missionId, eventId });
     await events(a, [q("harness-bells", "accept")]);
-    // A stale tab still offers lake-lanterns: answered 200, ignored, and not stored.
+    // A stale tab still offers lake-lanterns: retain it for retry, never acknowledge an ignored event.
     const stale = await events(a, [q("lake-lanterns", "accept")]);
-    expect(stale.status).toBe(200);
-    expect(stale.body.progress.seen["lake-lanterns:accept"]).toBeUndefined();
+    expect([stale.status, stale.body.error]).toEqual([409, "progress_pending"]);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.seen["lake-lanterns:accept"]).toBeUndefined();
     expect(db.sql("SELECT mission_id, event_id FROM progress_events")).toEqual([{ mission_id: "harness-bells", event_id: "accept" }]);
     await events(a, [q("harness-bells", "bell-pine-north"), q("harness-bells", "bell-pine-east"), q("harness-bells", "turn-in")]);
     // With harness-bells finished, the very same event id is now a valid transition.
@@ -346,11 +346,12 @@ describe("server XP (P14, DEC-042)", () => {
     const a = await signUp();
     const q = (eventId: string) => ({ missionId: "harness-bells", eventId });
     const early = await events(a, [q("bell-pine-north")]);
-    expect([early.status, early.body.progress.seen]).toEqual([200, {}]);
+    expect([early.status, early.body.error]).toEqual([409, "progress_pending"]);
     expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(0);
     // Out of order inside one batch: the objective before the accept is skipped, the one after it counts.
     const mixed = await events(a, [q("bell-pine-east"), q("accept"), q("bell-pine-north")]);
-    expect(mixed.body.progress.counters["harness-bells"]).toBe(1);
+    expect([mixed.status, mixed.body.error]).toEqual([409, "progress_pending"]);
+    expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.counters["harness-bells"]).toBe(1);
     const done = await events(a, [q("bell-pine-east"), q("turn-in")]);
     expect(done.body.progress.completed["harness-bells"]).toBe(true);
     expect(done.body.progress.xp).toBe(20);

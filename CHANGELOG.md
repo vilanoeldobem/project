@@ -9,6 +9,16 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — persistência de progresso entre sessões (D12)
+
+- Gravações de missões/XP usam revisão por conta e token exclusivo no D1, evitando que pedidos simultâneos
+  reposicionem eventos já aceitos ou gravem quests incompatíveis. Reenvios não consomem vagas adicionais no limite.
+- Eventos de quest ainda bloqueados retornam `409 progress_pending` após salvar os eventos válidos do lote; a fila
+  existente do cliente preserva o reenvio. Contenção após três tentativas retorna `409 progress_conflict`.
+- Nova migration independente `0007_progress_write_guard.sql`; nenhuma migration remota ou flag foi ativada.
+  Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
+  duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0018](docs/decisions/0018-progress-concurrency-and-acknowledgment.md)).
+
 ### Added — painel administrativo (`apps/dash`, não publicado)
 
 - Novo app `apps/dash` ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)): backoffice em

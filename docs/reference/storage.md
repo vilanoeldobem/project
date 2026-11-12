@@ -1,12 +1,13 @@
 # Armazenamento (D1)
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v5 ·
-> **Atualizado em:** 2026-11-11
+> **Status:** Implementação para revisão · **Versão do software:** 0.4.0 · **Última migration nesta branch:** 0007 ·
+> **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
-[IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v4**). Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
+[IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). O histórico de arquivos aplicados identifica o schema
+real; o número mais alto não comprova que migrations de branches paralelas já foram instaladas.
+Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
 ## 1. Migrations
@@ -18,8 +19,11 @@ Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 | `0003_english_schema.sql` | nomes em inglês: `ongs` → `ngos`, `ong_id` → `ngo_id`, estados e ids (`praca-NN` → `plaza-NN`); dados migrados ([IMPL-0004](../decisions/0004-english-code-portuguese-docs.md)) |
 | `0004_accounts_ngo_applications.sql` | contas (`users`), links (`login_tokens`), `sessions`, `progress_events` e colunas da candidatura em `ngos` ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) |
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
+| `0007_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer somente as tabelas de `0004` ([IMPL-0018](../decisions/0018-progress-concurrency-and-acknowledgment.md)) |
 
-Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
+Regras: imutáveis depois de aplicadas no remoto; identificadores únicos e ordenados; nada de `IF NOT EXISTS` sobre
+tabela existente. `0006` está reservado à entrega de fotos do PR #29. `0007` é independente dela: esta branch e sua
+prova local aplicam `0001`–`0005` + `0007`; não instalam fotos e não executam nenhuma migration remota.
 
 ## 2. Tabelas
 
@@ -90,7 +94,25 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 | `event_id` | TEXT | id estável do evento (`/^[A-Za-z0-9:_.-]{1,64}$/`) |
 | `created_at` | TEXT | ordem de repetição |
 
-Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nada (DEC-042).
+Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nada (DEC-042). Replay usa
+`ORDER BY created_at,rowid`. Novas gravações usam timestamp igual ou maior que o último da conta; empates preservam
+a ordem de inserção. Eventos de quest já aceitos não são substituídos; apenas linha legada ignorada pelo replay pode
+ser reposicionada após reenvio agora válido. Essa recuperação não concede XP extra nem muda o catálogo.
+
+### progress_writes (0007)
+
+`user_id` (PK e FK → users, `ON DELETE CASCADE`), `revision` (inteiro ≥ 0) e `write_token` (UUID da última gravação).
+A linha é criada sob demanda, sem duplicar dados pessoais. Uma consulta única lê revisão e eventos. A transação
+D1 só troca a revisão esperada; todos os eventos do lote exigem o token exclusivo da tentativa vencedora. Uma
+tentativa que perde a corrida não grava eventos, e uma falha de SQL desfaz tanto a revisão quanto o lote inteiro.
+
+Não há mutex em memória nem estado persistido em Durable Object. Todos os escritores de progresso precisam passar
+pelo protocolo; escrita manual em `progress_events` ou execução concorrente do Worker antigo não recebe essa
+garantia. Antes de ativar, aplicar a migration autorizada e garantir que não há escritores legados ativos.
+
+Limite de 500 eventos considera novas chaves distintas, sem cobrar reenvios ou reposicionamento de linha legada.
+A API tenta novamente até três vezes após conflito de revisão. Eventos válidos podem ser persistidos mesmo quando
+outro evento do lote ainda exige `409 progress_pending`; contrato de reenvio em [api.md](api.md).
 
 ### audit_events
 

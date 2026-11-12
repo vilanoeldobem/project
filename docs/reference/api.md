@@ -247,16 +247,50 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
 - Quests dependem de ordem ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)): um evento de quest só é gravado se
   for uma transição válida sobre o progresso já gravado (o lote é aplicado na ordem recebida). Evento ainda inválido
-  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `200`, nada gravado para ele; o mesmo id pode
-  ser reenviado depois. Eventos das quatro missões rápidas são sempre gravados (`INSERT OR IGNORE`).
+  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `409 progress_pending`, sem gravar esse
+  evento. Os eventos válidos do mesmo lote são gravados; reenviar o lote completo é seguro. Duplicatas já aceitas e
+  eventos de quests já concluídas não causam pendência. Eventos das quatro missões rápidas continuam armazenados
+  uma vez, inclusive além da meta; o limite de 500 linhas por conta conta somente chaves novas e únicas.
+- A gravação usa revisão por conta e token exclusivo em uma transação D1 ([IMPL-0018](../decisions/0018-progress-concurrency-and-acknowledgment.md)).
+  Duas sessões que leem o mesmo progresso não podem gravar decisões incompatíveis: a perdedora relê e revalida o
+  lote, até três tentativas. Contenção persistente → `409 progress_conflict`, sem confirmar o lote perdedor. Eventos
+  de quest já aceitos mantêm sua posição; um registro legado que nunca foi uma transição válida pode ser reposicionado
+  somente quando seu reenvio for válido, sob a mesma proteção. O timestamp de novas linhas não retrocede em relação
+  ao histórico da conta, preservando a ordem mesmo com diferença de relógio entre Workers.
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
-  são reenviados quando a conexão volta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
+  são reenviados quando a conexão volta, em novo evento ou na próxima entrada. Os dois erros `409` acima preservam
+  essa fila; não existe atualização instantânea da tela entre dispositivos nem retry por temporizador nesta entrega.
+  `GET /progress` recupera o estado persistido pela sessão da conta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
 - Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
   ordem das transições; não prova que o presente foi achado nem que o NPC foi visitado na cena. Uma conta consegue
   forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
   dá XP.
+
+O formato de sucesso continua `{progress}`. `409 progress_pending` pode ocorrer após gravar a parte válida do lote:
+o consumidor deve preservar e reenviar os eventos, não desfazer os já gravados nem confirmar a fila inteira. Exemplo:
+`[objetivo, accept]` grava o `accept` e responde `409`; ao reenviar, o objetivo pode ser aceito e a duplicata de `accept`
+é inócua. Com quests desligadas, a regra anterior de ignorar esses eventos permanece; o cliente usa `/config` para
+não enviá-los. As bandeiras de produção continuam desligadas.
+
+Prova local com duas sessões e dados sintéticos: `apps/api/scripts/verify-progress.mjs` (somente localhost), incluindo
+concorrência, reenvio, novo login, XP/nível e isolamento de contas. O script não publica recursos nem aplica migrations
+remotas; aplicar `0007_progress_write_guard.sql` no banco local antes de iniciar o Worker.
+
+Na raiz do checkout, com Node 24 e pnpm 10, usar somente o simulador local:
+
+```bash
+pnpm db:migrate:local
+node apps/api/scripts/verify-progress.mjs --seed > .progress-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler d1 execute DB --local --file ../../.progress-smoke-seed.sql
+pnpm --filter @vila/api exec wrangler dev --local --port 8795 --inspector-port 9245 --var ACCOUNTS_ENABLED:true --var QUESTS_V1_ENABLED:true --var ALLOWED_ORIGINS:http://localhost:8799 --var ACCOUNT_ORIGINS:http://localhost:8799 --var ENVIRONMENT:development
+# Em outro terminal, depois de o Worker ficar pronto:
+node apps/api/scripts/verify-progress.mjs http://127.0.0.1:8795
+```
+
+O seed reinicia somente as duas contas sintéticas identificadas no script. Não executar esse SQL remotamente;
+apagar `.progress-smoke-seed.sql` e encerrar o Worker após a prova. As flags acima valem só para esse processo local.
 
 ### Candidatura de ONG (P12, DEC-015, DEC-037)
 
