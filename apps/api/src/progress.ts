@@ -9,8 +9,8 @@
  *
  * Quests (PROPOSTA quests-v1, IMPL-0013) are an order-dependent state machine, so a quest event is stored only
  * when it is a valid transition against the progress already stored (the batch is applied in order). An event
- * that is not valid yet (an accept while another quest is active, an objective before its accept) returns
- * 409 after storing valid events, so the client retains the batch for retry. With `QUESTS_V1_ENABLED` off, quest
+ * that is not applicable (an accept while another quest is active, an objective before its accept) is omitted,
+ * and the response returns the account's authoritative progress. With `QUESTS_V1_ENABLED` off, quest
  * events are skipped and the rest of the batch is stored. The four missions are order-independent: every
  * whitelisted mission event is stored, as before.
  *
@@ -85,12 +85,7 @@ async function snapshot(db: D1Database, userId: string) {
 }
 
 const keyOf = (e: Event) => `${e.missionId}:${e.eventId}`;
-const accepted = (progress: Progress, e: Event) => Boolean(progress.seen[keyOf(e)] || progress.completed[e.missionId]);
-function response(progress: Progress, pending: Event[]): Response {
-  // A successful HTTP response clears the client's queue. Never acknowledge a still-blocked quest event.
-  if (pending.some((e) => !accepted(progress, e))) throw new HttpError(409, "progress_pending");
-  return json({ progress }, { headers: NO_STORE });
-}
+const response = (progress: Progress): Response => json({ progress }, { headers: NO_STORE });
 
 export async function postEvents(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
@@ -104,25 +99,24 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
   const questsOn = env.QUESTS_V1_ENABLED === "true";
   await db.prepare("INSERT OR IGNORE INTO progress_writes(user_id) SELECT id FROM users WHERE id = ?").bind(user.id).run();
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
+    // Let a competing writer finish before reading a fresh snapshot; never spin on one stale claim.
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));
     const saved = await snapshot(db, user.id);
     const existing = new Set(saved.events.map((e) => `${e.mission_id}:${e.event_id}`));
     let progress = replay(saved.events);
-    const planned = new Map<string, Event>(), pending: Event[] = [];
+    const planned = new Map<string, Event>();
     for (const e of valid) {
       const isQuest = QUEST_IDS.has(e.missionId);
       if (isQuest && !questsOn) continue;
       const next = applyEvent(progress, e.missionId, e.eventId).progress;
-      if (isQuest && next === progress) {
-        if (!accepted(progress, e)) pending.push(e);
-        continue;
-      }
+      if (isQuest && next === progress) continue;
       progress = next;
       // Accepted quest rows never move. Only an old ignored row, now a valid transition, can be replaced.
       if (isQuest || !existing.has(keyOf(e))) planned.set(keyOf(e), e);
     }
     const additions = [...planned.keys()].filter((key) => !existing.has(key)).length;
     if (saved.events.length + additions > MAX_EVENTS_PER_USER) throw new HttpError(429, "too_many_events");
-    if (!planned.size) return response(progress, pending);
+    if (!planned.size) return response(progress);
 
     const token = newId();
     // Keep the established timestamp,rowid order, even if another Worker clock was ahead of this one.
@@ -137,7 +131,7 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
     }
     // D1 batch is atomic: a stale claim writes no events; any failure rolls back the claim and the log.
     const [claim] = await db.batch(writes);
-    if (claim.meta.changes) return response(await loadProgress(env, user.id), pending);
+    if (claim.meta.changes) return response(await loadProgress(env, user.id));
   }
   throw new HttpError(409, "progress_conflict");
 }

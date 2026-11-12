@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** 17 ADRs nesta branch · **Atualizado em:** 2026-11-12
+> **Status:** Índice de decisões técnicas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -31,12 +31,10 @@
 | [IMPL-0010](0010-seeded-procedural-voxel-content.md) | Conteúdo voxel procedural por semente (geradores, orçamentos, galeria) | Proposta — fases 0–5 implementadas |
 | [IMPL-0011](0011-accounts-magic-link-ngo-review.md) | Contas, link mágico, candidatura e análise de ONGs | Proposta — implementada, desligada em produção (`ACCOUNTS_ENABLED`); item 4 substituído por IMPL-0012 |
 | [IMPL-0012](0012-resend-transactional-email.md) | E-mail transacional pelo Resend | Aceita (2026-11-11) — implementada; aguarda chave e domínio verificado |
-| [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção; concorrência e confirmação de eventos revistas em IMPL-0018; conteúdo PROPOSTA (PEN-025) |
+| [IMPL-0013](0013-quests-v1-runtime.md) | Runtime das quests `quests-v1`: duas bandeiras, máquina de estados, gravação só de transições válidas | Proposta — implementada, desligada em produção; concorrência e confirmação de eventos revistas em IMPL-0019; conteúdo PROPOSTA (PEN-025) |
 | [IMPL-0014](0014-realtime-idle-timeout.md) | Limite de inatividade na presença (desconectar quem está ausente) | Proposta — implementada, a validar (padrão de 5 min; aguarda deploy) |
 | [IMPL-0015](0015-dash-backoffice-app.md) | Painel administrativo em app e subdomínio próprios (`apps/dash`, `dash.*`) | Aceita (2026-11-11) — implementada, não publicada; menu PROPOSTA |
 | [IMPL-0016](0016-click-navigation-and-colliders.md) | Navegação por clique com desvio de obstáculos e colisores medidos pelo que é desenhado | Proposta — implementada, a validar (layout do mundo segue PROPOSTA, PEN-017) |
-| [IMPL-0018](0018-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementação para revisão, bandeiras inalteradas |
-
-O identificador IMPL-0017 está reservado ao PR de fotos de ONGs; esta entrega é independente desse PR.
+| [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementada, bandeiras inalteradas |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

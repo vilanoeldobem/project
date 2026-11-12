@@ -13,11 +13,12 @@ Cada versão indica o schema D1 que entrega.
 
 - Gravações de missões/XP usam revisão por conta e token exclusivo no D1, evitando que pedidos simultâneos
   reposicionem eventos já aceitos ou gravem quests incompatíveis. Reenvios não consomem vagas adicionais no limite.
-- Eventos de quest ainda bloqueados retornam `409 progress_pending` após salvar os eventos válidos do lote; a fila
-  existente do cliente preserva o reenvio. Contenção após três tentativas retorna `409 progress_conflict`.
-- Nova migration independente `0007_progress_write_guard.sql`; nenhuma migration remota ou flag foi ativada.
+- Eventos de quest incompatíveis com o estado salvo são omitidos e a resposta devolve o progresso da conta,
+  preservando o login quando o visitante tinha outra quest ativa. Contenção após três tentativas com jitter
+  retorna `409 progress_conflict`. Regressão conecta cliente real à API real e confere proprietário, XP e reload.
+- Nova migration `0008_progress_write_guard.sql`, após arquivos e galeria; nenhuma migration remota ou flag foi ativada.
   Catálogo, XP, níveis e interface permanecem iguais. Testes SQL e prova local com duas sessões cobrem persistência,
-  duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0018](docs/decisions/0018-progress-concurrency-and-acknowledgment.md)).
+  duplicidade, concorrência, falha transacional e isolamento de contas ([IMPL-0019](docs/decisions/0019-progress-concurrency-and-acknowledgment.md)).
 
 ### Added — painel administrativo (`apps/dash`, não publicado)
 

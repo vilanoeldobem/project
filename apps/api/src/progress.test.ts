@@ -60,9 +60,9 @@ describe("saved progress across sessions", () => {
     expect(db.sql("SELECT * FROM progress_events WHERE user_id='owner'")).toHaveLength(chain.length);
   });
 
-  it("does not acknowledge a quest event that the client must retry", async () => {
+  it("returns authoritative progress while omitting an inapplicable quest event", async () => {
     const early = await post([quest("bell-pine-north")]);
-    expect(early.status).toBe(409);
+    expect(early.status).toBe(200);
     expect(early.headers.get("Cache-Control")).toBe("no-store");
     expect((await progress()).seen).toEqual({});
     expect((await post([quest("accept")])).status).toBe(200);
@@ -70,9 +70,9 @@ describe("saved progress across sessions", () => {
     expect((await progress()).counters["harness-bells"]).toBe(1);
   });
 
-  it("commits valid events in a mixed pending batch and safely accepts the whole retry", async () => {
+  it("commits valid events in a mixed batch and safely handles an explicit resend", async () => {
     const events = [quest("bell-pine-north"), quest("accept"), mission()];
-    expect((await post(events)).status).toBe(409);
+    expect((await post(events)).status).toBe(200);
     expect((await progress()).seen).toEqual({ "harness-bells:accept": true, "play-memory:win": true });
     expect((await post(events)).status).toBe(200);
     const saved = await progress();
@@ -127,7 +127,7 @@ describe("saved progress across sessions", () => {
     await gate.entered;
     try { expect((await post([quest("accept", "lake-lanterns")], "owner-two")).status).toBe(200); }
     finally { gate.release(); }
-    expect((await delayed).status).toBe(409);
+    expect((await delayed).status).toBe(200);
     expect(db.sql("SELECT mission_id FROM progress_events")).toEqual([{ mission_id: "lake-lanterns" }]);
     expect((await progress()).seen).toEqual({ "lake-lanterns:accept": true });
   });

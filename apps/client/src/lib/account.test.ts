@@ -100,7 +100,7 @@ describe("progress sync and quest events", () => {
       const path = new URL(url).pathname;
       if (path === "/progress/events" && init?.method === "POST") {
         posted.push(JSON.parse(String(init.body)).events);
-        return Response.json(ready ? { progress: saved } : { error: "progress_pending" }, { status: ready ? 200 : 409 });
+        return Response.json(ready ? { progress: saved } : { error: "progress_conflict" }, { status: ready ? 200 : 409 });
       }
       return Response.json(path === "/config" ? { accounts: true, quests: true } :
         path === "/me" ? { user: USER } : { progress: ready ? saved : EMPTY });

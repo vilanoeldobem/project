@@ -14,6 +14,10 @@
 | API HTTP | rotas de `api.*` (`/health`, `/indicators`, `/lots`, `/environment`) | aditivo não quebra; remoção/renomeação = breaking (a retirada do prefixo `/api` na IMPL-0009 foi breaking) |
 | Protocolo de presença | `server.*/room`, `packages/shared/src/net/protocol.ts` | mudança de mensagem = breaking (cliente e servidor juntos) |
 
+Migrations e ADRs recebem numeração sequencial na ordem de integração. Não reservar identificadores para PRs
+paralelos: antes do merge, conferir os arquivos existentes e renumerar somente propostas ainda não aplicadas
+remotamente. A revisão de progresso segue a base conciliada de arquivos/galeria; o histórico aplicado prevalece.
+
 ## 2. SemVer durante 0.y.z
 
 - MINOR (`0.2.0`): novo marco do [ROADMAP](../../ROADMAP.md) ou mudança incompatível.

@@ -36,7 +36,8 @@ INSERT INTO sessions(token_hash,user_id,expires_at) VALUES
     return (await response.json()).progress;
   };
   assert.equal((await request(null)).status, 401);
-  assert.equal((await request(0, [event("bell-pine-north")])).status, 409, "Early event must stay pending");
+  const early = await ok(await request(0, [event("bell-pine-north")]));
+  assert.equal(early.seen["harness-bells:bell-pine-north"], undefined, "Inapplicable event must not enter the account log");
   for (const r of await Promise.all([request(0, [chain[0]]), request(1, [chain[0]])])) await ok(r);
   // Two simulated devices send different objectives plus the same accepted event concurrently.
   for (const r of await Promise.all([request(0, [chain[0], chain[1]]), request(1, [chain[0], chain[2]])])) await ok(r);
@@ -53,5 +54,5 @@ INSERT INTO sessions(token_hash,user_id,expires_at) VALUES
   assert.deepEqual(await ok(await request(1)), completed, "Second session must recover saved progress");
   assert.equal((await request(2, chain, owner)).status, 409, "A different session cannot write this account");
   assert.equal((await ok(await request(2))).xp, 0);
-  console.log("PASS: local D1 pending acknowledgment, two-session concurrency, replay, 100 XP/level 2 and account isolation");
+  console.log("PASS: local D1 authoritative state, two-session concurrency, replay, 100 XP/level 2 and account isolation");
 }

@@ -2,7 +2,7 @@
 
 **Status:** Proposta — implementada e testada; **desligada em produção** (`QUESTS_V1_ENABLED = "false"` na API e build
 do jogo sem `VITE_QUESTS_V1_ENABLED`). Concorrência e confirmação de eventos do item 4 são revistas por
-[IMPL-0018](0018-progress-concurrency-and-acknowledgment.md), proposta em revisão. O catálogo, os XP, os moradores e as regras de jogo das quests são **PROPOSTA**
+[IMPL-0019](0019-progress-concurrency-and-acknowledgment.md), proposta em revisão. O catálogo, os XP, os moradores e as regras de jogo das quests são **PROPOSTA**
 (PEN-025) e **não foram aprovados pelo dono do produto**; este ADR registra só as escolhas técnicas do runtime
 **Data:** 2026-11-11
 **Fontes:** revisão do PR #19 (`feat/quests-v1`, commit `ca587f7`) e autorização do responsável do repositório para
@@ -95,12 +95,13 @@ DEC-026 · DEC-039 · DEC-040 · DEC-041 · DEC-042 · PEN-017 · PEN-023 · PEN
 
 ## Adendo (2026-11-12): persistência concorrente e reenvio
 
-[IMPL-0018](0018-progress-concurrency-and-acknowledgment.md) registra a revisão técnica do item 4: fotografia
-consistente, revisão por conta e token de escrita no D1; duplicatas aceitas não movem eventos no log. Transições
-habilitadas ainda pendentes deixam de receber `200`: a parte válida pode ser salva e o erro conserva a fila do
-cliente para reenvio. Isso substitui também a justificativa histórica de aceitar corridas e confirmar eventos
-ignorados. As duas bandeiras, a máquina de estados, o catálogo e o modelo de confiança permanecem inalterados.
+[IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) registra a revisão técnica do item 4: fotografia
+consistente, revisão por conta e token de escrita no D1; duplicatas aceitas não movem eventos no log. A parte
+válida do lote é salva, eventos inaplicáveis continuam omitidos e `200 {progress}` devolve o estado da conta.
+Uma proposta intermediária de `409 progress_pending` foi retirada na revisão por bloquear a adoção desse estado
+no login. Contenção persistente mantém `409 progress_conflict`. As duas bandeiras, a máquina de estados, o catálogo
+e o modelo de confiança permanecem inalterados.
 
 Esta revisão não reconstrói conquistas perdidas por inferência nem adiciona atualização visual em tempo real entre
 dispositivos. A recuperação de uma linha legada ignorada exige reenvio válido. O corpo anterior registra a decisão
-original; o novo contrato está na [referência da API](../reference/api.md) e em IMPL-0018.
+original; o novo contrato está na [referência da API](../reference/api.md) e em IMPL-0019.

@@ -507,29 +507,21 @@ Answered: audit_events.actor has no FK (deletion works, tested); lot ids are pla
 
 ## Reliable saved progress — D12 — 2026-11-12
 
-Scope: preserve missions, XP and levels across sessions, duplicate requests and concurrent writes. API/database
-delivery in `fix/progress-persistence`, based on main independently of the NGO PRs; Augusto reviews the PR.
+Scope: preserve missions, XP and levels across sessions and concurrent writes; load authoritative account
+progress when guest quest state conflicts. PR #30 follows the canonical files/gallery base (#32 then #35).
 
-- [x] Reuse shared progress reducer, account assertions, SQL test adapter and client retry behavior.
-- [x] Add independent migration 0007 and per-account revision/token guard; single-query snapshot, atomic batch.
-- [x] Preserve accepted quest order and guarded recovery of ignored legacy rows; monotonic append timestamp.
-- [x] Count only unique new event keys toward the per-account cap.
-- [x] Keep retryable quest events pending with non-success response; save valid subset and permit safe full retry.
-- [x] Add SQL-backed regressions for session persistence, concurrent requests, cap, rollback and account isolation.
-- [x] Update API/storage contract and changelog; preserve flags, game rules and frontend implementation.
-- [x] Root completed typecheck, tests, build and real local D1 smoke against the final implementation.
-- [x] Published [PR #30](https://github.com/vilanoeldobem/project/pull/30) against main; review requested from `augustobr1to`. No merge, deploy, remote migration or activation.
+- [x] Reuse shared reducer, session/account assertions and the SQL adapter; no dependencies or game rules added.
+- [x] Per-account revision/token guard, consistent snapshot, atomic batch and bounded jittered retries.
+- [x] Preserve accepted event order, unique-key cap and guarded recovery of ignored legacy rows.
+- [x] Omit inapplicable quest events and return authoritative 200; remove permanent progress_pending errors.
+- [x] Add root integration regression using real client modules, actual API handler and D1 SQLite: account40XP/harness-bells, guest lake-lanterns, pending queue, signin and reload.
+- [x] Sequence migration0008 and ADR0019 after canonical file/gallery changes; no reserved parallel identifiers.
+- [x] Update references/error table, OQ-09, changelog and indexed delivery record; use neutral role names.
+- [ ] Coordinator validation of the revised final tree: targeted negative control, typecheck, all tests, build and local Worker smoke.
+- [ ] Publish updates to the existing PR for Augusto; no merge, deploy, remote migration or flag activation.
 
-IDS: reused existing reducer, request/session guards and D1 adapter; added one guard table because independent
-Worker isolates cannot share a reliable in-memory mutex. No dependencies or new game rules introduced.
-Runtime evidence is recorded by root; authored tests alone are not a pass.
+IDS: reused the reducer, request/session guards, D1 adapter and client synchronization contract. Integration
+imports live at repository-root tests, never in production app code. Runtime evidence must be recorded for this
+revision: the earlier 440-test result predates the review fixes and is not a pass for this tree.
 
-D12 validation (2026-11-12, Node 24.22.2 / pnpm 10.32.1): the first nine regression tests against unchanged
-main progress.ts reproduced six failures (acknowledgment, duplicate/cap, delayed accept, competing quests, clock
-rollback and concurrent cap); all pass after the fix. Final workspace: 440 tests passed (shared 127, API 83,
-client 165, dash 33, server 23, site 9), all six package typechecks/builds passed; Worker builds were dry-runs.
-Real local workerd/D1 with migrations 0001–0005 + 0007 passed two-session concurrency, replay, pending-event
-acknowledgment, recovery of 100 XP/level 2 and account isolation via scripts/verify-progress.mjs in apps/api.
-Client regression confirms a 409 retains the pending batch across reload and clears it only after success.
-Jobs ran serially with two-worker/CPU limits. AIOX QA and architecture found no remaining P1/P2. No UI runtime
-changed, no browser suite run. Local Worker stopped; no remote migrations, deploy or flag activation performed.
+Reproduction and limits: [delivery record](../docs/implementation/progress-persistence-report.md).

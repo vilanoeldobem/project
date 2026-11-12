@@ -1,12 +1,12 @@
 # Armazenamento (D1)
 
-> **Status:** Implementação para revisão · **Versão do software:** 0.4.0 · **Última migration nesta branch:** 0007 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,ngo,admin}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). O histórico de arquivos aplicados identifica o schema
-real; o número mais alto não comprova que migrations de branches paralelas já foram instaladas.
+real; a sequência aplicada deve corresponder ao código publicado.
 Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -19,11 +19,11 @@ Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db
 | `0003_english_schema.sql` | nomes em inglês: `ongs` → `ngos`, `ong_id` → `ngo_id`, estados e ids (`praca-NN` → `plaza-NN`); dados migrados ([IMPL-0004](../decisions/0004-english-code-portuguese-docs.md)) |
 | `0004_accounts_ngo_applications.sql` | contas (`users`), links (`login_tokens`), `sessions`, `progress_events` e colunas da candidatura em `ngos` ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)) |
 | `0005_one_active_application.sql` | índice único parcial: no máximo uma candidatura ativa por pessoa (`submitted`, `under_review`, `changes_requested`, `published`) |
-| `0007_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer somente as tabelas de `0004` ([IMPL-0018](../decisions/0018-progress-concurrency-and-acknowledgment.md)) |
+| `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer somente as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 
-Regras: imutáveis depois de aplicadas no remoto; identificadores únicos e ordenados; nada de `IF NOT EXISTS` sobre
-tabela existente. `0006` está reservado à entrega de fotos do PR #29. `0007` é independente dela: esta branch e sua
-prova local aplicam `0001`–`0005` + `0007`; não instalam fotos e não executam nenhuma migration remota.
+Regras: números sequenciais e identificadores únicos; migrations imutáveis depois de aplicadas no remoto;
+nada de `IF NOT EXISTS` sobre tabela existente. A proteção de progresso vem depois das migrations canônicas
+de arquivos e galeria. Nenhuma migration remota é executada automaticamente.
 
 ## 2. Tabelas
 
@@ -99,7 +99,7 @@ Chave primária `(user_id, mission_id, event_id)`: evento repetido não muda nad
 a ordem de inserção. Eventos de quest já aceitos não são substituídos; apenas linha legada ignorada pelo replay pode
 ser reposicionada após reenvio agora válido. Essa recuperação não concede XP extra nem muda o catálogo.
 
-### progress_writes (0007)
+### progress_writes (0008)
 
 `user_id` (PK e FK → users, `ON DELETE CASCADE`), `revision` (inteiro ≥ 0) e `write_token` (UUID da última gravação).
 A linha é criada sob demanda, sem duplicar dados pessoais. Uma consulta única lê revisão e eventos. A transação
@@ -111,8 +111,9 @@ pelo protocolo; escrita manual em `progress_events` ou execução concorrente do
 garantia. Antes de ativar, aplicar a migration autorizada e garantir que não há escritores legados ativos.
 
 Limite de 500 eventos considera novas chaves distintas, sem cobrar reenvios ou reposicionamento de linha legada.
-A API tenta novamente até três vezes após conflito de revisão. Eventos válidos podem ser persistidos mesmo quando
-outro evento do lote ainda exige `409 progress_pending`; contrato de reenvio em [api.md](api.md).
+A API tenta novamente até três vezes após conflito de revisão, com jitter curto entre tentativas. Eventos de quest
+inaplicáveis são omitidos; a resposta `200` devolve o progresso autoritativo para não impedir o login por um
+conflito com progresso de visitante. Contenção persistente retorna `409 progress_conflict`; contrato em [api.md](api.md).
 
 ### audit_events
 

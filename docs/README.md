@@ -41,6 +41,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 
 **Registro**
 - [implementation/slice-01-report.md](implementation/slice-01-report.md) — entrega da 0.1.0.
+- [implementation/progress-persistence-report.md](implementation/progress-persistence-report.md) — persistência concorrente e correção do progresso divergente ao entrar na conta.
 
 ## Status por área (2026-11-11)
 

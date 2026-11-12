@@ -247,19 +247,20 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
 - Quests dependem de ordem ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)): um evento de quest só é gravado se
   for uma transição válida sobre o progresso já gravado (o lote é aplicado na ordem recebida). Evento ainda inválido
-  (`accept` com outra missão em andamento, objetivo antes do `accept`) → `409 progress_pending`, sem gravar esse
-  evento. Os eventos válidos do mesmo lote são gravados; reenviar o lote completo é seguro. Duplicatas já aceitas e
-  eventos de quests já concluídas não causam pendência. Eventos das quatro missões rápidas continuam armazenados
+  (`accept` com outra missão em andamento, objetivo antes do `accept`) é omitido. Os eventos válidos do mesmo lote
+  são gravados e a resposta `200 {progress}` permite ao cliente carregar o progresso da conta. Isso preserva a
+  regra anterior de IMPL-0013; não enfileira automaticamente uma segunda quest. Eventos das quatro missões rápidas continuam armazenados
   uma vez, inclusive além da meta; o limite de 500 linhas por conta conta somente chaves novas e únicas.
-- A gravação usa revisão por conta e token exclusivo em uma transação D1 ([IMPL-0018](../decisions/0018-progress-concurrency-and-acknowledgment.md)).
+- A gravação usa revisão por conta e token exclusivo em uma transação D1 ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)).
   Duas sessões que leem o mesmo progresso não podem gravar decisões incompatíveis: a perdedora relê e revalida o
-  lote, até três tentativas. Contenção persistente → `409 progress_conflict`, sem confirmar o lote perdedor. Eventos
+  lote, até três tentativas, com espera aleatória curta entre elas (20–39 ms e 40–59 ms). Contenção persistente →
+  `409 progress_conflict`, sem confirmar o lote perdedor. Eventos
   de quest já aceitos mantêm sua posição; um registro legado que nunca foi uma transição válida pode ser reposicionado
   somente quando seu reenvio for válido, sob a mesma proteção. O timestamp de novas linhas não retrocede em relação
   ao histórico da conta, preservando a ordem mesmo com diferença de relógio entre Workers.
 - Ao entrar, o cliente envia o progresso de visitante deste navegador (em lotes de 50), apaga-o do navegador e mostra
   o da conta; depois envia cada evento novo. Eventos que falham ficam numa fila (`vila.pending.v1:<id da conta>`) e
-  são reenviados quando a conexão volta, em novo evento ou na próxima entrada. Os dois erros `409` acima preservam
+  são reenviados quando a conexão volta, em novo evento ou na próxima entrada. `409 progress_conflict` preserva
   essa fila; não existe atualização instantânea da tela entre dispositivos nem retry por temporizador nesta entrega.
   `GET /progress` recupera o estado persistido pela sessão da conta. Ao sair, o jogo volta ao progresso de visitante (vazio depois da migração):
   num navegador compartilhado a próxima pessoa não herda nada.
@@ -268,15 +269,16 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
   dá XP.
 
-O formato de sucesso continua `{progress}`. `409 progress_pending` pode ocorrer após gravar a parte válida do lote:
-o consumidor deve preservar e reenviar os eventos, não desfazer os já gravados nem confirmar a fila inteira. Exemplo:
-`[objetivo, accept]` grava o `accept` e responde `409`; ao reenviar, o objetivo pode ser aceito e a duplicata de `accept`
-é inócua. Com quests desligadas, a regra anterior de ignorar esses eventos permanece; o cliente usa `/config` para
-não enviá-los. As bandeiras de produção continuam desligadas.
+O formato de sucesso continua `{progress}`. `progress_pending` foi retirado durante a revisão: um visitante com
+`lake-lanterns` aceita consegue entrar na conta que tem `harness-bells` ativa e 40 XP; o cliente adota o estado da
+conta e limpa a fila incompatível, em vez de ficar mostrando o progresso local com aviso incorreto de conexão.
+Não existe abandono, substituição automática da quest ativa ou fila de futuras quests; essa decisão continua em
+OQ-09. Com quests desligadas os eventos são omitidos; o cliente usa `/config` para não enviá-los.
+As bandeiras de produção continuam desligadas.
 
 Prova local com duas sessões e dados sintéticos: `apps/api/scripts/verify-progress.mjs` (somente localhost), incluindo
 concorrência, reenvio, novo login, XP/nível e isolamento de contas. O script não publica recursos nem aplica migrations
-remotas; aplicar `0007_progress_write_guard.sql` no banco local antes de iniciar o Worker.
+remotas; aplicar `0008_progress_write_guard.sql` no banco local antes de iniciar o Worker.
 
 Na raiz do checkout, com Node 24 e pnpm 10, usar somente o simulador local:
 
@@ -481,6 +483,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |
 | API | 403 | `admin_only` | rota `/admin/*` sem papel `admin` |
 | API | 400 | `bad_events` | `/progress/events` vazio, com mais de 50 ou com missão/evento desconhecido |
+| API | 409 | `progress_conflict` | três tentativas de gravação perderam a revisão; a fila pode ser reenviada |
+| API | 429 | `too_many_events` | novas chaves de evento excederiam o limite de 500 por conta |
 | API | 403 | `not_verified` | candidatura de conta não verificada |
 | API | 409 | `application_active` | já existe candidatura `submitted`, `under_review` ou `published` |
 | API | 409 | `lot_unavailable` (+ `fields.lotId`) | terreno ocupado (inclusive por corrida) |
