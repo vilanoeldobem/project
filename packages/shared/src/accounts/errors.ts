@@ -30,6 +30,7 @@ const ERROR_TEXT: Record<string, string> = {
   no_application: "Envie a candidatura antes de anexar arquivos.",
   application_locked: "Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.",
   application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
+  application_withdrawn: "Esta organização foi retirada da Vila pela administração. Não é possível enviar arquivos, reenviar a candidatura nem registrar novas decisões.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */

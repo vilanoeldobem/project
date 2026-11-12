@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkFile, cleanImage, FILE_ERRORS, FILE_KINDS, FILE_RULES, fileDownloadName, fileErrorText, filesEditable, sniffFileType } from "./files";
+import { checkFile, cleanImage, FILE_ERRORS, FILE_KINDS, FILE_RULES, fileDownloadName, fileErrorText, filesEditable, filesRemovable, sniffFileType } from "./files";
 
 const ascii = (s: string) => Uint8Array.from(s, (c) => c.charCodeAt(0));
 const join = (...parts: Uint8Array[]) => {
@@ -311,6 +311,11 @@ describe("rules and copy", () => {
 
   it("lets files change before and after the admin review, never during it or once published", () => {
     for (const s of ["submitted", "changes_requested", "rejected"]) expect(filesEditable(s)).toBe(true);
-    for (const s of ["under_review", "published", "anything"]) expect(filesEditable(s)).toBe(false);
+    for (const s of ["under_review", "published", "withdrawn", "anything"]) expect(filesEditable(s)).toBe(false);
+  });
+
+  it("lets the applicant remove (never add) their own files once the NGO was withdrawn", () => {
+    for (const s of ["submitted", "changes_requested", "rejected", "withdrawn"]) expect(filesRemovable(s)).toBe(true);
+    for (const s of ["under_review", "published", "anything"]) expect(filesRemovable(s)).toBe(false);
   });
 });

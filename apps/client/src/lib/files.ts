@@ -48,5 +48,5 @@ export const withFile = (files: ApplicationFile[], file: ApplicationFile): Appli
 export const fileFailure = (e: unknown): string => (e instanceof ApiError && e.fields.file ? e.fields.file : errorText(e));
 
 /** Refusals that mean the application or its files changed elsewhere (another tab, an admin decision): read them again. */
-const STALE = new Set(["application_changed", "application_locked", "no_application", "too_many_files", "not_found"]);
+const STALE = new Set(["application_changed", "application_locked", "application_withdrawn", "no_application", "too_many_files", "not_found"]);
 export const filesStale = (e: unknown): boolean => e instanceof ApiError && STALE.has(e.code);

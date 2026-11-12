@@ -3,11 +3,15 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db, mail, files }
- *   GET /config      → { accounts, quests, files }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests, files, withdrawal }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *   GET /ngos/:id/logo → logo of a published NGO, from R2 (IMPL-0017; only when NGO_FILES_ENABLED = "true")
+ *
+ * Every public projection of an NGO (lots, indicators, profile, logo, gallery) requires the published lot
+ * association: a withdrawn NGO (IMPL-0020) has no lot, so it leaves all of them, and none of them reads
+ * `ngo_withdrawals` or any other table production may not have yet.
  *
  * Accounts, server XP, NGO applications and admin review (IMPL-0011; only when ACCOUNTS_ENABLED = "true"):
  * see auth.ts, progress.ts, ngo.ts, files.ts, admin.ts, backoffice.ts. Mutations require an allowed `Origin` and a JSON body (which
@@ -30,11 +34,18 @@ import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
 import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
+import { withdrawNgo } from "./ngo-withdrawal";
 
 export interface Env {
   DB?: D1Database;
   /** Institutional gallery on the canonical private FILES bucket (IMPL-0018). */
   NGO_PHOTOS_ENABLED?: string;
+  /**
+   * "true" turns on the administrative withdrawal of a published NGO (PROPOSTA; IMPL-0020, OQ-14). Needs
+   * ACCOUNTS_ENABLED and migration 0009. Off in production and staging until the product owner answers OQ-14.
+   * It only gates new withdrawals: one already recorded stays in force with the flag off.
+   */
+  NGO_WITHDRAWAL_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -93,7 +104,11 @@ export interface Indicator {
 async function indicators(env: Env): Promise<Indicator[]> {
   let approved: number | null = null;
   if (env.DB) {
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM ngos WHERE status = 'published'").first<{ n: number }>();
+    // What the village shows: a published NGO on a published lot, like every other public projection. A withdrawn
+    // NGO keeps `status = 'published'` but has no lot (IMPL-0020). No table newer than migration 0003 is read here.
+    const row = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM ngos n WHERE n.status = 'published' AND EXISTS (SELECT 1 FROM lots l WHERE l.ngo_id = n.id AND l.state = 'published')"
+    ).first<{ n: number }>();
     approved = row?.n ?? 0;
   }
   return [
@@ -178,7 +193,7 @@ async function route(request: Request, env: Env): Promise<Response> {
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env), files: Boolean(env.FILES) }, { headers: NO_STORE });
       case "/config": {
         const accounts = env.ACCOUNTS_ENABLED === "true";
-        return json({ accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)) }, { headers: NO_STORE });
+        return json({ accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true" }, { headers: NO_STORE });
       }
       case "/indicators":
         return json({ updatedAt: new Date().toISOString(), indicators: await indicators(env) });
@@ -201,8 +216,9 @@ async function route(request: Request, env: Env): Promise<Response> {
     }
   } catch (err) {
     if (err instanceof HttpError) return errorResponse(err);
-    // Recognize only the new migration columns; never retry protected writes with weaker guards.
-    if (accountRequest && err instanceof Error && /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token)\b/i.test(err.message))
+    // Recognize only the new migration columns and the withdrawal ledger (0009, joined by the signed-in NGO and
+    // admin routes); never retry protected writes with weaker guards.
+    if (accountRequest && err instanceof Error && /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token)\b|no such table: ngo_withdrawals\b/i.test(err.message))
       return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.
     console.error("api_error", pathname, err instanceof Error ? err.name : "unknown");
@@ -258,6 +274,8 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
+  const ngoWithdrawal = /^\/admin\/ngos\/([^/]+)\/withdraw$/.exec(pathname);
+  if (ngoWithdrawal && method === "POST") return withdrawNgo(request, env, ngoWithdrawal[1]);
   const m = ADMIN_APP.exec(pathname);
   if (m && method === "GET" && !m[2]) return getApplicationAdmin(request, env, m[1]);
   if (m && method === "POST" && m[2]) return decide(request, env, m[1]);

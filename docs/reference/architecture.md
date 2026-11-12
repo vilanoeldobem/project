@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -55,7 +55,7 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
 | Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. Com `/config.files` ligado ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA), a tela da candidatura ganha "Arquivos da candidatura" (`ui/ApplicationFiles.tsx`, `lib/files.ts`): logo e documentos conferidos no navegador com as mesmas regras da API e enviados já sem metadados; o painel do terreno publicado mostra o logo (`ui/BlobImage.tsx`: lido por `fetch` e exibido por URL de objeto, sem alargar a CSP). A análise administrativa saiu do jogo: admins veem só o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) |
 | Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla |
-| Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar `app.*` → `play.*` (301, mesmo caminho e query); o resto vai para os Static Assets |
+| Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar os outros hosts para `play.*`, com o mesmo caminho e query: `app.*` (301, endereço antigo) e `client.*` (302, apelido); o resto vai para os Static Assets |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
 
@@ -143,9 +143,21 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `public-ngo.ts` | Perfil aprovado com lista explícita de campos públicos, tolerante ao schema v3; só ONG com terreno publicado |
 | `ngo-photos.ts` | Galeria institucional PROPOSTA, bandeira `NGO_PHOTOS_ENABLED` desligada em produção, separada de comprovantes; aprovação por foto, bytes privados em `FILES` e publicação condicionada à revisão técnica/operacional |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
+| `ngo-withdrawal.ts` | Retirada administrativa de ONG publicada (IMPL-0020, **PROPOSTA**, bandeira `NGO_WITHDRAWAL_ENABLED` desligada): registro em `ngo_withdrawals`, liberação dos terrenos e auditoria num batch com token exclusivo; a mensagem é para a organização |
 | `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
 
 Único app com acesso ao D1 e ao bucket R2. Detalhes em [api.md](api.md) e [storage.md](storage.md).
+
+**Retirada de publicação (PROPOSTA, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)):** desligada em
+produção e homologação (`NGO_WITHDRAWAL_ENABLED`); a política é PENDENTE ([OQ-14](../decisions/open-questions.md)).
+A tabela aditiva `ngo_withdrawals` marca a retirada sem mudar `ngos.status` (continua `published`); as rotas
+privadas projetam o estado efetivo `withdrawn`. No mesmo batch, a retirada incrementa a revisão, libera os
+terrenos efetivamente associados e grava uma auditoria. **As projeções públicas de uma ONG exigem o terreno
+publicado e não leem essa tabela**: a ONG retirada some de `/lots`, `/indicators`, do perfil, do logo e das
+fotos, e as rotas públicas respondem igual nos schemas v3 a v9. As rotas de candidatura e análise leem a tabela
+e respondem `503 schema_outdated` sem a migration 0009. O texto que o admin escreve é a mensagem lida pela
+organização; não entra em resposta pública nem na auditoria. O jogo precisa recarregar para atualizar uma cena
+aberta; não há broadcast de retirada nem alteração de XP ou missões.
 
 ### 3.1 Fluxo de entrada (link mágico)
 
@@ -248,7 +260,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | todos | `routes` | Custom Domain do app | Um subdomínio por Worker |
 | todos | `observability.enabled` | `true` | Logs de erro (requisito do doc 06) |
 | client | `assets.not_found_handling` | `single-page-application` | Rotas do cliente caem no `index.html` |
-| client | `assets.run_worker_first` | `true` | Worker só redireciona `app.*`; o resto vai para `ASSETS` |
+| client | `assets.run_worker_first` | `true` | Worker só redireciona `app.*` e `client.*`; o resto vai para `ASSETS` |
 | api | `d1_databases[0]` | binding `DB`, `migrations_dir: ../../migrations` | Migrations na raiz do repo |
 | api | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br` | CORS por origem exata |
 | api | `vars.ACCOUNT_ORIGINS` | `https://play.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br` | Só o jogo e o painel usam rotas de conta e recebem CORS com credenciais |
@@ -317,9 +329,9 @@ importa nada dos outros apps: o que divide com o jogo está em `packages/shared/
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `accounts_disabled`) |
 | Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta |
 | Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`) |
-| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos; envio da decisão (recarrega a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique) |
+| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos; envio da decisão e da retirada (recarregam a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique) |
 | Aparência | `lib/theme.ts`, `styles.css` | Cores vindas de `PALETTE` (`packages/shared/src/game/world.ts`); um único CSS, sem estilo inline |
-| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download; terrenos; auditoria; contas; estado do sistema; áreas pendentes |
+| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download, e a ação "Retirar da Vila" de uma ONG publicada (IMPL-0020, PROPOSTA; só quando `/config` traz `withdrawal: true`), com o campo nomeado como mensagem para a organização; terrenos; auditoria; contas; estado do sistema; áreas pendentes |
 | Build | `security-headers.ts`, `vite.config.ts` | `_headers` por build (CSP com a API da build) |
 
 Quem vê o quê:
@@ -345,6 +357,9 @@ de sanção (regras não definidas, DEC-037).
 - Envio de logo e documentos implementado, mas desligado em produção (`NGO_FILES_ENABLED`): falta criar o bucket,
   aplicar as migrations 0006/0007, definir a lista de documentos (PEN-019) e o prazo de retenção (OQ-12). PDF não é
   inspecionado.
+- Retirada de ONG publicada implementada como PROPOSTA e desligada (`NGO_WITHDRAWAL_ENABLED`): sem restauração,
+  sem aviso por e-mail, sem atualização de cenas abertas; o que ela significa para a conta e o CNPJ é pergunta
+  aberta (OQ-14).
 - Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo

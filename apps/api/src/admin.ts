@@ -13,10 +13,13 @@
  * it decides nothing about the content, it only starts the review — and locks the files (IMPL-0017) — so it
  * applies to whatever revision is current; an applicant cannot keep it away by changing files. Approving also requires the three DEC-015
  * checks (`checks: {activeCnpj, oneYear, fundsConfirmable}`, all true), recorded in the audit detail.
+ *
+ * No decision applies to a published NGO. Taking one out of the village is the withdrawal (IMPL-0020, PROPOSTA;
+ * ngo-withdrawal.ts); lists and details here show its effective status `withdrawn`.
  */
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { applicationSnapshot, applicationView, type NgoRow } from "./ngo";
+import { APPLICATION_QUERY, applicationSnapshot, applicationView, type NgoRow } from "./ngo";
 import { requireAdmin } from "./session";
 import type { Env } from "./api";
 
@@ -30,15 +33,17 @@ const RULES: Record<Action, { from: string[]; to: string; lot: string | null }> 
   reject: { from: ["submitted", "under_review", "changes_requested"], to: "rejected", lot: null },
 };
 
-const STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected"];
+const STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"];
 
 export async function listApplications(request: Request, env: Env): Promise<Response> {
   await requireAdmin(request, env);
   const status = new URL(request.url).searchParams.get("status");
-  const where = status && STATUSES.includes(status) ? "WHERE n.status = ?" : "WHERE n.applicant_id IS NOT NULL OR n.status != 'published'";
+  // The stored status of a withdrawn NGO stays 'published' (IMPL-0020): lists show and filter the effective one.
+  const effectiveStatus = "CASE WHEN w.ngo_id IS NOT NULL THEN 'withdrawn' ELSE n.status END";
+  const where = status && STATUSES.includes(status) ? `WHERE ${effectiveStatus} = ?` : "WHERE n.applicant_id IS NOT NULL OR n.status != 'published' OR w.ngo_id IS NOT NULL";
   const stmt = env.DB!.prepare(
-    `SELECT n.id, n.name, n.city, n.status, n.revision, n.requested_lot_id AS lotId, n.created_at AS createdAt, n.updated_at AS updatedAt
-       FROM ngos n ${where} ORDER BY n.updated_at DESC LIMIT 200`
+    `SELECT n.id, n.name, n.city, ${effectiveStatus} AS status, n.revision, n.requested_lot_id AS lotId, n.created_at AS createdAt, n.updated_at AS updatedAt
+       FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id ${where} ORDER BY n.updated_at DESC LIMIT 200`
   );
   const { results } = await (status && STATUSES.includes(status) ? stmt.bind(status) : stmt).all();
   return json({ applications: results }, { headers: NO_STORE });
@@ -76,8 +81,10 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
   const checks = { activeCnpj: raw.activeCnpj === true, oneYear: raw.oneYear === true, fundsConfirmable: raw.fundsConfirmable === true };
   if (action === "approve" && !(checks.activeCnpj && checks.oneYear && checks.fundsConfirmable)) throw new HttpError(400, "checks_required");
   const db = env.DB!;
+  // Read through the withdrawal ledger like the answer below: a database without migration 0009 is refused here
+  // (503 schema_outdated), before anything is written.
   const row = await db.prepare(`SELECT n.*, COALESCE(u.files_deleting,0) AS files_deleting FROM ngos n
-    LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
+    LEFT JOIN ngo_withdrawals w ON w.ngo_id=n.id LEFT JOIN users u ON u.id=n.applicant_id WHERE n.id=?`).bind(id).first<NgoRow & { files_deleting: number }>();
   if (!row) throw new HttpError(404, "not_found");
   // Rejection only releases the reserved lot; it cannot republish evidence or cancel partial erasure.
   if (row.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
@@ -109,6 +116,6 @@ export async function decide(request: Request, env: Env, id: string): Promise<Re
     if (latest?.files_deleting && action !== "reject") throw new HttpError(409, "account_deleting");
     throw new HttpError(409, latest && latest.revision !== row.revision ? "stale_revision" : "bad_transition");
   }
-  const after = await db.prepare("SELECT * FROM ngos WHERE id = ?").bind(id).first<NgoRow>();
+  const after = await db.prepare(`${APPLICATION_QUERY} WHERE n.id = ?`).bind(id).first<NgoRow>();
   return json({ application: applicationView(after!) }, { headers: NO_STORE });
 }

@@ -599,3 +599,34 @@ Reuse: the reducer, request/session guards, D1 adapter and client synchronizatio
 imports live at repository-root tests, never in production app code. The 608-test and runtime evidence above supersedes the earlier 440-test baseline, which predates these review fixes.
 
 Reproduction and limits: [delivery record](../docs/implementation/progress-persistence-report.md).
+
+## NGO withdrawal ported onto the canonical file pipeline — 2026-11-12 (IMPL-0020, PR #33)
+
+Scope: port the withdrawal of published NGOs (PR #33, commit `5026c47`) onto the base that has the canonical
+files, gallery and progress work, and fix the findings of its review. Dark, PROPOSTA; policy stays in OQ-14.
+
+- [x] Port: `ngo-withdrawal.ts`, migration `0009_ngo_withdrawals.sql`, route, effective status in signed-in and
+  admin reads, guards in the gallery and file modules; tests moved to `ngo_files`, raw photo uploads and reserved
+  R2 writes. Old documents module, old bindings and the test environment in `wrangler.jsonc` not brought back.
+- [x] Finding 1: no public route reads the ledger; `/indicators` counts published NGOs on a published lot; schema
+  matrix v3 to v9 with both flag values; one test asserts every public projection drops a withdrawn NGO.
+- [x] Finding 2: routes that join the ledger answer `503 schema_outdated` without 0009 (a decision is refused
+  before it writes); `docs/guides/deploy.md` says migration before API when accounts are on.
+- [x] Finding 3: flag "false" in production and staging (tested), PROPOSTA labels, ADR states what the code does,
+  OQ-14 spells the effects out; the lot release is "pending registration" (no DEC).
+- [x] Finding 4: the admin's text is named a message to the organisation (API, contract, docs, dashboard).
+- [x] Finding 5: after a withdrawal the applicant removes (never adds) files and photos; account deletion
+  completes and erases the withdrawn NGO's logo; a withdrawal waits for a pending erasure; races against a file
+  upload, an approval, a resubmission and `DELETE /me` tested in both orders.
+- [x] Finding 6: game shows "Retirada da Vila" and the message; dashboard shows status and message, labels
+  `ngo.withdraw` and offers the action (message, revision on screen, confirmation) when `/config` says so.
+- [x] Finding 7: local checks on the reconciliation config (`verify-media-local.mjs --withdrawal`, also in CI;
+  `apps/dash/scripts/verify-withdrawal.mjs` with system Chrome), listed in `AGENTS.md`.
+- [x] `pnpm typecheck`, `pnpm test` (708: shared 147, API 273, client 189, dash 67, server 23, site 9),
+  `pnpm build`; both local checks passed on local workerd, D1, R2 and Chrome.
+- [ ] Not verified: anything remote; the game screen in a browser (server-side render test only); CI with the
+  new step.
+- [ ] Owner's call before activation: OQ-14 (account and CNPJ block, no undo, re-entry, retention, message
+  channel, lot release as a DEC) and OQ-09 (mission whose target left the village).
+
+Delivery record: [docs/implementation/ngo-withdrawal-report.md](../docs/implementation/ngo-withdrawal-report.md).

@@ -1,12 +1,12 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
 > **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage}.ts`
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v8 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v9 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -25,9 +25,11 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0006_ngo_files.sql` | tabela `ngo_files`: metadados dos arquivos das candidaturas guardados no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)) |
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
 | `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
+| `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 
-Esta versão contém 0001–0008, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
-galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso. A 0007 chamava-se 0010
+Esta versão contém 0001–0009, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
+retiradas. A 0007 chamava-se 0010
 enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
 Simuladores locais com a antiga 0010 são bases alternativas: usar nova base isolada, sem renomear seu histórico
 ou apagá-los.
@@ -36,6 +38,10 @@ Os fallbacks públicos do #32 para ausência de `ngo_files` permanecem: `/lots` 
 responde 404. Eles não dispensam a migration 0007 para usar as rotas privadas conciliadas.
 Operações de conta que encontrem ausência das novas colunas retornam `503 schema_outdated`; isso não substitui
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
+A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
+ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v9 (com as contas ligadas, a migration
+vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -50,8 +56,8 @@ Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de 
 | `cnpj` | TEXT UNIQUE | só dígitos, com dígitos verificadores conferidos (critério 1, DEC-015) |
 | `cnpj_opened_on` | TEXT | `YYYY-MM-DD` (critério 2, ≥ 1 ano; medida PROPOSTA, PEN-013) |
 | `summary` | TEXT | aparece na casa publicada |
-| `status` | TEXT | `submitted` → `under_review` → (`changes_requested`) → `published` \| `rejected` |
-| `revision` | INTEGER > 0 | sobe a cada reenvio, envio/remoção de arquivo e exclusão da conta responsável |
+| `status` | TEXT | `submitted` → `under_review` → (`changes_requested`) → `published` \| `rejected`. Uma ONG retirada (PROPOSTA, IMPL-0020) **continua `published` aqui**; o registro em `ngo_withdrawals` é que a marca, e as respostas privadas mostram `withdrawn` |
+| `revision` | INTEGER > 0 | sobe a cada reenvio, envio/remoção de arquivo, retirada e exclusão da conta responsável |
 | `file_write_token` | TEXT | v7; token exclusivo da escrita/decisão vencedora, usado para condicionar efeitos e auditoria |
 | `created_at`, `updated_at` | TEXT | RFC 3339 UTC com milissegundos |
 | `applicant_id` | TEXT FK → users, `ON DELETE SET NULL` | v4; conta que enviou; some se a conta for excluída |
@@ -111,6 +117,39 @@ Registro de upload/limpeza de logo e comprovantes; a galeria usa os marcadores n
 metadados duplicados do arquivo. A intenção precede R2 e é apagada na transação que publica os metadados em
 `ngo_files`, ou depois de excluir o objeto. Remoção/substituição cria a intenção na mesma transação que remove
 o metadado antigo. `DELETE /me` limpa as chaves e depois apaga as intenções da conta.
+
+### ngo_withdrawals (v9, PROPOSTA)
+
+Registro das retiradas administrativas de ONG publicada ([IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)).
+**PROPOSTA**: só recebe linhas com `NGO_WITHDRAWAL_ENABLED = "true"` (desligada em produção e homologação); o
+que a retirada significa é PENDENTE ([OQ-14](../decisions/open-questions.md)).
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `ngo_id` | TEXT PK, FK → ngos | uma retirada por ONG; sem cascata (o registro impede apagar a ONG) |
+| `operation_token` | TEXT UNIQUE | token exclusivo do pedido: revisão, terrenos e auditoria só valem para quem inseriu a linha |
+| `reason` | TEXT, 10–1000 caracteres | **mensagem para a organização**, mostrada ao responsável como foi escrita; não é anotação interna |
+| `actor` | TEXT | id do admin (nunca e-mail); sem FK, como `audit_events.actor` |
+| `withdrawn_at` | TEXT | RFC 3339 UTC |
+| `revision` | INTEGER > 1 | revisão da ONG logo depois da retirada (remoções posteriores de arquivo continuam subindo `ngos.revision`) |
+| `lot_ids` | TEXT (JSON) | ids dos terrenos liberados; pode ser `[]` |
+
+Uma transação: a linha só é inserida se a ONG ainda estiver `published`, na revisão lida, sem retirada anterior e
+sem exclusão de conta pendente; as instruções seguintes conferem o token e incrementam a revisão, liberam **todas
+as associações atuais** em `lots` (`available`, `ngo_id = NULL`) e gravam a auditoria. Quem perde a disputa não
+altera nada; falha em qualquer instrução desfaz tudo. `requested_lot_id`, `review_note`, arquivos, fotos e
+progresso não são tocados.
+
+O que decorre do desenho, **a ratificar ou mudar na OQ-14**: `ngos.status` continua `published`, então a linha
+segura a vaga do índice único da 0005 (a conta do responsável não envia outra candidatura) e o CNPJ continua em
+uso; não há rota nem instrução que apague ou desfaça o registro; ele e a mensagem ficam mesmo depois que a conta
+do responsável é excluída. Não remova linhas ou a tabela como "rollback": depois de existir uma retirada, uma
+versão anterior da API mostraria a organização como publicada nas telas privadas e a contaria de novo no
+indicador público.
+
+As leituras públicas não consultam esta tabela (exigem o terreno publicado, que a retirada libera). As rotas de
+candidatura e de análise a consultam para projetar `withdrawn` e recusar envios; ver
+[api.md](api.md#retirada-administrativa-de-ong-publicada-impl-0020-proposta).
 
 ### lots
 
@@ -185,6 +224,7 @@ conflito com progresso de visitante. Contenção persistente retorna `409 progre
 |---|---|---|---|
 | `ngo.submit`, `ngo.resubmit` | quem enviou | `ngo:<id>` | `{lot, revision}` |
 | `ngo.start_review`, `ngo.approve`, `ngo.request_changes`, `ngo.reject` | admin | `ngo:<id>` | `{from, to, lot, revision, hasNote}` (sem o texto da mensagem) |
+| `ngo.withdraw` (PROPOSTA, IMPL-0020) | admin | `ngo:<id>` | `{from, to, revision, lots, hasReason}` (ids dos terrenos liberados; sem o texto da mensagem) |
 | `ngo.file_add`, `ngo.file_remove` | quem enviou | `ngo:<id>` | `{kind, file, revision}` (ids; sem nome de arquivo) |
 | `ngo.file_read` | admin que baixou um **documento** | `ngo:<id>` | `{kind, file}` |
 | `ngo.file_cleanup` | admin que iniciou recuperação | `ngo:<id>` | `{requested}`; quantidade selecionada, registrada antes de excluir bytes; não prova sucesso |
@@ -210,9 +250,10 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
 | Candidatura de ONG e `audit_events` | ficam após a exclusão da conta, sem o vínculo `applicant_id` |
-| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) |
-| Logo (R2) | de candidatura não publicada: apagado com a conta; de ONG publicada: fica, como a ONG |
+| Documentos da candidatura (R2) | até a pessoa removê-los (fora da análise e antes da publicação, ou depois de uma retirada) ou excluir a conta (`DELETE /me` apaga do R2 e do D1); **sem prazo definido**, inclusive depois de uma rejeição (OQ-12) ou de uma retirada (OQ-14) |
+| Logo (R2) | de candidatura fora da Vila (não publicada, ou retirada): apagado com a conta; de ONG publicada em terreno publicado: fica, como a ONG |
 | Galeria (R2) | todas as fotos são removidas ao excluir a conta, inclusive as aprovadas; falha de limpeza permite repetição |
+| Registro de retirada (`ngo_withdrawals`, D1; PROPOSTA) | fica, com a mensagem enviada à organização, inclusive depois da exclusão da conta do responsável; **sem prazo definido** (OQ-14) |
 | Intenção de arquivo (D1) | até finalizar o upload ou confirmar a limpeza; cancelamento de envio abandonado pode ser solicitado após 15 min, sem prazo automático de retenção |
 
 ## 4. Dados que **não** ficam no D1 nesta versão
@@ -279,9 +320,11 @@ mesmo depois que o vínculo e a linha do usuário desaparecerem.
 
 O logo institucional segue a retenção canônica por status da ONG. A galeria é apagada com a conta em qualquer
 estado; antes da exclusão, leitura pública exige foto aprovada e terreno publicado. Direitos de imagem e
-consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da ONG é uma entrega separada.
+consentimentos continuam sujeitos à decisão operacional OQ-15. A retirada da ONG (IMPL-0020, PROPOSTA) não
+apaga arquivo algum; o logo só continua guardado depois da exclusão da conta enquanto a ONG estiver publicada em
+um terreno publicado, e a retirada é recusada (`409 account_deleting`) enquanto uma exclusão estiver pendente.
 
 ## Ver também
 
 [api.md](api.md) · [guides/deploy.md](../guides/deploy.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
-[IMPL-0017](../decisions/0017-ngo-files-r2.md)
+[IMPL-0017](../decisions/0017-ngo-files-r2.md) · [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)

@@ -43,5 +43,5 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  test: { include: ["src/**/*.test.ts", "worker/**/*.test.ts"], environment: "node" },
+  test: { include: ["src/**/*.test.{ts,tsx}", "worker/**/*.test.ts"], environment: "node" },
 }));

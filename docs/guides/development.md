@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v8 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 
@@ -23,7 +23,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
     lib/                    api.ts (cliente da API), account.ts (conta, sessão, sincronização do progresso),
                             endpoints.ts (hosts por modo de build), services.ts
     net/multiplayer.ts      conexão de presença com o servidor
-  worker/                   index.ts (entrada) + handle.ts (redireciona app.* → play.*)
+  worker/                   index.ts (entrada) + handle.ts (redireciona app.* e client.* → play.*)
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
@@ -220,7 +220,7 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 Use a configuração separada `apps/api/wrangler.reconciliation-local.jsonc`, sem `account_id`, rotas ou IDs de
 produção. Ela usa D1/R2 sintéticos `ngo-media-review-local` com `remote:false`; nunca executar deploy com ela.
-A numeração atual termina em 0008. A base anterior do simulador (0010) deve permanecer intacta: esta receita
+A numeração atual termina em 0009. A base anterior do simulador (0010) deve permanecer intacta: esta receita
 cria um espaço local novo, sem renomear migrations já aplicadas naquela base.
 
 Em `apps/api`, num diretório de persistência novo:
@@ -253,3 +253,44 @@ A validação de conciliação também roda isolada no CI: `node scripts/verify-
 banco e bucket temporários, aplica migrations e fixtures sintéticas, espera o Worker responder e executa o
 smoke de arquivos. `--browser` é reservado ao CI com Chromium instalado e assets `build:local`; reutiliza
 `verify-accounts.mjs`, substitui GTM (não valida analytics) e encerra apenas os processos criados pelo runner.
+
+## Retirada de ONG publicada, local (IMPL-0020, PROPOSTA)
+
+A retirada fica desligada em produção, em homologação e no script `dev`. Para exercitá-la, a bandeira é ligada
+**só no Worker local da prova**: não existe ambiente de teste em `apps/api/wrangler.jsonc`, e a configuração
+separada `wrangler.reconciliation-local.jsonc` é reaproveitada sem alteração.
+
+Um comando, com banco e bucket temporários (porta 8792), na raiz:
+
+```bash
+node scripts/verify-media-local.mjs --withdrawal        # ou --progress --withdrawal, como no CI
+```
+
+O runner liga `NGO_WITHDRAWAL_ENABLED` apenas na configuração gerada para aquele Worker, aplica as migrations
+0001–0009 e os dados sintéticos de `apps/api/scripts/verify-withdrawal.mjs --seed` e executa a prova: logo,
+documento e foto pelo fluxo canônico, aprovação, duas retiradas concorrentes (uma vence), todas as leituras
+públicas sem a organização, remoção dos próprios arquivos pelo responsável, auditoria única e XP preservado.
+
+Para a conferência do painel em navegador (Chrome do sistema; `CHROMIUM_PATH` escolhe outro), mantenha um Worker
+local da API no ar. Em `apps/api`, num diretório de persistência novo:
+
+```bash
+pnpm exec wrangler d1 migrations apply ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to .wrangler/withdrawal-v9
+node scripts/verify-withdrawal.mjs --seed > .wrangler/withdrawal-seed.sql
+pnpm exec wrangler d1 execute ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to .wrangler/withdrawal-v9 --file .wrangler/withdrawal-seed.sql
+pnpm exec wrangler dev --local -c wrangler.reconciliation-local.jsonc --persist-to .wrangler/withdrawal-v9 --var NGO_WITHDRAWAL_ENABLED:true --port 8793 --inspector-port 9243
+```
+
+Em outros terminais, na raiz:
+
+```bash
+pnpm --filter @vila/dash build:local && pnpm --filter @vila/dash exec vite preview --port 4175 --strictPort
+node apps/dash/scripts/verify-withdrawal.mjs http://localhost:4175 http://127.0.0.1:8793
+```
+
+O script retira pelo painel a segunda ONG sintética (já publicada pelo seed): confere a ação desabilitada até a
+confirmação, o campo nomeado como mensagem para a organização, um único pedido de retirada, o detalhe retirado,
+os filtros e o terreno liberado, em tamanho de desktop e de celular. Uma ponte de transporte entrega as chamadas
+do painel à API local com a sessão administrativa sintética; o login real não é testado aqui. Aplique o seed de
+novo antes de repetir (a ONG sintética só pode ser retirada uma vez; repetir o seed pode deixar bytes órfãos no
+R2 local). Nunca aplicar esse seed em base compartilhada ou remota. Pare os processos com Ctrl+C ao terminar.

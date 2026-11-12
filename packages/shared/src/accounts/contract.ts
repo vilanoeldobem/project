@@ -18,7 +18,7 @@ export interface Me {
   deletionPending?: boolean;
 }
 
-export const APPLICATION_STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected"] as const;
+export const APPLICATION_STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 /** State names are PROPOSTA (IMPL-0011); the labels are UI copy. */
@@ -28,6 +28,7 @@ export const STATUS_LABEL: Record<ApplicationStatus, string> = {
   changes_requested: "Ajustes solicitados",
   published: "Aprovada e publicada",
   rejected: "Não aprovada",
+  withdrawn: "Retirada da Vila",
 };
 
 export interface Application extends NgoApplication {
@@ -37,6 +38,11 @@ export interface Application extends NgoApplication {
   reviewNote: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Present once the administration withdrew the NGO (IMPL-0020, PROPOSTA). `reason` is the message the admin
+   * wrote to the organisation: the applicant reads it as written. It is not an internal note.
+   */
+  withdrawal?: { reason: string; at: string };
 }
 
 /** `GET /ngo/application` and the answer of `POST /ngo/application`. `files` is empty unless uploads are on (IMPL-0017). */

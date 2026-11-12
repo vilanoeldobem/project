@@ -5,6 +5,9 @@
  * Moved from the game (`apps/client/src/ui/Admin.tsx`) in IMPL-0015 with the same API calls and messages.
  *
  * Files (IMPL-0017, PROPOSTA): the logo is previewed; documents are only downloaded, one audited read per click.
+ *
+ * Withdrawal (IMPL-0020, PROPOSTA): a published NGO can be taken out of the village only when the API says
+ * `withdrawal` in `/config`. The text the admin writes is the message the organisation reads, and is labelled so.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -15,12 +18,12 @@ import { NGO_TAGS, type NgoTag } from "@vila/shared/accounts/validate";
 
 import { downloadDocument } from "../lib/files";
 import { actionText, dateTime, FILE_TYPE_LABEL, fileSize } from "../lib/format";
-import { sendDecision } from "../lib/review";
+import { sendDecision, sendWithdrawal } from "../lib/review";
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
 import { AccountsOff, Field, Notice, PageHead, Status } from "./common";
 
-export function Applications({ id, locked }: { id?: string; locked: boolean }) {
+export function Applications({ id, locked, accountId }: { id?: string; locked: boolean; accountId?: string }) {
   // Lives here (not in the list) so the chosen filter survives opening an application and coming back.
   const [filter, setFilter] = useState<ApplicationStatus | "">("");
   if (locked)
@@ -30,7 +33,7 @@ export function Applications({ id, locked }: { id?: string; locked: boolean }) {
         <AccountsOff what="não há candidaturas para analisar" />
       </>
     );
-  return id ? <ReviewDetail key={id} id={id} /> : <ApplicationList filter={filter} onFilter={setFilter} />;
+  return id ? <ReviewDetail key={id} id={id} accountId={accountId} /> : <ApplicationList filter={filter} onFilter={setFilter} />;
 }
 
 function ApplicationList({ filter, onFilter }: { filter: ApplicationStatus | ""; onFilter: (s: ApplicationStatus | "") => void }) {
@@ -98,17 +101,20 @@ const BackToList = () => (
   </p>
 );
 
-function ReviewDetail({ id }: { id: string }) {
+function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
   const [d, setD] = useState<ApplicationDetail | null>(null);
   /** `GET /config` says whether uploads work in this API; an older API does not send the flag (= off). */
   const [filesOn, setFilesOn] = useState(false);
+  /** `GET /config` says whether a published NGO can be withdrawn (IMPL-0020, PROPOSTA); absent = off. */
+  const [withdrawalOn, setWithdrawalOn] = useState(false);
   const [error, setError] = useState("");
   useEffect(
     () =>
-      // A failed `/config` only means the flag is unknown (treated as off): the application itself still opens.
-      void Promise.all([api.adminGet(id), api.config().catch(() => ({ files: false }))]).then(
+      // A failed `/config` only means the flags are unknown (treated as off): the application itself still opens.
+      void Promise.all([api.adminGet(id), api.config().catch((): { files?: boolean; withdrawal?: boolean } => ({}))]).then(
         ([detail, config]) => {
           setFilesOn(config.files === true);
+          setWithdrawalOn(config.withdrawal === true);
           setD(detail);
         },
         (e) => setError(errorText(e))
@@ -121,7 +127,7 @@ function ReviewDetail({ id }: { id: string }) {
       <p className="kicker">Análise administrativa · apenas administradores</p>
       <PageHead title={d ? d.application.name : error ? "Candidatura indisponível" : "Carregando…"} />
       {d ? (
-        <Review id={id} d={d} filesOn={filesOn} onDetail={setD} />
+        <Review id={id} d={d} filesOn={filesOn} withdrawalOn={withdrawalOn} accountId={accountId} onDetail={setD} />
       ) : (
         <>
           {error && (
@@ -138,10 +144,27 @@ function ReviewDetail({ id }: { id: string }) {
 
 /**
  * The review of one loaded application: evidence, files, checks, decision and history. `onDetail` receives each
- * fresh copy; `filesOn` is the API's `files` flag.
+ * fresh copy; `filesOn` and `withdrawalOn` are the API's `files` and `withdrawal` flags; `accountId` is the
+ * signed-in admin (the withdrawal names the account the page believes is signed in).
  */
-export function Review({ id, d, filesOn, onDetail }: { id: string; d: ApplicationDetail; filesOn: boolean; onDetail: (d: ApplicationDetail) => void }) {
+export function Review({
+  id,
+  d,
+  filesOn,
+  withdrawalOn = false,
+  accountId,
+  onDetail,
+}: {
+  id: string;
+  d: ApplicationDetail;
+  filesOn: boolean;
+  withdrawalOn?: boolean;
+  accountId?: string;
+  onDetail: (d: ApplicationDetail) => void;
+}) {
   const [note, setNote] = useState("");
+  /** The admin confirmed that a withdrawal cannot be undone here. */
+  const [understood, setUnderstood] = useState(false);
   const [checks, setChecks] = useState({ cnpj: false, year: false, funds: false });
   const [error, setError] = useState("");
   const [fieldError, setFieldError] = useState("");
@@ -169,6 +192,26 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
       setFieldError((result.error as { fields?: Record<string, string> }).fields?.note ?? "");
       setError(errorText(result.error));
     }
+    setBusy(false);
+  };
+  const withdraw = async () => {
+    if (!accountId) return;
+    setBusy(true);
+    setError("");
+    setFieldError("");
+    setDone("");
+    const result = await sendWithdrawal(api, id, d, accountId, note);
+    if (result.ok) {
+      onDetail(result.detail);
+      setNote("");
+      setDone(`Retirada registrada: ${STATUS_LABEL[result.status]}. A casa saiu da Vila e o terreno foi liberado.`);
+    } else {
+      // The application changed while this screen was open: show the current version and ask to confirm again.
+      if (result.stale) onDetail(result.detail);
+      setFieldError((result.error as { fields?: Record<string, string> }).fields?.reason ?? "");
+      setError(errorText(result.error));
+    }
+    setUnderstood(false);
     setBusy(false);
   };
   const open = a.status === "submitted" || a.status === "under_review";
@@ -252,6 +295,53 @@ export function Review({ id, d, filesOn, onDetail }: { id: string; d: Applicatio
           </div>
           {!verified && open && !deleting && <p className="muted">Aprovar após verificar os três requisitos.</p>}
         </>
+      )}
+      {a.status === "published" && withdrawalOn && (
+        <section data-action="withdraw" aria-labelledby="withdraw-title">
+          <h2 id="withdraw-title">Retirar da Vila</h2>
+          <Notice state="withdrawal-proposal" title="PROPOSTA (IMPL-0020): o que a retirada faz hoje" tone="warn">
+            <p>
+              A casa sai da Vila e o terreno fica disponível na hora. O painel não tem como desfazer: a organização não volta a ser publicada, a conta
+              do responsável não consegue enviar outra candidatura e o CNPJ continua em uso. Os arquivos e as fotos continuam guardados; o
+              responsável pode removê-los.
+            </p>
+          </Notice>
+          <Field
+            label="Mensagem para a organização (obrigatória, de 10 a 1000 caracteres)"
+            hint="A organização lê este texto como foi escrito, na tela da candidatura. Não é uma anotação interna: não cite terceiros nem dados pessoais."
+            error={fieldError}
+          >
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={1000} />
+          </Field>
+          <label className="check">
+            <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} />
+            Entendo que a retirada não pode ser desfeita pelo painel
+          </label>
+          <div className="actions">
+            <button
+              className="btn"
+              disabled={busy || deleting || !understood || !accountId}
+              title={deleting ? "Exclusão da conta pendente" : understood ? "" : "Confirme antes de retirar"}
+              onClick={() => void withdraw()}
+            >
+              Retirar da Vila
+            </button>
+          </div>
+          {deleting && <p className="muted">A retirada fica indisponível enquanto a exclusão da conta do responsável não terminar.</p>}
+        </section>
+      )}
+      {a.status === "withdrawn" && (
+        <Notice state="withdrawn" title="Retirada da Vila pela administração">
+          <p>A casa não aparece mais na Vila e o terreno foi liberado. Nenhuma decisão pode ser registrada e o painel não tem como desfazer a retirada.</p>
+          {a.withdrawal && (
+            <>
+              <p>
+                <strong>Mensagem enviada à organização</strong> em {dateTime(a.withdrawal.at)}:
+              </p>
+              <p data-field="withdrawal-message">{a.withdrawal.reason}</p>
+            </>
+          )}
+        </Notice>
       )}
       <div aria-live="polite">
         {error && (

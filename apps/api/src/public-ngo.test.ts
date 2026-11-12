@@ -135,16 +135,18 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 });
 
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
-// on any schema the code may meet (v3 to v6), whatever the flags and the bucket, and never with a 500.
-it.each([3, 4, 5, 6])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+// on any schema the code may meet (v3 to v9), whatever the flags and the bucket, and never with a 500. None of them
+// may read a table from a later migration: the withdrawal ledger (0009, IMPL-0020) is not part of any public read.
+it.each([3, 4, 5, 6, 7, 8, 9])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   const wrong: string[] = [];
-  for (let flags = 0; flags < 16; flags++) for (const published of [true, false]) {
+  for (let flags = 0; flags < 32; flags++) for (const published of [true, false]) {
     db = createD1({ upTo });
     env = {
       DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: flags & 1 ? "true" : "false",
       NGO_FILES_ENABLED: flags & 2 ? "true" : "false", NGO_PHOTOS_ENABLED: flags & 4 ? "true" : "false",
       FILES: flags & 8 ? createR2() as unknown as R2Bucket : undefined,
+      NGO_WITHDRAWAL_ENABLED: flags & 16 ? "true" : "false",
     };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', ?)").bind(NGO_ID, published ? "published" : "submitted").run();
     await db.prepare("UPDATE lots SET ngo_id=?,state=? WHERE id='plaza-01'").bind(NGO_ID, published ? "published" : "application_sent").run();
@@ -160,8 +162,22 @@ it.each([3, 4, 5, 6])("answers every always-on public route on schema v%i in all
     expect(lots.find((lot) => lot.id === "plaza-01")).toMatchObject(published
       ? { ngo_id: NGO_ID, ngo_name: "Public NGO", ngo_summary: "Public summary", ngo_logo: null }
       : { ngo_id: null, ngo_name: null, ngo_summary: null, ngo_logo: null });
+    const { indicators } = await (await get("/indicators")).json() as { indicators: Array<{ key: string; value: number | null }> };
+    expect(indicators.find((indicator) => indicator.key === "approved_ngos")?.value).toBe(published ? 1 : 0);
+    if (published) expect(await (await get()).json()).toEqual({ ngo: { id: NGO_ID, name: "Public NGO", summary: "Public summary", description: null, tags: [], projects: [], lotId: "plaza-01", photos: [] } });
   }
   expect(wrong).toEqual([]);
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
+});
+
+it("counts in the public indicator only what the village shows: published NGOs on a published lot", async () => {
+  const approved = async () => ((await (await get("/indicators")).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators.find((indicator) => indicator.key === "approved_ngos")?.value;
+  expect(await approved()).toBe(1);
+  await db.prepare("INSERT INTO ngos(id,name,cnpj,status) VALUES(?, 'No lot', '11444777000161', 'published')").bind(UNKNOWN_ID).run();
+  expect(await approved()).toBe(1);
+  await db.prepare("UPDATE lots SET state='published', ngo_id=? WHERE id='plaza-02'").bind(UNKNOWN_ID).run();
+  expect(await approved()).toBe(2);
+  await db.prepare("UPDATE lots SET state='available', ngo_id=NULL WHERE id='plaza-01'").run();
+  expect(await approved()).toBe(1);
 });

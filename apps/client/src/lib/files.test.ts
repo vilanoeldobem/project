@@ -74,7 +74,7 @@ describe("list and errors", () => {
   });
 
   it("asks for a reload only when the application or its files changed elsewhere", () => {
-    for (const code of ["application_changed", "application_locked", "too_many_files", "not_found"]) expect(filesStale(new ApiError(409, code))).toBe(true);
+    for (const code of ["application_changed", "application_locked", "application_withdrawn", "too_many_files", "not_found"]) expect(filesStale(new ApiError(409, code))).toBe(true);
     for (const code of ["file_too_large", "too_many_requests", "network", "account_changed"]) expect(filesStale(new ApiError(400, code))).toBe(false);
     expect(filesStale(new Error("boom"))).toBe(false);
   });

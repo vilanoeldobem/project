@@ -99,7 +99,7 @@ export function App() {
           </p>
         </Notice>
       )}
-      {route.section === "applications" && <Applications id={route.id} locked={locked} />}
+      {route.section === "applications" && <Applications id={route.id} locked={locked} accountId={session.kind === "signed_in" ? session.user.id : undefined} />}
       {route.section === "lots" && <Lots locked={locked} />}
       {route.section === "audit" && <Audit locked={locked} />}
       {route.section === "users" && <Users locked={locked} />}

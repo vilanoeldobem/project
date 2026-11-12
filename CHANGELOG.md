@@ -15,6 +15,34 @@ Cada versão indica o schema D1 que entrega.
   `play.vilanoeldobem.com.br`, com o mesmo caminho e query. O jogo continua em uma única origem (`play.*`): CORS,
   cookie de sessão e servidor de tempo real não mudam. O domínio é criado no próximo `pnpm deploy:client`.
 
+### Added — retirada administrativa de ONG publicada (PROPOSTA, desligada)
+
+- **PROPOSTA** ([IMPL-0020](docs/decisions/0020-ngo-publication-withdrawal.md)), atrás da bandeira
+  `NGO_WITHDRAWAL_ENABLED` (`"false"` em produção e homologação). A política da retirada é PENDENTE
+  ([OQ-14](docs/decisions/open-questions.md)): o código não decide o que ela significa para a conta, o CNPJ, o
+  retorno da organização ou a guarda dos dados. Portada do PR #33 para o fluxo canônico de arquivos e galeria.
+- API: `POST /admin/ngos/:id/withdraw {accountId, revision, reason}`. Registro, revisão, liberação dos terrenos
+  realmente associados e auditoria (`ngo.withdraw`, sem o texto) confirmam juntos; disputa ou repetição não
+  duplica nada. `reason` é a **mensagem para a organização**: o responsável a lê como foi escrita.
+- `GET /config` informa `withdrawal`. Respostas privadas mostram o estado efetivo `withdrawn` e
+  `withdrawal: {reason, at}`; a lista administrativa filtra por ele.
+- Leituras públicas (`/lots`, `/indicators`, `/ngos/:id`, logo, fotos) deixam de mostrar a ONG porque o terreno é
+  liberado; nenhuma delas lê a tabela nova. `approved_ngos` passa a contar ONGs publicadas **em terreno
+  publicado**. Teste cobre as rotas públicas nos schemas v3 a v9, com a bandeira ligada e desligada.
+- Depois da retirada: envio de logo, documento e foto, reenvio e aprovação/rejeição de foto são recusados
+  (`409 application_withdrawn`); o responsável ainda remove os próprios arquivos e fotos. A exclusão da conta
+  apaga também o logo da ONG retirada. A retirada é recusada enquanto a exclusão da conta estiver pendente.
+- O que o código faz hoje e depende da OQ-14: a conta do responsável não consegue se candidatar de novo, o CNPJ
+  continua em uso, não há rota para desfazer, e a linha conserva `status = 'published'`.
+- Jogo: a candidatura retirada mostra "Retirada da Vila" e a mensagem da administração, sem reenvio. Painel:
+  situação e mensagem, rótulo da ação na auditoria e a ação "Retirar da Vila" (mensagem, revisão em tela,
+  confirmação), só quando `/config` traz `withdrawal: true`.
+- Migration `0009_ngo_withdrawals.sql` (schema D1 v9): tabela `ngo_withdrawals`. Com as contas ligadas, a
+  migration vem antes da API (rotas de candidatura e análise respondem `503 schema_outdated` sem ela); com as
+  contas desligadas a API funciona nos schemas v3 a v9. Nenhuma migration remota foi aplicada.
+- Provas locais com dados sintéticos: `node scripts/verify-media-local.mjs --withdrawal` (workerd, D1 e R2;
+  também no CI) e `apps/dash/scripts/verify-withdrawal.mjs` (painel em Chrome).
+
 ### Fixed — persistência de progresso entre sessões (D12)
 
 - Gravações de missões/XP usam revisão por conta e token exclusivo no D1, evitando que pedidos simultâneos

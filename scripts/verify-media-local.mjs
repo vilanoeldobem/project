@@ -73,6 +73,8 @@ async function main() {
   const browser = process.argv.includes("--browser");
   const progress = process.argv.includes("--progress");
   const progressSmoke = join(api, "scripts/verify-progress.mjs");
+  const withdrawal = process.argv.includes("--withdrawal");
+  const withdrawalSmoke = join(api, "scripts/verify-withdrawal.mjs");
   if (browser) assert.ok(process.env.CI && process.env.CHROMIUM_PATH, "Browser orchestration requires CI and installed Chromium");
   const config = JSON.parse((await readFile(join(api, "wrangler.reconciliation-local.jsonc"), "utf8"))
     .replace(/^\s*\/\/.*$/gm, ""));
@@ -95,6 +97,7 @@ async function main() {
   config.main = resolve(api, config.main);
   database.migrations_dir = resolve(api, database.migrations_dir);
   if (progress) config.vars.QUESTS_V1_ENABLED = "true"; // Only this fresh local Worker's generated config.
+  if (withdrawal) config.vars.NGO_WITHDRAWAL_ENABLED = "true"; // Same: never the deployable configuration.
   const configPath = join(directory, "wrangler.json");
   await writeFile(configPath, JSON.stringify(config));
   await writeFile(join(directory, ".dev.vars"), "");
@@ -112,6 +115,11 @@ async function main() {
     await writeFile(progressSeed, await run([progressSmoke, "--seed"], env));
     await run([cli, "d1", "execute", database.database_name, ...local, "--file", progressSeed], env);
   }
+  if (withdrawal) {
+    const withdrawalSeed = join(directory, "withdrawal-seed.sql");
+    await writeFile(withdrawalSeed, await run([withdrawalSmoke, "--seed"], env));
+    await run([cli, "d1", "execute", database.database_name, ...local, "--file", withdrawalSeed], env);
+  }
   const worker = child([cli, "dev", ...local, "--ip", "127.0.0.1", "--port", "8792",
     "--inspector-port", String(inspector), "--log-level", "warn"], env);
   await ready(worker);
@@ -121,6 +129,11 @@ async function main() {
   if (progress) {
     const result = await run([progressSmoke, base], env);
     assert.match(result, /PASS: local D1 authoritative state, two-session concurrency/);
+    console.log(result.trim());
+  }
+  if (withdrawal) {
+    const result = await run([withdrawalSmoke, base], env);
+    assert.match(result, /PASS: local D1\/R2 withdrawal/);
     console.log(result.trim());
   }
   if (browser) {

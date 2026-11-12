@@ -3,6 +3,8 @@
  * wireframe: "Dados da organização", "Documentos e comprovações", "Apresentação e projetos", "Revisão e
  * envio". The field list is PROPOSTA (G08/PEN-019); documents are declared in the form. With uploads on in the API
  * (IMPL-0017, PROPOSTA) a sent application also takes a logo and optional documents: see `ApplicationFiles`.
+ * An NGO the administration withdrew from the village (IMPL-0020, PROPOSTA) is shown as such, with the message the
+ * administration wrote to the organisation; it cannot be edited or sent again.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -87,7 +89,8 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
   return <Wizard initial={app ?? { ...EMPTY, lotId: lotId ?? "" }} heldLot={app?.lotId} onDone={(a) => (setApp(a), setEditing(false))} />;
 }
 
-function ApplicationStatusView({
+/** What the applicant sees about an application already sent. Exported for the render test. */
+export function ApplicationStatusView({
   app,
   files,
   onEdit,
@@ -101,19 +104,37 @@ function ApplicationStatusView({
   onStale: () => Promise<unknown>;
 }) {
   const canEdit = app.status === "changes_requested" || app.status === "rejected";
+  const withdrawn = app.status === "withdrawn";
   const filesOn = useAccount((s) => s.files);
   return (
     // A removed file takes its buttons away: the key sends the focus back to the dialog.
     <Panel kicker="Cadastro de ONGs" title={app.name} contentKey={files.map((f) => f.id).join()}>
       <p>
-        <Status>{STATUS_LABEL[app.status]}</Status> · Terreno {lotNumber(app.lotId)} · versão {app.revision}
+        <Status>{STATUS_LABEL[app.status]}</Status> · Terreno {lotNumber(app.lotId)}
+        {withdrawn ? " (liberado)" : ""} · versão {app.revision}
       </p>
       <ol className="flow" aria-label="Etapas">
         <li className="is-done">Candidatura enviada</li>
         <li className={app.status === "submitted" ? "" : "is-done"}>Análise administrativa</li>
-        <li className={app.status === "published" ? "is-done" : ""}>Casa publicada após aprovação</li>
+        <li className={app.status === "published" || withdrawn ? "is-done" : ""}>Casa publicada após aprovação</li>
+        {withdrawn && <li className="is-done">Retirada da Vila pela administração</li>}
       </ol>
-      {app.status !== "published" && <p className="note">A casa só aparece na Vila depois da aprovação da administração.</p>}
+      {withdrawn ? (
+        <>
+          <p className="note" data-state="withdrawn">
+            A administração retirou esta organização da Vila: a casa não aparece mais e o terreno foi liberado. Esta candidatura não pode ser editada nem
+            reenviada.
+          </p>
+          {app.withdrawal && (
+            <div className="callout">
+              <strong>Mensagem da administração</strong>
+              <p>{app.withdrawal.reason}</p>
+            </div>
+          )}
+        </>
+      ) : (
+        app.status !== "published" && <p className="note">A casa só aparece na Vila depois da aprovação da administração.</p>
+      )}
       {app.reviewNote && (
         <div className="callout">
           <strong>Mensagem da análise</strong>

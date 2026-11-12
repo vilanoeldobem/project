@@ -33,6 +33,9 @@ node apps/client/scripts/verify-live.mjs                                # deploy
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
 node apps/dash/scripts/verify.mjs http://localhost:8797         # dashboard: headers, sign-in, accounts-off states
 node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, admin review in dash (local only; wait 60 s between runs)
+# API on local workerd + D1 + R2 (own temporary database and bucket, port 8792): files, gallery, progress, NGO withdrawal
+node scripts/verify-media-local.mjs --progress --withdrawal
+node apps/dash/scripts/verify-withdrawal.mjs   # dashboard: withdraw a published NGO (local only; setup in the file header)
 # website changes
 pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other terminal
 node apps/site/scripts/verify.mjs http://localhost:4173
@@ -65,6 +68,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   published lot, would also be public. Nothing else changes: documents stay private. Never flip the flag until the
   technical owner explicitly accepts that exception and the product owner answers OQ-15 (image rights and consent,
   retention); passing tests do not grant either.
+- Withdrawal of a published NGO ([IMPL-0020](docs/decisions/0020-ngo-publication-withdrawal.md)) is **PROPOSTA**:
+  dark code behind `NGO_WITHDRAWAL_ENABLED` ("false" in production and staging). What a withdrawal means for the
+  account, the CNPJ, re-entry and retention is the product owner's to answer (OQ-14): never flip the flag before
+  that, and never decide it in code. The text an admin writes is a message the organisation reads, not a private note.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -82,6 +89,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Dash (IMPL-0015): admin UI lives only in `apps/dash`, never in the game. No third-party script, analytics or inline
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
+- Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
+  association and reads no table newer than the one it serves: production runs behind the code (schema v3). Never
+  join `ngo_withdrawals` in an always-on public route; signed-in routes that need a newer schema answer
+  `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
 - D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
   application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket
   never gets a public URL, no file name is stored, and `ngo_files` in D1 decides who may read what. Proposed

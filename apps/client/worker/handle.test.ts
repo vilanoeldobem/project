@@ -21,4 +21,14 @@ describe("client worker", () => {
   it("serves assets on play.*", async () => {
     expect(await (await call("https://play.vilanoeldobem.com.br/")).text()).toBe("asset");
   });
+
+  it("serves assets on every host it does not know, never redirecting", async () => {
+    for (const host of ["vilanoeldobem.example.workers.dev", "localhost:8799", "xclient.vilanoeldobem.com.br"])
+      expect(await (await call(`http://${host}/ongs`)).text()).toBe("asset");
+  });
+
+  it("does not treat an object prototype key as a redirecting host", async () => {
+    for (const host of ["constructor", "__proto__", "tostring"])
+      expect(await (await call(`http://${host}/`)).text()).toBe("asset");
+  });
 });
