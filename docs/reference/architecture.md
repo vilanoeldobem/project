@@ -125,7 +125,22 @@ Cloudflare.
 ## 6. Site (`apps/site`)
 
 Site público estático ([IMPL-0005](../decisions/0005-public-site-and-domains.md)); links para o jogo apontam para
-`play.vilanoeldobem.com.br`. Não importa nada dos outros apps.
+`play.vilanoeldobem.com.br` (a página `404.html` inclusive). Não importa nada dos outros apps.
+
+Identidade **"Vila Voxel Nevada"**, alinhada ao jogo ([IMPL-0006](../decisions/0006-christmas-environment-real-time-procedural-weather.md))
+sem carregar Three.js:
+
+| Peça | Código | Papel |
+|---|---|---|
+| Tokens | `src/styles.css` | Papéis semânticos em `oklch()` a partir da paleta de `shared/game/world.ts`; temas Dia Nevado e Noite Natalina (elevação tonal, nunca inversão) |
+| Arte | `src/VoxelArt.tsx` | Emblema, pínheiros, chalés, neve e céu em SVG `crispEdges`; cordão de lâmpadas em blocos |
+| Neve | `src/VoxelSnow.tsx` | Canvas 2D isolado, PRNG determinístico, pausa em aba oculta, neve parada com `prefers-reduced-motion` |
+| Conteúdo | `src/App.tsx` | Hero com emblema, relógio de São Paulo (`Intl`), diorama de três cenas reais do jogo, seções aprovadas |
+| Comportamento | `public/theme.js` | Aplica o tema salvo antes do primeiro quadro (CSP sem script inline) |
+
+Preferências do visitante ficam em `vila.site.theme.v1` e `vila.site.snow.v1` (por aparelho). A verificação
+(`scripts/verify.mjs`, Chrome real) cobre `/` e `/404.html` em oito larguras, dois temas, interação, foco,
+zoom de texto, cores forçadas, contraste alto e impressão.
 
 ## 7. Limites entre apps
 

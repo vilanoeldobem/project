@@ -136,6 +136,8 @@ Cada versão indica o schema D1 que entrega.
 - ROADMAP: novo marco "Infraestrutura de entrega" (CI, staging, backup do D1, redução do chunk Three.js) e
   marco "Contas e ONGs" (0.4.0) detalhado em quatro entregas com critérios de pronto; missões no servidor
   antecipadas para a 0.4.0.
+- Site público adotou identidade voxel da Vila nevada, com temas Dia Nevado e Noite Natalina, arte própria e conteúdo reorganizado.
+- Efeitos oferecem controle de neve e movimento reduzido, relógio de São Paulo e suporte responsivo e acessível.
 
 ### Fixed
 
@@ -144,6 +146,8 @@ Cada versão indica o schema D1 que entrega.
 
 - Concluída a missão "2 presentes", o terceiro presente ficava visível para sempre e não podia ser pego: agora some.
 - A posição do avatar deixou de ser gravada no estado da interface a cada quadro (seletores rodavam 60×/s).
+- Rota 404 passou a compartilhar o tema do site e direcionar para o endereço correto do jogo.
+- Verificação automatizada passou a cobrir rotas, temas, tamanhos de tela, acessibilidade e estados extremos.
 
 ## [0.3.0] - 2026-11-08
 

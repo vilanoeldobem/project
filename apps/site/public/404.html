@@ -2,19 +2,291 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0C3A30" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#07201B" media="(prefers-color-scheme: dark)" />
     <title>Página não encontrada — Vila Noel do Bem</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Applies the saved theme before first paint (the CSP forbids inline scripts). -->
+    <script src="/theme.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet" />
     <style>
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif;
-             background: #173d35; color: #fff9ed; text-align: center; padding: 16px; }
-      a { color: #e6b765; font-weight: 800; }
+      :root {
+        color-scheme: light;
+        --canvas: oklch(0.982 0.014 85);
+        --canvas-snow: oklch(0.968 0.007 240);
+        --surface: oklch(0.993 0.008 85);
+        --text: oklch(0.255 0.032 172);
+        --text-soft: oklch(0.395 0.038 172);
+        --pine: oklch(0.315 0.052 175);
+        --cream: oklch(0.982 0.014 85);
+        --action: oklch(0.475 0.135 25);
+        --action-hover: oklch(0.425 0.135 25);
+        --gold: oklch(0.805 0.115 82);
+        --leaf: oklch(0.645 0.058 142);
+        --snow: #f3f5f7;
+        --wood: #8b5b41;
+        --text-on-action: #fdf9ef;
+        --border: oklch(0.315 0.052 175 / 0.18);
+        --ring: oklch(0.525 0.11 75);
+        --shadow: 0 24px 48px -18px oklch(0.22 0.05 175 / 0.32), 0 6px 16px -6px oklch(0.22 0.05 175 / 0.16);
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --canvas: oklch(0.222 0.032 178);
+        --canvas-snow: oklch(0.248 0.034 178);
+        --surface: oklch(0.292 0.042 176);
+        --text: oklch(0.968 0.016 85);
+        --text-soft: oklch(0.845 0.032 172);
+        --pine: oklch(0.198 0.03 178);
+        --cream: oklch(0.968 0.016 85);
+        --action: oklch(0.555 0.145 25);
+        --action-hover: oklch(0.52 0.145 25);
+        --border: oklch(0.85 0.04 172 / 0.2);
+        --leaf: oklch(0.72 0.06 145);
+        --ring: oklch(0.805 0.115 82);
+        --shadow: 0 24px 48px -18px oklch(0.05 0.02 178 / 0.7), 0 6px 16px -6px oklch(0.05 0.02 178 / 0.5);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root:not([data-theme="light"]) {
+          color-scheme: dark;
+          --canvas: oklch(0.222 0.032 178);
+          --canvas-snow: oklch(0.248 0.034 178);
+          --surface: oklch(0.292 0.042 176);
+          --text: oklch(0.968 0.016 85);
+          --text-soft: oklch(0.845 0.032 172);
+          --pine: oklch(0.198 0.03 178);
+          --cream: oklch(0.968 0.016 85);
+          --action: oklch(0.555 0.145 25);
+          --action-hover: oklch(0.52 0.145 25);
+          --border: oklch(0.85 0.04 172 / 0.2);
+          --leaf: oklch(0.72 0.06 145);
+          --ring: oklch(0.805 0.115 82);
+          --shadow: 0 24px 48px -18px oklch(0.05 0.02 178 / 0.7), 0 6px 16px -6px oklch(0.05 0.02 178 / 0.5);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+        font-family: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 1rem;
+        line-height: 1.6;
+        color: var(--text);
+        background:
+          radial-gradient(120% 70% at 50% 0%, var(--canvas-snow), transparent 60%),
+          linear-gradient(180deg, var(--canvas-snow), var(--canvas) 65%);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      ::selection {
+        background: var(--gold);
+        color: var(--pine);
+      }
+
+      :focus-visible {
+        outline: 3px solid var(--ring);
+        outline-offset: 3px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 34rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        padding: clamp(24px, 5vw, 40px);
+        text-align: center;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+      }
+
+      .signpost {
+        display: block;
+        width: min(240px, 66vw);
+        height: auto;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Fredoka", "Nunito", system-ui, sans-serif;
+        font-weight: 600;
+        font-size: clamp(1.5rem, 5vw, 2.1rem);
+        line-height: 1.15;
+        letter-spacing: -0.015em;
+        text-wrap: balance;
+      }
+
+      p {
+        margin: 0;
+        max-width: 42ch;
+        color: var(--text-soft);
+        font-weight: 700;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-block-start: 8px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        min-width: 44px;
+        padding: 12px 20px;
+        border: 2px solid var(--border);
+        border-radius: 12px;
+        background: transparent;
+        color: var(--text);
+        font-family: inherit;
+        font-weight: 900;
+        font-size: 1rem;
+        line-height: 1.2;
+        text-align: center;
+        text-decoration: none;
+        transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+      }
+
+      .btn--primary {
+        background: var(--action);
+        border-color: var(--action);
+        color: var(--text-on-action);
+      }
+
+      @media (hover: hover) {
+        .btn:hover {
+          background: var(--canvas-snow);
+        }
+
+        .btn--primary:hover {
+          background: var(--action-hover);
+          border-color: var(--action-hover);
+        }
+      }
+
+      .flake {
+        position: fixed;
+        inset-block-start: -12px;
+        width: 4px;
+        height: 4px;
+        background: var(--cream);
+        opacity: 0.75;
+        pointer-events: none;
+      }
+
+      .flake--2 {
+        width: 6px;
+        height: 6px;
+        inset-inline-start: 22%;
+        opacity: 0.55;
+      }
+
+      .flake--3 {
+        inset-inline-start: 74%;
+        opacity: 0.65;
+      }
+
+      @media (prefers-reduced-motion: no-preference) {
+        .flake {
+          animation: fall 9s linear infinite;
+        }
+
+        .flake--2 {
+          animation-duration: 13s;
+          animation-delay: -3s;
+        }
+
+        .flake--3 {
+          animation-duration: 11s;
+          animation-delay: -6s;
+        }
+      }
+
+      @keyframes fall {
+        from {
+          transform: translate3d(0, 0, 0);
+        }
+        to {
+          transform: translate3d(-40px, 100vh, 0);
+        }
+      }
+
+      @media (forced-colors: active) {
+        main,
+        .btn {
+          border: 1px solid ButtonBorder;
+        }
+      }
     </style>
   </head>
   <body>
+    <span class="flake flake--1" aria-hidden="true"></span>
+    <span class="flake flake--2" aria-hidden="true"></span>
+    <span class="flake flake--3" aria-hidden="true"></span>
     <main>
+      <svg class="signpost" viewBox="0 0 240 170" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+        <!-- ground -->
+        <rect x="10" y="146" width="220" height="12" fill="var(--cream)" />
+        <rect x="10" y="158" width="220" height="6" fill="var(--leaf)" />
+        <!-- signpost -->
+        <rect x="124" y="52" width="16" height="94" fill="var(--wood)" />
+        <rect x="124" y="52" width="16" height="6" fill="var(--gold)" />
+        <rect x="44" y="62" width="76" height="22" fill="var(--action)" />
+        <rect x="44" y="62" width="76" height="5" fill="var(--cream)" />
+        <rect x="120" y="62" width="10" height="7" fill="var(--action)" />
+        <rect x="120" y="77" width="10" height="7" fill="var(--action)" />
+        <rect x="56" y="69" width="44" height="8" fill="var(--cream)" />
+        <rect x="140" y="92" width="76" height="22" fill="var(--pine)" />
+        <rect x="140" y="92" width="76" height="5" fill="var(--cream)" />
+        <rect x="130" y="92" width="10" height="7" fill="var(--pine)" />
+        <rect x="130" y="107" width="10" height="7" fill="var(--pine)" />
+        <rect x="152" y="99" width="44" height="8" fill="var(--gold)" />
+        <!-- lantern hanging from the left board -->
+        <rect x="98" y="84" width="6" height="16" fill="var(--pine)" />
+        <rect x="88" y="100" width="26" height="24" fill="var(--gold)" />
+        <rect x="92" y="104" width="18" height="16" fill="var(--cream)" />
+        <rect x="96" y="108" width="10" height="8" fill="var(--gold)" />
+        <rect x="86" y="124" width="30" height="4" fill="var(--pine)" />
+        <!-- snowman at the base (pine outline keeps it readable on both themes) -->
+        <rect x="36" y="122" width="30" height="26" fill="var(--pine)" />
+        <rect x="38" y="124" width="26" height="22" fill="var(--snow)" />
+        <rect x="40" y="102" width="22" height="22" fill="var(--pine)" />
+        <rect x="42" y="104" width="18" height="18" fill="var(--snow)" />
+        <rect x="44" y="88" width="14" height="16" fill="var(--pine)" />
+        <rect x="46" y="90" width="10" height="12" fill="var(--snow)" />
+        <rect x="45" y="82" width="12" height="8" fill="var(--action)" />
+        <rect x="40" y="78" width="20" height="5" fill="var(--action)" />
+        <rect x="47" y="95" width="2" height="2" fill="var(--pine)" />
+        <rect x="53" y="95" width="2" height="2" fill="var(--pine)" />
+        <rect x="47" y="106" width="2" height="2" fill="var(--pine)" />
+        <rect x="51" y="112" width="2" height="2" fill="var(--pine)" />
+      </svg>
       <h1>Esta rua ainda não existe na Vila.</h1>
-      <p><a href="/">Voltar ao início</a> · <a href="https://app.vilanoeldobem.com.br">Entrar na Vila</a></p>
+      <p>O endereço que você tentou abrir não foi encontrado. A praça continua acesa logo ali.</p>
+      <div class="actions">
+        <a class="btn" href="/">Voltar para a página inicial</a>
+        <a class="btn btn--primary" href="https://play.vilanoeldobem.com.br">Entrar na Vila</a>
+      </div>
     </main>
   </body>
 </html>
