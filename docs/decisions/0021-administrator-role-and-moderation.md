@@ -204,9 +204,10 @@ da qual o servidor de tempo real também depende.
   `403 self_role`).
 - A rota `POST /moderation/consume` também responde no domínio público da API (toda rota responde); o bilhete de
   192 bits, o `404` único e o limite de requisições são a proteção.
-- **Esta entrega é a API e o contrato compartilhado.** As telas do painel e do jogo, a mensagem `["m", …]` na sala
-  e o binding de serviço no servidor de tempo real são entregas separadas. O rótulo "Jogador" que o painel ainda
-  mostra para `player` muda para "Padrão" com as telas.
+- **Entregue em conjunto:** a API e o contrato compartilhado, a mensagem `["m", …]` na sala com o binding de serviço
+  no servidor de tempo real, e as telas do painel (papéis, bloqueio, remoção de logo, link para uma candidatura) e
+  do jogo (modo moderação, ações na casa da ONG, remoção de visitante, conta bloqueada). O painel passou a usar o
+  rótulo compartilhado "Padrão" para `player`.
 - Validação com testes sobre SQLite real e com o ciclo local em workerd/D1/R2. Nenhum deploy, migration remota,
   mudança de segredo ou ativação é autorizado por este ADR.
 

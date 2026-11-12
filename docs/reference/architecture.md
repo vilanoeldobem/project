@@ -365,12 +365,12 @@ importa nada dos outros apps: o que divide com o jogo está em `packages/shared/
 
 | Camada | Arquivos | Responsabilidade |
 |---|---|---|
-| Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `accounts_disabled`) |
-| Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta |
-| Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`) |
-| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos; envio da decisão e da retirada (recarregam a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique) |
+| Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts`, `lib/ids.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `session_blocked`, `accounts_disabled`); só um id bem formado entra no caminho de uma requisição (o resto é recusado como `not_found`, sem requisição) |
+| Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js`, `lib/return-to.ts` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo; o resto do fragmento fica como estava) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta; decide a tela de cada sessão (`viewOf`); guarda por 20 minutos, no `localStorage` do navegador, o id da candidatura pedida por um link seguido sem sessão, para abrir essa candidatura depois da entrada |
+| Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`); a barra depois de `#` é opcional: `#applications/<id>` é o link que o jogo monta ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)). Id malformado ou desconhecido → "Candidatura não encontrada." |
+| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts`, `lib/moderation.ts` | Carregamento por tela, listas paginadas ("Carregar mais", releitura das páginas em tela), rótulos; envio da decisão, da retirada e da remoção de logo (recarregam a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique); papéis e bloqueio: o que cada linha oferece, o texto de cada confirmação e o envio de cada ação |
 | Aparência | `lib/theme.ts`, `styles.css` | Cores vindas de `PALETTE` (`packages/shared/src/game/world.ts`); um único CSS, sem estilo inline |
-| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download, e a ação "Retirar da Vila" de uma ONG publicada (IMPL-0020, PROPOSTA; só quando `/config` traz `withdrawal: true`), com o campo nomeado como mensagem para a organização; terrenos; auditoria; contas; estado do sistema; áreas pendentes |
+| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download, e a ação "Retirar da Vila" de uma ONG publicada (IMPL-0020, PROPOSTA; só quando `/config` traz `withdrawal: true`), com o campo nomeado como mensagem para a organização; terrenos; auditoria; contas; estado do sistema; áreas pendentes. IMPL-0021: em "Usuários", papel com os rótulos compartilhados ("Padrão" / "Administrador"), "Tornar administrador" / "Tornar padrão", "Bloquear conta" (PROPOSTA; só com `/config` → `moderation.block: true`) e "Desbloquear" (sempre que a conta está bloqueada); no detalhe da candidatura, "Remover logo"; em "Sistema", as bandeiras `moderation.presence` e `moderation.block`. Toda ação tem um segundo passo (`Confirmation` em `ui/common.tsx`) que nomeia a conta ou a organização, diz a consequência e só libera o botão depois de marcada a frase de confirmação |
 | Build | `security-headers.ts`, `vite.config.ts` | `_headers` por build (CSP com a API da build) |
 
 Quem vê o quê:
@@ -380,12 +380,21 @@ Quem vê o quê:
 | API sem resposta | "API indisponível" e "Tentar de novo" |
 | Contas desligadas (`/config` → `accounts: false`) | Menu completo com o aviso "Contas desligadas": só dados públicos (`/lots`, `/health`, `/config`); as seções que precisam de sessão explicam por que estão vazias |
 | Sem sessão | Só a tela "Entrar" (pede o link; não cria conta) |
-| Sessão sem papel `admin` | Só "Apenas administradores" e o botão "Sair" |
+| Sessão sem papel `admin` | Só "Apenas administradores" e o botão "Sair". Se a conta era administradora até a requisição anterior (rebaixada com o painel aberto), a tela diz que o papel foi retirado: a recusa `admin_only` faz o painel reler a sessão uma vez, sem laço |
+| Conta bloqueada (`/me` → `blocked`; IMPL-0021, PROPOSTA) | Só "Conta bloqueada", a mensagem da administração como foi escrita e o botão "Sair", qualquer que seja o papel |
 | Admin | Todas as seções |
 
 A API impõe o papel em cada rota `/admin/*`; o que o painel esconde é conveniência, não proteção. As seções
-"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs — este último agora só com as decisões que faltam, PEN-019 e OQ-12) são avisos sem função, e a de contas não tem ação
-de sanção (regras não definidas, DEC-037).
+"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs — este último agora só com as decisões que faltam, PEN-019 e OQ-12) são avisos sem função.
+
+Na seção "Usuários" ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)) continuam sem aparecer
+e-mail e nome. Ninguém age sobre a própria linha ("Você não pode mudar o próprio papel."), a conta de um
+administrador não é bloqueada ("Remova o papel de administrador antes…") e uma conta bloqueada só pode ser
+desbloqueada. O texto do bloqueio é pedido como "Mensagem para a pessoa (ela vai ler)", com a regra compartilhada
+(`cleanBlockMessage`, 10 a 1000 caracteres). Depois de uma ação a linha mostra o que a API respondeu e a lista é
+relida; uma recusa mostra a frase da API (`last_admin`, `account_blocked`, `admin_account`, …). O bloqueio é
+**PROPOSTA**: a seção traz um aviso de que a política de sanções é pergunta aberta (OQ-11) e de que hoje o bloqueio
+não tem prazo, recurso nem aviso por e-mail.
 
 ## Limitações conhecidas
 
@@ -404,7 +413,7 @@ de sanção (regras não definidas, DEC-037).
   `PRESENCE_MODERATION_ENABLED`): o bloqueio é da conta, não da pessoa (excluir a conta libera o e-mail), não tem
   prazo, recurso nem aviso por e-mail (OQ-11); a remoção de sala não impede o visitante anônimo de voltar (recarregar
   a página reconecta na hora: a espera de 60 s é só do cliente aberto). As telas do jogo estão descritas na linha
-  "Moderação" do [§2](#2-cliente-appsclientsrc); as do painel ainda não existem. No jogo, a galeria de fotos não é
+  "Moderação" do [§2](#2-cliente-appsclientsrc); as do painel, no §11. No jogo, a galeria de fotos não é
   exibida aos visitantes: o administrador vê as fotos públicas só dentro do modo moderação, para poder removê-las.
 - Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).

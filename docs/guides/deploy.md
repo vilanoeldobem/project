@@ -452,7 +452,8 @@ remota ou ativação de bandeira: cada passo exige autorização humana explíci
    # … "moderation":{"presence":false,"block":false}
    ```
 
-3. Painel e jogo quando as telas dessas ações existirem (entrega posterior).
+3. Painel e jogo (`pnpm deploy:dash`, `pnpm deploy:client`): as telas mostram só o que `/config` informa como
+   ligado; com as duas bandeiras desligadas restam a gestão de papéis e a remoção de logo.
 
 Gestão de papéis (`POST /admin/users/:id/role`) e remoção de logo (`POST /admin/ngos/:id/logo/remove`) não têm
 bandeira própria: passam a existir assim que as contas estiverem ligadas com a API desta versão. A remoção de logo
@@ -505,8 +506,8 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
 ## Limitações conhecidas
 
 - Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
-  `PRESENCE_MODERATION_ENABLED` desligadas; o binding de serviço do servidor de tempo real e as telas do painel e
-  do jogo são entregas separadas.
+  `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o
+  binding de serviço, painel e jogo).
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).

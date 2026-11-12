@@ -5,13 +5,18 @@
  * not reload the page).
  */
 
-/** Splits a location hash into the login token (if any) and what is left of the fragment. Pure. */
+/**
+ * Splits a location hash into the login token (if any) and what is left of the fragment. The rest is kept as it
+ * was written (never re-encoded): it may be an address of the dashboard, such as `#/applications/<id>`. Pure.
+ * `public/login-fragment.js` does the same before the bundle loads: keep the two in step.
+ */
 export function splitLoginFragment(hash: string): { token: string | null; rest: string } {
-  const fragment = new URLSearchParams(hash.replace(/^#/, ""));
-  const token = fragment.get("login");
+  const parts = hash.replace(/^#/, "").split("&");
+  const at = parts.findIndex((part) => part.startsWith("login="));
+  const token = at < 0 ? null : new URLSearchParams(parts[at]).get("login");
   if (!token) return { token: null, rest: hash };
-  fragment.delete("login");
-  const rest = fragment.toString();
+  parts.splice(at, 1);
+  const rest = parts.join("&");
   return { token, rest: rest ? `#${rest}` : "" };
 }
 

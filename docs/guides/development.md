@@ -170,6 +170,17 @@ inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o c
    `lib/theme.ts`.
 4. Rota nova de admin: `requireAdmin`, `no-store`, sem e-mail nem nome na resposta; mutação grava `audit_events`.
 5. Rode `node apps/dash/scripts/verify.mjs` e acrescente a seção nova à lista `SECTIONS` do script.
+6. Ação que muda algo para outra pessoa (papel, bloqueio, remoção de arquivo): segundo passo com `<Confirmation>`
+   (`ui/common.tsx`), que nomeia o alvo, diz a consequência e só libera o botão depois da frase marcada; a regra
+   e o texto ficam em `lib/` (testáveis sem navegador) e toda requisição leva `accountId`.
+
+Papéis, bloqueio, remoção de logo e o link `#applications/<id>` têm uma conferência própria em navegador
+(IMPL-0021), só com simuladores locais e dados sintéticos: `apps/dash/scripts/verify-moderation.mjs`. Ela cria as
+contas da execução pela API, entra pelo link de acesso de verdade e confere as confirmações (teclado, clique duplo,
+Enter segurado), a conta bloqueada, o administrador rebaixado com o painel aberto e os rótulos da auditoria. O
+cabeçalho do script traz os comandos: um Worker local da API com banco novo, `ACCOUNT_BLOCK_ENABLED:true` e a origem
+do painel, e o painel servido pelo seu Worker em outra porta. Use portas e um `--persist-to` que não sejam os de um
+ambiente de desenvolvimento já em uso (e `WRANGLER_REGISTRY_PATH` próprio, se houver outro `wrangler dev` na máquina).
 
 ## 5. Regras não negociáveis (resumo de AGENTS.md)
 

@@ -11,7 +11,8 @@
  * "Accounts off" is how production runs today. Against a local API with accounts on, the script answers
  * `GET /config` itself with `{"accounts": false}`; every other request goes to the real API, and any call to an
  * account route in that state is reported as an error (the dashboard must not make one).
- * Signed-in flows (review, audit, users) are covered by apps/client/scripts/verify-accounts.mjs.
+ * Signed-in flows (review, audit, users) are covered by apps/client/scripts/verify-accounts.mjs; roles, account
+ * block, logo removal and the link to one application by scripts/verify-moderation.mjs (IMPL-0021).
  *
  * Needs: the dashboard served by its Worker (`pnpm --filter @vila/dash dev:worker`, :8797 — the Vite dev server
  * sends no security headers) and the API that build talks to (`pnpm --filter @vila/api dev`, :8787).

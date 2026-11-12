@@ -2,23 +2,30 @@
  * Backoffice dashboard of Vila Noel do Bem (IMPL-0015). Who sees what:
  *   - accounts off in the API → the shell with public data only and an honest "contas desligadas" state;
  *   - signed out → the sign-in screen;
+ *   - signed in with a blocked account (IMPL-0021, PROPOSTA) → that it is blocked, the message, a sign-out button;
  *   - signed in without the admin role → "Apenas administradores" and a sign-out button, nothing else;
  *   - admin → every section.
  * The API enforces the role on every `/admin/*` route; what is hidden here is convenience, not the protection.
+ * An administrator who loses the role while the dashboard is open is refused on the next request (`admin_only`):
+ * the session is read again, once, and the admin-only screen takes over.
+ *
+ * A link to one application (`#applications/<id>`) followed while signed out is remembered, so the person lands
+ * on that application after signing in (lib/return-to.ts).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { takeLoginToken } from "./lib/login-token";
-import { useRoute } from "./lib/router";
+import { browserStore, forgetReturn, rememberReturn, takeReturn } from "./lib/return-to";
+import { hrefOf, namesSection, useRoute } from "./lib/router";
 import { api, onSessionChanged } from "./lib/services";
-import { isAdmin, openSession, type Session, SESSION_ENDED } from "./lib/session";
+import { lostAdmin, openSession, type Session, SESSION_ENDED, viewOf } from "./lib/session";
 import { Applications } from "./ui/Applications";
 import { Audit } from "./ui/Audit";
 import { Notice } from "./ui/common";
 import { Lots } from "./ui/Lots";
 import { Pending } from "./ui/Pending";
 import { Shell } from "./ui/Shell";
-import { NotAdmin, SignIn, Starting, Unavailable } from "./ui/SignIn";
+import { Blocked, NotAdmin, SignIn, Starting, Unavailable } from "./ui/SignIn";
 import { System } from "./ui/System";
 import { Users } from "./ui/Users";
 
@@ -33,13 +40,22 @@ export function App() {
   const latest = useRef(0);
   /** True while a session read is in flight: its own refusals must not start another one. */
   const opening = useRef(false);
+  /** The last session that was read (not "loading"): what the next one is compared with. */
+  const settled = useRef<Session>({ kind: "loading" });
+  /** The same account was an administrator until the session was read again. */
+  const [demoted, setDemoted] = useState(false);
+  /** The person signed out here: where they were is not remembered for the next sign-in. */
+  const left = useRef(false);
 
   const follow = useCallback((reading: Promise<Session>) => {
     const mine = ++latest.current;
     opening.current = true;
+    left.current = false;
     void reading.then((s) => {
       if (mine !== latest.current) return;
       opening.current = false;
+      setDemoted(lostAdmin(settled.current, s));
+      settled.current = s;
       setSession(s);
     });
   }, []);
@@ -78,15 +94,32 @@ export function App() {
         // Whatever session read is still in flight no longer matters.
         latest.current++;
         opening.current = false;
+        left.current = true;
+        forgetReturn(browserStore());
+        settled.current = { kind: "signed_out" };
+        setDemoted(false);
         setSession({ kind: "signed_out" });
       });
   };
+
+  const view = viewOf(session);
+  const wanted = route.section === "applications" ? route.id : undefined;
+  useEffect(() => {
+    // Asked for one application while signed out: remember it across the sign-in (the link opens another tab).
+    if (view === "sign_in" && wanted && !left.current) rememberReturn(browserStore(), wanted);
+    // Signed in as an administrator on an address that names no section: go where the person was going.
+    if (view === "dashboard" && session.kind === "signed_in") {
+      const id = takeReturn(browserStore());
+      if (id && !namesSection(location.hash)) location.replace(hrefOf({ section: "applications", id }));
+    }
+  }, [view, wanted, session.kind]);
 
   if (session.kind === "loading") return <Starting />;
   // "Tentar de novo" carries the link token that was not consumed, if there was one.
   if (session.kind === "unavailable") return <Unavailable reason={session.reason} onRetry={() => reopen(session.token)} />;
   if (session.kind === "signed_out") return <SignIn notice={session.notice} />;
-  if (session.kind === "signed_in" && !isAdmin(session)) return <NotAdmin user={session.user} onSignOut={signOut} />;
+  if (session.kind === "signed_in" && view === "blocked") return <Blocked user={session.user} onSignOut={signOut} />;
+  if (session.kind === "signed_in" && view === "not_admin") return <NotAdmin user={session.user} demoted={demoted} onSignOut={signOut} />;
 
   const locked = session.kind === "accounts_off";
   return (
@@ -99,10 +132,12 @@ export function App() {
           </p>
         </Notice>
       )}
-      {route.section === "applications" && <Applications id={route.id} locked={locked} accountId={session.kind === "signed_in" ? session.user.id : undefined} />}
+      {route.section === "applications" && (
+        <Applications id={route.id} unknown={route.unknown === true} locked={locked} accountId={session.kind === "signed_in" ? session.user.id : undefined} />
+      )}
       {route.section === "lots" && <Lots locked={locked} />}
       {route.section === "audit" && <Audit locked={locked} />}
-      {route.section === "users" && <Users locked={locked} />}
+      {route.section === "users" && <Users locked={locked} accountId={session.kind === "signed_in" ? session.user.id : undefined} />}
       {route.section === "system" && <System />}
       {route.section === "pending" && <Pending />}
     </Shell>

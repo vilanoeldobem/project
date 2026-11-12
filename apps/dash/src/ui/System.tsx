@@ -5,15 +5,36 @@
  */
 import { Fragment } from "react";
 
-import { FLAG_LABEL, flagText } from "../lib/format";
+import type { Config } from "../lib/api";
+import { FLAG_LABEL, flagRows, flagText } from "../lib/format";
 import { useLoad } from "../lib/hooks";
 import { api, SERVICES } from "../lib/services";
 import { Live, PageHead, Status } from "./common";
 
+/**
+ * Every flag the API sent, one line each, the moderation ones included (`moderation.presence` and
+ * `moderation.block`, IMPL-0021): the label when the dashboard knows the flag, its key always.
+ */
+export function Flags({ config }: { config: Config }) {
+  const flags = flagRows(config);
+  if (flags.length === 0) return <p className="muted">A API não informou nenhuma bandeira.</p>;
+  return (
+    <dl className="facts" data-state="flags">
+      {flags.map(([key, value]) => (
+        <Fragment key={key}>
+          <dt>
+            {FLAG_LABEL[key] ?? key} <code className="muted">{key}</code>
+          </dt>
+          <dd data-flag={key}>{flagText(value)}</dd>
+        </Fragment>
+      ))}
+    </dl>
+  );
+}
+
 export function System() {
   const health = useLoad(() => api.health(), "health");
   const config = useLoad(() => api.config(), "config");
-  const flags = Object.entries(config.data ?? {});
   return (
     <>
       <PageHead title="Sistema" lead="Estado dos serviços e bandeiras de funcionalidade desta instalação." />
@@ -44,21 +65,7 @@ export function System() {
       <section className="card" aria-labelledby="system-flags">
         <h2 id="system-flags">Bandeiras</h2>
         <Live loading={config.loading} error={config.error} onRetry={config.reload}>
-          {config.data &&
-            (flags.length === 0 ? (
-              <p className="muted">A API não informou nenhuma bandeira.</p>
-            ) : (
-              <dl className="facts" data-state="flags">
-                {flags.map(([key, value]) => (
-                  <Fragment key={key}>
-                    <dt>
-                      {FLAG_LABEL[key] ?? key} <code className="muted">{key}</code>
-                    </dt>
-                    <dd data-flag={key}>{flagText(value)}</dd>
-                  </Fragment>
-                ))}
-              </dl>
-            ))}
+          {config.data && <Flags config={config.data} />}
         </Live>
       </section>
       <section className="card" aria-labelledby="system-realtime">

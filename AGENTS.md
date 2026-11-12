@@ -36,6 +36,7 @@ node apps/client/scripts/verify-accounts.mjs   # accounts / NGO in the game, adm
 # API on local workerd + D1 + R2 (own temporary database and bucket, port 8792): files, gallery, progress, NGO withdrawal
 node scripts/verify-media-local.mjs --progress --withdrawal
 node apps/dash/scripts/verify-withdrawal.mjs   # dashboard: withdraw a published NGO (local only; setup in the file header)
+node apps/dash/scripts/verify-moderation.mjs   # dashboard: roles, account block, logo removal, link to one application (local only; setup in the file header)
 # website changes
 pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other terminal
 node apps/site/scripts/verify.mjs http://localhost:4173
