@@ -561,7 +561,7 @@ public approved gallery and bytes. Branch/PR only; Augusto reviews. Policy/limit
 - [x] Author SQL-backed tests with fake storage for permissions, publication, limit races and storage failures.
 - [x] Document API/storage, proposed limits, local binding and unresolved activation policy.
 - [x] Root ran serial workspace typecheck/build, full tests, targeted final API regression and real local D1/R2 smoke.
-- [ ] Publish PR for Augusto; no merge, deploy, remote migration, bucket creation or flag activation.
+- [x] Published [PR #29](https://github.com/vilanoeldobem/project/pull/29), stacked on PR #28; requested review from `augustobr1to`. No merge, deploy, remote migration, bucket creation or flag activation.
 
 IDS: reused account/session helpers, D1 test adapter and existing audit_events; created focused photo module and
 bounded header parser because no storage/upload implementation exists. No dependency, frontend, documents or
