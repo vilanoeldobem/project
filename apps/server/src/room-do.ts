@@ -11,12 +11,19 @@
  * alarm is used: an alarm is a storage write. The activity time lives in memory, with a coarse copy in the
  * socket attachment (kept by the runtime with the connection, not in the object's storage) so it survives
  * an eviction of the object.
+ *
+ * Removal at an administrator's request (PROPOSTA, IMPL-0021; `PRESENCE_MODERATION_ENABLED`, off in
+ * production): a connection sends ["m", target, ticket]; the room asks the API, through the `API` service
+ * binding, to consume the ticket (`moderation.ts`) and only on a yes closes `target` with 4003. The room
+ * still knows nobody. The ticket and the API's answer exist only while that one call runs: they are never
+ * kept in memory, in a socket attachment or in storage, and never logged. See `removeOnRequest`.
  */
 import { DurableObject } from "cloudflare:workers";
 
-import { CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, encodeServer, TICK_MS } from "@vila/shared/net/protocol";
-import { type Env, idleTimeoutMs } from "./env";
-import { RoomState } from "./room";
+import { CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, CLOSE_REMOVED, encodeServer, TICK_MS } from "@vila/shared/net/protocol";
+import { type Env, idleTimeoutMs, presenceModerationEnabled } from "./env";
+import { consumeTicket, REMOVAL_WARMUP_MS } from "./moderation";
+import { type RemovalRequest, RoomState } from "./room";
 
 interface Attachment {
   id: number;
@@ -32,10 +39,15 @@ export class VillageRoom extends DurableObject<Env> {
   private state = new RoomState();
   private timer: ReturnType<typeof setInterval> | null = null;
   private idleMs: number;
+  /** When this instance came into memory; ids are only stable from here on (`REMOVAL_WARMUP_MS`). */
+  private startedAt: number;
+  /** Connections with a ticket being checked right now (one check per connection at a time). */
+  private checking = new Set<number>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.idleMs = idleTimeoutMs(env);
+    this.startedAt = Date.now();
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     // After a wake-up, rebuild the roster from the sockets that survived hibernation (the first tick then
     // closes the ones that had already been idle for too long).
@@ -71,12 +83,70 @@ export class VillageRoom extends DurableObject<Env> {
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
     const a = ws.deserializeAttachment() as Attachment | null;
     if (!a || typeof message !== "string") return;
-    if (this.state.accept(a.id, message, Date.now()) === "abuse") {
-      ws.close(CLOSE_ABUSE, "rate");
+    const result = this.state.accept(a.id, message, Date.now());
+    if (result === "abuse") {
+      try {
+        ws.close(CLOSE_ABUSE, "rate");
+      } catch {
+        /* already closing: it kept sending after the first close */
+      }
       return;
     }
     const seen = this.state.activeAt(a.id);
     if (seen !== undefined && seen - (a.seen ?? 0) >= STAMP_MS) ws.serializeAttachment({ ...a, seen } satisfies Attachment);
+    if (typeof result === "object") await this.removeOnRequest(ws, a, result);
+  }
+
+  /**
+   * Acts on a well-formed ["m", target, ticket] that passed the per-connection limits, and answers the sender
+   * ["m", target, 1] only when it closed `target` (PROPOSTA, IMPL-0021). Everything else answers 0 and closes
+   * nobody: flag off, `target` not another member of this room, room still warming up, a check already
+   * running for this sender, or `consumeTicket` saying no (binding missing, API refusing, failing or late).
+   *
+   * Other events keep arriving while the API is asked, so the roster is read again afterwards. The target's
+   * socket is the one found before the call, and ids are never reused while the room stays in memory, so the
+   * connection closed is the one that was asked about. If it left meanwhile, nobody is closed (answer 0; the
+   * API has consumed the ticket all the same). If the sender left meanwhile, the removal the API confirmed
+   * still happens and only the answer is lost. If the object is evicted meanwhile, this call dies with it and
+   * nobody is closed.
+   */
+  private async removeOnRequest(sender: WebSocket, from: Attachment, request: RemovalRequest) {
+    const { target } = request;
+    const answer = (ok: boolean) => {
+      try {
+        sender.send(encodeServer({ t: "m", target, ok }));
+      } catch {
+        /* the sender left: nobody to tell */
+      }
+    };
+    const refused =
+      !presenceModerationEnabled(this.env) ||
+      !request.valid ||
+      Date.now() - this.startedAt < REMOVAL_WARMUP_MS ||
+      this.checking.has(from.id);
+    const socket = refused ? undefined : this.socketOf(target);
+    if (!socket) return answer(false);
+    this.checking.add(from.id);
+    let confirmed = false;
+    try {
+      confirmed = await consumeTicket(this.env.API, { ticket: request.ticket, room: from.room, target });
+    } finally {
+      this.checking.delete(from.id);
+    }
+    // `leave` is false when the target left, went idle or was removed by someone else during the call.
+    if (!confirmed || !this.state.leave(target)) return answer(false);
+    try {
+      socket.close(CLOSE_REMOVED, "removed");
+    } catch {
+      /* already closing */
+    }
+    // Told right away, as for an idle close: the close handler then finds nothing left to announce.
+    this.broadcast(encodeServer({ t: "l", id: target }), socket);
+    answer(true);
+  }
+
+  private socketOf(id: number): WebSocket | undefined {
+    return this.ctx.getWebSockets().find((ws) => (ws.deserializeAttachment() as Attachment | null)?.id === id);
   }
 
   async webSocketClose(ws: WebSocket, code: number) {

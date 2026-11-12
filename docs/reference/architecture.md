@@ -19,6 +19,8 @@ api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) �
                                     desligado em produção)
 server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server)
                                  └─ /room?i=N (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
+                                 └─ service binding API ──▶ Worker "vilanoeldobem-api" /moderation/consume
+                                    (PROPOSTA, IMPL-0021; desligado em produção)
 dash.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem-dash"   (apps/dash: Static Assets, SPA, _headers por build)
                                  — painel administrativo, IMPL-0015 (publicado em 2026-11-12)
 
@@ -31,7 +33,8 @@ navegador em dash.*  ── fetch (CORS + cookie __Host-vila_session) ──▶ 
 packages/shared (@vila/shared/…) ── importado por client, dash, api e server (lógica pura, sem build)
 ```
 
-O cliente fala direto com cada serviço; não há service binding entre Workers. Os hosts de cada build vêm de
+O cliente fala direto com cada serviço. Entre Workers existe um único service binding: o do servidor de tempo real
+para a API (`API`), usado só para consumir um tíquete de moderação (PROPOSTA, IMPL-0021; [§4](#4-servidor-de-tempo-real-appsserversrc)). Os hosts de cada build vêm de
 `apps/client/src/lib/endpoints.ts` (produção → subdomínios; `vite` e `--mode workers` → Workers locais `:8787` e
 `:8788`).
 
@@ -213,6 +216,13 @@ exatamente `DASH_ORIGIN`, o link abre `dash.*/#login=<token>` em vez do jogo; a 
   `IDLE_TIMEOUT_SECONDS` (`idleTimeoutMs` em `env.ts`, padrão 300 s). Sem alarme (alarme grava no storage): a hora
   fica em memória, com uma cópia aproximada (a cada 30 s) no anexo do WebSocket, que o runtime guarda junto da
   conexão e não no storage do objeto. Assim uma aba esquecida não mantém o timer, e a cobrança de duração, ligados.
+- Remoção de visitante por administrador (**PROPOSTA**, [IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); `PRESENCE_MODERATION_ENABLED`,
+  desligada em produção): `room.ts` aplica os limites por conexão ao pedido `["m", alvo, tíquete]`; `room-do.ts`
+  (`removeOnRequest`) pergunta à API se o tíquete vale, por `moderation.ts` (`consumeTicket`: service binding `API`,
+  limite de 3 s, só `200 {"ok":true}` é sim), e só então fecha o alvo com `4003`. É a única chamada do servidor à
+  API. A sala continua sem saber quem é ninguém; não guarda nem registra o tíquete, a resposta ou quem pediu, e só
+  atende pedidos depois de 35 s em memória (`REMOVAL_WARMUP_MS`). Protocolo em
+  [api.md](api.md#remoção-por-administrador-proposta).
 
 ## 5. Código compartilhado (`packages/shared/src`)
 
@@ -296,6 +306,8 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
 | server | `vars.IDLE_TIMEOUT_SECONDS` | `"300"` | Segundos sem atividade até a sala fechar a conexão (IMPL-0014); inteiro de 60 a 86400, senão vale 300 |
+| server | `services[0]` | binding `API` → Worker `vilanoeldobem-api` | Única chamada do servidor à API: consumir tíquete de moderação (PROPOSTA, IMPL-0021); sem o binding a sala responde `0` |
+| server | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante por administrador desligada (PROPOSTA, IMPL-0021); o script `dev` liga |
 | dash | `assets.not_found_handling` | `single-page-application` | App de página única; sem `main` (não há script de Worker) nem bindings |
 | dash | `workers_dev`, `preview_urls` | `false` | O painel só responde no domínio próprio |
 
