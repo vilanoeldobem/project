@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v8 · **Atualizado em:** 2026-11-12
+> **Schema D1:** v9 · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `packages/shared/src/accounts/{validate,files}.ts`, `apps/server/src/handler.ts`,
 > `apps/server/src/room.ts`, `apps/server/src/room-do.ts`, `apps/server/src/env.ts`,
@@ -356,15 +356,18 @@ vazio enquanto o envio estiver desligado).
 | | `projects` | até 3 (`[{title, description}]`, título 3–80, descrição até 400; extras ignorados) |
 | 4. Revisão e envio | `lotId` | `plaza-NN`, terreno `available` (ou o que a candidatura já ocupa) |
 
-`application` = os campos acima + `{id, status, revision, reviewNote, createdAt, updatedAt}`. Depois de retirada
-administrativa, o status efetivo é `withdrawn` e há `withdrawal: {reason, at}`, somente para o dono/admin.
-A nota original `reviewNote` é preservada. A listagem administrativa expõe o status, mas não o motivo.
+`application` = os campos acima + `{id, status, revision, reviewNote, createdAt, updatedAt}`. Depois de uma
+[retirada administrativa](#retirada-administrativa-de-ong-publicada-impl-0020-proposta) (PROPOSTA), o status
+efetivo é `withdrawn` e há `withdrawal: {reason, at}`: `reason` é a mensagem que a administração escreveu para a
+organização, vista só pelo responsável e pelos admins. A mensagem anterior da análise (`reviewNote`) é preservada.
+A lista administrativa mostra o status, não a mensagem.
 
 Regras do envio:
 
 - Exige conta verificada (`403 not_verified`).
 - Uma candidatura ativa por conta: com uma em `submitted`, `under_review` ou `published` → `409 application_active`.
-- ONG retirada → `409 application_withdrawn`; não há reenvio ou retorno à Vila nesta entrega.
+- ONG retirada → `409 application_withdrawn`: o código atual não permite reenvio nem nova candidatura da mesma
+  conta (PROPOSTA; o retorno à Vila é pergunta aberta, OQ-14).
 - Terreno ocupado → `409 lot_unavailable` (com `fields.lotId`); CNPJ de outra candidatura → `409 cnpj_in_use` (com
   `fields.cnpj`). A reserva do terreno é condicional no mesmo lote de SQL; se outra pessoa levou o terreno no meio,
   a mudança é desfeita e a resposta é `409 lot_unavailable`.
@@ -565,7 +568,8 @@ aprovar e pedir ajustes; essas ações válidas retornam `409 account_deleting`,
 uma corrida com a decisão. **Rejeitar continua permitido nos estados da tabela**, com justificativa, revisão/estado
 exatos, proibição de autoanálise e auditoria somente da decisão vencedora. Libera o terreno, mantém a intenção
 de exclusão e não apaga fotos automaticamente. Se o estado mudar com a tela aberta, o painel relê o detalhe ao
-receber `account_deleting`. ONG já publicada continua fora da transição de rejeição; retirada é outra entrega.
+receber `account_deleting`. ONG já publicada continua fora da transição de rejeição; tirá-la da Vila é a
+[retirada administrativa](#retirada-administrativa-de-ong-publicada-impl-0020-proposta) (PROPOSTA, desligada).
 
 - `note` (até 1000 caracteres) é a mensagem à organização; fica em `ngos.review_note` e aparece para quem enviou.
 - `revision` (obrigatório, inteiro) é a versão que o admin está vendo. `start_review` não a confere: inicia a
@@ -583,6 +587,72 @@ receber `account_deleting`. ONG já publicada continua fora da transição de re
   sem cidade ou contato. O jogo desenha o chalé gerado pela semente do terreno ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md)).
 
 A tela dessas rotas é a seção "Candidaturas" do painel administrativo (`apps/dash`); o jogo não as chama mais.
+
+### Retirada administrativa de ONG publicada (IMPL-0020, PROPOSTA)
+
+**PROPOSTA, desligada em produção e homologação** (`NGO_WITHDRAWAL_ENABLED = "false"`). A política da retirada
+(efeito sobre a conta e o CNPJ, retorno da organização, retenção, liberação do terreno) é PENDENTE:
+[OQ-14](../decisions/open-questions.md). Contrato técnico em
+[IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md); nada aqui autoriza a ativação.
+
+| Método e rota | Corpo | Resposta |
+|---|---|---|
+| `POST /admin/ngos/:id/withdraw` | `{accountId, revision, reason}` | `200 {application}` com `status: "withdrawn"`, nova `revision` e `withdrawal: {reason, at}` |
+
+Exige `ACCOUNTS_ENABLED = "true"`, `NGO_WITHDRAWAL_ENABLED = "true"` (senão `404 not_found`), `Origin` permitida
+e sessão de administrador. `accountId` é a conta que a página acredita estar logada; `revision` é a versão em
+tela (inteiro positivo).
+
+**`reason` é a mensagem para a organização**, não uma anotação interna: de 10 a 1000 caracteres (pontos de código
+Unicode, depois de aparar espaços, sem NUL), entregue **como foi escrita** ao responsável em
+`GET /ngo/application` (`withdrawal.reason`) e mostrada no detalhe administrativo. Não aparece na lista, na
+auditoria nem em resposta pública. Não há envio de e-mail.
+
+O que acontece, em uma transação D1 (registro, revisão, terrenos e auditoria; só o pedido vencedor escreve):
+
+- a ONG ganha um registro em `ngo_withdrawals`; a linha em `ngos` **conserva `status = 'published'`** e as
+  respostas privadas passam a mostrar o estado efetivo `withdrawn`;
+- todo terreno **realmente associado** à ONG volta a `available` com `ngo_id = null` (mesmo quando
+  `requested_lot_id` é outro ou nulo); terreno de outra ONG não é tocado; outra organização pode pedi-lo;
+- `audit_events` recebe uma linha `ngo.withdraw` com `{from, to, revision, lots, hasReason}`, sem o texto.
+
+Leituras públicas: na próxima leitura, `/lots`, `/indicators`, `/ngos/:id`, o logo e as fotos (lista e bytes,
+`GET`/`HEAD`, inclusive com `If-None-Match`) deixam de mostrar a ONG, porque todas exigem o terreno publicado.
+Nenhuma rota pública lê `ngo_withdrawals`: elas respondem igual nos schemas v3 a v9, com a bandeira ligada ou
+desligada. Desligar a bandeira não republica nada. Conteúdo já baixado e uma cena já aberta no jogo não são
+revogados (o jogo lê os terrenos ao abrir).
+
+Depois da retirada:
+
+| Quem | Pode | Não pode |
+|---|---|---|
+| Responsável | ler a candidatura, os arquivos e as fotos; **remover** os próprios arquivos (`DELETE /ngo/application/files/:id`) e fotos (`DELETE /ngo/photos/:id`); excluir a conta | enviar ou trocar logo, documento ou foto, reenviar a candidatura ou enviar outra (`409 application_withdrawn`) |
+| Admin | ler tudo como antes; remover foto (`remove`) | aprovar ou rejeitar foto (`409 application_withdrawn`); qualquer decisão sobre a candidatura (`409 bad_transition`); desfazer a retirada (não há rota) |
+
+**O que o código faz hoje (a ratificar ou mudar na OQ-14):** a conta do responsável não consegue enviar outra
+candidatura, nem para outra organização; o CNPJ continua em uso (`409 cnpj_in_use` para qualquer conta); não há
+restauração; a candidatura, o registro (com a mensagem), os arquivos e as fotos ficam guardados sem prazo.
+Missões, XP e eventos de progresso não mudam (OQ-09 trata a missão cujo alvo sai da Vila).
+
+| Erro | Significado |
+|---|---|
+| `404 not_found` | bandeira desligada, id inválido ou ONG inexistente |
+| `400 revision_required` | `revision` ausente ou não é inteiro positivo |
+| `400 reason_required` (+ `fields.reason`) | mensagem para a organização ausente, curta ou longa demais |
+| `409 account_changed` | `accountId` diferente da sessão |
+| `403 self_review` | o admin é o responsável pela ONG |
+| `409 application_withdrawn` | a ONG já foi retirada (inclusive por um pedido concorrente) |
+| `409 account_deleting` | exclusão da conta do responsável pendente: repetir depois que ela terminar |
+| `409 stale_revision` | a versão em tela não é mais a atual |
+| `409 bad_transition` | a ONG não está publicada |
+| `503 schema_outdated` | banco sem a migration 0009 |
+
+Schema: as rotas de candidatura (`/ngo/application`, arquivos e fotos da candidatura) e de análise
+(`/admin/applications*`, decisões, retirada) leem `ngo_withdrawals` **mesmo com a bandeira desligada**. Num banco
+sem a migration 0009 respondem `503 schema_outdated` antes de gravar qualquer coisa; sessão, progresso e exclusão
+de conta continuam funcionando. Com as contas ligadas, a migration vem antes da API
+([deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)). Provas locais em
+[development.md](../guides/development.md#retirada-de-ong-publicada-local-impl-0020-proposta).
 
 ### Listas do painel administrativo (IMPL-0015)
 
@@ -674,8 +744,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 405 | `method_not_allowed` | rota pública com método diferente de GET/HEAD/OPTIONS |
 | servidor | 405 | `method_not_allowed` | método diferente de GET |
 | API | 503 | `db_unavailable` | rota dependente de D1 (incluindo `/lots`, `/ngos/:id` e rotas de conta) sem binding |
-| API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ausentes; atualizar esquema antes de ativar o fluxo |
-| API | 409 | `account_deleting` | exclusão pendente bloqueia candidatura/arquivos e análise/aprovação/ajustes; dono pode repetir exclusão, admin pode rejeitar candidatura aberta e liberar terreno |
+| API | 503 | `schema_outdated` | operação de conta depende de colunas da migration 0007 ou da tabela `ngo_withdrawals` (0009) ausentes; atualizar esquema antes de ativar o fluxo |
+| API | 409 | `account_deleting` | exclusão pendente bloqueia candidatura/arquivos, análise/aprovação/ajustes e a retirada; dono pode repetir exclusão, admin pode rejeitar candidatura aberta e liberar terreno |
 | API | 503 | `files_unavailable` | exclusão/recuperação exige armazenamento de arquivos, mas o binding `FILES` está ausente |
 | API | 503 | `file_cleanup_pending` | remoção/recuperação canônica não concluiu a limpeza; repetir `files/recover`, sem interpretar a retirada do metadado como descarte físico |
 | API | 404 | `accounts_disabled` | rota de conta com `ACCOUNTS_ENABLED` desligado |
@@ -711,6 +781,8 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 400 | `file_mismatch`, `file_invalid`, `file_empty`, `image_too_small`, `image_too_large` (+ `fields.file`) | conteúdo diferente do formato informado, imagem ilegível, arquivo vazio, imagem fora dos limites de pixels |
 | API | 409 | `no_application` | envio de arquivo por conta sem candidatura |
 | API | 409 | `application_locked` | envio ou remoção de arquivo com a candidatura em análise ou a ONG já publicada |
+| API | 409 | `application_withdrawn` | ONG retirada da Vila (IMPL-0020, PROPOSTA): envio de arquivo ou foto, reenvio, nova candidatura da mesma conta, aprovação/rejeição de foto ou segunda retirada |
+| API | 400 | `reason_required` (+ `fields.reason`) | retirada sem a mensagem para a organização (10 a 1000 caracteres) |
 | API | 409 | `too_many_files` (+ `fields.file`) | sexto documento |
 | API | 429 | `too_many_file_changes` (+ `fields.file`) | mais de 60 envios e remoções de arquivo na mesma candidatura em 24 horas |
 | API | 409 | `application_changed` | a candidatura mudou enquanto o arquivo era enviado ou removido |
@@ -727,52 +799,3 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
 [IMPL-0015](../decisions/0015-dash-backoffice-app.md)
-
-## Retirada administrativa de ONG publicada — IMPL-0020
-
-**Liberação do terreno confirmada por Nicolas em 12/11/2026.** Contrato técnico para revisão no PR, sem
-ativação remota. Ver [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md) e OQ-09/OQ-14.
-
-`POST /admin/ngos/:id/withdraw` exige `ACCOUNTS_ENABLED=true`, `NGO_WITHDRAWAL_ENABLED=true`, Origin permitido,
-sessão de administrador e JSON `{accountId, revision, reason}`. `accountId` deve ser o da sessão;
-`revision` é inteiro seguro positivo; `reason` é texto privado de 10 a 1000 pontos de código Unicode após
-aparar espaços, sem NUL embutido. A contagem coincide com a restrição do SQLite.
-O administrador não pode retirar a própria ONG. Só uma ONG publicada, ainda sem retirada, aceita a operação.
-
-Resposta: `200 {application}` com nova revisão, `status: "withdrawn"` e `withdrawal: {reason, at}`. A retirada,
-o incremento de revisão, a liberação dos terrenos e a auditoria são uma transação D1. Chamadas concorrentes ou
-repetidas não duplicam auditoria: apenas uma vence, as demais recebem `409`. O registro da retirada guarda os
-terrenos **realmente associados**, inclusive quando `requested_lot_id` é diferente ou nulo. Todos esses vínculos
-são liberados (`available`, `ngo_id=null`); um terreno de outra ONG não é alterado. A outra organização pode
-candidatar-se ao terreno pelo fluxo já existente.
-
-Na próxima leitura da API, `/ngos/:id`, logo, galeria e bytes públicos de fotos (GET/HEAD) deixam de servir a
-ONG e `/lots` não expõe nome/resumo/id retirados: essas leituras exigem o terreno publicado, que a retirada
-libera. Os bloqueios de leitura persistem mesmo desligando a flag de novas retiradas.
-Conteúdo já baixado ou uma tela que ainda não atualizou não pode ser revogado por essa operação.
-
-Dados e aprovação histórica permanecem no banco. Fotos, logo e documentos continuam disponíveis pelas rotas
-privadas já autorizadas para dono/admin. Novos uploads (fotos, logo, documentos) e aprovação/rejeição de fotos
-são bloqueados; a remoção de uma foto continua disponível. Logo e documentos seguem congelados. Não há exclusão física, retorno automático, novo cadastro pela mesma candidatura nem alteração
-de missões, XP ou eventos de progresso. OQ-09 continua tratando a missão ativa cujo último alvo deixa a Vila.
-
-Motivo/data aparecem apenas no detalhe privado e na resposta ao solicitante. `reviewNote` conserva a nota
-original da análise. A auditoria `ngo.withdraw` guarda ator, ONG, revisão, IDs dos terrenos e `hasReason`, sem
-copiar o texto privado. A listagem administrativa filtra `withdrawn` e não mistura retiradas com `published`.
-O rótulo compartilhado e o cálculo de ocupação do painel reconhecem a retirada; o botão de retirada e a
-apresentação do motivo ainda devem ser integrados por Augusto. Não há alteração visual do jogo neste PR.
-
-| Erro | Significado |
-|---|---|
-| `404 not_found` | Flag desligada, UUID inválido ou ONG inexistente |
-| `400 revision_required` / `reason_required` | Revisão ou motivo inválidos |
-| `409 account_changed` | A conta da página diverge da sessão |
-| `403 self_review` | Administrador é o solicitante da ONG |
-| `409 stale_revision` | Revisão antiga ou disputa perdida durante a transação |
-| `409 bad_transition` | ONG ainda não publicada |
-| `409 application_withdrawn` | ONG já retirada; também bloqueia reenvio e novas fotos/moderação |
-
-Continuam valendo erros de sessão, papel, Origin, contas e JSON. Todas as respostas privadas e recusas de
-conteúdo público usam `no-store`. Migration **0009 precisa existir antes de publicar este código com as contas
-ligadas, mesmo com a flag desligada**, pois as leituras privadas consultam o registro de retiradas. Detalhes em
-[armazenamento](storage.md#retirada-administrativa--0009_ngo_withdrawalssql).

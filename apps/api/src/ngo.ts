@@ -7,6 +7,10 @@
  * States (PROPOSTA names from the plan): submitted → under_review → published | changes_requested | rejected.
  * The lot is reserved on submission (`application_sent`), follows the review (`under_review`), is published
  * only by an admin approval, and is released on rejection. Nothing is public before approval.
+ *
+ * An NGO withdrawn by the administration (IMPL-0020, PROPOSTA; ngo-withdrawal.ts) keeps `status = 'published'` in
+ * the table. Every answer here goes through the withdrawal ledger and shows the effective status `withdrawn`, with
+ * `withdrawal: {reason, at}`: `reason` is the message the administration wrote to the organisation.
  */
 import { validateApplication, type NgoApplication } from "@vila/shared/accounts/validate";
 
@@ -40,7 +44,10 @@ export interface NgoRow {
   withdrawn_at?: string | null;
 }
 
-/** Approval remains historical; the ledger supplies the effective private status in the same snapshot. */
+/**
+ * Approval remains historical; the ledger supplies the effective private status in the same snapshot. Needs
+ * migration 0009: without it the signed-in routes answer 503 schema_outdated (api.ts). Never use it in a public route.
+ */
 export const APPLICATION_QUERY = `SELECT n.*, w.reason AS withdrawal_reason, w.withdrawn_at
   FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id`;
 

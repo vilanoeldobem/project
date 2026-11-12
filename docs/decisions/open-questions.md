@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 8 abertas · **Atualizado em:** 2026-11-12
+> **Status:** 9 abertas · **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -17,6 +17,7 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); mutações gravam `audit_events`, e a leitura de comprovantes já é auditada conforme IMPL-0017; demais consultas e menu seguem PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), [IMPL-0017](0017-ngo-files-r2.md), DEC-037 |
 | OQ-12 | Arquivos das candidaturas de ONG: quais documentos a organização deve enviar (PEN-019)? Por quanto tempo ficam guardados depois da decisão (aprovação ou rejeição)? Quem, além dos admins, pode lê-los? | lista fechada de documentos / só opcionais; prazo fixo depois da decisão / até a exclusão da conta | Nenhum documento obrigatório nem nomeado; até 5 opcionais; ficam até a pessoa remover (fora de análise/publicação) ou excluir a conta; só quem enviou e admins leem, com leitura administrativa auditada e disponível com bucket ligado mesmo se o envio estiver desligado; envio desligado em produção (`NGO_FILES_ENABLED`) | ligar o envio de arquivos; revisão LGPD / ECA Digital | [IMPL-0017](0017-ngo-files-r2.md), PEN-019 |
 | OQ-13 | Medição com Google: desde 2026-11-12 a tag do Google (GTM) tenta enviar dados também para `analytics.google.com`, `www.google.com`, `stats.g.doubleclick.net` e `google.com.br/ads/ga-audiences` (Google Signals / públicos de anúncios). A CSP do jogo bloqueia esses destinos: cada bloqueio é um erro de console, parte da medição se perde e `verify.mjs` / `verify-live.mjs` falham. O que fazer? | desligar o Google Signals e os recursos de publicidade na propriedade do Google Analytics / liberar esses hosts na CSP | **Não liberar**: menores são público provável (ECA Digital, LGPD) e esses destinos servem a publicidade. Desligar Google Signals e personalização de anúncios no Google Analytics; a CSP fica como está | medição confiável; `verify.mjs` e `verify-live.mjs` voltarem a passar | conferência em produção de 2026-11-12; [deploy §5](../guides/deploy.md#5-site-público-e-domínios) |
+| OQ-14 | Retirada de ONG publicada (PROPOSTA, [IMPL-0020](0020-ngo-publication-withdrawal.md)): o que a retirada significa para a conta do responsável e para o CNPJ? Pode ser desfeita? A organização pode voltar? O terreno é liberado para outra ONG? O que é guardado, por quanto tempo, e o que é dito à organização? | ratificar o comportamento atual / permitir nova candidatura depois da retirada (da mesma conta, do mesmo CNPJ, ou de ambos) / criar restauração por admin / definir prazo e descarte dos dados | **Bandeira desligada** (`NGO_WITHDRAWAL_ENABLED = "false"` em produção e homologação): nenhuma retirada acontece. O código, se ligado, faz o que está descrito abaixo; nada disso é decisão de produto | ligar a retirada em homologação ou produção | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; revisão do PR #33 |
 | OQ-15 | Galeria institucional conciliada: ratificar quantidade, tamanho, PNG/JPEG, dimensões, direitos de imagem, consentimentos, retenção e procedimento para órfãos? Como tratar fotos depois da exclusão da conta? | Ratificar a proposta ou ajustar antes de receber arquivos reais; definir retenção por estado editorial | Galeria com revisão individual, no bucket privado `FILES`, separada de logo/comprovantes; PNG/JPEG tratados pelo parser compartilhado; `NGO_PHOTOS_ENABLED` desligada. Sem WebP nesta versão. Exclusão da conta remove toda a galeria, inclusive fotos aprovadas; leitura pública exige terreno publicado. Texto/versionamento da declaração e conferência de direitos de imagem aguardam decisão operacional | Ativar galeria e receber fotos reais; integração visual posterior | [IMPL-0018](0018-ngo-files-reconciliation.md), DEC-028/037, PEN-019 |
 
 **OQ-15, o que só o dono do produto responde (revisão do PR #35).** O código da galeria é PROPOSTA e não decide
@@ -32,9 +33,32 @@ nenhum destes pontos; **`NGO_PHOTOS_ENABLED` fica `"false"` até a resposta**:
 3. **Retenção dos registros** de fotos rejeitadas ou removidas (linhas sem legenda nem bytes, mantidas para a
    auditoria): prazo e descarte.
 
-OQ-14 permanece reservada à retirada na branch do PR #33; OQ-13 continua sendo a questão de analytics do PR #32.
+**OQ-14, o que só o dono do produto responde (revisão do PR #33).** A retirada é PROPOSTA e fica desligada
+(**`NGO_WITHDRAWAL_ENABLED = "false"` até a resposta**). Se fosse ligada hoje, o código faria o seguinte; cada
+item precisa ser ratificado ou mudado, e nenhum foi decidido pelo código:
 
-| OQ-14 | Retirada de ONG publicada: qual procedimento administrativo, comunicação do motivo, retenção e reentrada; como atualizar cenas já abertas? | Ratificar/ajustar proposta antes da ativação; definir restauração/reentrada separadamente | Terreno liberado para outra ONG, confirmado por Nicolas em 2026-11-12. Registro permanente de retirada, histórico e arquivos preservados, sem restauração ou reenvio; bandeira de novas retiradas desligada. Visibilidade pública sempre respeita retirada já registrada, mesmo com a bandeira desligada. Missão da última casa depende de OQ-09 | Ativar retirada em homologação/produção; futura restauração ou reentrada | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; confirmação direta do responsável sobre o terreno |
+1. **Conta do responsável bloqueada.** Depois da retirada, a conta que enviou a candidatura não consegue enviar
+   outra, nem para outra organização com outro CNPJ (`409 application_withdrawn`; a linha retirada continua
+   ocupando a vaga de "uma candidatura ativa por pessoa" da migration 0005). Isso é uma sanção sobre a conta? Se
+   for, quem a aplica e com que critério (ver OQ-11)? Se não for, a conta deve poder se candidatar de novo?
+2. **CNPJ continua em uso.** Nenhuma outra conta consegue candidatar o mesmo CNPJ (`409 cnpj_in_use`). A
+   organização pode voltar à Vila? Com nova análise completa? Depois de quanto tempo?
+3. **Sem desfazer.** Não existe restauração nem decisão aplicável a uma ONG retirada: um engano só se corrige
+   com intervenção manual no banco. Deve existir uma restauração por administrador, auditada?
+4. **Bloqueio contornável.** Excluir a conta e criar outra permite candidatar-se de novo com outro CNPJ. Isso é
+   aceitável, ou a regra deve valer para a pessoa ou a organização e não para a conta?
+5. **Terreno liberado na hora.** O terreno volta a `available` e outra ONG pode pedi-lo. A equipe informou em
+   2026-11-12 que esse é o comportamento desejado; **falta o registro como DEC** no repositório de documentação.
+6. **Mensagem para a organização.** O texto que o administrador escreve (10 a 1000 caracteres) é mostrado ao
+   responsável exatamente como foi escrito, na tela da candidatura; não há anotação interna separada nem aviso
+   por e-mail. Esse é o canal certo? É preciso um texto padrão, um registro interno do motivo, ou os dois?
+7. **Retenção por omissão.** A candidatura, o registro da retirada (com a mensagem), os arquivos e as fotos
+   ficam guardados sem prazo. O responsável pode remover os próprios arquivos e fotos; a exclusão da conta apaga
+   documentos, galeria e o logo da ONG retirada, mas o registro e a mensagem ficam. Por quanto tempo cada item
+   deve ficar, e quem descarta (ver também OQ-12 e OQ-15)?
+8. **Cenas abertas e missões.** Quem já está na Vila continua vendo a casa até recarregar, e a missão
+   `newest-house-visit` pode ficar sem objetivo se a última casa sair (OQ-09). Isso precisa de tratamento antes
+   de ligar a retirada?
 
 ## Resolvidas
 

@@ -38,6 +38,6 @@
 | [IMPL-0017](0017-ngo-files-r2.md) | Arquivos das candidaturas de ONG no R2 (logo e documentos) | Proposta — implementada, desligada em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019) |
 | [IMPL-0018](0018-ngo-files-reconciliation.md) | Conciliação de logo/documentos e galeria sobre o fluxo do PR #32 | Proposta — implementada, sem ativação; conciliação de arquivos e galeria |
 | [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementada, bandeiras inalteradas |
-| [IMPL-0020](0020-ngo-publication-withdrawal.md) | Retirada administrativa da publicação de ONG, histórico e visibilidade | Proposta — implementação para revisão, desligada; ativação depende de OQ-14 e política de missões OQ-09 |
+| [IMPL-0020](0020-ngo-publication-withdrawal.md) | Retirada administrativa da publicação de ONG: registro aditivo, leituras públicas pelo terreno | Proposta — implementada, desligada em produção e homologação (`NGO_WITHDRAWAL_ENABLED`); política PENDENTE (OQ-14), missões na OQ-09 |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

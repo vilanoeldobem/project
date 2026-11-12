@@ -13,6 +13,9 @@
  * it decides nothing about the content, it only starts the review — and locks the files (IMPL-0017) — so it
  * applies to whatever revision is current; an applicant cannot keep it away by changing files. Approving also requires the three DEC-015
  * checks (`checks: {activeCnpj, oneYear, fundsConfirmable}`, all true), recorded in the audit detail.
+ *
+ * No decision applies to a published NGO. Taking one out of the village is the withdrawal (IMPL-0020, PROPOSTA;
+ * ngo-withdrawal.ts); lists and details here show its effective status `withdrawn`.
  */
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
