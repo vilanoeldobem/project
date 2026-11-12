@@ -264,6 +264,23 @@ async function refreshAccount() {
 }
 
 /**
+ * The magic-link token: already moved out of the URL into memory by `public/login-fragment.js` (which runs before
+ * Google Tag Manager, so analytics never sees it), or still in the `#login=` fragment if that script did not run.
+ */
+function takeLoginToken(): string | null {
+  const early = window.__vilaLoginToken;
+  delete window.__vilaLoginToken;
+  if (early) return early;
+  const fragment = new URLSearchParams(location.hash.slice(1));
+  const token = fragment.get("login");
+  if (token) {
+    fragment.delete("login");
+    history.replaceState(null, "", `${location.pathname}${location.search}${fragment.size ? `#${fragment}` : ""}`);
+  }
+  return token;
+}
+
+/**
  * Startup: reads the flag, consumes a `#login=` link (then removes it from the address bar) or restores
  * the session. The token travels in the fragment, which the browser never sends to any server (so it is
  * in no access log). Never throws; without the API the game stays fully playable.
@@ -273,11 +290,8 @@ export async function initAccount() {
     const { accounts } = await api.config();
     useAccount.setState({ enabled: accounts });
     if (!accounts) return;
-    const fragment = new URLSearchParams(location.hash.slice(1));
-    const token = fragment.get("login");
+    const token = takeLoginToken();
     if (token) {
-      fragment.delete("login");
-      history.replaceState(null, "", `${location.pathname}${location.search}${fragment.size ? `#${fragment}` : ""}`);
       try {
         const { user } = await api.verify(token);
         await signedIn(user);

@@ -97,7 +97,7 @@ jogo (play.*)                     API (api.*)                          D1 / Emai
  │ apaga o progresso de visitante do navegador e mostra o da conta; cada evento novo é enviado
 ```
 
-O token sai da barra de endereço logo ao ser lido. O link aponta para o jogo, não para a API, para que scanners de
+O token sai da barra de endereço antes de qualquer script de terceiros: `public/login-fragment.js` roda antes do Google Tag Manager, guarda o token só em memória e `initAccount` o consome uma vez. O link aponta para o jogo, não para a API, para que scanners de
 e-mail que "clicam" links não consumam o token.
 
 ## 4. Servidor de tempo real (`apps/server/src`)
