@@ -4,9 +4,9 @@
  * own that a panel replaces. Runs in Node with a stubbed `localStorage`; the store is re-imported per test
  * because it reads the browser's storage once per page load.
  */
-import { readFileSync } from "node:fs";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import css from "../styles.css?raw";
 
 let storage: Map<string, string>;
 
@@ -147,32 +147,27 @@ describe("the line that says how to walk", () => {
 });
 
 describe("a passing notice (toast)", () => {
-  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
-
-  it("leaves the screen after its time by the store's clock, not by an animation", async () => {
-    vi.useFakeTimers();
-    const { useVila, TOAST_MS } = await load();
+  it("is removed when its time is up, by the HUD that drew it, instead of staying as an invisible node", async () => {
+    const { useVila } = await load();
     useVila.getState().notify("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
-    expect(useVila.getState().toast?.text).toBe("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
-    vi.advanceTimersByTime(TOAST_MS - 1);
-    expect(useVila.getState().toast).not.toBeNull();
-    vi.advanceTimersByTime(1);
+    const { id, text } = useVila.getState().toast!;
+    expect(text).toBe("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
+    useVila.getState().dismissToast(id);
     expect(useVila.getState().toast).toBeNull();
   });
 
   it("is not cut short by the time of the notice it replaced", async () => {
-    vi.useFakeTimers();
-    const { useVila, TOAST_MS } = await load();
+    const { useVila } = await load();
     useVila.getState().notify("first");
-    vi.advanceTimersByTime(TOAST_MS - 500);
+    const first = useVila.getState().toast!.id;
     useVila.getState().notify("second");
-    vi.advanceTimersByTime(500); // the time of the first one is up
+    useVila.getState().dismissToast(first); // the time of the first one is up
     expect(useVila.getState().toast?.text).toBe("second");
-    vi.advanceTimersByTime(TOAST_MS - 500);
+    useVila.getState().dismissToast(useVila.getState().toast!.id);
     expect(useVila.getState().toast).toBeNull();
   });
 
-  it("fades for exactly the time the store keeps it", async () => {
+  it("fades for exactly the time the HUD keeps it", async () => {
     const { TOAST_MS } = await load();
     expect(/\.toast \{[^}]*animation: toast ([\d.]+)s /.exec(css)?.[1]).toBe(String(TOAST_MS / 1000));
   });

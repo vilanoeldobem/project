@@ -142,8 +142,9 @@ kbd {
 .xp__num { color: var(--ink-2); }
 
 /*
- * In the flow under the top groups (beside the notices when there is room): it never covers a control. The store
- * removes it after `TOAST_MS` (`game/store.ts`), the time of this fade; with reduced motion it does not fade.
+ * In the flow under the top groups (beside the notices when there is room): it never covers a control. The HUD
+ * removes it `TOAST_MS` after drawing it (`game/store.ts`), the time of this fade; with reduced motion it does
+ * not fade.
  */
 .toast {
   margin-inline: auto; pointer-events: none;
@@ -248,7 +249,7 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  /* The fade would end at once on its last frame (invisible): the toast is drawn as it is until the store removes it. */
+  /* The fade would end at once on its last frame (invisible): the toast is drawn as it is until the HUD removes it. */
   .toast { animation: none; }
 }
 

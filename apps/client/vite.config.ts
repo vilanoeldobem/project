@@ -43,5 +43,6 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  test: { include: ["src/**/*.test.{ts,tsx}", "worker/**/*.test.ts"], environment: "node" },
+  // `css`: tests read the stylesheet as text (`styles.css?raw`); without it Vitest hands them an empty string.
+  test: { include: ["src/**/*.test.{ts,tsx}", "worker/**/*.test.ts"], environment: "node", css: true },
 }));

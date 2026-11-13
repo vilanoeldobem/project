@@ -163,15 +163,18 @@ interface VilaState {
   restoreGuest: () => void;
   /** Guest progress was migrated to an account: this browser keeps none of it. */
   clearGuest: () => void;
-  /** Shows a passing notice (`toast`) for `TOAST_MS`; a newer one replaces it. */
+  /** Shows a passing notice (`toast`); a newer one replaces it. */
   notify: (text: string) => void;
+  /** Removes the notice with this id when its time is up; a newer notice stays. */
+  dismissToast: (id: number) => void;
 }
 
 let toastSeq = 0;
 
 /**
- * How long a passing notice (`toast`) stays. The store removes it: its fade (`styles.css`, the same time) is
- * only how it looks, and under `prefers-reduced-motion` there is no fade at all.
+ * How long a passing notice (`toast`) stays on screen, counted by the HUD from the moment it is drawn
+ * (`Toast`, `ui/Hud.tsx`), then removed with `dismissToast`. Its fade (`styles.css`, the same time) is only how
+ * it looks: under `prefers-reduced-motion` there is no fade at all, and the notice still has to leave.
  */
 export const TOAST_MS = 3_600;
 
@@ -266,12 +269,9 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ progress: p, progressOwner: null, look: sanitizeLook(get().look, p) });
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
-  notify: (text) => {
-    const toast = { id: ++toastSeq, text };
-    set({ toast });
-    setTimeout(() => {
-      if (get().toast === toast) set({ toast: null });
-    }, TOAST_MS);
+  notify: (text) => set({ toast: { id: ++toastSeq, text } }),
+  dismissToast: (id) => {
+    if (get().toast?.id === id) set({ toast: null });
   },
 }));
 

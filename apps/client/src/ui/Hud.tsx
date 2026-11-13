@@ -4,7 +4,7 @@ import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
 import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
-import { type Nearby, type Panel, useVila } from "../game/store";
+import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { pressEscape } from "../lib/escape";
 import { boundAction, heldOnControl, hudKeyAction, isTextField } from "../lib/hud-keys";
 import { AccountChip } from "./Account";
@@ -164,7 +164,7 @@ export function Hud() {
           <RemovedNotice />
           <ModerationBar />
         </div>
-        {toast && <Toast key={toast.id} text={toast.text} />}
+        {toast && <Toast key={toast.id} id={toast.id} text={toast.text} />}
       </div>
 
       <div className="hud__bottom">
@@ -205,7 +205,17 @@ function MoveHint() {
   );
 }
 
-function Toast({ text }: { text: string }) {
+/**
+ * A passing notice. It leaves `TOAST_MS` after it is drawn (not after it was asked for: a notice asked for while
+ * the village loads would lose part of its time), with or without its fade: under `prefers-reduced-motion` it is
+ * drawn as it is until then (`styles.css`).
+ */
+function Toast({ id, text }: { id: number; text: string }) {
+  const dismiss = useVila((s) => s.dismissToast);
+  useEffect(() => {
+    const timer = setTimeout(() => dismiss(id), TOAST_MS);
+    return () => clearTimeout(timer);
+  }, [id, dismiss]);
   return (
     <div className="toast" role="status">
       {text}
