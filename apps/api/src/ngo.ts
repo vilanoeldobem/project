@@ -178,7 +178,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
       "INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ? AND status = 'submitted')"
     ).bind(newId(), user.id, current ? "ngo.resubmit" : "ngo.submit", `ngo:${ngoId}`, JSON.stringify({ lot: value.lotId, revision }), ngoId, revision)
   );
-  // IMPL-0022 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
+  // IMPL-0023 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
   // nothing from migration 0011 is touched, so the application flow still works on the schema production has.
   if (env.DONATIONS_ENABLED === "true") {
     const method = value.paymentMethod ?? "abacatepay";

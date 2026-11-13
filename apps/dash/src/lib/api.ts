@@ -41,7 +41,7 @@ export interface Config {
   files?: boolean;
   withdrawal?: boolean;
   moderation?: Partial<ModerationConfig>;
-  /** Donations and the AbacatePay reconciliation (IMPL-0022, PROPOSTA); absent on an older API (= off). */
+  /** Donations and the AbacatePay reconciliation (IMPL-0023, PROPOSTA); absent on an older API (= off). */
   donations?: boolean;
   [flag: string]: unknown;
 }
@@ -153,7 +153,7 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
 
   return {
     health: () => call<Health>("GET", "/health"),
-    /** Global donation and provider settings (IMPL-0022; only when `/config` says `donations`). */
+    /** Global donation and provider settings (IMPL-0023; only when `/config` says `donations`). */
     donationOverview: () => call<DonationOverview>("GET", "/admin/donations/overview"),
     saveDonationSettings: (body: {
       accountId: string;

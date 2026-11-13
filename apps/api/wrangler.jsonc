@@ -49,7 +49,7 @@
     // Removing a visitor from a room of the realtime server (PROPOSTA, IMPL-0021). Needs ACCOUNTS_ENABLED,
     // migration 0010 and the realtime server deployed with the same flag and its service binding to this Worker.
     "PRESENCE_MODERATION_ENABLED": "false",
-    // Donations and the AbacatePay reconciliation (PROPOSTA, IMPL-0022). Off until the partner contract and the
+    // Donations and the AbacatePay reconciliation (PROPOSTA, IMPL-0023). Off until the partner contract and the
     // payment rules exist (PEN-004, PEN-006, PEN-026). Needs ACCOUNTS_ENABLED and migration 0011.
     "DONATIONS_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",

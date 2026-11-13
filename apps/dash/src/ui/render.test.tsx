@@ -625,7 +625,7 @@ describe("files of an application (IMPL-0017)", () => {
   });
 });
 
-describe("donations in the dashboard (IMPL-0022, PROPOSTA)", () => {
+describe("donations in the dashboard (IMPL-0023, PROPOSTA)", () => {
   it("shows the management area only with the flag on and an admin account on screen", () => {
     const on = html(<Pending donationsOn accountId={ADMIN.id} />);
     expect(on).toContain("Doações e AbacatePay (PROPOSTA)");

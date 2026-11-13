@@ -67,7 +67,7 @@ export interface AdminPhoto {
 }
 
 export const api = {
-  /** `withdrawal`, `moderation` and `donations` are missing in the answer of an API older than IMPL-0020 / IMPL-0021 / IMPL-0022. */
+  /** `withdrawal`, `moderation` and `donations` are missing in the answer of an API older than IMPL-0020 / IMPL-0021 / IMPL-0023. */
   config: () =>
     call<{
       accounts: boolean;
@@ -130,7 +130,7 @@ interface AccountState {
   withdrawal: boolean;
   /** Removing a visitor from a room turned on by the API (`/config.moderation.presence`, IMPL-0021, PROPOSTA). */
   presenceModeration: boolean;
-  /** Donations turned on by the API (`/config`, IMPL-0022, PROPOSTA); the donation panels stay disabled when false. */
+  /** Donations turned on by the API (`/config`, IMPL-0023, PROPOSTA); the donation panels stay disabled when false. */
   donations: boolean;
   user: Me | null;
   ready: boolean;

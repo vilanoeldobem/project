@@ -1,5 +1,5 @@
 /**
- * Donations end to end on the real migrations (IMPL-0022, PROPOSTA): admin configuration, Pix charges with the
+ * Donations end to end on the real migrations (IMPL-0023, PROPOSTA): admin configuration, Pix charges with the
  * provider split, signed webhook reconciliation, Título credit exactly once, refund reversal, external links and
  * proofs, sandbox fallback and the schema guard. The provider is a stub: no test reaches AbacatePay.
  */

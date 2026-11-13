@@ -11,7 +11,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added — doações Pix e conciliação com a AbacatePay (PROPOSTA, desligada)
 
-- **PROPOSTA** ([IMPL-0022](docs/decisions/0022-donations-abacatepay.md)), atrás da bandeira `DONATIONS_ENABLED`
+- **PROPOSTA** ([IMPL-0023](docs/decisions/0023-donations-abacatepay.md)), atrás da bandeira `DONATIONS_ENABLED`
   (`"false"` em produção e homologação; `"true"` no script local `dev`). Contrato da parceira, provedor e regra do
   Título seguem PENDENTES (PEN-004, PEN-006, PEN-026). Nenhuma migration remota foi aplicada e nenhuma bandeira
   foi ligada.
@@ -45,7 +45,7 @@ Cada versão indica o schema D1 que entrega.
   cobrança sai sem `splits`, mantendo o split completo no D1. Em produção a recusa vira
   `409 subaccounts_unavailable` e o admin pode informar um `sacc_…` existente.
 
-### Fixed — doações e conciliação (IMPL-0022, PROPOSTA)
+### Fixed — doações e conciliação (IMPL-0023, PROPOSTA)
 
 - Webhook repetido não altera mais o estado: a atualização é amarrada à inserção daquele evento, então um replay
   tardio não desfaz uma disputa nem credita o Título de novo.

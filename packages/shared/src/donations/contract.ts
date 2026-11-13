@@ -1,5 +1,5 @@
 /**
- * Donation rules shared by the game, the API and the backoffice (IMPL-0022). PROPOSTA until the partner
+ * Donation rules shared by the game, the API and the backoffice (IMPL-0023). PROPOSTA until the partner
  * contract and the payment rules are decided (PEN-004, PEN-006, PEN-026): the Título tiers and the split
  * defaults below are the proposal, not a settled decision.
  *

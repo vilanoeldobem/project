@@ -137,7 +137,7 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
 // on any schema the code may meet (v3 to v11), whatever the flags and the bucket, and never with a 500. None of them
 // may read a table from a later migration: neither the withdrawal ledger (0009, IMPL-0020), anything 0010 adds
-// (the account block and the moderation tickets, IMPL-0021), nor the donation tables (0011, IMPL-0022) is part of
+// (the account block and the moderation tickets, IMPL-0021), nor the donation tables (0011, IMPL-0023) is part of
 // any public read while their flags are off.
 it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});

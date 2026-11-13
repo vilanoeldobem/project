@@ -1,4 +1,4 @@
-# IMPL-0022: Doações Pix e conciliação com a AbacatePay (global e por ONG)
+# IMPL-0023: Doações Pix e conciliação com a AbacatePay (global e por ONG)
 
 **Status:** Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); depende de PEN-004,
 PEN-006 e PEN-026

@@ -136,7 +136,7 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
   const [filesOn, setFilesOn] = useState(false);
   /** `GET /config` says whether a published NGO can be withdrawn (IMPL-0020, PROPOSTA); absent = off. */
   const [withdrawalOn, setWithdrawalOn] = useState(false);
-  /** `GET /config` says whether donations are on (IMPL-0022, PROPOSTA); absent = off. */
+  /** `GET /config` says whether donations are on (IMPL-0023, PROPOSTA); absent = off. */
   const [donationsOn, setDonationsOn] = useState(false);
   const [error, setError] = useState("");
   /** The API knows no application with this id (a link to one that never existed here, or was erased). */
@@ -198,7 +198,7 @@ export function Review({
   d: ApplicationDetail;
   filesOn: boolean;
   withdrawalOn?: boolean;
-  /** Donations are on in this API (IMPL-0022, PROPOSTA) and the review shows the payment configuration. */
+  /** Donations are on in this API (IMPL-0023, PROPOSTA) and the review shows the payment configuration. */
   donationsOn?: boolean;
   accountId?: string;
   onDetail: (d: ApplicationDetail) => void;
@@ -293,7 +293,7 @@ export function Review({
       </dl>
       {/* An API older than IMPL-0017 sends no `files`. */}
       <Files applicationId={id} d={d} enabled={filesOn} accountId={accountId} onDetail={onDetail} />
-      {/* IMPL-0022 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
+      {/* IMPL-0023 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
       {donationsOn && a.status !== "withdrawn" && (
         <NgoPaymentConfig
           key={`${a.id}:${a.ngoPayment?.updatedAt ?? "new"}`}

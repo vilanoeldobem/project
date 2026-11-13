@@ -50,7 +50,7 @@ export function App() {
     })
   );
 
-  /** Extra flags the screens need (donations, IMPL-0022); read once per admin session. */
+  /** Extra flags the screens need (donations, IMPL-0023); read once per admin session. */
   const [donations, setDonations] = useState(false);
 
   useEffect(() => {

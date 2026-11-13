@@ -16,7 +16,7 @@ import { PixDonation } from "./PixDonation";
  * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
  * moderation actions of the house (IMPL-0021, `LotModeration`); `onChanged` reads the lots again after one.
  *
- * Donations (IMPL-0022; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
+ * Donations (IMPL-0023; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
  * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
  */

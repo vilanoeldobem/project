@@ -27,7 +27,7 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
-| `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0022](../decisions/0022-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
+| `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0023](../decisions/0023-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
 
 Esta versão contém 0001–0011, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
@@ -164,7 +164,7 @@ candidatura e de análise a consultam para projetar `withdrawn` e recusar envios
 
 ### donation_settings, ngo_payment_configs, donations, donation_redirects e abacatepay_webhook_events (v11, PROPOSTA)
 
-Doações e conciliação com a AbacatePay ([IMPL-0022](../decisions/0022-donations-abacatepay.md)). **PROPOSTA**: só
+Doações e conciliação com a AbacatePay ([IMPL-0023](../decisions/0023-donations-abacatepay.md)). **PROPOSTA**: só
 recebem linhas com `DONATIONS_ENABLED = "true"` (desligada em produção e homologação). O que o produto decide sobre
 parceira, provedor e Título segue PENDENTE (PEN-004, PEN-006, PEN-026); a migration não decide nada disso.
 Valores são inteiros em **centavos**.

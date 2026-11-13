@@ -119,7 +119,7 @@ remoção de logo por administrador não têm bandeira própria (valem com as co
 `donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
 existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
 (IMPL-0002) e nenhuma rota `/donations/*` existe. Doações são **PROPOSTA**
-([IMPL-0022](../decisions/0022-donations-abacatepay.md), PEN-004/PEN-006/PEN-026): ligada no script local `dev`,
+([IMPL-0023](../decisions/0023-donations-abacatepay.md), PEN-004/PEN-006/PEN-026): ligada no script local `dev`,
 desligada em produção e staging. As rotas de doação dependem da migration 0011; num banco atrás do código elas
 respondem `503 schema_outdated`.
 
@@ -712,7 +712,7 @@ de conta continuam funcionando. Com as contas ligadas, a migration vem antes da 
 ([deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)). Provas locais em
 [development.md](../guides/development.md#retirada-de-ong-publicada-local-impl-0020-proposta).
 
-### Doações e conciliação com AbacatePay (IMPL-0022, PROPOSTA)
+### Doações e conciliação com AbacatePay (IMPL-0023, PROPOSTA)
 
 **PROPOSTA**, atrás de `DONATIONS_ENABLED` (`"false"` em produção e staging; `"true"` no script local `dev`).
 Depende da migration 0011 e, nas rotas administrativas, de `ACCOUNTS_ENABLED`. A política — contrato da parceira,
@@ -1175,5 +1175,5 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 
 [architecture.md](architecture.md) · [storage.md](storage.md) · [IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md) ·
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md) · [IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md) ·
-[IMPL-0022](../decisions/0022-donations-abacatepay.md) ·
+[IMPL-0023](../decisions/0023-donations-abacatepay.md) ·
 [IMPL-0015](../decisions/0015-dash-backoffice-app.md)

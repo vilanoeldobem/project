@@ -75,7 +75,7 @@ describe("NGO application (P12; DEC-015)", () => {
 
   it("keeps the requested donation mode, validating only the external link", () => {
     const base = { ...VALID_APP, summary: "Apoio escolar às crianças da comunidade." };
-    // Omitted: AbacatePay, as every application sent before IMPL-0022.
+    // Omitted: AbacatePay, as every application sent before IMPL-0023.
     const omitted = validateApplication(base, TODAY);
     expect(omitted.errors).toEqual({});
     expect([omitted.value.paymentMethod, omitted.value.donationUrl]).toEqual(["abacatepay", ""]);

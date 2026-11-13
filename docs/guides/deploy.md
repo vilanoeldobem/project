@@ -521,7 +521,7 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
 - Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
   `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o
   binding de serviço, painel e jogo).
-- Doações (IMPL-0022): migration 0011 não aplicada no remoto; `DONATIONS_ENABLED` desligada; nada desta entrega foi
+- Doações (IMPL-0023): migration 0011 não aplicada no remoto; `DONATIONS_ENABLED` desligada; nada desta entrega foi
   publicado.
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).

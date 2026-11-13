@@ -95,7 +95,7 @@ export async function fetchLogo(path: string): Promise<Blob | null> {
   }
 }
 
-/* ------------------------------------------------------------------ donations (IMPL-0022, PROPOSTA) */
+/* ------------------------------------------------------------------ donations (IMPL-0023, PROPOSTA) */
 
 export interface DonationConfig {
   global: {

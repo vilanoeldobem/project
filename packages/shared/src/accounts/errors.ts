@@ -40,7 +40,7 @@ const ERROR_TEXT: Record<string, string> = {
   self_block: "Você não pode bloquear a sua própria conta.",
   admin_account: "Esta conta é de um administrador. Mude o papel para Padrão antes de bloquear.",
   bad_transition: "A situação mudou enquanto esta tela estava aberta. Atualize a página e confira antes de tentar de novo.",
-  // Donations (IMPL-0022, PROPOSTA).
+  // Donations (IMPL-0023, PROPOSTA).
   payment_provider_unavailable: "O provedor de pagamento está indisponível no momento. Tente novamente em instantes.",
   ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
   global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",

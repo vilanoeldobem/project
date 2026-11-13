@@ -1,5 +1,5 @@
 /**
- * Donations and payment reconciliation (IMPL-0022; PROPOSTA, dark behind DONATIONS_ENABLED).
+ * Donations and payment reconciliation (IMPL-0023; PROPOSTA, dark behind DONATIONS_ENABLED).
  *
  * Global donation: one partner institution, paid through its AbacatePay sub-account with a split.
  * NGO donation: the NGO's own sub-account (with split) or the NGO's validated HTTPS payment page, which only

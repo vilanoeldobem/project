@@ -104,7 +104,7 @@ export interface Env {
   FILES?: R2Bucket;
   /** "true" turns on NGO logo and document uploads (PROPOSTA; PEN-019). Needs `FILES` and ACCOUNTS_ENABLED. Off in production. */
   NGO_FILES_ENABLED?: string;
-  /** "true" turns on donations and the AbacatePay reconciliation (PROPOSTA; IMPL-0022, PEN-004/PEN-006/PEN-026). Off in production. */
+  /** "true" turns on donations and the AbacatePay reconciliation (PROPOSTA; IMPL-0023, PEN-004/PEN-006/PEN-026). Off in production. */
   DONATIONS_ENABLED?: string;
   /** AbacatePay v2 API key (Worker secret, never a `var`; `abc_dev_…` on the sandbox). */
   ABACATEPAY_API_KEY?: string;
