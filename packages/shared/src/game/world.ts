@@ -1,7 +1,7 @@
 /**
- * World layout (first-slice proposal; final layout is PEN-017/PEN-023).
- * Unit = 1 voxel. The plaza is centred on the origin; the tree marks the global
- * donation point (example from P01, not a decision).
+ * World layout (PROPOSTA, IMPL-0023; the final layout is PEN-017/PEN-023).
+ * Unit = 1 voxel. The square is centred on the origin; the tree marks the global donation point (example
+ * from P01, not a decision) and stays the centre of the village: every avenue is a clear view of it.
  */
 import { AVATAR_RADIUS, type Collider, footprint, type Placed } from "./collision";
 
@@ -36,11 +36,6 @@ export const PALETTE = {
   bulbBlue: "#6FB7FF",
 } as const;
 
-export const WORLD_RADIUS = 34;
-export const PLAZA_RADIUS = 12;
-export const STREET_INNER = 13;
-export const STREET_OUTER = 17;
-export const LOT_RING = 22;
 /** Interaction anchor of the tree: the tree is "near" within `TREE_RADIUS + INTERACT_DISTANCE` of its axis. */
 export const TREE_RADIUS = 3.5;
 /** Reach of the tree's lowest boughs (drawn 2 u above the ground): what blocks the avatar (IMPL-0016). */
@@ -50,26 +45,437 @@ export const TREE_KEEP_OUT = TREE_BOUGHS_RADIUS + AVATAR_RADIUS;
 export const INTERACT_DISTANCE = 4.5;
 /**
  * Reach of a lot, from its centre. Larger than `INTERACT_DISTANCE` because a chalet's porch ends 4.5 u from
- * the centre, so the avatar stands almost 5 u away at the front door (IMPL-0016). Lots are 16.8 u apart.
+ * the centre, so the avatar stands almost 5 u away at the front door (IMPL-0016). Neighbouring lots are 10 u
+ * apart, so two of them can be in reach at once: the nearest one wins.
  */
 export const LOT_INTERACT_DISTANCE = 6;
+/** Reach of a residential plot, a shop door or a billboard, from its interaction point. */
+export const PLACE_INTERACT_DISTANCE = 3.2;
+
+// ---------------------------------------------------------------------------------------------------------
+// Village plan (IMPL-0023, PROPOSTA; the final plan is PEN-017/PEN-023).
+//
+// The village is a wheel around the Christmas tree: `sides` avenues leave the square between the sides of a
+// polygon, and every ring of plots is a row along each side, facing the tree. A lane (pedestrian path) runs
+// down the middle of every side, so each side holds two half rows. From the centre out: the square (plaza,
+// ring street, festive band), the square's frontage (plots reserved for approved NGOs, DEC-028, and the
+// Christmas shops) and three residential rings, one per tier.
+//
+// Everything below is derived from `VILLAGE_PLAN`: change a count or a size there and the positions, the
+// streets, the world radius, the seed checked by the tests and the scene all follow.
+// ---------------------------------------------------------------------------------------------------------
+
+/** Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-16). */
+export type PlotTier = "premium" | "standard" | "economy";
+export const PLOT_TIERS: readonly PlotTier[] = ["premium", "standard", "economy"];
+
+/**
+ * What holding a plot of a tier would ask of a player (PROPOSTA, OQ-16): unlocked by playing, never bought.
+ * There is no price, currency or purchase anywhere in the village (DEC-042, IMPL-0002).
+ */
+export type TierRequirement = { kind: "level"; level: number };
+
+/** Chalet of a tier: fixed footprint (so rows line up and colliders are exact), in voxels around its centre. */
+export interface HousePlan {
+  /** Half extents of the walls in voxels (the walls span `2 n + 1` u). */
+  halfWidth: number;
+  halfDepth: number;
+  /** Chance of a front porch (0 = never). */
+  porch: number;
+  /** Roof overhangs the side walls by one voxel. */
+  eaves: boolean;
+  /** Where the chalet's centre sits in the plot, along the plot's depth axis (0 = middle, negative = back). */
+  offset: number;
+}
+
+export interface TierPlan {
+  /** pt-BR name shown on the plot panel. */
+  label: string;
+  requirement: TierRequirement;
+  /** Plots on each half of a side (two half rows per side, one on each side of the lane). */
+  perHalf: number;
+  /** Plot width along the street and depth away from it (multiples of 0.5 u). */
+  width: number;
+  depth: number;
+  house: HousePlan;
+}
+
+export interface VillagePlan {
+  /** Avenues, and sides of every ring. */
+  sides: number;
+  plazaRadius: number;
+  /** The round street around the plaza. */
+  ringStreet: readonly [inner: number, outer: number];
+  /** Closest the square's frontage gets to the tree (apothem of the line where its porches end). */
+  squareApothem: number;
+  avenueWidth: number;
+  streetWidth: number;
+  laneWidth: number;
+  /** Ground between the back of a row and the street behind it. */
+  backYard: number;
+  /** The square's frontage: `perHalf` plots of `width` × `depth` on each half of a side. */
+  frontage: { perHalf: number; width: number; depth: number };
+  /** Every `shopEvery`-th side gives the first plot of its frontage to a shop (0 = no shops). */
+  shopEvery: number;
+  /** Walkable ground beyond the outermost corner. */
+  edge: number;
+  tiers: Record<PlotTier, TierPlan>;
+}
+
+/**
+ * The plan in force (PROPOSTA). Requirements are placeholders for the product owner to set (OQ-16): levels
+ * come only from missions and quests (DEC-042), and level 3 and above need the quests, which are off in
+ * production today.
+ */
+export const VILLAGE_PLAN: VillagePlan = {
+  sides: 8,
+  plazaRadius: 12,
+  ringStreet: [13, 17],
+  squareApothem: 26,
+  avenueWidth: 4,
+  streetWidth: 4,
+  laneWidth: 3,
+  backYard: 1.5,
+  frontage: { perHalf: 1, width: 7, depth: 8 },
+  shopEvery: 2,
+  edge: 2.5,
+  tiers: {
+    premium: {
+      label: "Premium",
+      requirement: { kind: "level", level: 5 },
+      perHalf: 1,
+      width: 12,
+      depth: 10,
+      house: { halfWidth: 3, halfDepth: 3, porch: 1, eaves: true, offset: -1 },
+    },
+    standard: {
+      label: "Padrão",
+      requirement: { kind: "level", level: 3 },
+      perHalf: 2,
+      width: 9.5,
+      depth: 8,
+      house: { halfWidth: 3, halfDepth: 2, porch: 0.5, eaves: true, offset: -1 },
+    },
+    economy: {
+      label: "Econômico",
+      requirement: { kind: "level", level: 2 },
+      perHalf: 4,
+      width: 6,
+      depth: 7,
+      house: { halfWidth: 2, halfDepth: 2, porch: 0, eaves: false, offset: -0.5 },
+    },
+  },
+};
 
 export interface LotDef {
   id: string;
   slot: number;
   x: number;
   z: number;
-  /** Rotation (rad) so the lot faces the plaza. */
+  /** Rotation (rad) so the lot faces the tree across the square. */
   facing: number;
 }
 
-/** Mirrors the `lots` rows (migrations 0002 + 0003). A test keeps them in sync. */
-export const LOTS: LotDef[] = Array.from({ length: 8 }, (_, i) => {
-  const a = (2 * Math.PI * i) / 8 + Math.PI / 8;
-  const x = Math.round(LOT_RING * Math.cos(a) * 100) / 100;
-  const z = Math.round(LOT_RING * Math.sin(a) * 100) / 100;
-  return { id: `plaza-${String(i + 1).padStart(2, "0")}`, slot: i + 1, x, z, facing: Math.atan2(-x, -z) };
-});
+/** A Christmas shop on the square's frontage (PROPOSTA): a real building, not open yet (no catalogue). */
+export interface ShopDef {
+  id: string;
+  x: number;
+  z: number;
+  facing: number;
+  /** Where the avatar stands to use the shop: in front of its door. */
+  door: { x: number; z: number };
+  /** Named spot for a future shopkeeper, beside the door, facing the square. Nothing stands there yet. */
+  keeper: { x: number; z: number; rot: number };
+}
+
+/** A signage frame on a shop (PROPOSTA): shows a notice of the village; not for rent (PEN-008, OQ-17). */
+export interface BillboardDef {
+  id: string;
+  shopId: string;
+  /** Centre of the frame, on the shop's roof. The frame always faces +z, towards the camera. */
+  x: number;
+  y: number;
+  z: number;
+  /** Where the avatar stands to inspect it: at the shop's corner. */
+  point: { x: number; z: number };
+}
+
+/** A residential plot (PROPOSTA, OQ-16). Mirrors a `residential_plots` row (migration 0011). */
+export interface ResidentialPlot {
+  id: string;
+  tier: PlotTier;
+  /** 1-based position inside the tier, counter-clockwise from the east side. */
+  slot: number;
+  /** Centre of the plot. */
+  x: number;
+  z: number;
+  /** Rotation (rad): the plot's local +z points at the street in front of it, towards the tree. */
+  facing: number;
+  width: number;
+  depth: number;
+  /** Where the avatar stands to read the plot: on the street, `PLOT_FRONT_STEP` from the middle of the plot's front edge. */
+  front: { x: number; z: number };
+  /** Centre of the chalet drawn on the plot. */
+  house: { x: number; z: number };
+  /** Fireplace spot inside the chalet's footprint, for a later phase (nothing is drawn there yet). */
+  hearth: { x: number; z: number };
+}
+
+/** A row of residential plots: one half of a side of a ring. */
+export interface RowDef {
+  tier: PlotTier;
+  side: number;
+  /** -1 = clockwise of the lane, +1 = counter-clockwise. */
+  half: -1 | 1;
+  plots: ResidentialPlot[];
+}
+
+export type StreetKind = "plaza" | "avenue" | "street" | "lane";
+export interface PathNode {
+  id: string;
+  x: number;
+  z: number;
+}
+export interface PathEdge {
+  a: string;
+  b: string;
+  kind: StreetKind;
+  width: number;
+  length: number;
+}
+/** The street network as a graph other systems can follow (walking villagers, deliveries, a mini-map). */
+export interface PathGraph {
+  nodes: PathNode[];
+  edges: PathEdge[];
+}
+
+/** A ring of rows, as distances from the tree along a side's axis. */
+export interface RingLayout {
+  zone: "frontage" | PlotTier;
+  /** Street-side edge of the plots and their far edge. */
+  front: number;
+  back: number;
+  /** The street the ring faces: null for the frontage, which faces the square. */
+  street: readonly [inner: number, outer: number] | null;
+  /** Reach of a half row along the side, from the lane's axis. */
+  reach: number;
+}
+
+export interface VillageLayout {
+  plan: VillagePlan;
+  worldRadius: number;
+  rings: RingLayout[];
+  lots: LotDef[];
+  shops: ShopDef[];
+  billboards: BillboardDef[];
+  rows: RowDef[];
+  plots: ResidentialPlot[];
+  graph: PathGraph;
+}
+
+/** How far into its street a plot's `front` point is, from the plot's edge. */
+export const PLOT_FRONT_STEP = 0.75;
+/** Height of the middle of a billboard frame: on the roof of a shop, above every head. */
+export const SHOP_SIGN_HEIGHT = 7.5;
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
+const upToHalf = (v: number) => Math.ceil(v * 2 - 1e-9) / 2;
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/** Frame of side `s`: outward axis `n`, tangent `t` (counter-clockwise) and the rotation that faces the tree. */
+export function sideFrame(plan: VillagePlan, s: number) {
+  const a = (2 * Math.PI * s) / plan.sides;
+  const nx = Math.cos(a), nz = Math.sin(a);
+  return { nx, nz, tx: -nz, tz: nx, facing: round4(Math.atan2(-nx, -nz)) };
+}
+
+/** Half of an avenue's width, measured along a side (the avenue crosses the side's line at an angle). */
+const avenueCut = (plan: VillagePlan) => plan.avenueWidth / (2 * Math.cos(Math.PI / plan.sides));
+
+/**
+ * Derives the whole village from a plan: rings (each as close to the tree as the previous one and its own
+ * row length allow), lots, shops, billboards, residential plots and the street graph. Pure and deterministic.
+ */
+export function layoutVillage(plan: VillagePlan): VillageLayout {
+  const tan = Math.tan(Math.PI / plan.sides), cos = Math.cos(Math.PI / plan.sides);
+  const cut = avenueCut(plan);
+  /** Smallest apothem at which a half row of `reach` fits between the lane and the avenue. */
+  const fits = (reach: number) => upToHalf((reach + cut) / tan);
+  const at = (s: number, apothem: number, along: number) => {
+    const f = sideFrame(plan, s);
+    return { x: round2(apothem * f.nx + along * f.tx), z: round2(apothem * f.nz + along * f.tz) };
+  };
+
+  const rings: RingLayout[] = [];
+  const frontageReach = plan.laneWidth / 2 + plan.frontage.perHalf * plan.frontage.width;
+  let front = Math.max(upToHalf(plan.squareApothem), fits(frontageReach));
+  rings.push({ zone: "frontage", front, back: front + plan.frontage.depth, street: null, reach: frontageReach });
+  for (const tier of PLOT_TIERS) {
+    const t = plan.tiers[tier];
+    const reach = plan.laneWidth / 2 + t.perHalf * t.width;
+    const behind = rings[rings.length - 1].back + plan.backYard;
+    front = Math.max(behind + plan.streetWidth, fits(reach));
+    rings.push({ zone: tier, front, back: front + t.depth, street: [front - plan.streetWidth, front], reach });
+  }
+  const last = rings[rings.length - 1];
+  const worldRadius = upToHalf(Math.hypot(last.back, last.reach) + plan.edge);
+
+  // Frontage: lots for NGOs (DEC-028) and the shops. The plot at the porch line holds a 7 × 7 pad whose
+  // chalet may add a porch 1 u towards the square, so the pad's centre is 4.5 u behind the line.
+  const frontage = rings[0];
+  const lots: LotDef[] = [];
+  const shops: ShopDef[] = [];
+  const billboards: BillboardDef[] = [];
+  const slots: Array<{ s: number; half: -1 | 1; i: number }> = [];
+  // The counter-clockwise halves first: the eight lots that already existed keep their ids there.
+  for (const half of [1, -1] as const)
+    for (let i = 0; i < plan.frontage.perHalf; i++) for (let s = 0; s < plan.sides; s++) slots.push({ s, half, i });
+  for (const { s, half, i } of slots) {
+    const f = sideFrame(plan, s);
+    const along = half * (plan.laneWidth / 2 + (i + 0.5) * plan.frontage.width);
+    const centre = at(s, frontage.front + 4.5, along);
+    const isShop = plan.shopEvery > 0 && s % plan.shopEvery === 0 && half === -1 && i === 0;
+    if (!isShop) {
+      lots.push({ id: `plaza-${pad2(lots.length + 1)}`, slot: lots.length + 1, ...centre, facing: f.facing });
+      continue;
+    }
+    const id = `shop-${pad2(shops.length + 1)}`;
+    shops.push({
+      id,
+      ...centre,
+      facing: f.facing,
+      door: at(s, frontage.front - 0.5, along),
+      keeper: { ...at(s, frontage.front - 0.2, along - 2.2), rot: f.facing },
+    });
+    billboards.push({ id: `billboard-${pad2(billboards.length + 1)}`, shopId: id, x: centre.x, y: SHOP_SIGN_HEIGHT, z: centre.z, point: at(s, frontage.front - 0.5, along - 3.4) });
+  }
+
+  // Residential rows: packed from the lane outwards, so what is left over is a verge beside the avenue.
+  const rows: RowDef[] = [];
+  for (const tier of PLOT_TIERS) {
+    const t = plan.tiers[tier];
+    const ring = rings.find((r) => r.zone === tier)!;
+    let slot = 0;
+    for (let s = 0; s < plan.sides; s++) {
+      const f = sideFrame(plan, s);
+      for (const half of [-1, 1] as const) {
+        const plots: ResidentialPlot[] = [];
+        for (let i = 0; i < t.perHalf; i++) {
+          // Counter-clockwise order along the side: away from the avenue on the first half, away from the lane on the second.
+          const k = half === -1 ? t.perHalf - 1 - i : i;
+          const along = half * (plan.laneWidth / 2 + (k + 0.5) * t.width);
+          const middle = ring.front + t.depth / 2;
+          slot++;
+          plots.push({
+            id: `${tier}-${pad2(slot)}`,
+            tier,
+            slot,
+            ...at(s, middle, along),
+            facing: f.facing,
+            width: t.width,
+            depth: t.depth,
+            front: at(s, ring.front - PLOT_FRONT_STEP, along),
+            house: at(s, middle - t.house.offset, along),
+            hearth: at(s, middle - t.house.offset + 1, along),
+          });
+        }
+        rows.push({ tier, side: s, half, plots });
+      }
+    }
+  }
+
+  // Street graph: the round street of the plaza, the avenues, one polygon street per residential ring and the lanes.
+  const nodes: PathNode[] = [];
+  const edges: PathEdge[] = [];
+  const node = (id: string, p: { x: number; z: number }) => (nodes.push({ id, ...p }), id);
+  const link = (a: string, b: string, kind: StreetKind, width: number) => {
+    const p = nodes.find((n) => n.id === a)!, q = nodes.find((n) => n.id === b)!;
+    edges.push({ a, b, kind, width, length: round2(Math.hypot(p.x - q.x, p.z - q.z)) });
+  };
+  const ringRadius = (plan.ringStreet[0] + plan.ringStreet[1]) / 2;
+  const streets = rings.filter((r) => r.street).map((r) => (r.street![0] + r.street![1]) / 2);
+  const polar = (radius: number, angle: number) => ({ x: round2(radius * Math.cos(angle)), z: round2(radius * Math.sin(angle)) });
+  for (let s = 0; s < plan.sides; s++) {
+    // Avenue `s` leaves the square between side `s` and side `s + 1`.
+    const avenue = ((2 * s + 1) * Math.PI) / plan.sides;
+    let prev = node(`avenue-${pad2(s + 1)}-plaza`, polar(ringRadius, avenue));
+    streets.forEach((apothem, k) => {
+      const here = node(`avenue-${pad2(s + 1)}-street-${k + 1}`, polar(apothem / cos, avenue));
+      link(prev, here, "avenue", plan.avenueWidth);
+      prev = here;
+    });
+    link(prev, node(`avenue-${pad2(s + 1)}-end`, polar(worldRadius - 1, avenue)), "avenue", plan.avenueWidth);
+    // Lane of side `s`: from the edge of the square, between the two plots of the frontage, across every street
+    // and out past the last ring.
+    let lane = node(`lane-${pad2(s + 1)}-square`, at(s, frontage.front - 2, 0));
+    streets.forEach((apothem, k) => {
+      const here = node(`lane-${pad2(s + 1)}-street-${k + 1}`, at(s, apothem, 0));
+      link(lane, here, "lane", plan.laneWidth);
+      lane = here;
+    });
+    link(lane, node(`lane-${pad2(s + 1)}-end`, at(s, last.back + plan.backYard, 0)), "lane", plan.laneWidth);
+  }
+  for (let s = 0; s < plan.sides; s++) {
+    const before = pad2(((s + plan.sides - 1) % plan.sides) + 1), here = pad2(s + 1);
+    link(`avenue-${before}-plaza`, `avenue-${here}-plaza`, "plaza", plan.ringStreet[1] - plan.ringStreet[0]);
+    streets.forEach((_, k) => {
+      // Side `s` of street `k`: avenue `s - 1` → lane `s` → avenue `s`.
+      link(`avenue-${before}-street-${k + 1}`, `lane-${here}-street-${k + 1}`, "street", plan.streetWidth);
+      link(`lane-${here}-street-${k + 1}`, `avenue-${here}-street-${k + 1}`, "street", plan.streetWidth);
+    });
+  }
+
+  return { plan, worldRadius, rings, lots, shops, billboards, rows, plots: rows.flatMap((r) => r.plots), graph: { nodes, edges } };
+}
+
+/** The village in force, derived from `VILLAGE_PLAN`. */
+export const VILLAGE = layoutVillage(VILLAGE_PLAN);
+
+export const WORLD_RADIUS = VILLAGE.worldRadius;
+export const PLAZA_RADIUS = VILLAGE_PLAN.plazaRadius;
+export const STREET_INNER = VILLAGE_PLAN.ringStreet[0];
+export const STREET_OUTER = VILLAGE_PLAN.ringStreet[1];
+
+/**
+ * Lots reserved for approved NGOs (DEC-028), on the square's frontage. Mirrors the `lots` rows (migrations
+ * 0002, 0003 and 0011); a test keeps them in sync. `plaza-01`…`plaza-08` existed before the expansion.
+ */
+export const LOTS: LotDef[] = VILLAGE.lots;
+export const SHOPS: ShopDef[] = VILLAGE.shops;
+export const BILLBOARDS: BillboardDef[] = VILLAGE.billboards;
+/** Residential plots (PROPOSTA). Mirrors the `residential_plots` rows (migration 0011); a test keeps them in sync. */
+export const RESIDENTIAL_PLOTS: ResidentialPlot[] = VILLAGE.plots;
+export const RESIDENTIAL_ROWS: RowDef[] = VILLAGE.rows;
+export const PATH_GRAPH: PathGraph = VILLAGE.graph;
+
+/** Where the avatar stands in front of a lot: the "Ir até lá" point of the Explore panel. */
+export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + 5.2 * Math.sin(lot.facing)), z: round2(lot.z + 5.2 * Math.cos(lot.facing)) });
+
+/**
+ * What each shop will offer (PROPOSTA, no catalogue yet): shown on the shop's panel next to "ainda não abriu".
+ * Nothing is sold for money: whatever a shop hands out will be unlocked by playing (DEC-042, IMPL-0002).
+ * Names are the village's own; no real shop, brand or partner.
+ */
+export const SHOP_COPY: ReadonlyArray<{ name: string; offer: string }> = [
+  { name: "Ateliê de Enfeites", offer: "enfeites de Natal para decorar a casa e a árvore" },
+  { name: "Oficina de Brinquedos", offer: "brinquedos e lembranças feitos na Vila" },
+  { name: "Alfaiataria de Inverno", offer: "gorros, cachecóis e suéteres para o seu visual" },
+  { name: "Empório da Lareira", offer: "lenha, lanternas e o que mais aquece uma casa" },
+];
+export const shopCopy = (shopId: string) => SHOP_COPY[SHOPS.findIndex((s) => s.id === shopId) % SHOP_COPY.length] ?? SHOP_COPY[0];
+
+/**
+ * Seasonal notices of the village shown on the billboards (PROPOSTA): fixed text from this repository, no
+ * third-party content and no brand. Renting a frame is a later, undecided proposal (PEN-008, OQ-17).
+ */
+export const VILLAGE_NOTICES: readonly string[] = [
+  "Boas festas! A Vila deseja um Natal de paz.",
+  "Brincar na Vila é de graça. Doar é sempre uma escolha.",
+  "Conheça as ONGs ao redor da praça.",
+  "A árvore da praça é o coração da Vila.",
+];
+export const billboardNotice = (billboardId: string) => VILLAGE_NOTICES[Math.max(0, BILLBOARDS.findIndex((b) => b.id === billboardId)) % VILLAGE_NOTICES.length];
 
 /** Hidden gifts (mission "find 2 gifts"). */
 export const GIFTS = [
@@ -79,32 +485,55 @@ export const GIFTS = [
 ] as const;
 
 /**
- * Snowy pines inside the walkable area (kept clear of lots, gifts, the pond and the sleigh).
- * The gift id "gift-palm" is a persisted mission event id and must not change even though palms
- * became pines (DEC-042 idempotency).
+ * Snowy pines inside the walkable area. The three small ones stand by the plaza; the tall ones form a belt
+ * behind the last ring, two per side, clear of the lanes and of every avenue (no tree stands between a plot
+ * and the tree, see `SIGHTLINE`). The gift id "gift-palm" is a persisted mission event id and must not
+ * change even though palms became pines (DEC-042 idempotency).
  */
+const PLAZA_PINES: [number, number][] = [[10, 10], [-10, -10], [-11, 9.5]];
+const BELT = VILLAGE.rings[VILLAGE.rings.length - 1];
 export const PINES: [number, number][] = [
-  [10, 10], [-10, -10], [-11, 9.5], [31, 7], [-30, 2], [3, -31], [26, 18], [-25, -19], [-24, 20], [24, -20], [-7, -31],
+  ...PLAZA_PINES,
+  ...Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
+    const f = sideFrame(VILLAGE_PLAN, s);
+    const apothem = BELT.back + VILLAGE_PLAN.backYard + 3.5;
+    return [-1, 1].map((half): [number, number] => {
+      const along = half * Math.min(BELT.reach * 0.55, 9);
+      return [Math.round(apothem * f.nx + along * f.tx), Math.round(apothem * f.nz + along * f.tz)];
+    });
+  }).flat(),
 ];
 /** Pine size by index: the three by the plaza stay small so they never hide the avatar from the camera. */
-export const pineIsTall = (i: number): boolean => i >= 3 && i % 3 !== 0;
+export const pineIsTall = (i: number): boolean => i >= PLAZA_PINES.length;
 /** Where a pine stands: the drawn model and its collider both snap to whole voxels. */
 export const pineAt = ([x, z]: readonly [number, number]): Placed => ({ x: Math.round(x), z: Math.round(z) });
 
 /** Decorative forest outside the walkable radius (no collision; frames the village). */
 export const FOREST_INNER = WORLD_RADIUS + 4;
-export const FOREST_OUTER = 62;
+export const FOREST_OUTER = WORLD_RADIUS + 30;
+
+/**
+ * The lumberjack's wood yard (PROPOSTA, a later phase): a named spot at the end of the northern lane, by
+ * the forest. Only a pile of logs stands there today; the firewood quest is not built.
+ */
+export const WOOD_YARD = (() => {
+  const s = Math.round((VILLAGE_PLAN.sides * 3) / 4) % VILLAGE_PLAN.sides;
+  const f = sideFrame(VILLAGE_PLAN, s);
+  const apothem = BELT.back + VILLAGE_PLAN.backYard + 3;
+  return { x: round2(apothem * f.nx + 3.5 * f.tx), z: round2(apothem * f.nz + 3.5 * f.tz), rot: f.facing };
+})();
 
 /** Frozen pond (decor, walkable: no gameplay effect). */
-export const POND = { x: 28.5, z: -4, radius: 3.2 } as const;
+/** In the festive band of the square, in front of the north-east lots (it used to sit where the frontage now is). */
+export const POND = { x: 15.06, z: -15.06, radius: 3.2 } as const;
 
 /** Snowmen around the plaza (decor). */
 export const SNOWMEN: [number, number, number][] = [
-  [-5, -9.5, 0.6], [9.5, 4, -2.4], [-29, -9, 1.2],
+  [-5, -9.5, 0.6], [9.5, 4, -2.4], [4.5, -21.5, 0.4],
 ];
 
-/** Santa's parked sleigh with two reindeer (decor). Faces +x. */
-export const SLEIGH = { x: -4, z: 30.5 } as const;
+/** Santa's parked sleigh with two reindeer (decor), in the square's band south of the tree. Faces +x. */
+export const SLEIGH = { x: -2.7, z: 20.2 } as const;
 /** The two harnessed reindeer in front of the sleigh, facing +x. */
 export const REINDEER: Placed[] = [0, 1].map((i) => ({ x: SLEIGH.x + 4.8 + i * 3, z: SLEIGH.z + (i ? 0.9 : -0.9) }));
 
@@ -135,12 +564,14 @@ export const CRITTERS: Critter[] = [
   { kind: "villager", seed: "villager-1", x: 6, z: -6.5, rot: -2.4 },
   { kind: "dog", seed: "dog-1", x: 4.6, z: -7.6, rot: 0.6 },
   { kind: "villager", seed: "villager-2", x: -7, z: 2.5, rot: 1.9 },
-  { kind: "villager", seed: "villager-3", x: 14.5, z: -7.5, rot: -1.1 },
+  // On the round street, beside the north-east avenue (it used to stand where the avenue now enters the square).
+  { kind: "villager", seed: "villager-3", x: 14.6, z: -2.6, rot: -1.1 },
   { kind: "cat", seed: "cat-1", x: 7.6, z: 8.3, y: 1, rot: -2.3 },
   { kind: "bird", seed: "bird-1", x: 12.2, z: 0, y: 4.5, rot: Math.PI },
   { kind: "bird", seed: "bird-2", x: -12.2, z: 0, y: 4.5, rot: 0 },
-  { kind: "rabbit", seed: "rabbit-1", x: 29, z: 13, rot: 2.5 },
-  { kind: "owl", seed: "owl-1", x: 26, z: 18, y: 11, rot: -2.5 },
+  { kind: "rabbit", seed: "rabbit-1", x: 23.5, z: -2.8, rot: 2.5 },
+  // Perched on the top of a tall pine of the belt (2 u of trunk and nine layers of boughs).
+  { kind: "owl", seed: "owl-1", x: PINES[PLAZA_PINES.length][0], z: PINES[PLAZA_PINES.length][1], y: 11, rot: -2.5 },
 ];
 
 /** Villagers face +z: arms across x, coat two voxels deep. Shared by decor villagers and quest NPCs. */
@@ -160,10 +591,10 @@ const HEAD_HEIGHT = 2.2;
 /**
  * Generated props placed as decor (IMPL-0010, PROPOSTA; final layout is PEN-017). Copies of one entry share
  * the seed, so they are drawn as one instanced model. Faces the plaza unless `rot` says otherwise.
- * Kept clear of lots (ring 22), the street (13–17), gifts, the pond and the sleigh.
+ * Kept clear of lots, shops, the avenues, the round street (13–17), gifts, the pond and the sleigh.
  */
 export interface PropPlacement {
-  kind: "market-stall" | "panettone-stand" | "lantern" | "fence" | "mailbox" | "signpost" | "sled";
+  kind: "market-stall" | "panettone-stand" | "lantern" | "fence" | "mailbox" | "signpost" | "sled" | "log-pile";
   seed: string;
   /** What blocks the avatar, per copy. Depends on the seed (e.g. the stall width), so it sits next to it. */
   solid: Solid;
@@ -171,20 +602,38 @@ export interface PropPlacement {
 }
 
 const facePlaza = (x: number, z: number) => ({ x, z, rot: Math.atan2(-x, -z) });
+/** The children's sled, by the pond (quest `kids-sled-run`, PROPOSTA quests-v1). */
+const KIDS_SLED = { x: 13.44, z: -19.8 } as const;
 
 export const PLACED_PROPS: PropPlacement[] = [
-  // Christmas market at the west edge, between two lots.
+  // Christmas market in the west of the square, in front of the west shop and lot.
   // Stalls: counter plus the awning's front lip, which hangs at chest height (front = local +z).
   { kind: "market-stall", seed: "market-west", solid: [-1.47, 1.47, -0.63, 1.05, 0.2], at: [facePlaza(-20.5, -2.4)] },
   { kind: "panettone-stand", seed: "panettone-west", solid: [-1.89, 1.89, -0.63, 1.05, 0.2], at: [facePlaza(-20.5, 2.4)] },
   { kind: "fence", seed: "market-fence", solid: [-1.13, 1.13, -0.13, 0.13, 0.13], at: [{ x: -23, z: -2.4, rot: Math.PI / 2 }, { x: -23, z: 2.4, rot: Math.PI / 2 }] },
   { kind: "market-stall", seed: "market-east", solid: [-1.47, 1.47, -0.63, 1.05, 0.2], at: [facePlaza(20.5, 0)] },
-  // Lanterns between the street and the lots.
-  { kind: "lantern", seed: "ring-lantern", solid: [-0.45, 0.45, -0.45, 0.45, 0.45], at: [45, 135, 225, 315].map((d) => facePlaza(18.6 * Math.cos((d * Math.PI) / 180), 18.6 * Math.sin((d * Math.PI) / 180))) },
+  // Lanterns between the round street and the lots (the pond took the place of the north-east one).
+  { kind: "lantern", seed: "ring-lantern", solid: [-0.45, 0.45, -0.45, 0.45, 0.45], at: [45, 135, 225].map((d) => facePlaza(18.6 * Math.cos((d * Math.PI) / 180), 18.6 * Math.sin((d * Math.PI) / 180))) },
   // Welcome corner by the spawn. The signpost's lowest board points along local +z at chest height.
   { kind: "signpost", seed: "welcome-sign", solid: [-0.2, 0.2, -0.2, 0.86, 0.2], at: [{ x: -2.4, z: 12.6, rot: 0 }] },
   { kind: "mailbox", seed: "village-mail", solid: [-0.3, 0.45, -0.5, 0.6, 0.3], at: [{ x: 2.4, z: 12.6, rot: Math.PI }] },
-  { kind: "sled", seed: "kids-sled", solid: [-0.77, 1.21, -0.33, 0.33, 0.3], at: [{ x: 2.5, z: 27, rot: 0.4 }] },
+  { kind: "sled", seed: "kids-sled", solid: [-0.77, 1.21, -0.33, 0.33, 0.3], at: [{ x: KIDS_SLED.x, z: KIDS_SLED.z, rot: 0.4 }] },
+  // Lanterns on both sides of every lane where it leaves the square, between the two plots of the frontage.
+  {
+    kind: "lantern",
+    seed: "lane-lantern",
+    solid: [-0.45, 0.45, -0.45, 0.45, 0.45],
+    at: Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
+      const f = sideFrame(VILLAGE_PLAN, s);
+      const apothem = VILLAGE.rings[0].front - 0.6;
+      return [-1, 1].map((half) => {
+        const along = half * (VILLAGE_PLAN.laneWidth / 2 + 0.9);
+        return { x: round2(apothem * f.nx + along * f.tx), z: round2(apothem * f.nz + along * f.tz), rot: f.facing };
+      });
+    }).flat(),
+  },
+  // The wood yard: logs stacked by the forest (the stack runs along local x).
+  { kind: "log-pile", seed: "wood-yard", solid: [-1.5, 1.5, -0.75, 0.75, 0.25], at: [WOOD_YARD] },
 ];
 
 export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
@@ -194,6 +643,22 @@ export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
 
 /** Benches on the plaza side of every other lamp post, lengthwise along the ring. */
 export const BENCHES: Required<Placed>[] = LAMPS.filter((_, i) => i % 2 === 1).map(([x, z]) => ({ x: x * 0.92, z: z * 0.92, rot: Math.atan2(x, z) }));
+
+/**
+ * Street lamps at the corners where the avenues cross the ring streets, on the verge behind the inner row
+ * (same model as the plaza lamps). The lamp style is one of the cues of a tier: both corners of every side
+ * on the premium street, one on the standard street, none on the economy street (its cottages carry a
+ * lantern on a stake instead).
+ */
+export const STREET_LAMPS: [number, number][] = VILLAGE.rings.flatMap((ring) => {
+  if (!ring.street || ring.zone === "economy") return [];
+  const apothem = ring.street[0] - 0.75;
+  const reach = apothem * Math.tan(Math.PI / VILLAGE_PLAN.sides) - avenueCut(VILLAGE_PLAN) - 0.9;
+  return Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
+    const f = sideFrame(VILLAGE_PLAN, s);
+    return (ring.zone === "premium" ? [-1, 1] : [1]).map((half): [number, number] => [round2(apothem * f.nx + half * reach * f.tx), round2(apothem * f.nz + half * reach * f.tz)]);
+  }).flat();
+});
 
 export const SPAWN = { x: 0, z: 9 } as const;
 
@@ -217,10 +682,10 @@ export interface NpcPlacement {
 }
 
 export const NPCS: NpcPlacement[] = [
-  { id: "sleigh-keeper", name: "Baltazar", role: "Guardião do trenó do Noel", seed: "sleigh-keeper", x: -2.5, z: 28.5, rot: Math.atan2(2.5, -28.5) },
+  { id: "sleigh-keeper", name: "Baltazar", role: "Guardião do trenó do Noel", seed: "sleigh-keeper", x: -6, z: 21.8, rot: Math.atan2(6, -21.8) },
   { id: "market-keeper", name: "Dona Filó", role: "Mercadora do mercado oeste", seed: "market-keeper", x: -18.6, z: 0, rot: Math.atan2(18.6, 0) },
   { id: "postmaster", name: "Seu Nivaldo", role: "Carteiro da Vila", seed: "postmaster", x: 4.5, z: 11.8, rot: Math.atan2(-4.5, -11.8) },
-  { id: "pond-keeper", name: "Aurora", role: "Vigia do lago congelado", seed: "pond-keeper", x: 24.5, z: -2.5, rot: Math.atan2(-24.5, 2.5) },
+  { id: "pond-keeper", name: "Aurora", role: "Vigia do lago congelado", seed: "pond-keeper", x: 16.3, z: -10.4, rot: Math.atan2(-16.3, 10.4) },
   { id: "storyteller", name: "Dona Guida", role: "Contadora de histórias", seed: "storyteller", x: 5, z: 4, rot: Math.atan2(-5, -4) },
 ];
 
@@ -242,8 +707,8 @@ export const QUEST_SPAWNS: QuestSpawn[] = [
   { id: "bell-pine-east", questId: "harness-bells", objectId: "reindeer-bell", x: 12.9, z: 9.2 },
   { id: "crate-street", questId: "ornament-crates", objectId: "ornament-crate", x: -14.5, z: 8.6 },
   { id: "crate-market", questId: "ornament-crates", objectId: "ornament-crate", x: -16.8, z: -3.6 },
-  { id: "lantern-lake-1", questId: "lake-lanterns", objectId: "lake-lantern", x: 23.2, z: 17 },
-  { id: "lantern-lake-2", questId: "lake-lanterns", objectId: "lake-lantern", x: 30.5, z: 10 },
+  { id: "lantern-lake-1", questId: "lake-lanterns", objectId: "lake-lantern", x: 19.5, z: 14.5 },
+  { id: "lantern-lake-2", questId: "lake-lanterns", objectId: "lake-lantern", x: 22.5, z: 5.5 },
 ];
 
 /** Existing props that become interaction points for a quest (PROPOSTA quests-v1). */
@@ -258,7 +723,7 @@ export interface QuestInteraction {
 
 export const QUEST_INTERACTIONS: QuestInteraction[] = [
   { id: "mailbox-open", questId: "frozen-mailbox", objectId: "village-mailbox", x: 2.4, z: 12.6, radius: 3.5 },
-  { id: "sled-ride", questId: "kids-sled-run", objectId: "kids-sled", x: 2.5, z: 27, radius: 3.5 },
+  { id: "sled-ride", questId: "kids-sled-run", objectId: "kids-sled", x: KIDS_SLED.x, z: KIDS_SLED.z, radius: 3.5 },
 ];
 
 /**
@@ -283,46 +748,6 @@ export function clampToWorld(x: number, z: number): [number, number] {
   return [x, z];
 }
 
-/** Something solid on the ground plane that blocks the avatar: a circle or a rounded rectangle. */
-export type Obstacle = Collider;
-
-/**
- * Static obstacles inside the walkable area (IMPL-0016): one entry per solid thing that is drawn, sized
- * from its voxels below head height, so nothing solid is walk-through and nothing invisible blocks. The
- * world edge is handled by `clampToWorld`; lots are added by the client (`lotColliders`), quest NPCs and
- * the lectern by `QUEST_OBSTACLES`. Gifts, quest items, the pond and perched birds are walkable on purpose.
- *
- * The tree and the pines block at their lowest boughs, minus a brush of 0.3 u: the avatar touches the
- * outer needles but never stands inside the foliage. Small pines carry boughs from knee height, tall ones
- * and the tree from 2 u up (head height).
- */
-export const OBSTACLES: Obstacle[] = [
-  { x: 0, z: 0, r: TREE_BOUGHS_RADIUS },
-  ...PINES.map((p, i) => ({ ...pineAt(p), r: pineIsTall(i) ? 3.2 : 2.2 })).filter((p) => Math.hypot(p.x, p.z) < WORLD_RADIUS + 1),
-  // Lamp posts: the pole plus the wreath that hangs on its +z side at chest height.
-  ...LAMPS.map(([x, z]) => ({ x, z: z + 0.2, r: 0.55 })),
-  ...BENCHES.map((b) => solid(b, [-0.75, 0.75, -0.25, 0.25, 0.25])),
-  ...SNOWMEN.map(([x, z]) => ({ x, z, r: 0.85 })),
-  solid(SLEIGH, [-1.75, 2.75, -1.25, 1.25, 0.25]),
-  // Reindeer: legs, body and tail; the neck and head are above the avatar.
-  ...REINDEER.map((d) => solid(d, [-1.4, 1.3, -0.52, 0.52, 0.5])),
-  ...PLACED_PROPS.flatMap((p) => p.at.map((at) => solid(at, p.solid))),
-  ...CRITTERS.flatMap((c) => {
-    const s = CRITTER_SOLID[c.kind];
-    return s && (c.y ?? 0) < HEAD_HEIGHT ? [solid(c, s)] : [];
-  }),
-];
-
-/**
- * Obstacles that exist only while quests are on (PROPOSTA quests-v1): the quest NPCs, with the decorative
- * villagers' footprint, and the donation lectern. Kept out of OBSTACLES so that, with quests off, nothing
- * invisible blocks the avatar; the client adds them to its colliders together with the meshes.
- */
-export const QUEST_OBSTACLES: Obstacle[] = [
-  ...NPCS.map((n) => solid(n, VILLAGER_SOLID)),
-  { x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r },
-];
-
 /** Rectangle in lot-local world units (`[x0, x1, z0, z1]`; the lot faces the plaza along local +z). */
 export type Rect = readonly [x0: number, x1: number, z0: number, z1: number];
 
@@ -346,13 +771,244 @@ export function lotColliders(lot: LotDef, house: readonly Rect[] | null): Obstac
   ];
 }
 
+/** Walls of a shop, in shop-local units (front = local +z; the awning hangs above head height). Every shop shares the footprint. */
+export const SHOP_SOLID: readonly Rect[] = [[-3.5, 3.5, -3.5, 3.5]];
+
+/** Walls and porch of a tier's chalet, around the chalet's own centre: the worst case (the porch is optional). */
+export function houseEnvelope(tier: PlotTier, plan: VillagePlan = VILLAGE_PLAN): Rect[] {
+  const { halfWidth: hx, halfDepth: hz, porch } = plan.tiers[tier].house;
+  const walls: Rect = [-hx - 0.5, hx + 0.5, -hz - 0.5, hz + 0.5];
+  return porch > 0 ? [walls, [-Math.min(2, hx) - 0.5, Math.min(2, hx) + 0.5, hz + 0.5, hz + (hz === 3 ? 1 : 2) + 0.5]] : [walls];
+}
+
+/**
+ * Colliders of the chalet drawn on a residential plot: `house` = the footprint of the generated model
+ * (`GenModel.solid`), or the tier's envelope when the model is not at hand (tests in this package).
+ */
+export function plotColliders(plot: ResidentialPlot, house: readonly Rect[] | null = null): Obstacle[] {
+  const at = { x: plot.house.x, z: plot.house.z, rot: plot.facing };
+  return (house ?? houseEnvelope(plot.tier)).map(([x0, x1, z0, z1]) => footprint(at, x0, x1, z0, z1));
+}
+
+/**
+ * What is drawn around the chalets of a row, besides the ground (IMPL-0023): the cues that tell the tiers
+ * apart without a badge. Each part is a small voxel model (`apps/client/src/scene/village.ts`) and its
+ * footprint, and every one blocks the avatar. The fillers also close the gap between two chalets of a row,
+ * which is wider than the avatar but too narrow to plan a route through.
+ *
+ * - premium: a low stone wall along the street with a gate between two lantern pillars, and two shrubs;
+ * - standard: a short picket fence between front yards and a hedge between neighbours;
+ * - economy: a lantern on a stake at one corner and firewood stacked between the cottages.
+ */
+export type DressingKind = "stone-wall" | "gate-pillar" | "shrub" | "picket" | "hedge" | "stake" | "firewood";
+export interface DressingPart extends Required<Placed> {
+  kind: DressingKind;
+  /** Voxels along the part's local +x (0.5 u each) and across it. */
+  length: number;
+  thick: number;
+  solid: Solid;
+}
+
+/** Voxel size of every dressing part. */
+export const DRESSING_VOXEL = 0.5;
+
+function rowDressing(row: RowDef): DressingPart[] {
+  const tier = VILLAGE_PLAN.tiers[row.tier];
+  const out: DressingPart[] = [];
+  const v = DRESSING_VOXEL;
+  /**
+   * A part whose first voxel is centred on the plot-local point. It runs along the plot's local +x, or,
+   * with `inward`, from the street into the plot (its own +x is then the plot's -z).
+   */
+  const part = (plot: ResidentialPlot, kind: DressingKind, lx: number, lz: number, length = 1, thick = 1, r = 0, inward = false) => {
+    const c = Math.cos(plot.facing), sn = Math.sin(plot.facing);
+    out.push({
+      kind, length, thick, rot: inward ? plot.facing + Math.PI / 2 : plot.facing,
+      x: plot.x + lx * c + lz * sn, z: plot.z - lx * sn + lz * c,
+      solid: [-v / 2, (length - 0.5) * v, -v / 2, (thick - 0.5) * v, r],
+    });
+  };
+  const w = tier.width, d = tier.depth;
+  const wallHalf = tier.house.halfWidth + 0.5, wallDepth = 2 * tier.house.halfDepth + 1;
+  const gap = Math.round((w - 2 * wallHalf) / v);
+  row.plots.forEach((plot, i) => {
+    if (row.tier === "premium") {
+      // A wall from each side edge to the gate, set back from the front edge; pillars at the gate; two shrubs.
+      const gate = 1.5, run = Math.round((w / 2 - gate - v) / v);
+      part(plot, "stone-wall", -w / 2 + v / 2, d / 2 - 0.75, run);
+      part(plot, "stone-wall", gate + v + v / 2, d / 2 - 0.75, run);
+      part(plot, "gate-pillar", -gate - v / 2, d / 2 - 0.75);
+      part(plot, "gate-pillar", gate + v / 2, d / 2 - 0.75);
+      for (const side of [-1, 1]) part(plot, "shrub", side * (w / 2 - 1.5) - v, d / 2 - 2.75, 3, 3, 0.5);
+    } else if (row.tier === "standard") {
+      // A short picket fence on the plot's boundary towards the lane, from the front edge 2 u into the plot
+      // (the yard stays open to the street, and the end of the row stays open to the avenue).
+      part(plot, "picket", (-row.half * w) / 2, d / 2 - v / 2, 4, 1, 0, true);
+    } else {
+      part(plot, "stake", -w / 2 + 0.75, d / 2 - 0.5, 1, 1, 0.25);
+    }
+    // Filler between this chalet and the next one of the row, as deep as the walls.
+    if (row.tier !== "premium" && i + 1 < row.plots.length && gap > 0) {
+      part(plot, row.tier === "standard" ? "hedge" : "firewood", wallHalf + v / 2, tier.house.offset - wallDepth / 2 + v / 2, gap, Math.round(wallDepth / v));
+    }
+  });
+  return out;
+}
+/** Every dressing part of the residential rows, in the order of `RESIDENTIAL_ROWS`. */
+export const RESIDENTIAL_DRESSING: DressingPart[] = RESIDENTIAL_ROWS.flatMap(rowDressing);
+
+/** Something solid on the ground plane that blocks the avatar: a circle or a rounded rectangle. */
+export type Obstacle = Collider;
+
+/**
+ * Static obstacles inside the walkable area (IMPL-0016): one entry per solid thing that is drawn, sized
+ * from its voxels below head height, so nothing solid is walk-through and nothing invisible blocks. The
+ * world edge is handled by `clampToWorld`; lots and the chalets of the residential plots are added by the
+ * client (`lotColliders`, `plotColliders`), quest NPCs and the lectern by `QUEST_OBSTACLES`. Gifts, quest
+ * items, the pond and perched birds are walkable on purpose.
+ *
+ * The tree and the pines block at their lowest boughs, minus a brush of 0.3 u: the avatar touches the
+ * outer needles but never stands inside the foliage. Small pines carry boughs from knee height, tall ones
+ * and the tree from 2 u up (head height).
+ */
+export const OBSTACLES: Obstacle[] = [
+  { x: 0, z: 0, r: TREE_BOUGHS_RADIUS },
+  ...PINES.map((p, i) => ({ ...pineAt(p), r: pineIsTall(i) ? 3.2 : 2.2 })).filter((p) => Math.hypot(p.x, p.z) < WORLD_RADIUS + 1),
+  // Lamp posts: the pole plus the wreath that hangs on its +z side at chest height.
+  ...[...LAMPS, ...STREET_LAMPS].map(([x, z]) => ({ x, z: z + 0.2, r: 0.55 })),
+  ...BENCHES.map((b) => solid(b, [-0.75, 0.75, -0.25, 0.25, 0.25])),
+  ...SNOWMEN.map(([x, z]) => ({ x, z, r: 0.85 })),
+  solid(SLEIGH, [-1.75, 2.75, -1.25, 1.25, 0.25]),
+  // Reindeer: legs, body and tail; the neck and head are above the avatar.
+  ...REINDEER.map((d) => solid(d, [-1.4, 1.3, -0.52, 0.52, 0.5])),
+  ...PLACED_PROPS.flatMap((p) => p.at.map((at) => solid(at, p.solid))),
+  ...CRITTERS.flatMap((c) => {
+    const s = CRITTER_SOLID[c.kind];
+    return s && (c.y ?? 0) < HEAD_HEIGHT ? [solid(c, s)] : [];
+  }),
+  ...SHOPS.flatMap((shop) => SHOP_SOLID.map(([x0, x1, z0, z1]) => footprint({ x: shop.x, z: shop.z, rot: shop.facing }, x0, x1, z0, z1))),
+  ...RESIDENTIAL_DRESSING.map((part) => solid(part, part.solid)),
+];
+
+/**
+ * Obstacles that exist only while quests are on (PROPOSTA quests-v1): the quest NPCs, with the decorative
+ * villagers' footprint, and the donation lectern. Kept out of OBSTACLES so that, with quests off, nothing
+ * invisible blocks the avatar; the client adds them to its colliders together with the meshes.
+ */
+export const QUEST_OBSTACLES: Obstacle[] = [
+  ...NPCS.map((n) => solid(n, VILLAGER_SOLID)),
+  { x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r },
+];
+
+/** Ground under a point: what is painted there, and what a footstep sounds like. */
+export type GroundKind = "ice" | "plaza" | "ring-street" | "avenue" | "lane" | `street-${PlotTier}` | `path-${PlotTier}` | `yard-${PlotTier}` | "pad" | "snow";
+
+const TWO_PI = Math.PI * 2;
+
+/**
+ * What the ground is at a point (IMPL-0023): the same function paints the voxel ground and picks the footstep
+ * sound. Paving is one of the cues of a tier: cobbles on the premium street and a stone path to each door,
+ * packed snow on the standard street, trodden snow on the economy street.
+ */
+export function groundAt(x: number, z: number): GroundKind {
+  if (Math.hypot(x - POND.x, z - POND.z) <= POND.radius) return "ice";
+  const r = Math.hypot(x, z);
+  if (r <= PLAZA_RADIUS) return "plaza";
+  if (r >= STREET_INNER && r <= STREET_OUTER) return "ring-street";
+  if (r < STREET_INNER || r > WORLD_RADIUS + 3) return "snow";
+  const plan = VILLAGE_PLAN;
+  const step = TWO_PI / plan.sides;
+  const s = ((Math.round(Math.atan2(z, x) / step) % plan.sides) + plan.sides) % plan.sides;
+  const f = sideFrame(plan, s);
+  const apothem = x * f.nx + z * f.nz, along = x * f.tx + z * f.tz;
+  // Distance to the axis of the nearer avenue, which leaves the square half a step from the side's axis.
+  const toAvenue = Math.abs(apothem * Math.sin(step / 2) - Math.abs(along) * Math.cos(step / 2));
+  if (toAvenue <= plan.avenueWidth / 2) return "avenue";
+  const frontage = VILLAGE.rings[0];
+  if (apothem < frontage.front) return "snow";
+  if (Math.abs(along) <= plan.laneWidth / 2) {
+    for (const ring of VILLAGE.rings) if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.zone as PlotTier}`;
+    return "lane";
+  }
+  for (const ring of VILLAGE.rings) {
+    if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.zone as PlotTier}`;
+    if (apothem < ring.front || apothem > ring.back || Math.abs(along) > ring.reach) continue;
+    if (ring.zone === "frontage") {
+      const centre = plan.laneWidth / 2 + (Math.floor((Math.abs(along) - plan.laneWidth / 2) / plan.frontage.width) + 0.5) * plan.frontage.width;
+      return Math.abs(Math.abs(along) - centre) <= 3.5 && apothem >= ring.front + 1 ? "pad" : "snow";
+    }
+    const tier = plan.tiers[ring.zone];
+    const centre = plan.laneWidth / 2 + (Math.floor((Math.abs(along) - plan.laneWidth / 2) / tier.width) + 0.5) * tier.width;
+    const door = ring.front + tier.depth / 2 - tier.house.offset - tier.house.halfDepth - 0.5;
+    if (ring.zone !== "economy" && Math.abs(Math.abs(along) - centre) <= 1 && apothem <= door) return `path-${ring.zone}`;
+    return `yard-${ring.zone}`;
+  }
+  return "snow";
+}
+
 export type Surface = "stone" | "packed" | "snow" | "ice";
 
 /** Ground material under a point (footstep sound, snow kick-up). Mirrors the ground layout. */
 export function surfaceAt(x: number, z: number): Surface {
-  if (Math.hypot(x - POND.x, z - POND.z) <= POND.radius) return "ice";
-  const r = Math.hypot(x, z);
-  if (r <= PLAZA_RADIUS) return "stone";
-  if (r >= STREET_INNER && r <= STREET_OUTER) return "packed";
+  const kind = groundAt(x, z);
+  if (kind === "ice") return "ice";
+  if (kind === "plaza" || kind === "street-premium" || kind === "path-premium" || kind === "pad") return "stone";
+  if (kind === "ring-street" || kind === "avenue" || kind === "lane" || kind === "street-standard" || kind === "street-economy" || kind === "path-standard") return "packed";
   return "snow";
+}
+
+/**
+ * Sightline rule (IMPL-0023). The tree is the heart of the village, so the main streets are views of it:
+ *
+ * 1. Every avenue is a straight, open corridor to the tree: nothing taller than `maxHeight` stands within
+ *    `margin` of its edges, from its far end to the tree's boughs.
+ * 2. Every residential plot fronts a street that reaches an avenue in a straight line: from the street in
+ *    front of the plot, the walk along it to the avenue of its half row passes no tall thing, and is at
+ *    most `maxWalk` long. So from any plot the tree is at most one corner away.
+ * 3. Every lot and shop of the frontage faces the square: nothing tall stands between its porch line and the
+ *    round street of the plaza, on the straight line to the tree.
+ *
+ * Tall things are the chalets (of lots and of residential plots), the shops and the pines. Lamp posts,
+ * lanterns, stalls, fences and hedges are thin or low and do not count.
+ */
+export const SIGHTLINE = { maxHeight: 3, margin: 0.25, maxWalk: 30 } as const;
+
+/** One straight view of the rule above: a corridor of `width` between two points (0 = a line). */
+export interface Sightline {
+  id: string;
+  from: { x: number; z: number };
+  to: { x: number; z: number };
+  width: number;
+}
+
+/** The avenue corridors (rule 1) and, per plot, lot and shop, the views of rules 2 and 3. */
+export function sightlines(village: VillageLayout = VILLAGE): { corridors: Sightline[]; fronts: Sightline[] } {
+  const { plan, graph } = village;
+  const nodeAt = (id: string) => graph.nodes.find((n) => n.id === id)!;
+  const towards = (p: { x: number; z: number }, radius: number) => ({ x: (p.x * radius) / Math.hypot(p.x, p.z), z: (p.z * radius) / Math.hypot(p.x, p.z) });
+  const corridors: Sightline[] = [];
+  for (let s = 0; s < plan.sides; s++) {
+    const end = nodeAt(`avenue-${pad2(s + 1)}-end`);
+    corridors.push({ id: `avenue-${pad2(s + 1)}`, from: end, to: towards(end, TREE_BOUGHS_RADIUS), width: plan.avenueWidth });
+  }
+  const fronts: Sightline[] = [];
+  const streets = village.rings.filter((r) => r.street);
+  for (const row of village.rows) {
+    const k = streets.findIndex((r) => r.zone === row.tier) + 1;
+    const ring = streets[k - 1];
+    const f = sideFrame(plan, row.side);
+    const street = (ring.street![0] + ring.street![1]) / 2;
+    // Avenue `s` runs between side `s` and side `s + 1`: the clockwise half row walks to avenue `s - 1`.
+    const avenue = nodeAt(`avenue-${pad2(((row.side + (row.half === 1 ? 0 : plan.sides - 1)) % plan.sides) + 1)}-street-${k}`);
+    for (const plot of row.plots) {
+      const along = plot.front.x * f.tx + plot.front.z * f.tz;
+      fronts.push({ id: plot.id, from: { x: street * f.nx + along * f.tx, z: street * f.nz + along * f.tz }, to: avenue, width: plan.streetWidth - 2 });
+    }
+  }
+  for (const p of [...village.lots, ...village.shops]) {
+    // From just outside the line where a porch ends (4.5 u in front of the pad's centre).
+    const porch = { x: p.x + 4.8 * Math.sin(p.facing), z: p.z + 4.8 * Math.cos(p.facing) };
+    fronts.push({ id: p.id, from: porch, to: towards(porch, plan.ringStreet[1]), width: 0 });
+  }
+  return { corridors, fronts };
 }

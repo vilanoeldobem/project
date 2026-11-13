@@ -9,25 +9,33 @@ import {
   GIFTS,
   HOUSE_ENVELOPE,
   INTERACT_DISTANCE,
+  BILLBOARDS,
   LOT_INTERACT_DISTANCE,
   lotColliders,
+  lotFront,
   LOTS,
   NPCS,
   OBSTACLES,
+  PLACE_INTERACT_DISTANCE,
+  plotColliders,
   QUEST_INTERACTIONS,
   QUEST_OBSTACLES,
   QUEST_SPAWNS,
+  RESIDENTIAL_PLOTS,
+  SHOPS,
   SPAWN,
   TREE_KEEP_OUT,
   TREE_RADIUS,
   WORLD_RADIUS,
 } from "./world";
 
+/** The chalets of the residential plots (IMPL-0023): always drawn, here as the envelope of each tier. */
+const HOMES = RESIDENTIAL_PLOTS.flatMap((p) => plotColliders(p));
 /** The collider sets the client can be in: quests off (production today), quests on, every lot published. */
 const SETS: Record<string, Collider[]> = {
-  "quests off": [...OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))],
-  "quests on": [...OBSTACLES, ...QUEST_OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))],
-  "quests on, every lot a chalet": [...OBSTACLES, ...QUEST_OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, HOUSE_ENVELOPE))],
+  "quests off": [...OBSTACLES, ...HOMES, ...LOTS.flatMap((l) => lotColliders(l, null))],
+  "quests on": [...OBSTACLES, ...HOMES, ...QUEST_OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))],
+  "quests on, every lot a chalet": [...OBSTACLES, ...HOMES, ...QUEST_OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, HOUSE_ENVELOPE))],
 };
 const FIELDS: Record<string, NavField> = Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, createNavField(set)]));
 const CONFIGS = Object.keys(SETS).map((name) => [name, SETS[name], FIELDS[name]] as const);
@@ -83,7 +91,7 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
   it("reaches the three clicks that used to stop short, chained from the spawn", () => {
     const [, set, field] = OFF;
     const b = createBody(SPAWN.x, SPAWN.z), route = createRoute();
-    for (const [x, z] of [[-2.5, 28.5], [-18.6, 0], [24.5, -2.5], [4.5, 11.8], [5, 4], [4.6, 6.4]]) {
+    for (const [x, z] of [[-6, 21.8], [-18.6, 0], [16.3, -10.4], [4.5, 11.8], [5, 4], [4.6, 6.4]]) {
       const from = Math.hypot(x - b.x, z - b.z);
       const w = click(b, route, field, set, x, z);
       const label = `to (${x}, ${z})`;
@@ -105,10 +113,14 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       [0, 13.6], // just behind the lamp post south of the spawn
       [0, -15], // straight through the tree
       [-23, 0], // behind the market stalls, between the two fences
-      [30.5, 10],
-      [-28, -14],
-      [2, 32.5], // behind the sleigh and the reindeer
+      [22.5, 5.5],
+      [-28, -14], // on the south-west avenue, between two lots of the frontage
+      [2, 22.8], // behind the sleigh and the reindeer
       [26, -12],
+      [37.5, 6], // the premium street, behind the frontage
+      [-53, 15.75], // the standard street, on the far side of the village
+      [72, 30], // the far end of the economy street
+      [0, -78], // the end of the northern lane, by the wood yard
       [SPAWN.x, SPAWN.z],
     ];
     for (const [x, z] of tour) {
@@ -129,7 +141,9 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       ["a pine, from the plaza", -4, -4, -10, -10, (x, z) => x > -10 && z > -10],
       ["a market stall, from the street", 15, 0, 20.5, 0, (x) => x < 19.5],
       ["an NPC, from the spawn", SPAWN.x, SPAWN.z, 5, 4, (x, z) => z > 4 && x < 5],
-      ["the sleigh, from the street", -4, 16, -4, 30.5, (_, z) => z < 29.5],
+      ["the sleigh, from the street", -2, 16, -2, 20.2, (_, z) => z < 19],
+      ["a shop, from the square", 5, 18, 5, 30.5, (_, z) => z < 27],
+      ["firewood between two cottages, from their street", 66.5, -19.5, 72.5, -19.5, (x) => x < 70],
     ];
     for (const [label, sx, sz, tx, tz, near] of cases) {
       const b = createBody(sx, sz), route = createRoute();
@@ -154,10 +168,10 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
     expect(route.x).toBeCloseTo(route.z, 6);
     expect(w.arrived).toBe(true);
     // West of the village a tall pine stands on the edge: the walk ends beside the pine, inside the world.
-    w = click(b, route, field, set, -60, 3);
+    w = click(b, route, field, set, -130, 14.5);
     expect(Math.hypot(route.x, route.z)).toBeLessThanOrEqual(WORLD_RADIUS);
     expect(isOpen(field, route.x, route.z)).toBe(true);
-    expect(route.x).toBeLessThan(-25);
+    expect(route.x).toBeLessThan(-70);
     expect(w.arrived).toBe(true);
     expect(w.off).toBeLessThan(MOTION.arriveEpsilon);
   });
@@ -206,10 +220,12 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
   });
 
   it("plans within a bounded number of grid nodes, and only on a click", () => {
-    const spots = [[SPAWN.x, SPAWN.z], [-23, 0], [2, 32.5], [30.5, 10], [-28, -14], [26, -12], [0, -15], [-33, 6], [14, 30], [0, 0], [-8.42, 20.33], [20.5, 0]];
+    // Around the square, then the far corners of the village: plot fronts on opposite sides, the wood yard, the edge.
+    const far = [RESIDENTIAL_PLOTS[0], RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 1], RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 30], RESIDENTIAL_PLOTS[30]].map((p) => [p.front.x, p.front.z]);
+    const spots = [[SPAWN.x, SPAWN.z], [-23, 0], [2, 22.8], [22.5, 5.5], [-28, -14], [26, -12], [0, -15], [-33, 6], [14, 30], [0, 0], [30.5, 5], [20.5, 0], ...far, [0, -78], [-58, 58]];
     for (const [name, set, field] of CONFIGS) {
-      // The search space is the walkable region of the 0.25 u grid over the 34 u disc: at most 58 000 cells.
-      expect(field.walkable, name).toBeGreaterThan(30000);
+      // The search space is the walkable region of the 0.25 u grid over the 82.5 u disc: at most 342 000 cells.
+      expect(field.walkable, name).toBeGreaterThan(150000);
       expect(field.walkable, name).toBeLessThan(Math.PI * (WORLD_RADIUS / NAV.cell) ** 2);
       let worst = 0;
       const route = createRoute();
@@ -220,9 +236,9 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
           expect(route.expanded, `${name} (${sx}, ${sz}) → (${tx}, ${tz})`).toBeLessThanOrEqual(field.walkable);
           expect(route.count, `${name} waypoints`).toBeLessThan(40);
         }
-      // In practice a fraction of the bound: the hardest of these 144 plans stays under 20 000 expansions.
+      // In practice a fraction of the bound: the hardest of these 324 plans stays under 60 000 expansions.
       expect(worst, name).toBeGreaterThan(0);
-      expect(worst, name).toBeLessThan(20000);
+      expect(worst, name).toBeLessThan(60000);
       // Walking never plans: the expansion count of the route is untouched by a whole walk.
       const b = createBody(SPAWN.x, SPAWN.z);
       planRoute(field, route, b.x, b.z, 26, -12);
@@ -314,11 +330,22 @@ describe("collider table invariants (IMPL-0016)", () => {
     for (const lot of LOTS) {
       const front = (() => {
         const b = createBody(SPAWN.x, SPAWN.z), route = createRoute();
-        expect(click(b, route, field, set, lot.x * 0.82, lot.z * 0.82).arrived, lot.id).toBe(true);
+        const at = lotFront(lot);
+        expect(click(b, route, field, set, at.x, at.z).arrived, lot.id).toBe(true);
         return Math.hypot(b.x - lot.x, b.z - lot.z);
       })();
       expect(front, `${lot.id} from the front`).toBeLessThan(LOT_INTERACT_DISTANCE - 0.5);
       expect(approach(lot.x, lot.z), `${lot.id} clicked`).toBeLessThan(LOT_INTERACT_DISTANCE - 0.5);
+    }
+    // Shops, billboards and residential plots (IMPL-0023): the avatar reaches the very point each one is used from.
+    for (const shop of SHOPS) expect(approach(shop.door.x, shop.door.z), shop.id).toBeLessThan(PLACE_INTERACT_DISTANCE - 2.5);
+    for (const sign of BILLBOARDS) expect(approach(sign.point.x, sign.point.z), sign.id).toBeLessThan(PLACE_INTERACT_DISTANCE - 2.5);
+    for (const plot of RESIDENTIAL_PLOTS) {
+      expect(approach(plot.front.x, plot.front.z), plot.id).toBeLessThan(PLACE_INTERACT_DISTANCE - 2.5);
+      // A click on the chalet itself ends right beside it, on the plot or at its edge.
+      const b = createBody(SPAWN.x, SPAWN.z), route = createRoute();
+      expect(click(b, route, field, set, plot.house.x, plot.house.z).arrived, plot.id).toBe(true);
+      expect(Math.hypot(b.x - plot.x, b.z - plot.z), `${plot.id} chalet clicked`).toBeLessThan(Math.hypot(plot.width, plot.depth) / 2 + 1);
     }
     // Quest NPCs, the lectern, the mailbox and the sled (the last two are scenery even with quests off).
     for (const n of NPCS) expect(approach(n.x, n.z), n.id).toBeLessThan(INTERACT_DISTANCE - 2.5);
@@ -380,8 +407,10 @@ describe("collider table invariants (IMPL-0016)", () => {
     "never traps the avatar: pressed against any collider it can reach, a walk still gets away (%s)",
     (name, set, field) => {
       const can = reachable(set);
-      const starts = touching(set).filter(([x, z]) => can(x, z));
-      expect(starts.length, name).toBeGreaterThan(500);
+      // Every spot around the square, as before the village grew; beyond it the rows repeat the same few
+      // shapes on every side, so one spot in three is walked (IMPL-0023).
+      const starts = touching(set).filter(([x, z]) => can(x, z)).filter(([x, z], i) => Math.hypot(x, z) < 34 || i % 3 === 0);
+      expect(starts.length, name).toBeGreaterThan(1500);
       const route = createRoute();
       const stuck: string[] = [];
       for (const [x, z] of starts) {

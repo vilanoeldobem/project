@@ -5,6 +5,7 @@ import { createBody, type Intent, MOTION, STEP, stepBody } from "./motion";
 import { createNavField, createRoute, planRoute, stepWalk } from "./navigation";
 import {
   DONATION_PANEL,
+  groundAt,
   LOTS,
   NPCS,
   OBSTACLES,
@@ -185,7 +186,16 @@ describe("world helpers", () => {
     expect(surfaceAt(0, 6)).toBe("stone");
     expect(surfaceAt(0, 15)).toBe("packed");
     expect(surfaceAt(0, 25)).toBe("snow");
-    expect(surfaceAt(28.5, -4)).toBe("ice");
+    expect(surfaceAt(POND.x, POND.z)).toBe("ice");
+    // The village beyond the square (IMPL-0023): an avenue, the cobbled premium street, a yard, the edge.
+    expect(groundAt(40 * Math.cos(Math.PI / 8), 40 * Math.sin(Math.PI / 8))).toBe("avenue");
+    expect(groundAt(37.5, 6)).toBe("street-premium");
+    expect(surfaceAt(37.5, 6)).toBe("stone");
+    expect(groundAt(53, 0)).toBe("street-standard");
+    expect(groundAt(60, 0)).toBe("lane");
+    expect(groundAt(72, -22.5)).toBe("yard-economy");
+    expect(surfaceAt(72, -22.5)).toBe("snow");
+    expect(groundAt(30.5, 5)).toBe("pad");
   });
 });
 
@@ -247,10 +257,10 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
    */
   it("pins the exact coordinates of NPCs, quest spawns, quest interactions and the donation lectern", () => {
     expect(NPCS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
-      { id: "sleigh-keeper", x: -2.5, z: 28.5 },
+      { id: "sleigh-keeper", x: -6, z: 21.8 },
       { id: "market-keeper", x: -18.6, z: 0 },
       { id: "postmaster", x: 4.5, z: 11.8 },
-      { id: "pond-keeper", x: 24.5, z: -2.5 },
+      { id: "pond-keeper", x: 16.3, z: -10.4 },
       { id: "storyteller", x: 5, z: 4 },
     ]);
     expect(QUEST_SPAWNS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
@@ -258,12 +268,12 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
       { id: "bell-pine-east", x: 12.9, z: 9.2 },
       { id: "crate-street", x: -14.5, z: 8.6 },
       { id: "crate-market", x: -16.8, z: -3.6 },
-      { id: "lantern-lake-1", x: 23.2, z: 17 },
-      { id: "lantern-lake-2", x: 30.5, z: 10 },
+      { id: "lantern-lake-1", x: 19.5, z: 14.5 },
+      { id: "lantern-lake-2", x: 22.5, z: 5.5 },
     ]);
     expect(QUEST_INTERACTIONS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
       { id: "mailbox-open", x: 2.4, z: 12.6 },
-      { id: "sled-ride", x: 2.5, z: 27 },
+      { id: "sled-ride", x: 13.44, z: -19.8 },
     ]);
     expect({ x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r }).toEqual({ x: 4.6, z: 6.4, r: 0.5 });
   });
