@@ -26,6 +26,7 @@ export interface ModerationPhoto extends GalleryPhoto {
 /** The message to the organisation: 10 to 1000 characters (the API is the authority and repeats the check). */
 export const WITHDRAW_MESSAGE_MIN = 10;
 export const WITHDRAW_MESSAGE_MAX = 1000;
+export const PHOTOS_FAILED = "Não foi possível ler as fotos agora.";
 export const WITHDRAW_MESSAGE_ERROR = `Escreva a mensagem para a organização (${WITHDRAW_MESSAGE_MIN} a ${WITHDRAW_MESSAGE_MAX} caracteres). Ela lê este texto.`;
 export const withdrawMessageFits = (text: string): boolean => {
   const length = Array.from(text.trim()).length;
@@ -37,6 +38,11 @@ export interface NgoModerationState {
   status: "loading" | "ready" | "failed";
   detail: ApplicationDetail | null;
   photos: ModerationPhoto[];
+  /**
+   * The village shows photos of this NGO but the admin API could not say which can be removed: `photos` is empty
+   * because it is unknown, not because there is nothing to act on. The screen says so and offers to read again.
+   */
+  photosFailed: boolean;
   /** The confirmation step on screen and when it appeared (it re-arms every time it is asked again). */
   asking: { action: NgoAction; at: number } | null;
   busy: boolean;
@@ -70,6 +76,8 @@ export interface NgoModerationDeps {
 export interface NgoModeration {
   store: StoreApi<NgoModerationState>;
   load: () => Promise<void>;
+  /** Reads the application and the gallery again (the retry of a failed photo read); what is on screen stays. */
+  reload: () => Promise<void>;
   /** Reads the application again, then shows the confirmation step of `action` if it can still work. */
   ask: (action: NgoAction) => Promise<void>;
   cancel: () => void;
@@ -129,25 +137,42 @@ const DONE: Record<NgoAction["kind"], (name: string) => string> = {
 
 export function createNgoModeration(ngoId: string, deps: NgoModerationDeps): NgoModeration {
   const now = deps.now ?? Date.now;
-  const store = createStore<NgoModerationState>(() => ({ status: "loading", detail: null, photos: [], asking: null, busy: false, notice: null, messageError: "" }));
+  const store = createStore<NgoModerationState>(() => ({
+    status: "loading",
+    detail: null,
+    photos: [],
+    photosFailed: false,
+    asking: null,
+    busy: false,
+    notice: null,
+    messageError: "",
+  }));
   const set = store.setState;
 
-  /** The gallery the village shows, each photo with its admin revision. No public photo, no admin read. */
-  async function readPhotos(): Promise<ModerationPhoto[]> {
+  /**
+   * The gallery the village shows, each photo with its admin revision. No public photo, no admin read. A failed
+   * admin read is told (`failed`), never taken for "no photo".
+   */
+  async function readPhotos(): Promise<{ photos: ModerationPhoto[]; failed: boolean }> {
     const shown = await deps.gallery(ngoId);
-    if (!shown?.length) return [];
-    const { photos } = await deps.api.adminPhotos(ngoId).catch(() => ({ photos: [] as AdminPhoto[] }));
-    return shown.flatMap((photo) => {
-      const row = photos.find((p) => p.id === photo.id && p.status === "approved");
+    if (!shown?.length) return { photos: [], failed: false };
+    const rows: AdminPhoto[] | null = await deps.api.adminPhotos(ngoId).then(
+      (answer) => answer.photos,
+      () => null
+    );
+    if (!rows) return { photos: [], failed: true };
+    const photos = shown.flatMap((photo) => {
+      const row = rows.find((p) => p.id === photo.id && p.status === "approved");
       return row ? [{ ...photo, revision: row.revision }] : [];
     });
+    return { photos, failed: false };
   }
 
   /** Reads the application and the gallery again. Throws when the application cannot be read. */
   async function read(): Promise<Pick<NgoModerationState, "detail" | "photos">> {
-    const [detail, photos] = await Promise.all([deps.api.adminApplication(ngoId), readPhotos()]);
-    set({ status: "ready", detail, photos });
-    return { detail, photos };
+    const [detail, gallery] = await Promise.all([deps.api.adminApplication(ngoId), readPhotos()]);
+    set({ status: "ready", detail, photos: gallery.photos, photosFailed: gallery.failed });
+    return { detail, photos: gallery.photos };
   }
 
   const can = (state: Pick<NgoModerationState, "detail" | "photos">) => availableActions(state, deps.flags(), deps.nickname());
@@ -159,6 +184,17 @@ export function createNgoModeration(ngoId: string, deps: NgoModerationDeps): Ngo
         await read();
       } catch (e) {
         set({ status: "failed", notice: { tone: "error", text: refusalText(e) } });
+      }
+    },
+    reload: async () => {
+      if (store.getState().busy) return;
+      set({ busy: true, notice: null });
+      try {
+        await read();
+      } catch (e) {
+        set({ notice: { tone: "error", text: refusalText(e) } });
+      } finally {
+        set({ busy: false });
       }
     },
     ask: async (action) => {

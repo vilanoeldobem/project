@@ -54,6 +54,7 @@ const READY: NgoModerationState = {
   status: "ready",
   detail: DETAIL,
   photos: [{ id: PHOTO, url: `/ngos/${NGO}/photos/${PHOTO}`, caption: "Sala de leitura", position: 0, revision: 2 }],
+  photosFailed: false,
   asking: null,
   busy: false,
   notice: null,
@@ -89,6 +90,7 @@ const lot = (over: { user?: Me | null; on?: boolean; state?: Partial<NgoModerati
       message={over.message ?? ""}
       onMessage={noop}
       onAsk={noop}
+      onRetry={noop}
       onCancel={noop}
       onConfirm={noop}
     />
@@ -216,6 +218,21 @@ describe("house of a published NGO: only the actions that can work", () => {
     const failed = lot({ state: { status: "failed", detail: null, photos: [], notice: { tone: "error", text: "Sem conexão com a Vila. Tente de novo em instantes." } } });
     expect(buttons(failed)).toEqual([]);
     expect(failed).toContain('<p class="form__error" role="status" aria-live="polite" data-result="error">Sem conexão com a Vila. Tente de novo em instantes.</p>');
+  });
+
+  it("says that the photos could not be read, with a retry, instead of 'no action available'", () => {
+    // The gallery has photos but the admin read failed: nothing else can be done on this house either.
+    const page = lot({ flags: { files: false, withdrawal: false }, state: { photos: [], photosFailed: true } });
+    expect(page).toContain('<p class="form__error" data-state="photos-failed">Não foi possível ler as fotos agora.</p>');
+    expect(buttons(page)).toEqual(["Tentar ler as fotos de novo"]);
+    expect(page).not.toContain("Nenhuma ação de moderação está disponível");
+    // The other actions stay, and the retry waits while something is in flight.
+    const rest = lot({ state: { photos: [], photosFailed: true } });
+    expect(buttons(rest)).toEqual(["Remover logo", "Retirar ONG da Vila", "Tentar ler as fotos de novo"]);
+    expect(lot({ state: { photos: [], photosFailed: true, busy: true } }).match(/<button[^>]*disabled=""/g)).toHaveLength(3);
+    // Not shown over a confirmation step, nor to the responsible of the organisation (no photo action for them).
+    expect(lot({ state: { photos: [], photosFailed: true, asking: { action: { kind: "logo" }, at: 1 } } })).not.toContain("photos-failed");
+    expect(lot({ user: { ...ADMIN, nickname: "bia_ong" }, state: { photos: [], photosFailed: true } })).not.toContain("photos-failed");
   });
 
   it("offers nothing to the administrator who is responsible for the organisation, and says why", () => {

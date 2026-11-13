@@ -19,6 +19,7 @@ import {
   createNgoModeration,
   type NgoAction,
   type NgoModerationState,
+  PHOTOS_FAILED,
   WITHDRAW_MESSAGE_MAX,
   WITHDRAW_MESSAGE_MIN,
   withdrawMessageFits,
@@ -69,6 +70,7 @@ function LotModerationLive({ ngoId, name, user, onChanged }: { ngoId: string; na
       message={message}
       onMessage={setMessage}
       onAsk={(action) => void moderation.ask(action)}
+      onRetry={() => void moderation.reload()}
       onCancel={moderation.cancel}
       onConfirm={() => void moderation.confirm(message)}
     />
@@ -97,6 +99,7 @@ export function LotModerationView({
   message,
   onMessage,
   onAsk,
+  onRetry,
   onCancel,
   onConfirm,
 }: {
@@ -110,6 +113,8 @@ export function LotModerationView({
   message: string;
   onMessage: (text: string) => void;
   onAsk: (action: NgoAction) => void;
+  /** Reads the application and the photos again (offered when the photos could not be read). */
+  onRetry: () => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -117,7 +122,7 @@ export function LotModerationView({
   const step = state.asking ? `${state.asking.action.kind}:${state.asking.at}` : "";
   const shown = state.photos.map((p) => p.id).join();
   // A step that closes, or a photo that goes away, takes the focused button with it: back to the heading.
-  useFocusReturn(heading, `${step}|${shown}|${state.busy}`);
+  useFocusReturn(heading, `${step}|${shown}|${state.busy}|${state.photosFailed}`);
   if (!moderating(user, on) || !user) return null;
 
   const { detail, asking, busy } = state;
@@ -126,7 +131,9 @@ export function LotModerationView({
   const blocked = detail ? blockedReason(detail, user.nickname) : null;
   const asked = asking?.action;
   const photo = asked?.kind === "photo" ? state.photos.find((p) => p.id === asked.photoId) : undefined;
-  const nothing = state.status === "ready" && !blocked && !can.logo && !can.withdraw && can.photos.length === 0;
+  // The photos could not be read: whether there is something to act on is unknown, so neither is claimed.
+  const photosFailed = state.photosFailed && !blocked;
+  const nothing = state.status === "ready" && !blocked && !photosFailed && !can.logo && !can.withdraw && can.photos.length === 0;
 
   return (
     <section className="moderation" aria-labelledby="lot-moderation-title" aria-busy={busy} data-moderation="ngo">
@@ -191,6 +198,19 @@ export function LotModerationView({
                 </button>
               )}
             </div>
+          )}
+          {photosFailed && (
+            <>
+              <h4>Fotos da galeria pública</h4>
+              <p className="form__error" data-state="photos-failed">
+                {PHOTOS_FAILED}
+              </p>
+              <div className="actions">
+                <button type="button" className="btn btn--small" disabled={busy} onClick={onRetry}>
+                  Tentar ler as fotos de novo
+                </button>
+              </div>
+            </>
           )}
           {can.photos.length > 0 && (
             <>

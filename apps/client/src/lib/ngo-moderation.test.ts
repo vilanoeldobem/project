@@ -115,6 +115,42 @@ describe("which actions are offered (only the ones that can work)", () => {
     expect(off.api.adminPhotos).not.toHaveBeenCalled();
   });
 
+  it("tells a failed read of the photos apart from 'no photo', and reads again on request", async () => {
+    const adminPhotos = vi.fn<Api["adminPhotos"]>(async () => Promise.reject(new ApiError(503, "photos_unavailable")));
+    const p = page({ adminPhotos });
+    await p.moderation.load();
+    // The application was read: the other actions work; the photos are unknown, not absent.
+    expect(p.state()).toMatchObject({ status: "ready", photos: [], photosFailed: true, notice: null });
+    expect(availableActions(p.state(), { files: true, withdrawal: true }, "ana_admin")).toMatchObject({ logo: true, withdraw: true, photos: [] });
+
+    // Still failing: the retry says nothing new and leaves the screen as it is.
+    await p.moderation.reload();
+    expect(p.state()).toMatchObject({ status: "ready", photosFailed: true, busy: false });
+    expect(adminPhotos).toHaveBeenCalledTimes(2);
+
+    adminPhotos.mockImplementation(async () => ({ photos: [{ id: PHOTO, status: "approved", revision: 2 }] }));
+    const retry = p.moderation.reload();
+    expect(p.state().busy).toBe(true);
+    void p.moderation.reload(); // single flight
+    await retry;
+    expect(adminPhotos).toHaveBeenCalledTimes(3);
+    expect(p.state()).toMatchObject({ photos: [{ ...GALLERY[0], revision: 2 }], photosFailed: false, busy: false });
+    expect(p.writes()).toBe(0);
+
+    // A retry whose application read fails keeps what was read and says why.
+    p.api.adminApplication.mockImplementationOnce(async () => Promise.reject(new ApiError(0, "network")));
+    await p.moderation.reload();
+    expect(p.state()).toMatchObject({ status: "ready", detail: DETAIL, notice: { tone: "error", text: "Sem conexão com a Vila. Tente de novo em instantes." }, busy: false });
+  });
+
+  it("does not call it a failure when the village shows no photo (the admin list is not read)", async () => {
+    const p = page({ adminPhotos: vi.fn<Api["adminPhotos"]>(async () => Promise.reject(new ApiError(404, "not_found"))) });
+    p.gallery.mockResolvedValue([]);
+    await p.moderation.load();
+    expect(p.state()).toMatchObject({ status: "ready", photos: [], photosFailed: false });
+    expect(p.api.adminPhotos).not.toHaveBeenCalled();
+  });
+
   it("says so when the application cannot be read, and offers nothing", async () => {
     const p = page({ adminApplication: vi.fn(async () => Promise.reject(new ApiError(0, "network"))) });
     await p.moderation.load();
