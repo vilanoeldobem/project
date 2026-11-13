@@ -1,9 +1,8 @@
 import { Canvas } from "@react-three/fiber";
-import { lazy, Suspense, useMemo } from "react";
+import { lazy, Suspense } from "react";
 
 import { usePreset } from "../environment/settings";
-import type { Collider } from "@vila/shared/game/motion";
-import { HOUSE_ENVELOPE, lotColliders, LOTS, plotColliders, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
+import { LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
@@ -20,18 +19,10 @@ import { RenderStats } from "./RenderStats";
 import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
-import { house } from "./gen/houses";
-import { residence } from "./villageModels";
 import { Billboards, Residences, Shops } from "./Village";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
-
-/**
- * Walls and porch of the chalet of every residential plot (IMPL-0024): the footprint of the very model
- * `Residences` draws. Static, so built once.
- */
-const HOMES: Collider[] = RESIDENTIAL_PLOTS.flatMap((plot) => plotColliders(plot, residence(plot).solid ?? null));
 
 /**
  * 3D village. Snowy Christmas village whose light follows the real São Paulo time and whose fictional
@@ -41,14 +32,9 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
   const preset = usePreset();
   // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
   const quests = useQuestsEnabled();
-  // What blocks the avatar on each lot (IMPL-0016): the walls and porch of a published chalet (the footprint
-  // of the very model `Lots` draws), otherwise the corner posts and the sign of the "available" marker.
-  // Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
+  // What blocks the avatar on each lot depends on whether its chalet is published (`scene/sceneColliders.ts`,
+  // IMPL-0016). Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
   const published = LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => l.id).join();
-  const lotSolids = useMemo((): Collider[] => {
-    const ids = new Set(published.split(","));
-    return [...LOTS.flatMap((l) => lotColliders(l, ids.has(l.id) ? (house(l.id).solid ?? HOUSE_ENVELOPE) : null)), ...HOMES];
-  }, [published]);
   return (
     <Canvas
       shadows={preset.shadows}
@@ -85,7 +71,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Gifts />
         <Footprints />
         <ClickMarker />
-        <Player lots={lotSolids} />
+        <Player published={published} />
         <RemotePlayers />
         <ModerationMarker />
         <Snow />

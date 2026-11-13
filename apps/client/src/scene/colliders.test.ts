@@ -45,6 +45,7 @@ import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost
 import { donationPanel } from "./gen/quest-items";
 import { shop } from "./gen/shops";
 import { bench, lamp, lotMarker, pine, reindeer, sleigh, snowman, tree, type Voxel } from "./models";
+import { HOME_COLLIDERS, sceneColliders } from "./sceneColliders";
 import { billboardFrame, chimneyOf, dressingModel, residence } from "./villageModels";
 
 /** A voxel whose underside is below this height is at the avatar's legs, body or face: it must block. */
@@ -190,6 +191,24 @@ describe("collider audit (IMPL-0016)", () => {
     // With the dressing in between: the fillers close the gap between two chalets, nothing sticks out of either.
     const all = audit([...SCENERY, ...MARKERS, ...HOME_SCENERY], [...OBSTACLES, ...colliders, ...LOTS.flatMap((l) => lotColliders(l, null))]);
     expect(all).toEqual({ walkThrough: [], invisible: [] });
+  });
+
+  it("audits the very list the scene walks around (`sceneColliders`): nothing drawn is left without its collider", () => {
+    // The scene (`Player`) takes its colliders from `sceneColliders`, so a kind of collider dropped from that
+    // list (the chalets of the residential plots, say) fails here. Before, the scene built its own list and every
+    // test passed with the 112 chalets walk-through.
+    const none = sceneColliders(new Set(), false);
+    expect(audit([...SCENERY, ...MARKERS, ...HOME_SCENERY], none)).toEqual({ walkThrough: [], invisible: [] });
+    const everyLot = new Set(LOTS.map((l) => l.id));
+    expect(audit([...SCENERY, ...HOUSES, ...HOME_SCENERY, ...QUEST_SCENERY], sceneColliders(everyLot, true))).toEqual({ walkThrough: [], invisible: [] });
+    // One published chalet among markers, as in the review's scene.
+    const one = new Set(["plaza-03"]);
+    expect(audit([...SCENERY, ...MARKERS.filter((m) => m.name !== "marker-plaza-03"), ...HOUSES.filter((h) => h.name === "house-plaza-03"), ...HOME_SCENERY], sceneColliders(one, false))).toEqual({ walkThrough: [], invisible: [] });
+    // What the list is made of: the static obstacles, five colliders per empty lot, and every residential chalet.
+    expect(HOME_COLLIDERS.length).toBeGreaterThanOrEqual(RESIDENTIAL_PLOTS.length);
+    expect(none).toHaveLength(OBSTACLES.length + 5 * LOTS.length + HOME_COLLIDERS.length);
+    expect(sceneColliders(new Set(), true)).toHaveLength(none.length + QUEST_OBSTACLES.length);
+    for (const home of HOME_COLLIDERS) expect(none).toContain(home);
   });
 
   it("keeps every residential chalet inside the envelope of its tier, low, with its chimney over its own walls", () => {
