@@ -28,6 +28,7 @@ import { logoRefusalText, sendDecision, sendLogoRemoval, sendWithdrawal } from "
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
 import { AccountsOff, Confirmation, Field, Notice, PageHead, Status } from "./common";
+import { NgoPaymentConfig } from "./Donations";
 
 /** `unknown`: the address names one application, but not with a well-formed id (lib/router.ts). */
 export function Applications({ id, unknown = false, locked, accountId }: { id?: string; unknown?: boolean; locked: boolean; accountId?: string }) {
@@ -135,16 +136,19 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
   const [filesOn, setFilesOn] = useState(false);
   /** `GET /config` says whether a published NGO can be withdrawn (IMPL-0020, PROPOSTA); absent = off. */
   const [withdrawalOn, setWithdrawalOn] = useState(false);
+  /** `GET /config` says whether donations are on (IMPL-0023, PROPOSTA); absent = off. */
+  const [donationsOn, setDonationsOn] = useState(false);
   const [error, setError] = useState("");
   /** The API knows no application with this id (a link to one that never existed here, or was erased). */
   const [missing, setMissing] = useState(false);
   useEffect(
     () =>
       // A failed `/config` only means the flags are unknown (treated as off): the application itself still opens.
-      void Promise.all([api.adminGet(id), api.config().catch((): { files?: boolean; withdrawal?: boolean } => ({}))]).then(
+      void Promise.all([api.adminGet(id), api.config().catch((): { files?: boolean; withdrawal?: boolean; donations?: boolean } => ({}))]).then(
         ([detail, config]) => {
           setFilesOn(config.files === true);
           setWithdrawalOn(config.withdrawal === true);
+          setDonationsOn(config.donations === true);
           setD(detail);
         },
         (e) => ((e as { code?: string }).code === "not_found" ? setMissing(true) : setError(errorText(e)))
@@ -157,7 +161,7 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
       <p className="kicker">Análise administrativa · apenas administradores</p>
       <PageHead title={d ? d.application.name : missing ? "Candidatura não encontrada" : error ? "Candidatura indisponível" : "Carregando…"} />
       {d ? (
-        <Review id={id} d={d} filesOn={filesOn} withdrawalOn={withdrawalOn} accountId={accountId} onDetail={setD} />
+        <Review id={id} d={d} filesOn={filesOn} withdrawalOn={withdrawalOn} donationsOn={donationsOn} accountId={accountId} onDetail={setD} />
       ) : missing ? (
         <div aria-live="polite">
           <NotFound />
@@ -186,6 +190,7 @@ export function Review({
   d,
   filesOn,
   withdrawalOn = false,
+  donationsOn = false,
   accountId,
   onDetail,
 }: {
@@ -193,6 +198,8 @@ export function Review({
   d: ApplicationDetail;
   filesOn: boolean;
   withdrawalOn?: boolean;
+  /** Donations are on in this API (IMPL-0023, PROPOSTA) and the review shows the payment configuration. */
+  donationsOn?: boolean;
   accountId?: string;
   onDetail: (d: ApplicationDetail) => void;
 }) {
@@ -284,7 +291,19 @@ export function Review({
           </>
         )}
       </dl>
+      {/* An API older than IMPL-0017 sends no `files`. */}
       <Files applicationId={id} d={d} enabled={filesOn} accountId={accountId} onDetail={onDetail} />
+      {/* IMPL-0023 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
+      {donationsOn && a.status !== "withdrawn" && (
+        <NgoPaymentConfig
+          key={`${a.id}:${a.ngoPayment?.updatedAt ?? "new"}`}
+          ngoId={id}
+          accountId={accountId}
+          requested={{ method: a.paymentMethod, donationUrl: a.donationUrl }}
+          payment={a.ngoPayment}
+          onSaved={(payment) => onDetail({ ...d, application: { ...a, ...(payment ? { ngoPayment: payment } : {}) } })}
+        />
+      )}
       <fieldset className="checks" disabled={deleting}>
         <legend>Verificação dos 3 requisitos (DEC-015)</legend>
         {(

@@ -19,7 +19,7 @@ import { takeLoginToken } from "./lib/login-token";
 import { browserStore, forgetReturn, rememberReturn, takeReturn } from "./lib/return-to";
 import { hrefOf, namesSection, useRoute } from "./lib/router";
 import { api, onSessionChanged } from "./lib/services";
-import { openSession, type Session, trackSession, viewOf } from "./lib/session";
+import { isAdmin, openSession, type Session, trackSession, viewOf } from "./lib/session";
 import { Applications } from "./ui/Applications";
 import { Audit } from "./ui/Audit";
 import { Notice } from "./ui/common";
@@ -49,6 +49,24 @@ export function App() {
       if (next.kind !== "loading") setDemoted(lost);
     })
   );
+
+  /** Extra flags the screens need (donations, IMPL-0023); read once per admin session. */
+  const [donations, setDonations] = useState(false);
+
+  useEffect(() => {
+    if (session.kind !== "signed_in" || !isAdmin(session)) {
+      setDonations(false);
+      return;
+    }
+    let live = true;
+    api.config().then(
+      (config) => live && setDonations(config.donations === true),
+      () => live && setDonations(false)
+    );
+    return () => {
+      live = false;
+    };
+  }, [session]);
 
   useEffect(() => {
     tracker.follow(start());
@@ -114,7 +132,9 @@ export function App() {
       {route.section === "audit" && <Audit locked={locked} />}
       {route.section === "users" && <Users locked={locked} accountId={session.kind === "signed_in" ? session.user.id : undefined} />}
       {route.section === "system" && <System />}
-      {route.section === "pending" && <Pending />}
+      {route.section === "pending" && (
+        <Pending locked={locked} donationsOn={!locked && donations} accountId={session.kind === "signed_in" ? session.user.id : undefined} />
+      )}
     </Shell>
   );
 }

@@ -4,18 +4,27 @@
  * product rules). Which areas come and how is for the product owner to decide (PROPOSTA of this list: IMPL-0015).
  */
 import { Notice, PageHead } from "./common";
+import { DonationsAdmin } from "./Donations";
 
-export function Pending() {
+/**
+ * The donations cards only appear when the API has the feature on AND an admin session is here (`donationsOn` +
+ * `accountId`); with the flag off this screen keeps exactly the three honest pending notes it always had.
+ */
+export function Pending({ locked = false, donationsOn = false, accountId }: { locked?: boolean; donationsOn?: boolean; accountId?: string }) {
+  const manageDonations = donationsOn && !locked && Boolean(accountId);
   return (
     <>
       <PageHead title="Pendentes" lead="Áreas que ainda não existem neste painel ou que dependem de uma decisão, e o que falta para cada uma. Aqui não há dados nem ações." />
-      <Notice state="pending" title="Doações">
-        <p>
-          A Vila não processa nenhuma doação hoje. Esta área depende da definição e do contrato da instituição parceira (PEN-004) e do provedor de
-          pagamento (PEN-006); até lá os botões de doação do jogo ficam desabilitados (IMPL-0002). Não há valores, doadores nem repasses para
-          mostrar.
-        </p>
-      </Notice>
+      {manageDonations && <DonationsAdmin accountId={accountId!} />}
+      {!manageDonations && (
+        <Notice state="pending" title="Doações">
+          <p>
+            A Vila não processa nenhuma doação hoje. Esta área depende da definição e do contrato da instituição parceira (PEN-004) e do provedor de
+            pagamento (PEN-006); até lá os botões de doação do jogo ficam desabilitados (IMPL-0002). Não há valores, doadores nem repasses para
+            mostrar.
+          </p>
+        </Notice>
+      )}
       <Notice state="pending" title="Indicadores">
         <p>
           Um indicador público só aparece com fonte verificável (DEC-027); sem fonte, o jogo mostra “—”. Como cada indicador será apurado e

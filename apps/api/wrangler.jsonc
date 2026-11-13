@@ -49,6 +49,9 @@
     // Removing a visitor from a room of the realtime server (PROPOSTA, IMPL-0021). Needs ACCOUNTS_ENABLED,
     // migration 0010 and the realtime server deployed with the same flag and its service binding to this Worker.
     "PRESENCE_MODERATION_ENABLED": "false",
+    // Donations and the AbacatePay reconciliation (PROPOSTA, IMPL-0023). Off until the partner contract and the
+    // payment rules exist (PEN-004, PEN-006, PEN-026). Needs ACCOUNTS_ENABLED and migration 0011.
+    "DONATIONS_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -82,6 +85,7 @@
         "NGO_WITHDRAWAL_ENABLED": "false",
         "ACCOUNT_BLOCK_ENABLED": "false",
         "PRESENCE_MODERATION_ENABLED": "false",
+        "DONATIONS_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

@@ -17,6 +17,7 @@ import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/accoun
 import { SERVICES } from "../lib/services";
 import { Confirm } from "./Confirm";
 import { Panel } from "./Panel";
+import { MyTitleCard } from "./Title";
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
   return (
@@ -315,6 +316,7 @@ function SignedIn({ then }: { then?: PanelState }) {
         <dd>{ROLE_LABEL[user.role] ?? ROLE_LABEL.player}</dd>
       </dl>
       <p className="note">Só o seu nickname aparece para outras pessoas. Seu progresso de missões fica salvo nesta conta.</p>
+      <MyTitleCard />
       {!user.deletionPending && <EditProfile />}
       <div className="actions">
         {user.role === "admin" && (

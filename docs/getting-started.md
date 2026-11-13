@@ -1,7 +1,7 @@
 # Começando — rodar a Vila localmente
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
-> **Atualizado em:** 2026-11-12
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `package.json`, `apps/{client,api,server,dash}/package.json`,
 > `apps/{client,api,server,dash}/wrangler.jsonc`
 

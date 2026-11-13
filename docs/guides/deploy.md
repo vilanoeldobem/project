@@ -1,6 +1,6 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
@@ -68,8 +68,8 @@ logo e fotos: nenhuma delas lê a tabela de retiradas nem o que a 0010 cria. Iss
 último estado registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
 
 **Ordem com as contas ligadas: migration antes da API.** `db:migrate:remote` aplica todas as migrations pendentes
-de uma vez (levar a 0010 a um banco na v3 aplica também 0004–0009). Com `ACCOUNTS_ENABLED = "false"` a API desta
-versão pode ser publicada antes de qualquer migration: as rotas públicas respondem igual nos schemas v3 a v10
+de uma vez (levar a 0011 a um banco na v3 aplica também 0004–0010). Com `ACCOUNTS_ENABLED = "false"` a API desta
+versão pode ser publicada antes de qualquer migration: as rotas públicas respondem igual nos schemas v3 a v11
 (teste em `apps/api/src/public-ngo.test.ts`). Com as contas ligadas, publicar a API antes da 0009 deixa
 `/ngo/application`, `/admin/applications*`, o envio de fotos e de arquivos respondendo `503 schema_outdated` até a
 migration ser aplicada. Publicá-la antes da **0010** deixa **toda requisição com sessão** (inclusive `GET /me`,
@@ -450,7 +450,9 @@ remota ou ativação de bandeira: cada passo exige autorização humana explíci
 1. **Migration 0010 antes da API, sempre que as contas estiverem ligadas.** A conferência de sessão desta versão
    lê `users.blocked`: sem a 0010, toda requisição com sessão responde `503 schema_outdated`
    ([§3](#3-aplicar-migrations-remotas)). Com `ACCOUNTS_ENABLED = "false"` (produção hoje) a ordem não importa: as
-   rotas públicas respondem igual nos schemas v3 a v10. A 0010 é aditiva (duas colunas em `users`, duas tabelas).
+   rotas públicas respondem igual nos schemas v3 a v11. A 0010 é aditiva (duas colunas em `users`, duas tabelas).
+   A 0011 é aditiva (cinco tabelas) e só importa com `DONATIONS_ENABLED` ligada; sem ela, as rotas de doação
+   respondem `503 schema_outdated`.
 2. **API** (`pnpm deploy:api`). Conferir:
 
    ```bash
@@ -459,18 +461,19 @@ remota ou ativação de bandeira: cada passo exige autorização humana explíci
    ```
 
 3. Painel e jogo (`pnpm deploy:dash`, `pnpm deploy:client`): as telas mostram só o que `/config` informa como
-   ligado; com as duas bandeiras desligadas restam a gestão de papéis e a remoção de logo.
+   ligado; com as três bandeiras desligadas restam a gestão de papéis e a remoção de logo.
 
 Gestão de papéis (`POST /admin/users/:id/role`) e remoção de logo (`POST /admin/ngos/:id/logo/remove`) não têm
 bandeira própria: passam a existir assim que as contas estiverem ligadas com a API desta versão. A remoção de logo
 exige o bucket `FILES` ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
 
-### 10.2 As duas bandeiras — ainda desligadas (PROPOSTA)
+### 10.2 As três bandeiras — ainda desligadas (PROPOSTA)
 
 | Bandeira | Onde | Produção e homologação | Script local `dev` | Depende de |
 |---|---|---|---|---|
 | `ACCOUNT_BLOCK_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | `true` | respostas do dono do produto à [OQ-11](../decisions/open-questions.md); contas ligadas; migration 0010 |
 | `PRESENCE_MODERATION_ENABLED` | `apps/api/wrangler.jsonc` **e** `apps/server/wrangler.jsonc` | `"false"` | `true` | contas ligadas; migration 0010; os dois Workers publicados, com o binding de serviço do servidor para a API |
+| `DONATIONS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | `true` | contrato da parceira, provedor e Título (PEN-004, PEN-006, PEN-026); contas ligadas; migration 0011 |
 
 - `ACCOUNT_BLOCK_ENABLED` controla só **novos** bloqueios. Desligá-la não desfaz bloqueios gravados (continuam
   valendo, e um administrador ainda pode desfazê-los pelo painel). Uma implementação testada não autoriza a
@@ -510,6 +513,9 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
   versão anterior não lê `users.blocked` e a conta bloqueada voltaria a usar tudo. Desbloqueie antes, ou mantenha
   esta versão.
 - A migration 0010 não é revertida; as tabelas ficam (vazias, se as bandeiras nunca foram ligadas).
+- A migration 0011 também não é revertida; as tabelas de doação ficam (vazias, se `DONATIONS_ENABLED` nunca foi
+  ligada). Desligar a bandeira faz o jogo voltar ao estado desabilitado da IMPL-0002 e as rotas de doação responderem
+  `404`.
 - Desligar `PRESENCE_MODERATION_ENABLED` faz a API responder `404` a bilhetes e consumos; bilhetes pendentes
   expiram sozinhos em 30 segundos.
 
@@ -518,6 +524,8 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
 - Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
   `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o
   binding de serviço, painel e jogo).
+- Doações (IMPL-0023): migration 0011 não aplicada no remoto; `DONATIONS_ENABLED` desligada; nada desta entrega foi
+  publicado.
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).

@@ -10,7 +10,7 @@ import { APPLICATION_STATUSES, type Application, STATUS_LABEL } from "@vila/shar
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 
 import { ApplicationFiles } from "./ApplicationFiles";
-import { ApplicationStatusView } from "./NgoApplication";
+import { ApplicationStatusView, initialApplication } from "./NgoApplication";
 
 const APP: Application = {
   id: "3f2b8c1e-9a4d-4e6f-8b1a-0c2d3e4f5a6b",
@@ -102,5 +102,25 @@ describe("an NGO withdrawn by the administration (IMPL-0020, PROPOSTA)", () => {
     const editable = filesOf("changes_requested");
     expect(buttons(editable)).toEqual(["Remover logo", "Baixar", "Remover"]);
     expect(editable.split('type="file"').length - 1).toBe(2);
+  });
+});
+
+describe("wizard initial form", () => {
+  it("keeps the payment mode the API stored when the application is edited", () => {
+    const stored = initialApplication({
+      ...APP,
+      ngoPayment: {
+        method: "external_link",
+        donationUrl: "https://ong.org.br/doar",
+        subAccountId: null,
+        ngoPercentBps: 9500,
+        fixedFeeCents: 80,
+        linkValidated: true,
+        updatedAt: "2026-11-13T00:00:00.000Z",
+      },
+    });
+    expect(stored).toMatchObject({ paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar" });
+    expect(initialApplication(APP)).toMatchObject({ paymentMethod: "abacatepay", donationUrl: "" });
+    expect(initialApplication(null, "plaza-02")).toMatchObject({ lotId: "plaza-02", paymentMethod: "abacatepay", donationUrl: "" });
   });
 });

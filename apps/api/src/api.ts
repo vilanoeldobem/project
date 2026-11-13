@@ -31,6 +31,20 @@ import { blockAccount, changeRole, unblockAccount } from "./account-moderation";
 import { decide, getApplicationAdmin, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
+import {
+  abacateWebhook,
+  adminDonationOverview,
+  adminExternalProof,
+  adminUpdateNgoPayment,
+  adminUpdateSettings,
+  createDonation,
+  getDonation,
+  getDonationConfig,
+  getMyTitle,
+  getNgoDonationInfo,
+  recordRedirect,
+  simulateDonation,
+} from "./donations";
 import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, recoverFileUploads, removeLogoAdmin, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
@@ -90,6 +104,14 @@ export interface Env {
   FILES?: R2Bucket;
   /** "true" turns on NGO logo and document uploads (PROPOSTA; PEN-019). Needs `FILES` and ACCOUNTS_ENABLED. Off in production. */
   NGO_FILES_ENABLED?: string;
+  /** "true" turns on donations and the AbacatePay reconciliation (PROPOSTA; IMPL-0023, PEN-004/PEN-006/PEN-026). Off in production. */
+  DONATIONS_ENABLED?: string;
+  /** AbacatePay v2 API key (Worker secret, never a `var`; `abc_dev_…` on the sandbox). */
+  ABACATEPAY_API_KEY?: string;
+  /** Secret configured in the AbacatePay dashboard for the webhook (Worker secret; ≥ 32 characters). */
+  ABACATEPAY_WEBHOOK_SECRET?: string;
+  /** Base URL of the provider; defaults to https://api.abacatepay.com/v2 (local tests point it at a stub). */
+  ABACATEPAY_BASE_URL?: string;
   /** Workers rate limiting binding for uploads, keyed by account id. */
   FILE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   /**
@@ -125,6 +147,17 @@ export interface Indicator {
 
 async function indicators(env: Env): Promise<Indicator[]> {
   let approved: number | null = null;
+  // Donations are read only with the flag on (migration 0011 deployed); off, both indicators stay null as before.
+  // A public route on an older schema must answer, never 500: a missing table only means "no verified source yet".
+  let donations: { count: number; total: number } | null = null;
+  if (env.DONATIONS_ENABLED === "true" && env.DB) {
+    try {
+      const row = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(SUM(amount_cents), 0) AS total FROM donations WHERE status = 'paid'").first<{ n: number; total: number }>();
+      donations = { count: row?.n ?? 0, total: row?.total ?? 0 };
+    } catch (error) {
+      if (!(error instanceof Error) || !/no such table: donations\b/i.test(error.message)) throw error;
+    }
+  }
   if (env.DB) {
     // What the village shows: a published NGO on a published lot, like every other public projection. A withdrawn
     // NGO keeps `status = 'published'` but has no lot (IMPL-0020). No table newer than migration 0003 is read here.
@@ -136,8 +169,19 @@ async function indicators(env: Env): Promise<Indicator[]> {
   return [
     { key: "approved_ngos", label: "ONGs aprovadas", value: approved, note: approved === null ? "Banco indisponível." : undefined },
     { key: "registered_users", label: "Usuários cadastrados", value: null, note: "Cadastro ainda não aberto ao público." },
-    { key: "confirmed_donations", label: "Doações confirmadas", value: null, note: "Depende de parceira e provedor de pagamento (PEN-004, PEN-006)." },
-    { key: "confirmed_amount", label: "Valor confirmado", value: null, note: "Depende de verificação." },
+    {
+      key: "confirmed_donations",
+      label: "Doações confirmadas",
+      value: donations?.count ?? null,
+      note: donations ? undefined : "Depende de parceira e provedor de pagamento (PEN-004, PEN-006).",
+    },
+    {
+      key: "confirmed_amount",
+      label: "Valor confirmado",
+      // Cents, like every amount in the API: the web docs say so (docs/reference/api.md).
+      value: donations?.total ?? null,
+      note: donations ? undefined : "Depende de verificação.",
+    },
     { key: "people_impacted", label: "Pessoas impactadas", value: null, note: "Exige metodologia aprovada (DEC-027)." },
   ];
 }
@@ -198,7 +242,7 @@ export async function handleApi(request: Request, env: Env): Promise<Response> {
   return res;
 }
 
-const ACCOUNT_PREFIXES = ["/auth/", "/me", "/progress", "/ngo/", "/admin/"];
+const ACCOUNT_PREFIXES = ["/auth/", "/me", "/progress", "/ngo/", "/admin/", "/donations/my-title"];
 const ADMIN_APP = /^\/admin\/applications\/([0-9a-f-]{36})(\/decision)?$/;
 const ADMIN_FILE = /^\/admin\/applications\/([0-9a-f-]{36})\/files\/([0-9a-f-]{36})$/;
 const OWN_FILE = /^\/ngo\/application\/files\/([0-9a-f-]{36})$/;
@@ -210,10 +254,20 @@ async function route(request: Request, env: Env): Promise<Response> {
   const method = request.method;
   const accountRequest = ACCOUNT_PREFIXES.some((p) => pathname === p || pathname.startsWith(p));
   const serverRequest = pathname === CONSUME_TICKET;
+  // A donation route reaching an older schema answers 503 schema_outdated, like the account routes do.
+  const donationRequest = pathname === "/webhooks/abacatepay" || pathname.startsWith("/donations/") || /^\/ngos\/[^/]+\/donation-info$/.test(pathname);
   if (method === "OPTIONS") return new Response(null, { status: 204 });
   try {
+    if (method === "POST" && pathname === "/webhooks/abacatepay") return noStore(await abacateWebhook(request, env));
     if (accountRequest) return noStore(await accountRoute(request, env, url));
     if (serverRequest) return noStore(await consumeTicket(request, env));
+    if (method === "POST") {
+      // Donations are open to visitors; each handler checks the flag and, when a browser sent one, the Origin.
+      if (pathname === "/donations/pix") return noStore(await createDonation(request, env));
+      if (pathname === "/donations/redirect") return noStore(await recordRedirect(request, env));
+      const simulate = /^\/donations\/([0-9a-f-]{36})\/simulate$/.exec(pathname);
+      if (simulate) return noStore(await simulateDonation(request, env, simulate[1]));
+    }
     if (method !== "GET" && method !== "HEAD") {
       return json({ error: "method_not_allowed" }, { status: 405, headers: { Allow: "GET, HEAD, OPTIONS" } });
     }
@@ -226,6 +280,8 @@ async function route(request: Request, env: Env): Promise<Response> {
           accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true",
           // What works right now (IMPL-0021, PROPOSTA), so the apps show only that.
           moderation: { presence: accounts && env.PRESENCE_MODERATION_ENABLED === "true", block: accounts && env.ACCOUNT_BLOCK_ENABLED === "true" },
+          // Donations work for visitors too, so this flag does not depend on ACCOUNTS_ENABLED.
+          donations: env.DONATIONS_ENABLED === "true",
         }, { headers: NO_STORE });
       }
       case "/indicators":
@@ -238,7 +294,13 @@ async function route(request: Request, env: Env): Promise<Response> {
         if (rows === null) return json({ error: "db_unavailable" }, { status: 503 });
         return json({ lots: rows }, { headers: NO_STORE });
       }
+      case "/donations/config":
+        return noStore(await getDonationConfig(env));
       default: {
+        const donationInfo = /^\/ngos\/([^/]+)\/donation-info$/.exec(pathname);
+        if (donationInfo) return await getNgoDonationInfo(env, donationInfo[1]);
+        const donation = /^\/donations\/([0-9a-f-]{36})$/.exec(pathname);
+        if (donation) return await getDonation(env, donation[1], url);
         const logo = PUBLIC_LOGO.exec(pathname);
         if (logo) return await publicLogo(request, env, logo[1]);
         const photo = /^\/ngos\/([^/]+)\/photos\/([^/]+)$/.exec(pathname);
@@ -250,10 +312,14 @@ async function route(request: Request, env: Env): Promise<Response> {
   } catch (err) {
     if (err instanceof HttpError) return errorResponse(err);
     // Recognize only the new migration columns, the withdrawal ledger (0009, joined by the signed-in NGO and
-    // admin routes) and what a database without 0010 lacks first: the block every session read checks, and the
-    // moderation tickets of the realtime server's route. Never retry protected writes with weaker guards.
-    if ((accountRequest || serverRequest) && err instanceof Error &&
-      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked)\b|no such table: (?:ngo_withdrawals|moderation_tickets)\b/i.test(err.message))
+    // admin routes), what a database without 0010 lacks first (the block every session read checks and the
+    // moderation tickets of the realtime server's route), and the donation tables of 0011. Never retry protected
+    // writes with weaker guards.
+    if (
+      (accountRequest || serverRequest || donationRequest) &&
+      err instanceof Error &&
+      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked)\b|no such table: (?:ngo_withdrawals|moderation_tickets|donation_settings|ngo_payment_configs|donations|donation_redirects|abacatepay_webhook_events)\b/i.test(err.message)
+    )
       return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.
     console.error("api_error", pathname, err instanceof Error ? err.name : "unknown");
@@ -284,6 +350,7 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("DELETE", "/me")) return deleteMe(request, env);
   if (is("GET", "/progress")) return getProgress(request, env);
   if (is("POST", "/progress/events")) return postEvents(request, env);
+  if (is("GET", "/donations/my-title")) return getMyTitle(request, env);
   if (is("GET", "/ngo/application")) return getApplication(request, env);
   if (is("POST", "/ngo/application")) return submitApplication(request, env);
   if (is("POST", "/ngo/photos")) return uploadPhoto(request, env);
@@ -309,6 +376,11 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/applications")) return listApplications(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
+  if (is("GET", "/admin/donations/overview")) return adminDonationOverview(request, env);
+  if (is("POST", "/admin/donations/settings")) return adminUpdateSettings(request, env);
+  if (is("POST", "/admin/donations/external-proof")) return adminExternalProof(request, env);
+  const paymentConfig = /^\/admin\/ngos\/([^/]+)\/payment-config$/.exec(pathname);
+  if (paymentConfig && method === "POST") return adminUpdateNgoPayment(request, env, paymentConfig[1]);
   const adminUser = /^\/admin\/users\/([^/]+)\/(role|block|unblock)$/.exec(pathname);
   if (adminUser && method === "POST")
     return (adminUser[2] === "role" ? changeRole : adminUser[2] === "block" ? blockAccount : unblockAccount)(request, env, adminUser[1]);

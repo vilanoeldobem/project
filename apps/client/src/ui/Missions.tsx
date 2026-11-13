@@ -8,6 +8,7 @@ import { NPCS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
 import type { LotInfo } from "../lib/api";
 import { Panel } from "./Panel";
+import { MyTitleCard } from "./Title";
 
 /** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
 export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
@@ -16,6 +17,7 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
   return (
     <Panel kicker="Missões da Vila" title="Caderno de Missões">
       <XpBar />
+      <MyTitleCard />
       {(Object.keys(TRACK_LABEL) as Track[]).map((track) => (
         <section key={track} className="track">
           <h3>{TRACK_LABEL[track]}</h3>

@@ -19,7 +19,8 @@ Cada versão indica o schema D1 que entrega.
   botão de ação, a um painel, ao menu e ao bloco de moderação.
 - Jogo: os **três caminhos** (Explorar ONGs, Jogar, Doação global) ficam no HUD desde a chegada, num único grupo de
   navegação e sempre com o nome; no celular, numa linha própria (P01, DEC-008). A "Doação global" ganhou botão no
-  HUD; o painel de doação não mudou (botões desabilitados com a nota de sempre, IMPL-0002).
+  HUD; o painel de doação não mudou nesta entrega (botões desabilitados com a nota de sempre, IMPL-0002; a doação Pix
+  da IMPL-0023 fica atrás de `DONATIONS_ENABLED`).
 - Jogo: o HUD passou a ser montado em fluxo (topo, avisos, pé), de 320 px ao desktop: grupos, faixa de moderação,
   presença, Missões e avisos não se sobrepõem, e o centro da tela fica livre. O aviso passageiro (`toast`) deixou a
   posição fixa. Estados de passar o mouse, pressionar e "ligado" iguais em HUD e painéis; dica flutuante só onde o
@@ -78,6 +79,61 @@ Cada versão indica o schema D1 que entrega.
   pergunta não deixa mais o foco no botão de confirmar, onde um Enter logo depois confirmava. O clique do mouse
   que seria ignorado (segundo clique de um clique duplo, ou antes dos 600 ms) mantém o foco na pergunta.
 - Jogo, menu: o link "Conhecer o projeto no site", em Ajuda, tem 44 px de altura como os outros alvos (tinha 36).
+
+### Added — doações Pix e conciliação com a AbacatePay (PROPOSTA, desligada)
+
+- **PROPOSTA** ([IMPL-0023](docs/decisions/0023-donations-abacatepay.md)), atrás da bandeira `DONATIONS_ENABLED`
+  (`"false"` em produção e homologação; `"true"` no script local `dev`). Contrato da parceira, provedor e regra do
+  Título seguem PENDENTES (PEN-004, PEN-006, PEN-026). Nenhuma migration remota foi aplicada e nenhuma bandeira
+  foi ligada.
+- Doação global para uma única instituição parceira (DEC-010..013) e doação por ONG na subconta da própria ONG,
+  com split em centavos inteiros no pacote compartilhado (padrão 95% e R$ 0,80; mínimo de R$ 2,00, máximo de
+  R$ 50.000,00). A configuração é recusada quando o split não caberia no limite da AbacatePay.
+- API: `GET /donations/config`, `GET /ngos/:id/donation-info`, `POST /donations/pix`, `GET /donations/:id` (com
+  `?refresh=1`), `POST /donations/:id/simulate` (só sandbox), `POST /donations/redirect`,
+  `POST /webhooks/abacatepay` e `GET /donations/my-title`. No painel, `GET /admin/donations/overview`,
+  `POST /admin/donations/settings`, `POST /admin/ngos/:id/payment-config` e
+  `POST /admin/donations/external-proof`, todos auditados.
+- Webhook da AbacatePay v2 com segredo configurado e assinatura HMAC-SHA256 do corpo bruto, comparados em tempo
+  constante. O id do evento é deduplicado e repetição não altera nada.
+- Título (DEC-041): doação Pix confirmada de uma conta credita uma única vez, estorno ou disputa perdida desfazem o
+  crédito, e doação não concede XP (DEC-042). O total é somado de `donations`, sem contador paralelo. Comprovante
+  externo conferido por admin entra nos indicadores e não credita Título (PEN-026).
+- Link próprio da ONG: só HTTPS público, validado e confirmado por um admin. O redirecionamento é registrado e
+  nunca conta como doação. Nenhuma rota pública expõe CNPJ, subconta ou a URL.
+- Jogo: painel da doação global e HUD da casa com valor, destinatário, parcelas antes do pagamento, QR Code,
+  cópia do Pix, verificação e simulação de sandbox, além do cartão "Meu Título de Doação". Com a bandeira
+  desligada, os botões continuam desabilitados com a nota honesta (IMPL-0002). Painel: configuração da doação
+  global, conferência do recebimento por ONG dentro da candidatura e registro de comprovante externo.
+- Candidatura de ONG ganha o modo de recebimento pedido (AbacatePay ou link próprio HTTPS), guardado só quando a
+  bandeira está ligada. `GET /ngo/application` e a análise trazem `ngoPayment`.
+- Migration `0011_donations_abacatepay.sql` (schema D1 v11): `donation_settings`, `ngo_payment_configs`,
+  `donations`, `donation_redirects` e `abacatepay_webhook_events`, aditiva e sem tocar tabelas existentes.
+  Rotas de doação num banco atrás do código respondem `503 schema_outdated`. `/lots`, `/indicators`, `/ngos/:id`
+  e logo seguem funcionando nos schemas v3 a v11 com a bandeira desligada. `/indicators` reporta
+  `confirmed_donations` e `confirmed_amount` (em centavos) só com a bandeira ligada.
+- Sandbox: sem subcontas habilitadas na conta de teste, a configuração usa `dev_sacc_<cnpj>` fora de produção e a
+  cobrança sai sem `splits`, mantendo o split completo no D1. Em produção a recusa vira
+  `409 subaccounts_unavailable` e o admin pode informar um `sacc_…` existente.
+
+### Fixed — doações e conciliação (IMPL-0023, PROPOSTA)
+
+- Webhook repetido não altera mais o estado: a atualização é amarrada à inserção daquele evento, então um replay
+  tardio não desfaz uma disputa nem credita o Título de novo.
+- A descrição enviada ao Pix respeita o limite de 140 caracteres da AbacatePay.
+- Recusas de validação de subconta não viram mais o marcador de sandbox `dev_sacc_…`; em produção, um id de sandbox
+  é recusado em vez de criar a cobrança sem `splits`. O cliente do provedor tem limite de 15 s por chamada.
+- A sessão do doador é lida antes da criação da cobrança no provedor: uma falha ali não deixa um Pix pagável sem
+  registro local.
+- O painel de doações mostra uma ONG retirada como retirada, e ela sai da lista de comprovantes externos.
+- No jogo, a casa e o cartão do Título deixam de mostrar dados da ONG ou da conta anterior enquanto a nova leitura
+  não chega; o modo de recebimento guardado é mantido ao reenviar uma candidatura.
+- Uma resposta `2xx` sem JSON não é mais tratada como sucesso; a falha aparece na tela. Quando a leitura da doação
+  global falha, o painel diz que não conseguiu carregar, em vez de dizer que a parceira não foi configurada.
+- O link próprio da ONG recusa hosts numéricos que se passavam por nomes públicos (`127.1`, `0x7f.0.0.1`,
+  `0177.0.0.1`); a lista de recebimento por ONG mostra o estado em português.
+- Os formulários do painel e o valor personalizado do Pix aceitam vírgula decimal (`2,00`, `95,5`); o parse é o
+  mesmo nos três lugares. A mensagem de valor inválido passa a citar o intervalo aceito.
 
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 
