@@ -34,18 +34,34 @@ export function Field({ label, error, hint, children }: { label: string; error?:
   );
 }
 
-/** HUD chip: "Entrar" or "@nickname" (only when accounts are on). */
+/** The longest nickname the HUD chip shows whole (the API accepts 20 characters). */
+export const CHIP_NAME_MAX = 12;
+
+/** The nickname as the chip shows it: a long one is cut here, so the chip knows when its label is not the whole name. */
+export function chipName(nickname: string): { shown: string; cut: boolean } {
+  return nickname.length > CHIP_NAME_MAX ? { shown: `${nickname.slice(0, CHIP_NAME_MAX - 1)}…`, cut: true } : { shown: nickname, cut: false };
+}
+
+/**
+ * HUD chip: "Entrar" or "@nickname" (only when accounts are on). Only the nickname is ever cut: the state of a
+ * blocked account is a span of its own, and a chip with a cut nickname offers the full text as its tooltip at
+ * every width (`chip--cut`, `styles.css`).
+ */
 export function AccountChip() {
   const { enabled, user } = useAccount();
   const open = useVila((s) => s.open);
   if (!enabled) return null;
+  const full = user ? `Sua conta: ${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar ou criar conta";
+  const name = user ? chipName(user.nickname) : null;
   return (
-    <button
-      className="btn btn--chip"
-      onClick={() => open({ kind: "account" })}
-      aria-label={user ? `Sua conta: ${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar ou criar conta"}
-    >
-      👤 <span>{user ? `@${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar"}</span>
+    <button className={`btn btn--chip${name?.cut ? " chip--cut" : ""}`} onClick={() => open({ kind: "account" })} aria-label={full} data-tip={full}>
+      <span className="chip__icon" aria-hidden="true">
+        👤
+      </span>
+      <span className="chip__label">
+        {name ? <span className="chip__name">@{name.shown}</span> : "Entrar"}
+        {user?.blocked && <span className="chip__state"> (bloqueada)</span>}
+      </span>
     </button>
   );
 }

@@ -457,7 +457,9 @@ describe("blocked account (PROPOSTA)", () => {
 
     account.useAccount.setState({ enabled: true, files: true, user: blocked });
     expect(buttons(html(<Account then={{ kind: "ngo" }} />))).toEqual(["×", "Sair", "Excluir minha conta"]);
-    expect(html(<AccountChip />)).toContain("@ana_lima (bloqueada)");
+    // The chip reads "@ana_lima (bloqueada)"; the state is a span of its own, which nothing cuts.
+    expect(html(<AccountChip />).replace(/<[^>]+>/g, "")).toContain("@ana_lima (bloqueada)");
+    expect(html(<AccountChip />)).toContain('<span class="chip__state"> (bloqueada)</span>');
     const application = html(<NgoApplicationPanel />);
     expect(application).toContain('data-state="blocked"');
     expect(buttons(application)).toEqual(["×", "Ler a mensagem da administração"]);

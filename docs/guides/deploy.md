@@ -94,8 +94,11 @@ node apps/client/scripts/verify-live.mjs                  # padrão: https://pla
 
 `apps/client/scripts/verify.mjs` é **só local**: ele usa o painel de depuração do ambiente (`?envDebug=1`), que só
 existe em `localhost`, e contra produção para com tempo esgotado em `.env-debug`. Em produção use o
-`verify-live.mjs`: abre o jogo num Chrome real, entra na Vila e falha se houver erro de console (inclusive de CSP),
-requisição que falhou, presença sem conectar ou interface de conta visível com as contas desligadas. Não cria
+`verify-live.mjs`: abre o jogo num Chrome real e falha se a chegada não for direta na Vila (um diálogo aberto, a
+tela "Entrar na Vila" de volta, o botão "Menu" ou um dos três caminhos fora do HUD;
+[IMPL-0022](../decisions/0022-immersive-entry-and-game-menu.md)), se houver erro de console (inclusive de CSP),
+requisição que falhou, presença sem conectar ou interface de conta visível com as contas desligadas. Contra uma
+produção que ainda tenha a tela de boas-vindas ele falha: rode-o depois de publicar o jogo. Não cria
 conta nem grava nada.
 
 ### 4.1 Primeiro deploy da separação (IMPL-0009)

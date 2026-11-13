@@ -8,7 +8,6 @@ import { planWalk, sim } from "./sim";
 
 export type Panel =
   | { kind: "none" }
-  | { kind: "welcome" }
   | { kind: "donation" }
   | { kind: "lot"; lotId: string }
   | { kind: "explore" }
@@ -19,6 +18,12 @@ export type Panel =
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
   | { kind: "npc"; npcId: NpcId };
+
+/**
+ * The game menu (PROPOSTA, IMPL-0022): null = closed, otherwise the view on screen. It is not a `Panel` on
+ * purpose: the frame loop reads `panel` only, so the menu pauses nothing.
+ */
+export type MenuView = "root" | "settings" | "controls" | "help" | "leave";
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby =
@@ -77,8 +82,55 @@ function loadZoom(): number {
   }
 }
 
+// The "click or tap the ground to walk" line (IMPL-0022): a per-browser convenience, never progress. The key
+// holds only "1", written at the first walk, whether or not the line was still on screen.
+const MOVED_KEY = "vila.moved.v1";
+
+/** How long the line stays once the scene is on screen, if the visitor does not walk. */
+export const MOVE_HINT_MS = 20_000;
+
+function loadMoved(): boolean {
+  try {
+    return localStorage.getItem(MOVED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** This browser has walked: read once per page load, then true from the first walk on. */
+let moved = loadMoved();
+
+function rememberMoved() {
+  if (moved) return;
+  moved = true;
+  try {
+    localStorage.setItem(MOVED_KEY, "1");
+  } catch {
+    /* storage unavailable: the line shows again on the next visit */
+  }
+}
+
 interface VilaState {
+  /** The panel over the village; the visitor arrives with none (IMPL-0022). */
   panel: Panel;
+  menu: MenuView | null;
+  /** Opens the game menu on its list. Nothing happens while a panel is open: the panel is the layer on top. */
+  openMenu: () => void;
+  /** Moves between the views of the open menu. */
+  showMenu: (view: MenuView) => void;
+  closeMenu: () => void;
+  /** Show the line that says how to walk: true until the first walk in this browser, or until it times out. */
+  moveHint: boolean;
+  /** Hides the line for this page load; it comes back on the next visit if the visitor never walked. */
+  dismissMoveHint: () => void;
+  /** The 3D scene is on screen (`sceneUp`): the visitor can walk. */
+  sceneReady: boolean;
+  /**
+   * Called by `Player` when the scene is on screen. The line that says how to walk goes away `MOVE_HINT_MS`
+   * later: the time is counted here, once per page load, because the line itself leaves the screen (and its
+   * component unmounts) whenever a panel or the menu opens.
+   */
+  sceneUp: () => void;
   nearby: Nearby;
   /** Where the avatar is walking to (clicking is the only way to walk); null when idle. */
   target: { x: number; z: number } | null;
@@ -111,15 +163,43 @@ interface VilaState {
   restoreGuest: () => void;
   /** Guest progress was migrated to an account: this browser keeps none of it. */
   clearGuest: () => void;
+  /** Shows a passing notice (`toast`); a newer one replaces it. */
   notify: (text: string) => void;
+  /** Removes the notice with this id when its time is up; a newer notice stays. */
+  dismissToast: (id: number) => void;
 }
 
 let toastSeq = 0;
 
+/**
+ * How long a passing notice (`toast`) stays on screen, counted by the HUD from the moment it is drawn
+ * (`Toast`, `ui/Hud.tsx`), then removed with `dismissToast`. Its fade (`styles.css`, the same time) is only how
+ * it looks: under `prefers-reduced-motion` there is no fade at all, and the notice still has to leave.
+ */
+export const TOAST_MS = 3_600;
+
 const initialProgress = loadProgress();
 
 export const useVila = create<VilaState>((set, get) => ({
-  panel: { kind: "welcome" },
+  panel: { kind: "none" },
+  menu: null,
+  openMenu: () => {
+    if (get().panel.kind === "none") set({ menu: "root" });
+  },
+  showMenu: (menu) => {
+    if (get().menu !== null) set({ menu });
+  },
+  closeMenu: () => set({ menu: null }),
+  moveHint: !moved,
+  dismissMoveHint: () => {
+    if (get().moveHint) set({ moveHint: false });
+  },
+  sceneReady: false,
+  sceneUp: () => {
+    if (get().sceneReady) return;
+    set({ sceneReady: true });
+    if (get().moveHint) setTimeout(get().dismissMoveHint, MOVE_HINT_MS);
+  },
   nearby: null,
   target: null,
   progress: initialProgress,
@@ -137,7 +217,8 @@ export const useVila = create<VilaState>((set, get) => ({
   toast: null,
   skyView: false,
   setSkyView: (skyView) => set({ skyView }),
-  open: (panel) => set({ panel }),
+  // A panel is the layer on top: opening one (also from code, like a sign-in link) closes the menu.
+  open: (panel) => set({ panel, menu: null }),
   close: () => set({ panel: { kind: "none" } }),
   setNearby: (nearby) => {
     const cur = get().nearby;
@@ -150,7 +231,10 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ nearby });
   },
   setTarget: (target) => {
-    if (target) return set({ target: planWalk(target.x, target.z), skyView: false });
+    if (target) {
+      rememberMoved();
+      return set({ target: planWalk(target.x, target.z), skyView: false, moveHint: false });
+    }
     sim.route.active = false;
     set({ target });
   },
@@ -186,6 +270,9 @@ export const useVila = create<VilaState>((set, get) => ({
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),
+  dismissToast: (id) => {
+    if (get().toast?.id === id) set({ toast: null });
+  },
 }));
 
 const missionDoneMessage = (m: Mission) => `Missão concluída: ${m.title} · +${m.xp} XP`;

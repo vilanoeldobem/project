@@ -6,7 +6,7 @@
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v10 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v11 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -186,7 +186,7 @@ A confirmação de pagamento (webhook, `?refresh=1` ou simulação de sandbox) a
 status permitida; `title_credited` vira 1 só em `paid` de uma conta, e 0 em estorno ou disputa perdida. A soma do
 Título e os indicadores públicos são lidos de `donations` (sem contador paralelo), então repetir o webhook não
 duplica crédito. Nenhuma rota pública lê estas tabelas com a bandeira desligada; com ela ligada e o banco sem a
-0010, as rotas respondem `503 schema_outdated`.
+0011, as rotas respondem `503 schema_outdated`.
 
 ### lots
 
@@ -346,7 +346,7 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 
 Progresso de visitantes sem conta (só `localStorage` do navegador, chave `vila.progress.v2`; migra para
 `progress_events` ao entrar e é apagado do navegador; o progresso de uma conta nunca é gravado nessa chave, e eventos
-ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1` e zoom da câmera `vila.zoom.v1`), os bytes de logos e documentos de ONG (ficam no R2, [§ 5](#5-arquivos-no-r2-impl-0017)), pagamentos são a exceção das doações confirmadas
+ainda não enviados ficam em `vila.pending.v1:<id da conta>`, só ids de missão/evento; preferências do navegador: visual `vila.look.v1`, zoom da câmera `vila.zoom.v1` e `vila.moved.v1`, que guarda só `1` depois do primeiro passo para a dica de como andar não voltar, IMPL-0022), os bytes de logos e documentos de ONG (ficam no R2, [§ 5](#5-arquivos-no-r2-impl-0017)), pagamentos são a exceção das doações confirmadas
 (`donations`, sem nome, e-mail ou dado de cartão; o vínculo com a conta é anulado na exclusão). Logs de pagamento
 ficarão separados dos dados de gamificação (dossiê §13).
 

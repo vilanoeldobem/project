@@ -7,9 +7,10 @@ import { events } from "../game/events";
 import { type Collider, MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
-import { sim } from "../game/sim";
+import { sim, walkRoute } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, useVila } from "../game/store";
+import { attachZoomGestures } from "../lib/zoom-gestures";
 import {
   DONATION_PANEL,
   GIFTS,
@@ -45,8 +46,6 @@ const NEAR_TREE: Nearby = { kind: "tree" };
 /** Smallest centre distance wins; targets within 0.5 of each other fall back to the priority order. */
 const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestPrio: number) =>
   !best || dist < bestDist - 0.5 || (dist - bestDist <= 0.5 && prio < bestPrio);
-/** Mouse wheel and pinch sensitivity (zoom factor per pixel of wheel delta). */
-const WHEEL_ZOOM = 0.0015;
 
 const blobVertex = /* glsl */ `
 varying vec2 vUv;
@@ -110,51 +109,16 @@ export function Player({ lots }: { lots: Collider[] }) {
   const blobGeometry = useMemo(() => new CircleGeometry(0.55, 20).rotateX(-Math.PI / 2), []);
   useEffect(() => () => (blobMaterial.dispose(), blobGeometry.dispose()), [blobMaterial, blobGeometry]);
 
-  // Zoom: mouse wheel and two-finger pinch on the canvas (movement is click/tap only).
+  // Zoom: mouse wheel and two-finger pinch on the canvas (`lib/zoom-gestures.ts`), only while nothing is open
+  // over the village. The scene is ready from here on: the line that says how to walk starts counting.
   useEffect(() => {
-    const idle = () => useVila.getState().panel.kind === "none";
-    const wheel = (e: WheelEvent) => {
-      e.preventDefault();
-      if (idle()) useVila.getState().zoomBy(Math.exp(e.deltaY * WHEEL_ZOOM));
-    };
-    const touches = new Map<number, { x: number; y: number }>();
-    let span = 0;
-    const spread = () => {
-      const [a, b] = [...touches.values()];
-      return Math.hypot(a.x - b.x, a.y - b.y);
-    };
-    const down = (e: PointerEvent) => {
-      if (e.pointerType !== "touch") return;
-      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.size === 2) {
-        span = spread();
-        useVila.getState().setTarget(null);
-      }
-    };
-    const move = (e: PointerEvent) => {
-      if (!touches.has(e.pointerId)) return;
-      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.size !== 2 || span <= 0 || !idle()) return;
-      const d = spread();
-      if (d > 0) useVila.getState().zoomBy(span / d);
-      span = d;
-    };
-    const up = (e: PointerEvent) => {
-      touches.delete(e.pointerId);
-      span = 0;
-    };
-    canvas.addEventListener("wheel", wheel, { passive: false });
-    canvas.addEventListener("pointerdown", down);
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
-    return () => {
-      canvas.removeEventListener("wheel", wheel);
-      canvas.removeEventListener("pointerdown", down);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
-    };
+    const vila = () => useVila.getState();
+    vila().sceneUp();
+    return attachZoomGestures(canvas, window, {
+      idle: () => vila().panel.kind === "none" && vila().menu === null,
+      zoomBy: (factor) => vila().zoomBy(factor),
+      stopWalk: () => vila().setTarget(null),
+    });
   }, [canvas]);
 
   useFrame(({ clock: three }, frameDt) => {
@@ -165,8 +129,9 @@ export function Player({ lots }: { lots: Collider[] }) {
     const b = sim.body;
     const quests = questsEnabled();
 
-    // ---- simulation: fixed steps, independent of the display refresh rate. An open panel pauses the walk.
-    const route = s.panel.kind === "none" ? sim.route : null;
+    // ---- simulation: fixed steps, independent of the display refresh rate. An open panel pauses the walk;
+    // the game menu does not (`walkRoute`).
+    const route = walkRoute(s);
     c.acc += Math.min(frameDt, 0.1);
     while (c.acc >= STEP) {
       c.acc -= STEP;

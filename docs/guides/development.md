@@ -19,13 +19,15 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
     game/                   store.ts (zustand), sim.ts, events.ts, devtools.ts
     environment/            runtime.ts, settings.ts, audio.ts, labels.ts (lado do navegador)
     scene/                  Three.js via react-three-fiber: World, Ground, Props, Player, Voxels, models.ts
-    ui/                     painéis HTML sobre o canvas (P01, P02, P03/P04, P09, P12, P13, P14) e HUD
+    ui/                     painéis HTML sobre o canvas (P01, P02, P03/P04, P09, P12, P13, P14), HUD e menu do jogo
     lib/                    api.ts (cliente da API), account.ts (conta, sessão, sincronização do progresso),
-                            endpoints.ts (hosts por modo de build), services.ts
+                            endpoints.ts (hosts por modo de build), services.ts; hud-keys.ts (mapa de teclas e
+                            ordem do Esc), escape.ts, controls.ts, zoom-gestures.ts, dialog-focus.ts (IMPL-0022)
     net/multiplayer.ts      conexão de presença com o servidor
   worker/                   index.ts (entrada) + handle.ts (redireciona app.* e client.* → play.*)
   security-headers.ts       _headers gerado no build (CSP connect-src por build)
   scripts/verify.mjs        verificação em Chrome real
+  scripts/arrive.mjs        chegada conferida por todos os scripts de navegador (HUD presente, nenhum diálogo)
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
   scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
 apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*) — IMPL-0015

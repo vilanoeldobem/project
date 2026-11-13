@@ -19,6 +19,13 @@ export const sim = {
 };
 
 /**
+ * The walk the fixed-step loop follows this frame (`Player`): the planned route, or none while a panel is open
+ * (the route is kept and the walk goes on when the panel closes). Only a panel holds the walk: the game menu
+ * (IMPL-0022) is not one, so the avatar, the other visitors and the environment go on behind it.
+ */
+export const walkRoute = (state: { panel: { kind: string } }) => (state.panel.kind === "none" ? sim.route : null);
+
+/**
  * Plans the walk from where the avatar stands to `(x, z)` and returns where it will actually end: the
  * point itself, or the nearest walkable spot when the click landed on an obstacle or outside the world.
  */
