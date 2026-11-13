@@ -322,6 +322,120 @@ describe("removing a visitor from the room (PROPOSTA)", () => {
     disconnect();
   });
 
+  it("drops the result of a removal sent before the mode was switched off and on: the open confirmation keeps naming the visitor it was opened for", async () => {
+    const { page, socket, removals, disconnect } = await room();
+    socket.say(`["s",${Date.now()},[[9,1,1,0,0,0],[8,5,5,0,0,0]]]`);
+    let release!: (answer: { status?: number; body: unknown }) => void;
+    const held = new Promise<{ status?: number; body: unknown }>((resolve) => (release = resolve));
+    let answer: { status?: number; body: unknown } | undefined;
+    // The ticket request of the first removal hangs (slow network), then fails.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const key = `${init?.method ?? "GET"} ${new URL(url).pathname}`;
+        requests.push(key);
+        if (key === "POST /admin/moderation/ticket") {
+          if (init?.body) (bodies[key] ??= []).push(JSON.parse(String(init.body)));
+          const now = answer ?? (await held);
+          return new Response(JSON.stringify(now.body), { status: now.status ?? 200 });
+        }
+        return new Response(JSON.stringify({ user: ADMIN }), { status: 200 });
+      })
+    );
+    page.mode().setOn(true);
+    page.mode().select(9);
+    page.mode().ask();
+    await vi.advanceTimersByTimeAsync(700);
+    const first = page.mode().confirm();
+    await flush();
+    expect(page.mode()).toMatchObject({ selected: 9, sending: true });
+
+    // Stuck on "Removendo…", the administrator switches the mode off and on and picks another visitor.
+    page.mode().setOn(false);
+    page.mode().setOn(true);
+    page.mode().select(8);
+    page.mode().ask();
+    const asked = page.mode().askedAt;
+    expect(page.mode()).toMatchObject({ selected: 8, sending: false });
+    expect(asked).not.toBeNull(); // on screen: "Remover o visitante nº 8 da sala?"
+    await vi.advanceTimersByTimeAsync(700); // and armed
+
+    // Now the old request fails. Its result is about a screen that is gone: nothing changes, nothing is said.
+    release({ status: 429, body: { error: "too_many_requests" } });
+    await first;
+    await flush();
+    expect(page.mode()).toMatchObject({ selected: 8, askedAt: asked, sending: false, notice: null });
+    expect(page.useVila.getState().toast).toBeNull();
+
+    // One click on the armed confirmation removes the visitor it names, nobody else.
+    answer = { body: { ticket: TICKET, expiresAt: "2026-11-12T15:00:30.000Z" } };
+    const second = page.mode().confirm();
+    await flush();
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(bodies["POST /admin/moderation/ticket"]).toEqual([
+      { accountId: "a1", room: 2, target: 9 },
+      { accountId: "a1", room: 2, target: 8 },
+    ]);
+    expect(removals()).toEqual([`["m",8,"${TICKET}"]`]);
+    socket.say('["m",8,1]');
+    await second;
+    expect(page.mode().notice).toEqual({ ok: true, text: "Visitante nº 8 removido da sala." });
+    disconnect();
+  });
+
+  it("drops a late success too, and the result of a removal sent by an account that is no longer here", async () => {
+    const { page, socket, disconnect } = await room();
+    page.mode().setOn(true);
+    page.mode().select(9);
+    page.mode().ask();
+    const first = page.mode().confirm();
+    await flush();
+    page.mode().setOn(false);
+    page.mode().setOn(true);
+    socket.say('["m",9,1]');
+    await first;
+    expect(page.mode()).toMatchObject({ on: true, selected: null, askedAt: null, sending: false, notice: null });
+
+    socket.say(`["s",${Date.now()},[[11,2,2,0,0,0]]]`);
+    page.mode().select(11);
+    page.mode().ask();
+    await vi.advanceTimersByTimeAsync(1_200);
+    const second = page.mode().confirm();
+    await flush();
+    await page.signOut();
+    socket.say('["m",11,0]');
+    await second;
+    expect(page.mode()).toMatchObject({ on: false, selected: null, askedAt: null, sending: false, notice: null });
+    disconnect();
+  });
+
+  it("closes the confirmation whenever the selection changes: the visitor it names cannot be swapped under it", async () => {
+    const { page, socket, disconnect } = await room();
+    socket.say(`["s",${Date.now()},[[9,1,1,0,0,0],[8,5,5,0,0,0]]]`);
+    page.mode().setOn(true);
+    const open = () => {
+      page.mode().select(9);
+      page.mode().ask();
+      expect(page.mode()).toMatchObject({ selected: 9, askedAt: Date.now() });
+    };
+    const changes: Array<[string, () => unknown, number | null]> = [
+      ["another visitor is picked", () => page.mode().select(8), 8],
+      ["the next visitor is picked", () => page.mode().selectNext(), 8],
+      ["a click picks another visitor", () => page.selectVisitorAt(...rayAt(5, 5)), 8],
+      ["the selection is cleared", () => page.mode().select(null), null],
+      ["the visitor leaves", () => socket.say('["l",9]'), null],
+    ];
+    for (const [what, change, selected] of changes) {
+      open();
+      change();
+      expect([what, page.mode().selected, page.mode().askedAt]).toEqual([what, selected, null]);
+      await page.mode().confirm(); // nothing is armed: nothing is sent
+      expect([what, adminCalls()]).toEqual([what, []]);
+      socket.say(`["s",${Date.now()},[[9,1,1,0,0,0]]]`); // visitor 9 is (back) in the room for the next case
+    }
+    disconnect();
+  });
+
   it("tells a visitor who left before the message was sent, and a ticket the API did not answer in time", async () => {
     const { page, socket, removals, disconnect } = await room();
     let release!: () => void;

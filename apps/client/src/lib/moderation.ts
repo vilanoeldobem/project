@@ -5,8 +5,10 @@
  * review queues and the audit stay in the dashboard.
  *
  * What the game hides is convenience: the API checks the role on every call. Still, nothing here is reachable
- * for anybody else: the mode cannot be turned on without the role, and it goes off the moment the account signs
- * out, changes, is blocked or loses the role.
+ * for anybody else: the mode cannot be turned on without the role, and it goes off as soon as this page knows
+ * that the account signed out, changed, was blocked or lost the role. A change made here is known at once; one
+ * made elsewhere (another tab, another administrator) is known when the API refuses the next request of this
+ * page (`not_signed_in`, `account_changed`, `session_blocked`, `admin_only`; `lib/account.ts` reads `/me` again).
  */
 import { create } from "zustand";
 
@@ -105,15 +107,37 @@ const remover = () =>
     onLateRemoval: (target) => useVila.getState().notify(`O visitante nº ${target} foi removido da sala (a resposta chegou atrasada).`),
   }));
 
+/**
+ * Which removal flow is on screen. It moves whenever the flow starts over: the mode is switched, the selection
+ * changes, the account changes. A removal that was sent under an older number answers to a screen that is gone,
+ * so its result is dropped whole: it writes nothing and says nothing.
+ */
+let generation = 0;
+
+/**
+ * The only way the selection changes. It always closes the confirmation step, so the visitor an open
+ * confirmation names can never be swapped under it.
+ */
+const selection = (selected: number | null, notice: RemovalNotice | null = null) => {
+  generation++;
+  return { selected, askedAt: null, notice };
+};
+
+/** The mode goes `on` or off and everything in it starts over. */
+const restart = (on: boolean) => {
+  generation++;
+  return { on, ...CLEAR };
+};
+
 export const useModeration = create<ModerationState>((set, get) => ({
   on: false,
   ...CLEAR,
-  setOn: (on) => set({ on: on && canModerate(useAccount.getState().user), ...CLEAR }),
+  setOn: (on) => set(restart(on && canModerate(useAccount.getState().user))),
   select: (id) => {
     if (get().sending) return;
-    if (id === null) return set({ selected: null, askedAt: null });
+    if (id === null) return set(selection(null, get().notice));
     if (!removalOn() || !remotes.has(id)) return;
-    set({ selected: id, askedAt: null, notice: null });
+    set(selection(id));
   },
   selectNext: () => {
     const { x, z } = sim.pose;
@@ -133,10 +157,12 @@ export const useModeration = create<ModerationState>((set, get) => ({
     const target = get().selected;
     if (target === null || get().askedAt === null || get().sending || !removalOn()) return;
     set({ sending: true, askedAt: null, notice: null });
+    const mine = generation;
     const result = await remover()(target);
-    // The mode went off meanwhile (signed out, role lost): say nothing about a screen that is gone.
-    if (!get().on) return;
-    set({ sending: false, notice: { ok: result.ok, text: removalText(target, result) }, selected: result.ok || !remotes.has(target) ? null : target });
+    // The flow started over meanwhile (mode switched, signed out, role lost): this answer is about a screen that
+    // is gone. Nothing is written: another visitor may be selected by now, with its confirmation open.
+    if (mine !== generation) return;
+    set({ sending: false, ...selection(result.ok || !remotes.has(target) ? null : target, { ok: result.ok, text: removalText(target, result) }) });
   },
 }));
 
@@ -144,14 +170,13 @@ export const useModeration = create<ModerationState>((set, get) => ({
 onPresenceEvent((e) => {
   const { selected, sending } = useModeration.getState();
   if (selected === null || sending) return;
-  if (e.type === "closed") useModeration.setState({ selected: null, askedAt: null });
-  else if (e.type === "left" && e.id === selected)
-    useModeration.setState({ selected: null, askedAt: null, notice: { ok: false, text: `O visitante nº ${selected} saiu da sala.` } });
+  if (e.type === "closed") useModeration.setState(selection(null, useModeration.getState().notice));
+  else if (e.type === "left" && e.id === selected) useModeration.setState(selection(null, { ok: false, text: `O visitante nº ${selected} saiu da sala.` }));
 });
 
 // Signed out, another account, blocked, or no longer an administrator: the mode and everything in it go away.
 useAccount.subscribe((s, prev) => {
-  if (useModeration.getState().on && (!canModerate(s.user) || s.user?.id !== prev.user?.id)) useModeration.setState({ on: false, ...CLEAR });
+  if (useModeration.getState().on && (!canModerate(s.user) || s.user?.id !== prev.user?.id)) useModeration.setState(restart(false));
 });
 
 /**
