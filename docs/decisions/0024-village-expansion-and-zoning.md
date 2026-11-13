@@ -440,6 +440,9 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
     de 14 u em 13 direções da imagem); na praça e nas avenidas a vista baixa de sempre é mantida;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
+  - **as salas de presença não carregam versão do mundo** (IMPL-0008): uma aba aberta antes da publicação segue
+    com o mundo antigo e, na mesma sala, vê os visitantes novos andando fora do mundo dela até recarregar (e os
+    novos a veem atravessar construções). Só a pose e o visual trafegam, então nada é gravado errado;
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador
     decorativo saiu de onde passa uma avenida;
   - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6

@@ -65,6 +65,10 @@ Cada versão indica o schema D1 que entrega.
   praça a vista é a de sempre.
 - O botão de ação de um terreno residencial só aparece com o avatar parado, e o alvo oferecido tem histerese: numa
   rua econômica o botão ficava na tela em 83 % do trajeto, trocando 15 vezes; agora, 0 %.
+- Celular: os botões "Ir até lá" da lista "Explorar ONGs" têm 44 px de altura (eram 36 px, em 12 linhas); um
+  rótulo 3D que cairia embaixo de um botão ou aviso do HUD fica escondido até sair de lá.
+- Menu → Controles e Ajuda dizem o que um clique faz em cada coisa: árvore, casa de ONG e terreno abrem o painel;
+  loja, placa e casa residencial levam o avatar até lá e, de perto, abrem o painel.
 - Um clique, uma intenção: clicar numa construção não deixa mais uma caminhada esperando o painel fechar; de longe,
   o avatar anda até o ponto de uso e o marcador do toque fica lá; um toque num telhado que cobre a rua anda até o
   ponto da rua.

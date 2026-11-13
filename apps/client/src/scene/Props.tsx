@@ -10,6 +10,7 @@ import { openFromScene, visit } from "../game/clicks";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
+import { hudChrome, underChrome } from "../lib/hud-chrome";
 import { lotLabel } from "../lib/lots";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
@@ -155,12 +156,16 @@ function Gift({ id, x, z }: { id: string; x: number; z: number }) {
 }
 
 /**
- * Distance limit (world units) for NPC and lectern DOM labels: `@react-three/drei`'s `Html` projects every
- * mounted label on the main thread each frame, so labels on the far side of the village are pure DOM cost.
- * 24 u covers the plaza (radius 12) plus the camera's 21 u reach and the 4.5 u interaction distance; from the
- * tree it reaches the porches of the square's frontage (26 u), so the lots around the square read from there.
+ * Distance limit (world units) for the DOM labels of lots, shops, NPCs and the lectern: `@react-three/drei`'s
+ * `Html` projects every mounted label on the main thread each frame, so labels on the far side of the village
+ * are pure DOM cost. A label is on the page only while its prop is within 28 u of the avatar: more than the
+ * 21 u the camera sits south of the avatar at the default zoom, so whatever is near the middle of the screen is
+ * labelled. The lots and the shops stand about 31 u from the tree: from the spawn the south ones are labelled,
+ * from the tree's axis none is. (The tree's own label has no limit.)
  */
 const LABEL_RADIUS = 28;
+/** A mounted label is compared with the HUD every this many frames. */
+const CHROME_EVERY = 6;
 
 /**
  * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within
@@ -169,7 +174,16 @@ const LABEL_RADIUS = 28;
 export function Label({ y, text, x, z }: { y: number; text: string; x?: number; z?: number }) {
   const [near, setNear] = useState(() => x === undefined || z === undefined || Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS);
   const prev = useRef(near);
+  const box = useRef<HTMLDivElement>(null);
+  const tick = useRef(0);
   useFrame(() => {
+    // A label that would sit under a button, the hint or a notice of the HUD is hidden until it is clear of it
+    // (`lib/hud-chrome.ts`): on a phone the HUD covers the top and the bottom of a small screen.
+    const el = box.current;
+    if (el && tick.current++ % CHROME_EVERY === 0) {
+      const hide = underChrome(el.getBoundingClientRect(), hudChrome(performance.now()));
+      if ((el.style.visibility === "hidden") !== hide) el.style.visibility = hide ? "hidden" : "";
+    }
     if (x === undefined || z === undefined) return;
     const next = Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS;
     if (next === prev.current) return;
@@ -178,7 +192,7 @@ export function Label({ y, text, x, z }: { y: number; text: string; x?: number; 
   });
   if (!near) return null;
   return (
-    <Html position={[0, y, 0]} center distanceFactor={28} zIndexRange={[10, 0]} className="label3d">
+    <Html ref={box} position={[0, y, 0]} center distanceFactor={28} zIndexRange={[10, 0]} className="label3d">
       {text}
     </Html>
   );

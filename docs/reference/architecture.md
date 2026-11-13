@@ -250,6 +250,10 @@ uma migration nova. Decisão, números e o que fica para depois em
   lojas, da árvore e dos pinheiros de `scene/sceneColliders.ts`), refeito só quando o avatar ou a câmera andou
   0,2 u. Só o próprio avatar: os outros visitantes não têm esse desenho. "Olhar o céu" usa as mesmas colunas para
   subir a câmera por cima dos telhados onde uma construção ficaria na vista.
+- **Rótulos 3D e o HUD** (`Label` em `scene/Props.tsx`, `lib/hud-chrome.ts`): um rótulo só existe na página com o
+  objeto a até 28 u do avatar, e fica escondido enquanto cairia sobre um botão, a linha de como andar ou um aviso
+  do HUD (comparado a cada 6 quadros com as caixas do HUD, relidas no máximo a cada 400 ms). Num celular o HUD
+  ocupa o alto e o pé da tela, e o rótulo da árvore caía embaixo dele no spawn.
 - **Colisores da cena:** `scene/sceneColliders.ts` monta a lista que o avatar contorna (obstáculos fixos, NPCs e
   atril com as quests, terrenos de ONG e os 112 chalés residenciais); `scene/colliders.test.ts` audita essa mesma
   lista contra os voxels desenhados, então tirar um tipo de colisor dela falha num teste unitário.

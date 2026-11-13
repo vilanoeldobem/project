@@ -16,6 +16,12 @@ export const sim = {
   nav: null as NavField | null,
   /** The walk in progress: planned once per click, read by the fixed-step loop. */
   route: createRoute(),
+  /**
+   * What the camera is doing, written by `Player` for whoever needs to know (the dev hooks of the verify
+   * scripts): whether the avatar is drawn see-through because something hides it, and how high the "look at the
+   * sky" camera sits over the avatar (0 while that view is off).
+   */
+  view: { seeThrough: false, skyHeight: 0 },
 };
 
 /**

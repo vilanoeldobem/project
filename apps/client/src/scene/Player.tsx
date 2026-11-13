@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { CircleGeometry, type Group, type Mesh, MeshBasicMaterial, ShaderMaterial, Vector3 } from "three";
 
 import { U } from "./environment/materials";
+import { probe } from "../game/devtools";
 import { events } from "../game/events";
 import { MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
@@ -44,7 +45,7 @@ const GIFT_RADIUS = 1.4;
  * drawn once more over everything, in its own colours and half transparent, so it stays readable as itself.
  * Never shown in the open, and not when only the feet are behind something.
  */
-const SEE_THROUGH = new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.62, depthTest: false, depthWrite: false, fog: false });
+const SEE_THROUGH = new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthTest: false, depthWrite: false, fog: false });
 /** The avatar or the camera moved this far (u) since the last look: look again. */
 const LOOK_AGAIN = 0.2;
 
@@ -123,6 +124,17 @@ export function Player({ published }: { published: string }) {
   );
   const blobGeometry = useMemo(() => new CircleGeometry(0.55, 20).rotateX(-Math.PI / 2), []);
   useEffect(() => () => (blobMaterial.dispose(), blobGeometry.dispose()), [blobMaterial, blobGeometry]);
+
+  // Dev hooks only (`game/devtools.ts`): where a point of the world is on the screen, for the verify scripts.
+  useEffect(() => {
+    const v = new Vector3();
+    probe.project = (x, y, z) => {
+      v.set(x, y, z).project(camera);
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    return () => void (probe.project = null);
+  }, [camera, canvas]);
 
   // Zoom: mouse wheel and two-finger pinch on the canvas (`lib/zoom-gestures.ts`), only while nothing is open
   // over the village. The scene is ready from here on: the line that says how to walk starts counting.
@@ -248,6 +260,7 @@ export function Player({ published }: { published: string }) {
     }
     const show = h.on && !s.skyView;
     for (const o of outline.current) if (o && o.visible !== show) o.visible = show;
+    sim.view.seeThrough = show;
 
     // ---- camera: eased follow with a small look-ahead along the velocity.
     ahead.lerp(goal.set(b.vx, 0, b.vz).multiplyScalar(LOOK_AHEAD * U.uMotion.value), 1 - Math.exp(-3 * dt));
@@ -262,7 +275,11 @@ export function Player({ published }: { published: string }) {
         v.offset = clearSkyOffset(buildings, pose.x, pose.z, SKY_OFFSETS, SKY_LOOK);
       }
       goal.set(look.x + v.offset.x, look.y + v.offset.y, look.z + v.offset.z);
-    } else goal.copy(look).addScaledVector(CAMERA_OFFSET, fit * s.zoom);
+      sim.view.skyHeight = v.offset.y;
+    } else {
+      goal.copy(look).addScaledVector(CAMERA_OFFSET, fit * s.zoom);
+      sim.view.skyHeight = 0;
+    }
     camera.position.lerp(goal, k);
     // The aim point eases too, so switching views pans smoothly instead of snapping.
     aim.lerp(s.skyView ? goal.set(look.x + SKY_LOOK.x, look.y + SKY_LOOK.y, look.z + SKY_LOOK.z) : look, k);

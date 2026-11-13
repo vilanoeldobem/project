@@ -141,7 +141,7 @@ export function GameMenuView({
           <p className="lead">Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.</p>
           <ul className="bullets">
             <li>
-              <strong>Andar:</strong> clique ou toque no chão. A Vila é uma praça com uma grande árvore e terrenos em volta.
+              <strong>Andar:</strong> clique ou toque no chão. A Vila é uma praça com uma grande árvore, com terrenos de ONGs e lojas em volta e ruas de casas ao redor.
             </li>
             <li>
               <strong>ONGs:</strong> “{PATHS[0].icon} {PATHS[0].label}”, no alto da tela, lista as casas e leva você até elas. Chegue perto de uma casa (ou toque

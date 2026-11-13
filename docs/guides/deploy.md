@@ -544,6 +544,11 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 3. **O servidor de tempo real (`apps/server`) deve ser publicado junto com o jogo.** Ele limita a pose ao raio do
    mundo, que vem do pacote compartilhado: com o servidor antigo (34 u), quem anda além disso aparece para os
    outros preso na borda antiga.
+   **As salas não carregam versão do mundo.** Uma aba aberta antes da publicação continua com o jogo antigo (mundo
+   de 34 u, terrenos de ONG nas posições antigas) e fica na mesma sala de quem já carregou o novo: ela vê os
+   visitantes novos andando fora do mundo dela, por cima do que para ela é floresta, e os novos veem os antigos
+   atravessando lojas e casas. Dura até a aba recarregar; nada é gravado errado (a presença é só pose e visual,
+   IMPL-0008). Não há aviso de "recarregue" no jogo.
 4. **Migration 0012**, quando autorizada (`pnpm --filter @vila/api db:migrate:remote`; num banco na v3 ela leva
    junto as 0004–0011, inclusive as tabelas de doação da 0011, que ficam vazias e sem uso com `DONATIONS_ENABLED`
    desligada). É aditiva e não toca nas tabelas da 0011: muda só as colunas `x` e `z` de 8 linhas de `lots`,

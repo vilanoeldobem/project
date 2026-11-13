@@ -215,6 +215,8 @@ kbd {
 .lot-list, .mission-list, .indicators { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
 .lot-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border: 2px solid rgba(23, 61, 53, 0.15); border-radius: 12px; }
 .lot-list span, .mission-list li > span:last-child { display: flex; flex-direction: column; }
+/* "Ir até lá": twelve rows on a phone, each button a full 44 px target (the small button alone is 36 px). */
+.lot-list .btn { min-height: 44px; flex: none; }
 small { color: var(--ink-2); font-size: 0.82rem; }
 .mission-list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: #f6ecd8; }
 .mission-list li > span:first-child { color: var(--gold); font-size: 1.2rem; -webkit-text-stroke: 0.5px var(--pine); }
