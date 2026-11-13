@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
-import { BufferAttribute, BufferGeometry, Color, type InstancedMesh, type Material, Matrix4, Object3D } from "three";
+import { BufferAttribute, BufferGeometry, Color, type Group, type InstancedMesh, type Material, Matrix4, Object3D } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { foliageMaterial, idleMaterial, lightsMaterial, solidMaterial, windowMaterial } from "./environment/materials";
 import { meshVoxels } from "./mesher";
 import type { Voxel } from "./models";
+import type { CasterPart } from "./shadowCasters";
+import { useShadowCasters } from "./ShadowCulling";
 
 /** Placement of one copy of a model (repeated props share one geometry and one draw call per role). */
 export interface Placement {
@@ -31,6 +33,8 @@ interface Props {
   idle?: boolean;
   /** Draws every role with this material instead of the shared ones (the avatar's see-through outline). */
   material?: Material;
+  /** A large static block: it casts a shadow only while the shadow of one of these parts is seen (`useShadowCasters`). */
+  casters?: readonly CasterPart[];
 }
 
 const ROLES = ["solid", "lights", "glow", "sway"] as const;
@@ -90,17 +94,19 @@ export function voxelGeometries(
  * Draws a voxel model as merged, face-culled, ambient-occluded meshes (see `mesher.ts`): one draw call
  * per material role, and per role for all `placements` together.
  */
-export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false, material }: Props) {
+export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false, material, casters }: Props) {
+  const group = useRef<Group>(null);
   const geometries = useMemo(
     () => voxelGeometries(voxels, size, { emissive, glow, sway }),
     // Colour lists are literals at call sites; their content, not identity, defines the grouping.
     [voxels, size, emissive.join(), glow.join(), sway.join()]
   );
+  useShadowCasters(group, casters, geometries);
 
   useEffect(() => () => geometries.forEach((g) => g?.dispose()), [geometries]);
 
   return (
-    <group>
+    <group ref={group}>
       {ROLES.map((role, i) => {
         const geometry = geometries[i];
         if (!geometry) return null;
@@ -187,11 +193,35 @@ export function mergeVoxelModels(items: MergeItem[]): Array<BufferGeometry | nul
   });
 }
 
-/** Draws geometries from `mergeVoxelModels` with the shared role materials. */
-export function MergedVoxels({ geometries, castShadow = true }: { geometries: Array<BufferGeometry | null>; castShadow?: boolean }) {
+/**
+ * Takes the small roles that glow (bulbs and lanterns, windows) out of several results of `mergeVoxelModels`
+ * and joins them into one geometry per role: one draw call each for the whole set instead of two per block.
+ * They cast no shadow and are a few dozen triangles per block, so nothing is gained by culling them block by
+ * block. The inputs keep their other roles; the roles taken are set to null in them.
+ */
+export function joinLitRoles(blocks: Array<Array<BufferGeometry | null>>): Array<BufferGeometry | null> {
+  return ROLES.map((role, i) => {
+    if (role !== "lights" && role !== "glow") return null;
+    const list = blocks.flatMap((b) => (b[i] ? [b[i]] : []));
+    for (const b of blocks) b[i] = null;
+    if (list.length === 0) return null;
+    const joined = mergeGeometries(list, false);
+    list.forEach((g) => g.dispose());
+    joined?.computeBoundingSphere();
+    return joined;
+  });
+}
+
+/**
+ * Draws geometries from `mergeVoxelModels` with the shared role materials. `casters`: the parts of a large
+ * block, which then casts a shadow only while the shadow of one of them is seen (`useShadowCasters`).
+ */
+export function MergedVoxels({ geometries, castShadow = true, casters }: { geometries: Array<BufferGeometry | null>; castShadow?: boolean; casters?: readonly CasterPart[] }) {
+  const group = useRef<Group>(null);
+  useShadowCasters(group, casters, geometries);
   useEffect(() => () => geometries.forEach((g) => g?.dispose()), [geometries]);
   return (
-    <group>
+    <group ref={group}>
       {ROLES.map((role, i) => {
         const g = geometries[i];
         if (!g) return null;

@@ -46,9 +46,13 @@ Cada versão indica o schema D1 que entrega.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
   não lista (banco antes da 0011) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
   recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
-- Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores; a cena no spawn foi de 70
-  chamadas e ~122 mil triângulos para 124 e ~217 mil (preset Média). A grade de navegação cobre o mundo novo com a
-  mesma célula de 0,25 u; a pior rota medida leva 4,8 ms para planejar.
+- Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores. Os blocos residenciais e os
+  setores da floresta só entram na passada de sombra enquanto a sombra de alguma peça deles aparece na tela, e as
+  janelas e lanternas dos blocos são duas malhas para a Vila inteira; a imagem não muda. A cena no spawn foi de 70
+  chamadas e ~122 mil triângulos para 102 e ~165 mil (preset Média, 12:00 com neve); com o zoom todo afastado
+  sobre a praça (15:30, céu limpo) são 116 chamadas e ~211 mil triângulos, dentro do orçamento de 150 e 250 mil
+  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; a pior rota medida
+  leva 4,8 ms para planejar.
 - Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
 
 ### Changed — chegada direta na Vila e HUD enxuto (IMPL-0022, PROPOSTA do responsável técnico; OQ-16)

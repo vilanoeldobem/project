@@ -5,10 +5,11 @@ import { Color, type DirectionalLight, FogExp2, type HemisphereLight, Object3D, 
 import { env } from "../../environment/runtime";
 import { usePreset } from "../../environment/settings";
 import { sim } from "../../game/sim";
+import { keyShadow, SHADOW_BOX } from "../shadowCasters";
 import { linear } from "./materials";
 
-const SHADOW_EXTENT = 30;
-const KEY_DISTANCE = 60;
+/** The shadow camera's box: shared with `shadowCasters.ts`, which keeps blocks that shade nothing seen out of the shadow map. */
+const { extent: SHADOW_EXTENT, distance: KEY_DISTANCE } = SHADOW_BOX;
 
 /**
  * Hybrid cartoon lighting (spec §5.1): one key directional light (sun by day, moon by night — a single
@@ -55,6 +56,11 @@ export function Lighting() {
       look.sunDirection[1] * KEY_DISTANCE,
       p.z + look.sunDirection[2] * KEY_DISTANCE
     );
+    // The same box, for the blocks whose part in the shadow pass is decided part by part (`ShadowCulling`).
+    keyShadow.on = preset.shadows;
+    keyShadow.x = p.x;
+    keyShadow.z = p.z;
+    [keyShadow.dx, keyShadow.dy, keyShadow.dz] = look.sunDirection;
 
     h.color.setRGB(...linear(look.hemiSky));
     h.groundColor.setRGB(...linear(look.hemiGround));
@@ -84,8 +90,8 @@ export function Lighting() {
         shadow-camera-right={SHADOW_EXTENT}
         shadow-camera-top={SHADOW_EXTENT}
         shadow-camera-bottom={-SHADOW_EXTENT}
-        shadow-camera-near={1}
-        shadow-camera-far={140}
+        shadow-camera-near={SHADOW_BOX.near}
+        shadow-camera-far={SHADOW_BOX.far}
       />
       {/* distance 0 = physical inverse-square falloff with no cut-off ring on the snow. */}
       <pointLight ref={hero} position={[0, 9, 7]} intensity={30} distance={0} decay={2} color="#FFC77A" />

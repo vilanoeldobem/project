@@ -24,6 +24,7 @@ import { bird, cat, dog, NIGHT_ONLY, owl, rabbit } from "./gen/animals";
 import { villager } from "./gen/characters";
 import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
+import { type CasterPart, modelExtent, partAt } from "./shadowCasters";
 import { MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
 
 /** Rotates a voxel model by quarter turns and moves it (merging many props into one instanced draw). */
@@ -42,15 +43,20 @@ const PINE_SECTORS = 8;
  * Every pine (the village's own and the decorative forest), merged per sector of the horizon: 3 draw calls
  * for each sector in view. One mesh for the whole forest was drawn in full every frame, shadow pass
  * included, wherever the camera looked; with the larger village (IMPL-0023) that was the single largest
- * cost of the scene.
+ * cost of the scene. A sector is still tens of units wide, so it joins the shadow pass only while the shadow
+ * of one of its pines is seen (`casters`).
  */
 export function Pines() {
   const sectors = useMemo(() => {
     const small = pine(false), tall = pine(true);
-    const out: Voxel[][] = Array.from({ length: PINE_SECTORS }, () => []);
+    const extent = new Map([small, tall].map((model) => [model, modelExtent(model, 1)]));
+    const out: Array<{ voxels: Voxel[]; casters: CasterPart[] }> = Array.from({ length: PINE_SECTORS }, () => ({ voxels: [], casters: [] }));
     const add = (model: Voxel[], x: number, z: number, quarter: number) => {
       const sector = ((Math.round((Math.atan2(z, x) * PINE_SECTORS) / (2 * Math.PI)) % PINE_SECTORS) + PINE_SECTORS) % PINE_SECTORS;
-      out[sector].push(...place(model, x, z, quarter));
+      out[sector].voxels.push(...place(model, x, z, quarter));
+      const { reach, height } = extent.get(model)!;
+      // Half a unit more than the model: the foliage sways up to about 0.45 u at the top of a tall pine (`foliageMaterial`).
+      out[sector].casters.push(partAt(x, z, reach + 0.5, height));
     };
     // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
     PINES.forEach((p, i) => add(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i));
@@ -65,8 +71,8 @@ export function Pines() {
   }, []);
   return (
     <>
-      {sectors.map((voxels, i) => (
-        <Voxels key={i} voxels={voxels} sway={SWAY} />
+      {sectors.map((sector, i) => (
+        <Voxels key={i} voxels={sector.voxels} sway={SWAY} casters={sector.casters} />
       ))}
     </>
   );

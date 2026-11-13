@@ -20,8 +20,9 @@ import { sim } from "../game/sim";
 import { type Panel, useVila } from "../game/store";
 import { shop } from "./gen/shops";
 import { Label } from "./Props";
+import { type CasterPart, modelExtent, partAt } from "./shadowCasters";
 import { BILLBOARD_PANEL, billboardFrame, dressingItems, residence } from "./villageModels";
-import { type MergeItem, MergedVoxels, mergeVoxelModels } from "./Voxels";
+import { joinLitRoles, type MergeItem, MergedVoxels, mergeVoxelModels } from "./Voxels";
 
 /**
  * A click on a building of the village: its panel opens from where it is used (the same reach as the action
@@ -179,11 +180,13 @@ const tierOf = (x: number, z: number): PlotTier => nearest(RESIDENTIAL_PLOTS, x,
 /**
  * The residential rows (IMPL-0023, PROPOSTA): a chalet per plot, seeded by the plot id, and the dressing that
  * tells the tiers apart. Scenery: nobody holds a plot (ownership is off), so no chimney smokes. Everything
- * static, baked into one geometry per material role for each tier of each side of the village: 24 blocks
- * the renderer culls one by one (also from the shadow pass), instead of 112 chalets and 272 parts.
+ * static, baked into one geometry for each tier of each side of the village: 24 blocks the renderer culls
+ * one by one, instead of 112 chalets and 272 parts. A block is a long, thin row, so it joins the shadow
+ * pass only while the shadow of one of its chalets or parts is seen (`casters`). The windows and the
+ * lanterns of every block are two meshes for the whole village (`joinLitRoles`).
  */
 export function Residences() {
-  const sides = useMemo(() => {
+  const { sides, lit } = useMemo(() => {
     const out = new Map<string, { plots: ResidentialPlot[]; items: MergeItem[] }>();
     const block = (x: number, z: number, tier: PlotTier) => {
       const key = `${sideOf(x, z)}:${tier}`;
@@ -204,22 +207,31 @@ export function Residences() {
       parts.set(key, [...(parts.get(key) ?? []), part]);
     }
     for (const [key, list] of parts) out.get(key)?.items.push(...dressingItems(list));
-    return [...out.values()].map((b) => ({ plots: b.plots, geometries: mergeVoxelModels(b.items) }));
+    const sides = [...out.values()].map((b) => ({ plots: b.plots, geometries: mergeVoxelModels(b.items), casters: b.items.flatMap(castersOf) }));
+    return { sides, lit: joinLitRoles(sides.map((side) => side.geometries)) };
   }, []);
+  /** A click on a chalet or on anything of its plot: the plot's panel, or the walk to its front. */
+  const open = (plots: readonly ResidentialPlot[]) => (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    const plot = nearest(plots, e.point.x, e.point.z);
+    visit(plot.front, { kind: "plot", plotId: plot.id });
+  };
   return (
     <>
       {sides.map((side, s) => (
-        <group
-          key={s}
-          onClick={(e) => {
-            e.stopPropagation();
-            const plot = nearest(side.plots, e.point.x, e.point.z);
-            visit(plot.front, { kind: "plot", plotId: plot.id });
-          }}
-        >
-          <MergedVoxels geometries={side.geometries} />
+        <group key={s} onClick={open(side.plots)}>
+          <MergedVoxels geometries={side.geometries} casters={side.casters} />
         </group>
       ))}
+      <group onClick={open(RESIDENTIAL_PLOTS)}>
+        <MergedVoxels geometries={lit} />
+      </group>
     </>
   );
+}
+
+/** One sphere around every copy of a baked model: what `ShadowCulling` tests for the block. */
+function castersOf(item: MergeItem): CasterPart[] {
+  const { reach, height } = modelExtent(item.voxels, item.size);
+  return item.placements.map((p) => partAt(p.x, p.z, reach, height));
 }

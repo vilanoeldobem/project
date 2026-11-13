@@ -217,7 +217,9 @@ ruas e o raio do mundo. Decisão, números e o que fica para depois em
 
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
   `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 272 peças
-  assados em 24 blocos, um por faixa de cada lado). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor.
+  assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
+  para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
+  setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
 - **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance e grava um único alvo em `nearby`: árvore,
   NPC, atril e terreno de ONG primeiro; terreno residencial, porta de loja ou placa só quando nenhum daqueles está
   ao alcance. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
@@ -455,7 +457,8 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
 | Chamadas de desenho (medido, `verify.mjs`, Média, "dia-neve") | 56 (antes da malha de voxels: 96), sombra incluída |
 | Triângulos por quadro (mesma cena) | ~108 mil (antes: ~362 mil) |
-| Vila expandida (2026-11-13, Média, spawn, Chrome com GPU) | 124 chamadas e ~217 mil triângulos (no `main` do mesmo dia: 70 e ~122 mil); orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md#desempenho)) |
+| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md#desempenho)) |
+| Passada de sombra | Blocos residenciais (24) e setores da floresta (8) só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 
 Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;

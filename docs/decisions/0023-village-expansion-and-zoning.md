@@ -14,7 +14,8 @@ terrenos); [IMPL-0002](0002-donations-disabled-until-partner-contract.md) (sem f
 [IMPL-0016](0016-click-navigation-and-colliders.md) (colisores e navegação); código:
 `packages/shared/src/game/{world,navigation}.ts`, `migrations/0011_village_expansion.sql`,
 `apps/api/src/residential-plots.ts`, `apps/client/src/scene/{Village,Ground,Player}.tsx`,
-`apps/client/src/scene/{villageModels,groundRuns}.ts`, `apps/client/src/scene/gen/{houses,shops}.ts`,
+`apps/client/src/scene/{villageModels,groundRuns,shadowCasters}.ts`, `apps/client/src/scene/ShadowCulling.tsx`,
+`apps/client/src/scene/gen/{houses,shops}.ts`,
 `apps/client/src/ui/{Village,Hud}.tsx`
 
 ## Contexto
@@ -184,6 +185,8 @@ quadro p50 foi de 71,6 ms (com `dpr` 0,75) para 74,7 ms (com `dpr` 1); é medida
 celular.** O custo muda com a hora: com o sol mais baixo (15:30, céu limpo) a sombra alcança mais blocos e a
 mesma câmera no spawn mediu 130 chamadas e 240 mil triângulos. Com o zoom todo afastado sobre a praça, nessa hora,
 a cena chegou a 150 chamadas e 271 mil triângulos: acima do orçamento de triângulos, que vale para o zoom padrão.
+Os números desta tabela são os da primeira versão da fase; os de hoje estão em
+[Acompanhamento: a vista com o zoom todo afastado](#acompanhamento-a-vista-com-o-zoom-todo-afastado).
 
 | Navegação (Node, mesma máquina, todo terreno de ONG com chalé) | Antes | Depois |
 |---|---|---|
@@ -201,6 +204,88 @@ O que foi feito para caber no orçamento:
   sombra;
 - modelos assados sem a face de baixo da camada do chão; chalés preenchidos por dentro (as faces internas somem);
 - a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores.
+
+### Acompanhamento: a vista com o zoom todo afastado
+
+Feito na integração com a [IMPL-0022](0022-immersive-entry-and-game-menu.md) (2026-11-13). O orçamento não mudou
+(150 chamadas e 250 mil triângulos, definido para o zoom padrão) e **nada foi tirado da cena**: o que mudou foi o
+que entra na passada de sombra e quantas malhas os blocos residenciais usam.
+
+**De onde vinha o excesso.** Na vista medida (zoom todo afastado sobre a praça, 15:30, céu limpo, Média), contando
+malha a malha, a passada de sombra respondia por cerca de 129 mil dos 274 mil triângulos do quadro. O mapa de
+sombra cobre uma caixa de 60 × 60 u em volta do avatar; o renderizador decide o que entra nela com **uma esfera por
+malha**, e um bloco residencial é uma fileira comprida e estreita (a esfera de um bloco econômico tem 26 u de
+raio), um setor da floresta chega a 67 u de raio. Entravam 17 dos 24 blocos e 6 dos 8 setores; 7 desses blocos e 2
+desses setores não tinham nenhum chalé ou pinheiro dentro da caixa, e parte dos outros só projetava sombra para
+fora da tela.
+
+**O que foi feito** (`scene/shadowCasters.ts`, pura e testada; `scene/ShadowCulling.tsx`):
+
+1. **Sombra decidida por peça, não por bloco.** Cada bloco residencial e cada setor da floresta guarda uma esfera
+   por chalé, por peça e por pinheiro. O bloco só entra na passada de sombra enquanto alguma dessas esferas alcança
+   a caixa do mapa de sombra. Uma peça fora da caixa não escreve nenhum texel: a imagem é a mesma.
+2. **Só a sombra que aparece.** Dentro da caixa, a peça ainda precisa ter uma sombra que chegue ao que a câmera
+   vê: a sombra é a esfera arrastada para longe da luz até o chão, e esse volume é testado contra os seis planos da
+   câmera. Um pixel só pode ser escurecido por uma peça em cujo volume de sombra ele está: a imagem é a mesma.
+3. **Janelas e lanternas dos blocos numa malha por papel para a Vila inteira** (`joinLitRoles`), em vez de duas
+   malhas pequenas por bloco (32 a 160 triângulos cada, sem sombra). Na vista medida: 20 chamadas a menos por
+   1 600 triângulos a mais (elas passam a ser desenhadas sempre).
+
+Na vista medida, o item 1 levou o quadro de 152 chamadas e 274 086 triângulos para 140 e 226 712; o item 3, para
+120 e 228 312; o item 2, para 116 e 210 944.
+
+O teste roda no `onBeforeRender` da cena, com a câmera e a luz do próprio quadro (sem atraso de um quadro), e são
+no máximo cerca de 500 esferas por quadro. A passada principal não mudou: o que aparece na tela é desenhado como
+antes.
+
+**Medido** em 2026-11-13, no build local (`vite build --mode workers`), Chrome com GPU (Apple M5, Metal),
+1280 × 800, avatar parado, hora e clima fixos por `envTime` e `envWeather` (dia 2026-12-20), zoom fixo
+(`1,6` = todo afastado, `1` = padrão, `0,55` = todo aproximado), antes e depois sobre a mesma árvore de código
+(as duas contagens são iguais em todas as amostras de cada vista):
+
+| Câmera fixa (avatar) | Zoom | Hora, clima | Preset | Chamadas antes → depois | Triângulos antes → depois |
+|---|---|---|---|---|---|
+| **Praça, spawn `(0, 9)`** | **1,6** | **15:30, céu limpo** | **Média** | **152 → 116** | **274 086 → 210 944** |
+| Praça, spawn `(0, 9)` | 1,6 | 15:30, céu limpo | Alta | 166 → 130 | 276 724 → 213 582 |
+| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Média | 152 → 119 | 273 996 → 223 200 |
+| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Alta | 166 → 133 | 276 634 → 225 838 |
+| Praça, spawn `(0, 9)` | 1,6 | 08:00, céu limpo | Média | 151 → 117 | 273 768 → 215 780 |
+| Praça, spawn `(0, 9)` | 1,6 | 23:00, céu limpo | Alta | 157 → 129 | 245 320 → 208 918 |
+| Praça, spawn `(0, 9)` | 1,6 | 12:00, neve | Média | 146 → 114 | 251 304 → 203 964 |
+| Rua premium `(37,5, 6)` | 1,6 | 15:30, céu limpo | Média | 131 → 105 | 248 716 → 221 600 |
+| Rua econômica `(68, −22,5)` | 1,6 | 15:30, céu limpo | Média | 81 → 64 | 188 576 → 163 340 |
+| Spawn `(0, 9)` | 1 | 12:00, neve | Média | 124 → 102 | 217 312 → 164 504 |
+| Spawn `(0, 9)` | 1 | 12:00, neve | Alta | 138 → 116 | 219 950 → 167 142 |
+| Spawn `(0, 9)` | 1 | 15:30, céu limpo | Média | 130 → 103 | 240 094 → 166 588 |
+| Spawn `(0, 9)` | 1 | 17:50, céu limpo | Alta | 144 → 119 | 242 642 → 178 682 |
+| Porta da loja `(5, 25,5)` | 1 | 12:00, neve | Média | 104 → 95 | 182 994 → 156 440 |
+| Rua premium `(37,5, 6)` | 1 | 12:00, neve | Média | 98 → 77 | 212 192 → 166 616 |
+| Rua econômica `(68, −22,5)` | 1 | 12:00, neve | Média | 65 → 57 | 158 708 → 149 254 |
+| Rua padrão norte `(0, −60)` | 1 | 12:00, neve | Média | 60 → 53 | 142 912 → 133 432 |
+| Spawn `(0, 9)` | 0,55 | 12:00, neve | Média | 98 → 83 | 187 308 → 134 920 |
+
+A vista que estourava o orçamento (primeira linha) ficou em 116 chamadas e 210 944 triângulos; a pior das 18 vistas
+medidas é a praça com o zoom todo afastado às 17:50 no preset Alta: 133 chamadas e 225 838 triângulos. Os "antes"
+desta tabela são da árvore integrada e, em duas vistas, ficam acima dos da tabela anterior: na porta da loja, as 5
+chamadas e os 340 triângulos a mais são o contorno do avatar, que é desenhado ali (uma loja fica entre ele e a
+câmera) e entrou depois daquela medição.
+
+**Como foi conferido que a imagem não muda:**
+
+- `scene/shadowCasters.test.ts`: o teste da caixa responde exatamente o que o `Frustum` do three.js responde para a
+  câmera da luz (40 mil esferas, cinco posições do sol); os planos da câmera são os que o three.js usa; para 9 mil
+  peças em volta de 60 vistas, toda peça com um ponto de sombra amostrado na tela é mantida; a esfera de cada modelo
+  (pinheiro, chalé de cada faixa, cada tipo de peça) contém o modelo nos oito giros testados.
+- No navegador, com o movimento reduzido e as partículas desligadas, a mesma cena foi capturada alternando os itens
+  1 e 2 ligados e desligados (cinco quadros de cada, intercalados; o interruptor era um gancho temporário, que não
+  está no código) em 10 vistas (zoom 0,55 a 1,6; 06:30, 08:00, 12:00, 15:30 e 17:50; praça, rua premium, rua
+  econômica, rua padrão norte): fora dos pixels que já mudam sozinhos entre dois quadros do mesmo modo e de uma
+  borda de 2 pixels em volta deles (até 3 % da tela), **nenhum pixel difere** (diferença máxima de 2 em 255). O
+  item 3 não entra nessa comparação: são os mesmos triângulos, com o mesmo material, em outra malha.
+
+**O que continua como estava:** a passada principal desenha inteiro todo bloco cuja esfera toca a tela, mesmo ao
+longe (não há nível de detalhe por distância); o chão (15 mil triângulos) e as montanhas (12 mil) são desenhados
+sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em celular**.
 
 ## Alternativas consideradas
 
@@ -228,7 +313,8 @@ O que foi feito para caber no orçamento:
     de passar na porta deles;
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador
     decorativo saiu de onde passa uma avenida;
-  - mais triângulos por quadro (cerca de 1,8 vez no spawn) e cerca de 10 MB a mais de memória para a navegação;
+  - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6
+    mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
   - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0011: antes dela o jogo os desenha e o painel
     diz que ainda não recebem candidaturas.
 - **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0011, depois de aplicada

@@ -17,6 +17,7 @@ import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
+import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
 import { house } from "./gen/houses";
@@ -59,6 +60,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
       <RenderStats maxDpr={preset.maxDpr} />
       <EnvironmentDriver />
       <Lighting />
+      <ShadowCulling />
       <Sky />
       <Suspense fallback={null}>
         <Snowfield />
