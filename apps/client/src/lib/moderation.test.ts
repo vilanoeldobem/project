@@ -171,6 +171,36 @@ describe("who gets moderation mode", () => {
     expect(page.mode().on).toBe(false);
   });
 
+  it("goes off when the session ended somewhere else: a 401 not_signed_in re-reads /me once and the page is signed out", async () => {
+    stubPage(ADMIN);
+    const page = await load();
+    const disconnect = page.connectPresence();
+    FakeSocket.all[0].welcome();
+    page.mode().setOn(true);
+    // Signed out in another tab (or the session was ended): every account route now answers 401.
+    me = null;
+    routes["POST /admin/moderation/ticket"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    routes["GET /admin/applications/x"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    page.mode().select(9);
+    page.mode().ask();
+    await vi.advanceTimersByTimeAsync(700);
+    await page.mode().confirm();
+    await flush();
+    expect(page.useAccount.getState().user).toBeNull();
+    expect(page.mode()).toMatchObject({ on: false, selected: null, askedAt: null, sending: false, notice: null });
+    expect(page.useVila.getState().toast?.text).toBe("Sua sessão terminou. Entre de novo.");
+    expect(page.SESSION_ENDED_NOTICE).toBe("Sua sessão terminou. Entre de novo.");
+    page.mode().setOn(true);
+    expect(page.mode().on).toBe(false);
+    // Signed out now: more refusals read nothing again.
+    const reads = () => requests.filter((r) => r === "GET /me").length;
+    expect(reads()).toBe(2); // the page load, and the one re-read
+    await expect(page.api.adminApplication("x")).rejects.toMatchObject({ code: "not_signed_in" });
+    await flush();
+    expect(reads()).toBe(2);
+    disconnect();
+  });
+
   it("is refused to a blocked administrator account", async () => {
     stubPage({ ...ADMIN, blocked: BLOCK } as Me);
     const page = await load();
@@ -552,6 +582,81 @@ describe("blocked account (PROPOSTA)", () => {
     window.dispatchEvent(new Event("online"));
     await vi.advanceTimersByTimeAsync(60_000);
     expect(requests).toHaveLength(after);
+  });
+
+  it("a session ended by the block (401 not_signed_in on an open page) signs the page out: nothing stays pending, nothing is retried", async () => {
+    stubPage(PLAYER);
+    const page = await load();
+    expect(page.useVila.getState().progressOwner).toBe("u1");
+    // The block deleted the sessions of the account: the cookie of this page is worth nothing now.
+    me = null;
+    routes["GET /progress"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    routes["POST /progress/events"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    page.useVila.getState().record("causes-visit-lot", "plaza-01");
+    await flush();
+    expect(page.useAccount.getState()).toMatchObject({ user: null, sync: "saved" });
+    expect(page.useVila.getState().progressOwner).toBeNull();
+    expect(page.useVila.getState().toast?.text).toBe("Sua sessão terminou. Entre de novo.");
+    expect(storage.get("vila.pending.v1:u1")).toBeDefined(); // kept for the next sign-in of this account
+    const after = requests.length;
+    page.useVila.getState().record("causes-visit-lot", "plaza-02");
+    window.dispatchEvent(new Event("online"));
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(requests).toHaveLength(after);
+  });
+
+  it("shows the block when /me still knows the account after a 401 (the session survived, the account is blocked)", async () => {
+    stubPage(PLAYER);
+    const page = await load();
+    me = blocked;
+    routes["GET /progress"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    page.useVila.getState().record("causes-visit-lot", "plaza-01");
+    await flush();
+    expect(page.useAccount.getState().user?.blocked).toEqual(BLOCK);
+    expect(page.useAccount.getState().sync).toBe("saved");
+    expect(page.useVila.getState().toast?.text).toBe("Sua conta está bloqueada pela administração. Abra a conta para ler a mensagem.");
+  });
+
+  it("does not loop when the API contradicts itself (401 not_signed_in while /me still answers the account): one re-read, then at most one a minute", async () => {
+    stubPage(ADMIN);
+    const page = await load();
+    page.mode().setOn(true);
+    routes["GET /admin/applications/x"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    routes["GET /progress"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    const reads = () => requests.filter((r) => r === "GET /me").length;
+    expect(reads()).toBe(1);
+    for (let i = 0; i < 5; i++) {
+      await expect(page.api.adminApplication("x")).rejects.toMatchObject({ code: "not_signed_in" });
+      page.useVila.getState().record("causes-visit-lot", `plaza-0${i + 1}`);
+      await flush();
+    }
+    expect(reads()).toBe(2);
+    // Nothing was decided on a contradiction: the account and the mode stay, and no session notice is shown.
+    expect(page.useAccount.getState().user?.id).toBe("a1");
+    expect(page.mode().on).toBe(true);
+    expect(page.useVila.getState().toast?.text ?? "").not.toMatch(/sessão|conta/);
+    await vi.advanceTimersByTimeAsync(page.SESSION_RECHECK_MS - 1);
+    await expect(page.api.adminApplication("x")).rejects.toMatchObject({ code: "not_signed_in" });
+    await flush();
+    expect(reads()).toBe(2);
+    // A session that really ends later is still noticed.
+    await vi.advanceTimersByTimeAsync(1);
+    me = null;
+    await expect(page.api.adminApplication("x")).rejects.toMatchObject({ code: "not_signed_in" });
+    await flush();
+    expect(reads()).toBe(3);
+    expect(page.useAccount.getState().user).toBeNull();
+    expect(page.mode().on).toBe(false);
+  });
+
+  it("reads nothing again for a 401 while nobody is signed in on the page", async () => {
+    stubPage(null);
+    const page = await load();
+    routes["GET /ngo/application"] = () => ({ status: 401, body: { error: "not_signed_in" } });
+    await expect(page.api.application()).rejects.toMatchObject({ code: "not_signed_in" });
+    await flush();
+    expect(requests).toEqual(["GET /config", "GET /me", "GET /ngo/application"]);
+    expect(page.useVila.getState().toast).toBeNull();
   });
 
   it("also from a refused application read", async () => {

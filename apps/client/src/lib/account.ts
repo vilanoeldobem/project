@@ -37,6 +37,9 @@ async function request(method: string, path: string, headers: Record<string, str
   // Another tab switched accounts, or the account was blocked or lost the administrator role (IMPL-0021): this
   // page is out of date, so re-read who is signed in and what they may do.
   if (data.error === "account_changed" || data.error === "session_blocked" || data.error === "admin_only") void refreshAccount();
+  // The page shows an account and the API says nobody is signed in: the session ended somewhere else (signed out
+  // in another tab, expired, or ended by a block). Read `/me` again, once per ended session.
+  else if (data.error === "not_signed_in" && sessionMayHaveEnded()) void refreshAccount(true);
   throw new ApiError(res.status, data.error ?? "unknown", data.fields);
 }
 
@@ -270,6 +273,7 @@ function stopSync() {
 function signedOutHere() {
   unsubscribe?.();
   unsubscribe = null;
+  stillSignedIn = null;
   useAccount.setState({ user: null, sync: "saved" });
   useVila.getState().restoreGuest();
 }
@@ -294,13 +298,35 @@ export async function deleteAccount() {
 }
 
 const BLOCKED_NOTICE = "Sua conta está bloqueada pela administração. Abra a conta para ler a mensagem.";
+/** Neutral on purpose: the page cannot tell a sign-out in another tab from an expired or ended session. */
+export const SESSION_ENDED_NOTICE = "Sua sessão terminou. Entre de novo.";
 
 /**
- * The account changed in another tab (409 account_changed), was blocked (403 session_blocked) or lost the
- * administrator role (403 admin_only): follow the cookie, never write across accounts.
+ * The account for which a `401 not_signed_in` was followed by a `/me` that still answered that very account (an
+ * API that contradicts itself), and when. `/me` is not read again for that reason before `SESSION_RECHECK_MS`
+ * have passed: one re-read per ended session, never one per refused request.
+ */
+let stillSignedIn: { id: string; at: number } | null = null;
+export const SESSION_RECHECK_MS = 60_000;
+
+/** The page shows an account, and `/me` has not just confirmed it after a `not_signed_in`. */
+function sessionMayHaveEnded(): boolean {
+  const id = useAccount.getState().user?.id;
+  return id !== undefined && (stillSignedIn?.id !== id || Date.now() - stillSignedIn.at >= SESSION_RECHECK_MS);
+}
+
+/** True when the re-read in flight was asked for (also) by a `401 not_signed_in`. */
+let endedAsked = false;
+
+/**
+ * The account changed in another tab (409 account_changed), was blocked (403 session_blocked), lost the
+ * administrator role (403 admin_only) or its session ended (401 not_signed_in, `ended`): follow the cookie, never
+ * write across accounts. Signed out is where a session that ended lands: the progress on screen is this
+ * browser's again, nothing is left "pending", and moderation mode goes off (`lib/moderation.ts` follows the account).
  */
 let refreshing: Promise<void> | null = null;
-function refreshAccount(): Promise<void> {
+function refreshAccount(ended = false): Promise<void> {
+  endedAsked ||= ended;
   if (refreshing) return refreshing;
   refreshing = (async () => {
     try {
@@ -312,15 +338,22 @@ function refreshAccount(): Promise<void> {
           await signedIn(user);
           useVila.getState().notify(user.blocked ? BLOCKED_NOTICE : "O bloqueio da sua conta foi retirado.");
         } else useAccount.getState().setUser(user);
+        // Refused as signed out, yet `/me` says this account is signed in: do not ask again for that reason.
+        if (user && endedAsked) stillSignedIn = { id: user.id, at: Date.now() };
         return;
       }
       signedOutHere();
       if (user) await signedIn(user);
-      useVila.getState().notify(user ? `Você está como @${user.nickname} (a conta mudou em outra aba).` : "Você saiu da conta em outra aba.");
+      useVila.getState().notify(
+        user ? `Você está como @${user.nickname} (a conta mudou em outra aba).` : endedAsked ? SESSION_ENDED_NOTICE : "Você saiu da conta em outra aba."
+      );
     } catch {
       /* offline: try again on the next write */
     }
-  })().finally(() => { refreshing = null; });
+  })().finally(() => {
+    refreshing = null;
+    endedAsked = false;
+  });
   return refreshing;
 }
 
