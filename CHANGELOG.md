@@ -206,6 +206,13 @@ Cada versão indica o schema D1 que entrega.
 
 - Webhook repetido não altera mais o estado: a atualização é amarrada à inserção daquele evento, então um replay
   tardio não desfaz uma disputa nem credita o Título de novo.
+- Um webhook repetido processado no mesmo milissegundo da entrega original era reaplicado e podia devolver uma
+  doação em disputa para `paid`: a trava comparava o horário gravado em `processed_at`. Agora a atualização só vale
+  enquanto o id do evento ainda não está em `abacatepay_webhook_events`, e o id é gravado em seguida na mesma
+  transação; nenhum relógio entra na decisão. O mesmo evento entregue duas vezes ao mesmo tempo é aplicado uma vez.
+- Um estorno (ou disputa perdida) que chega antes da confirmação do pagamento era descartado, e a confirmação
+  atrasada deixava a doação estornada como `paid`, contando nos indicadores e no Título. Agora o estorno vale a
+  partir de qualquer estado anterior e é final: a confirmação que chega depois não muda a doação.
 - A descrição enviada ao Pix respeita o limite de 140 caracteres da AbacatePay.
 - Recusas de validação de subconta não viram mais o marcador de sandbox `dev_sacc_…`; em produção, um id de sandbox
   é recusado em vez de criar a cobrança sem `splits`. O cliente do provedor tem limite de 15 s por chamada.
