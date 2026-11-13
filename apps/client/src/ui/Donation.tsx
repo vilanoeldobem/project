@@ -85,15 +85,17 @@ export function Donation() {
           minAmountCents={global.minAmountCents}
         />
       )}
-      {(!donations || (config !== undefined && !global?.enabled)) && (
+      {(!donations || config === null || (config !== undefined && !global?.enabled)) && (
         <>
           <button className="btn btn--primary" disabled aria-describedby="don-note">
             Doar
           </button>
           <p className="note" id="don-note">
-            {donations
-              ? "A instituição parceira ainda não foi configurada para receber doações."
-              : "Doações ficam disponíveis após a definição e o contrato da instituição parceira."}
+            {!donations
+              ? "Doações ficam disponíveis após a definição e o contrato da instituição parceira."
+              : config === null
+                ? "Não foi possível carregar a doação global agora. Tente reabrir o painel."
+                : "A instituição parceira ainda não foi configurada para receber doações."}
           </p>
         </>
       )}

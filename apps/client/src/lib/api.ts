@@ -56,7 +56,9 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     const data = (await res.json().catch(() => ({}))) as { error?: string; fields?: Record<string, string> };
     throw new ApiError(res.status, data.error ?? "unknown", data.fields);
   }
-  return (await res.json().catch(() => ({}))) as T;
+  const parsed = (await res.json().catch(() => null)) as unknown;
+  if (!parsed || typeof parsed !== "object") throw new ApiError(res.status, "bad_response");
+  return parsed as T;
 }
 
 export const fetchIndicators = () => getJson<{ updatedAt: string; indicators: Indicator[] }>("/indicators");

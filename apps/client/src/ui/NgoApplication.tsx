@@ -38,6 +38,16 @@ const EMPTY: NgoApplication = {
   lotId: "",
 };
 
+/** The wizard's starting form: a new application, or the saved one with the payment mode the API stored. */
+export function initialApplication(app: Application | null, lotId?: string): NgoApplication {
+  const base = app ?? { ...EMPTY, lotId: lotId ?? "" };
+  return {
+    ...base,
+    paymentMethod: app?.ngoPayment?.method ?? app?.paymentMethod ?? "abacatepay",
+    donationUrl: app?.ngoPayment?.donationUrl ?? app?.donationUrl ?? "",
+  };
+}
+
 export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
   const user = useAccount((s) => s.user);
   const open = useVila((s) => s.open);
@@ -100,7 +110,7 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
         onStale={load}
       />
     );
-  return <Wizard initial={app ?? { ...EMPTY, lotId: lotId ?? "" }} heldLot={app?.lotId} onDone={(a) => (setApp(a), setEditing(false))} />;
+  return <Wizard initial={initialApplication(app, lotId)} heldLot={app?.lotId} onDone={(a) => (setApp(a), setEditing(false))} />;
 }
 
 /** What the applicant sees about an application already sent. Exported for the render test. */

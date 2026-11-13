@@ -55,6 +55,10 @@ Cada versão indica o schema D1 que entrega.
 - A sessão do doador é lida antes da criação da cobrança no provedor: uma falha ali não deixa um Pix pagável sem
   registro local.
 - O painel de doações mostra uma ONG retirada como retirada, e ela sai da lista de comprovantes externos.
+- No jogo, a casa e o cartão do Título deixam de mostrar dados da ONG ou da conta anterior enquanto a nova leitura
+  não chega; o modo de recebimento guardado é mantido ao reenviar uma candidatura.
+- Uma resposta `2xx` sem JSON não é mais tratada como sucesso; a falha aparece na tela. Quando a leitura da doação
+  global falha, o painel diz que não conseguiu carregar, em vez de dizer que a parceira não foi configurada.
 
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 

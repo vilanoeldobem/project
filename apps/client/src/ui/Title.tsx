@@ -16,6 +16,8 @@ export function MyTitleCard() {
   const [data, setData] = useState<MyTitle | null | undefined>(undefined);
   const userId = user?.id;
   useEffect(() => {
+    // Do not show the previous account's Título while the new one is read.
+    setData(undefined);
     if (!donations || !userId) return;
     let live = true;
     fetchMyTitle().then((result) => live && setData(result));
