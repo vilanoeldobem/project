@@ -161,6 +161,18 @@ describe("the line that says how to walk", () => {
     useVila.getState().openMenu();
     expect(hud()).not.toContain("hud__hint");
   });
+
+  it("gives way to the moderation block: on a short screen there is no room for both", async () => {
+    const { hud, useVila, useAccount, useModeration } = await load();
+    useVila.setState({ sceneReady: true });
+    useAccount.setState({ enabled: true, user: ADMIN });
+    expect(hud()).toContain("hud__hint");
+    useModeration.setState({ on: true });
+    expect(hud()).toContain("Modo moderação ligado");
+    expect(hud()).not.toContain("hud__hint");
+    useModeration.setState({ on: false });
+    expect(hud()).toContain("hud__hint");
+  });
 });
 
 describe("with the menu open", () => {
@@ -250,5 +262,16 @@ describe("tooltips", () => {
     expect(rule(".btn--chip[data-tip]:active::after")).toContain("content: none");
     // The gutters the tooltip counts on are the ones the HUD is drawn with.
     expect(rule(".hud")).toContain("padding: max(12px, env(safe-area-inset-top)) var(--hud-right) max(16px, env(safe-area-inset-bottom)) var(--hud-left)");
+  });
+});
+
+describe("a short screen (a phone lying down) with the moderation block", () => {
+  it("lets the middle block shrink, and its boxes scroll inside themselves instead of covering the bottom", () => {
+    expect(rule(".hud__top, .hud__bottom")).toContain("flex: none");
+    expect(rule(".hud__mid")).toMatch(/flex: 0 1 auto; min-height: 0/);
+    expect(rule(".hud__info")).toMatch(/min-height: 0; max-height: 100%/);
+    expect(rule(".modbar, .hud__notice")).toMatch(/min-height: 0;.*overflow-y: auto/);
+    // No floor under the block: the old `max(120px, …)` was taller than the room a 320 px high screen leaves.
+    expect(rule(".modbar")).not.toMatch(/max-height|120px/);
   });
 });

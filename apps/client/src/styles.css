@@ -84,6 +84,8 @@ kbd {
   position: fixed; inset: 0; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 8px;
   padding: max(12px, env(safe-area-inset-top)) var(--hud-right) max(16px, env(safe-area-inset-bottom)) var(--hud-left);
 }
+/* The top and the bottom keep their size; the middle block takes what they leave (see `.hud__mid`). */
+.hud__top, .hud__bottom { flex: none; }
 .hud__top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
 .hud__nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; }
 .hud__group { position: relative; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
@@ -109,20 +111,25 @@ kbd {
   background: var(--pine); color: var(--cream); border: 2px solid var(--gold); box-shadow: var(--shadow);
 }
 .hud__system .btn--chip[data-tip]::after { left: auto; right: 0; }
-.chip--icon[data-tip]:focus-visible::after { display: block; }
-@media (hover: hover) { .chip--icon[data-tip]:hover::after { display: block; } }
 .btn--chip[data-tip]:active::after { content: none; }
-@media (max-width: 1359px) {
+.chip--icon[data-tip]:focus-visible::after { display: block; }
 .chip--cut[data-tip]:focus-visible::after { display: block; }
-  .chip--wide .chip__label { display: none; }
+@media (hover: hover) { .chip--icon[data-tip]:hover::after { display: block; } }
 @media (hover: hover) { .chip--cut[data-tip]:hover::after { display: block; } }
+@media (max-width: 1359px) {
+  .chip--wide .chip__label { display: none; }
   .chip--wide { padding-inline: 0; }
   .chip--wide[data-tip]:focus-visible::after { display: block; }
 }
 @media (max-width: 1359px) and (hover: hover) { .chip--wide[data-tip]:hover::after { display: block; } }
 
-.hud__mid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-height: 0; }
-.hud__info { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 0; max-width: 100%; }
+/*
+ * The middle block takes the height the top and the bottom leave. On a short screen (a phone lying down) that is
+ * little: the block shrinks, the column of notices is as tall as the block at most, and the moderation block and
+ * the notice scroll inside themselves. Nothing of it sits on the bottom block.
+ */
+.hud__mid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; flex: 0 1 auto; min-height: 0; }
+.hud__info { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 0; max-height: 100%; max-width: 100%; }
 .hud__info > * { pointer-events: auto; }
 /* Quest bag chip (PROPOSTA quests-v1): text + counts, never colour alone. */
 .hud__bag { display: flex; flex-wrap: wrap; gap: 6px; max-width: min(360px, 100%); }
@@ -352,10 +359,11 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 /* While the flag is up the HUD starts below it, so the flag covers no chip at any width. */
 body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px); }
 .modbar, .hud__notice {
-  max-width: min(360px, 100%); padding: 8px 12px; border-radius: var(--radius);
+  max-width: min(360px, 100%); padding: 8px 12px; border-radius: var(--radius); min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+/* Both shrink with the middle block of the HUD and scroll inside themselves (`.hud__mid`). */
   background: var(--cream); color: var(--ink); border: 2px solid var(--pine); box-shadow: var(--shadow);
 }
-.modbar { border-color: var(--red); outline: none; display: grid; gap: 6px; justify-items: start; min-height: 0; max-height: max(120px, min(60dvh, calc(100dvh - 330px))); overflow-y: auto; }
+.modbar { border-color: var(--red); outline: none; display: grid; gap: 6px; justify-items: start; }
 .modbar:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .modbar p { margin: 0; line-height: 1.35; }
 .modbar__title { color: var(--red); }

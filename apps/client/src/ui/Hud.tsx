@@ -5,8 +5,10 @@ import { activeInventory, questState } from "@vila/shared/game/quests";
 import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
+import { useAccount } from "../lib/account";
 import { pressEscape } from "../lib/escape";
 import { boundAction, heldOnControl, hudKeyAction, isTextField } from "../lib/hud-keys";
+import { moderating, useModeration } from "../lib/moderation";
 import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
@@ -68,6 +70,11 @@ export function Hud() {
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
   const bag = quests ? activeInventory(progress) : [];
   const zoomBy = useVila((s) => s.zoomBy);
+  /** The moderation block is on screen (`ModerationBar`): the line that says how to walk gives it the room. */
+  const moderation = moderating(
+    useAccount((s) => s.user),
+    useModeration((s) => s.on)
+  );
 
   const activate = (n: NonNullable<Nearby>) => {
     switch (n.kind) {
@@ -168,7 +175,7 @@ export function Hud() {
       </div>
 
       <div className="hud__bottom">
-        {idle && !nearby && <MoveHint />}
+        {idle && !nearby && !moderation && <MoveHint />}
         {idle && nearby && (
           <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
             {actionLabel(nearby, readActive)} <kbd>E</kbd>
