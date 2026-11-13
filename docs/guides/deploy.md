@@ -73,7 +73,8 @@ versão pode ser publicada antes de qualquer migration: as rotas públicas respo
 (teste em `apps/api/src/public-ngo.test.ts`). Com as contas ligadas, publicar a API antes da 0009 deixa
 `/ngo/application`, `/admin/applications*`, o envio de fotos e de arquivos respondendo `503 schema_outdated` até a
 migration ser aplicada. Publicá-la antes da **0010** deixa **toda requisição com sessão** (inclusive `GET /me`,
-progresso e exclusão de conta), o cadastro e a confirmação do link respondendo `503 schema_outdated`: na prática,
+progresso e exclusão de conta), o cadastro, o pedido de link e a confirmação do link respondendo
+`503 schema_outdated`, sem gravar nada (nenhum link é enviado nem gasto, nenhuma sessão é aberta): na prática,
 ninguém entra até a migration ser aplicada ([§10](#10-administrador-e-moderação-impl-0021)).
 
 ## 4. Publicar
@@ -155,8 +156,10 @@ Ordem: **API antes do servidor**.
 - O Worker `vilanoeldobem-api` precisa existir quando o servidor é publicado: a Cloudflare recusa o deploy de um
   Worker cujo binding aponta para um serviço inexistente, e a versão anterior do servidor continua no ar
   (comportamento da plataforma, não exercitado neste repositório). Em produção a API já existe.
-- Para a remoção funcionar, a API publicada precisa ter a rota `POST /moderation/consume`. Com uma API mais antiga
-  a rota responde `404`, a sala responde `0` a quem pediu e ninguém é removido.
+- Para a remoção funcionar, a API publicada precisa ter a rota `POST /moderation/consume`. Uma API mais antiga não
+  conhece a rota e responde `405 method_not_allowed` a esse `POST` (fora das rotas de conta ela só aceita `GET` e
+  `HEAD`); a sala só aceita `200` com o corpo exato `{"ok":true}`, então responde `0` a quem pediu e ninguém é
+  removido.
 - Binding ausente (servidor publicado de uma configuração sem `services`), API fora do ar ou lenta (mais de 3 s): a
   sala responde `0` e ninguém é removido. A presença não é afetada em nenhum desses casos.
 
@@ -473,7 +476,8 @@ exige o bucket `FILES` ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
   sala recusa; só no servidor, a API responde `404` ao pedido de bilhete e ao consumo. `/config` da API mostra só o
   lado da API (`moderation.presence`).
 - O limite `MODERATION_LIMITER` (60 requisições / 60 s; por endereço no domínio público, por sala nas chamadas do
-  binding de serviço, que não têm endereço) está declarado em `ratelimits` de `apps/api/wrangler.jsonc` (produção).
+  binding de serviço, que não têm endereço e só são cobradas quando o bilhete foi emitido) está declarado em
+  `ratelimits` de `apps/api/wrangler.jsonc` (produção).
   Homologação não tem bindings de limite (`ratelimits: []`): lá nada é limitado pela API.
 
 ### 10.3 Binding de serviço do servidor de tempo real
@@ -485,9 +489,12 @@ a resposta de sucesso é `200` com o corpo exato `{"ok":true}`; o bilhete é a c
 Como toda rota da API, ela também fica acessível pelo domínio público `api.*`; por isso responde o mesmo `404` a
 tudo o que não é um bilhete válido, não envia CORS e tem limite próprio.
 
-> **A PREENCHER PELA ENTREGA DO SERVIDOR DE TEMPO REAL (`apps/server`):** declaração do binding `API` em
-> `apps/server/wrangler.jsonc` (produção e homologação), a bandeira `PRESENCE_MODERATION_ENABLED` do servidor, a
-> ordem de publicação dos dois Workers e a conferência depois do deploy. Esta seção documenta só o lado da API.
+**Lado do servidor de tempo real:** a declaração do binding `API` em `apps/server/wrangler.jsonc`, a bandeira
+`PRESENCE_MODERATION_ENABLED` do servidor, a ordem de publicação (API antes do servidor) e o que acontece com
+binding ausente, API antiga ou API fora do ar estão em
+[§4.4](#44-service-binding-do-servidor-para-a-api-proposta-impl-0021). O servidor de tempo real **não tem ambiente
+de homologação** (`apps/server/wrangler.jsonc` declara só produção): a remoção de visitante é conferida no ciclo
+local e, depois de autorizada, em produção.
 
 Em desenvolvimento local, o registro do `wrangler dev` é global por máquina: o binding `API` de um servidor local
 alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para uma conferência isolada, defina
