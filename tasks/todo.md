@@ -630,3 +630,33 @@ files, gallery and progress work, and fix the findings of its review. Dark, PROP
   channel, lot release as a DEC) and OQ-09 (mission whose target left the village).
 
 Delivery record: [docs/implementation/ngo-withdrawal-report.md](../docs/implementation/ngo-withdrawal-report.md).
+
+## Village expansion, phase 1 — 2026-11-13 (IMPL-0023, branch `feat/village-expansion`)
+
+Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here re-decides them.
+
+- [x] Layout from one plan (`VILLAGE_PLAN` → `layoutVillage`): 8 avenues, 8 lanes, frontage (12 NGO lots, 4 shops,
+      4 billboards), 16 / 32 / 64 residential plots, world radius 82.5, street graph, sightline rule
+- [x] Migration 0011 (moves 8 lots, adds 4, creates `residential_plots`); seed sync tests on the SQL and on SQLite
+- [x] API: `GET /residential-plots`, `RESIDENTIAL_PLOTS_ENABLED`, `/config.residentialPlots`; matrix v3..v11
+- [x] Scene: ground runs, shops, billboards, residences per side and tier, street lamps, forest sectors, outline
+- [x] Interaction: plot, shop and billboard panels; action button beside the HUD (`ui/VillageAction.tsx`)
+- [x] Docs: ADR 0023, OQ-16..18, architecture, storage, api, deploy, content, quests, changelog, AGENTS.md
+- [ ] Follow-up after the HUD rework merges: fold `place` into `Hud.tsx` (`actionLabel` / `activate`) and delete
+      `ui/VillageAction.tsx`
+- [ ] Not run here: `verify-quests.mjs`, `verify-accounts.mjs`, `apps/client/scripts/verify.mjs` (they need the
+      stack on the default ports); frame time on a phone
+
+### Review
+
+- Measured on the local build (M5, Chrome with GPU, medium, spawn): 70 → 124 draw calls, 121.6k → 217.3k triangles;
+  navigation field 1.45 → 8.2 ms, worst plan 1.77 → 4.84 ms. Budget: 150 calls, 250k triangles at default zoom.
+- Worse for a player today: a row south of a street hides whoever walks close behind it (mitigated by low roofs and
+  the outline, not solved); NGO lots are farther from the tree; quest scenery moved.
+
+### Lessons
+
+- Two files that differ only in case (`village.ts`, `Village.tsx`) break module resolution on macOS: name pure
+  modules differently from components.
+- Three `wrangler dev` processes cannot share one `--persist-to` directory (SQLITE_BUSY): one directory per Worker.
+- zustand selectors read the initial state under `renderToStaticMarkup`: keep a pure view component to test.

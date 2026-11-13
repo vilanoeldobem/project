@@ -1,7 +1,7 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
-> **Atualizado em:** 2026-11-12
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
 
@@ -510,8 +510,50 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
 - Desligar `PRESENCE_MODERATION_ENABLED` faz a API responder `404` a bilhetes e consumos; bilhetes pendentes
   expiram sozinhos em 30 segundos.
 
+## 11. Expansão da Vila (IMPL-0023, PROPOSTA)
+
+Layout novo, migração 0011 e a bandeira `RESIDENTIAL_PLOTS_ENABLED`
+([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Nada aqui autoriza deploy, migration remota ou
+ativação de bandeira: cada passo exige autorização humana explícita (AGENTS.md).
+
+### 11.1 Ordem
+
+1. **O jogo (`apps/client`) pode ser publicado antes de tudo.** Ele desenha a Vila pelas constantes
+   compartilhadas e usa a API só para o estado. Contra a API e o banco de hoje (v3): os 8 terrenos que já existem
+   aparecem na posição nova com o estado certo, os 4 novos aparecem sem aceitar candidatura, e a leitura dos
+   terrenos residenciais falha em silêncio (a API antiga responde `404`; o painel segue dizendo que a posse não
+   está aberta).
+2. **A API desta versão também não depende da 0011.** `GET /lots` continua lendo o que o banco tem e
+   `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, enquanto a tabela não existir. As
+   rotas públicas respondem igual nos schemas v3 a v11.
+3. **O servidor de tempo real (`apps/server`) deve ser publicado junto com o jogo.** Ele limita a pose ao raio do
+   mundo, que vem do pacote compartilhado: com o servidor antigo (34 u), quem anda além disso aparece para os
+   outros preso na borda antiga.
+4. **Migration 0011**, quando autorizada (`pnpm --filter @vila/api db:migrate:remote`; num banco na v3 ela leva
+   junto as 0004–0010). É aditiva: muda só as colunas `x` e `z` de 8 linhas de `lots`, insere 4 linhas e cria
+   `residential_plots` com 112. **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
+   do plano são os definitivos ([OQ-18](../decisions/open-questions.md)): depois de aplicada, a migration não se
+   edita, e um plano novo pede outra migration.
+
+### 11.2 A bandeira — desligada (PROPOSTA)
+
+| Bandeira | Onde | Produção e homologação | Script local `dev` | Depende de |
+|---|---|---|---|---|
+| `RESIDENTIAL_PLOTS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | desligada | resposta do dono do produto à [OQ-16](../decisions/open-questions.md); contas ligadas; migration 0011; **a rota de posse, que ainda não existe** |
+
+Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable`: ninguém consegue ter
+um terreno, e o jogo continua dizendo que a posse não está aberta. Não ligar.
+
+### 11.3 Reverter
+
+- Jogo, API e servidor: `wrangler rollback` de cada um; nenhum deles grava nada novo.
+- A migration 0011 não é revertida. Com ela aplicada e o jogo antigo no ar, os 8 terrenos continuam funcionando (o
+  jogo antigo usa as posições das próprias constantes); as 4 linhas novas e `residential_plots` ficam sem uso.
+
 ## Limitações conhecidas
 
+- Expansão da Vila (IMPL-0023): migration 0011 não aplicada no remoto; `RESIDENTIAL_PLOTS_ENABLED` desligada; nada
+  desta entrega foi publicado. Desempenho medido só em computador (Chrome com GPU e por software), não em celular.
 - Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
   `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o
   binding de serviço, painel e jogo).

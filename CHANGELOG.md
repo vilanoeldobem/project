@@ -9,6 +9,43 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — expansão da Vila (IMPL-0023, **PROPOSTA**; schema D1 v11)
+
+- **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
+  da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
+  depois, três anéis de terrenos residenciais: 16 premium, 32 padrão e 64 econômico. O raio do mundo foi de 34 para
+  82,5 u. Do terreno mais distante até a árvore são 8,8 s a pé. Tudo é derivado de um plano só (`VILLAGE_PLAN`).
+- **Terrenos residenciais visíveis, posse desligada.** Chegar perto de um terreno e usar a ação (E, Enter ou toque)
+  mostra o id, a faixa, o que a faixa exige e "A posse de terrenos ainda não está aberta.". O que a faixa exige é
+  um requisito (um nível, alcançado jogando), nunca um preço: não há moeda, valor nem botão de compra. Nenhuma
+  decisão de produto permite que um jogador tenha um terreno (DEC-028): fica como pergunta aberta (OQ-16), atrás de
+  `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação.
+- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o que ela vai oferecer e
+  que ainda não abriu. Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
+  aviso em texto, o id e que o espaço não está disponível para aluguel (OQ-17).
+- **As faixas se reconhecem pelo ambiente:** calçamento (pedra, neve batida, neve pisada), frente do terreno (muro
+  com portão e lanternas, cerca de ripas, lanterna numa estaca), o que fica entre vizinhos (jardim com arbustos,
+  cerca-viva, lenha empilhada), tamanho da casa e postes de rua.
+- API: `GET /residential-plots` (pública; estado de cada terreno, nunca o dono) e `residentialPlots` em
+  `GET /config`. Num banco sem a tabela nova a rota responde o layout com tudo "indisponível".
+- Migration `0011_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
+  `residential_plots` (colunas de posse vazias, sem coluna de preço).
+- Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
+  da lareira em cada casa.
+
+### Changed — expansão da Vila (IMPL-0023)
+
+- O lago, o trenó com as renas, o trenó pequeno, duas lanternas e dois NPCs das quests mudaram de lugar, para
+  dentro da faixa festiva da praça; um morador decorativo saiu de onde passa uma avenida. Os terrenos de ONG
+  ficam agora a cerca de 31 u da árvore (eram 22 u).
+- Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
+- Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
+  não lista (banco antes da 0011) não oferece candidatura.
+- Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores; a cena no spawn foi de 70
+  chamadas e ~122 mil triângulos para 124 e ~217 mil (preset Média). A grade de navegação cobre o mundo novo com a
+  mesma célula de 0,25 u; a pior rota medida leva 4,8 ms para planejar.
+- Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
+
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 
 - A mensagem da retirada de uma ONG segue a mesma regra da mensagem de bloqueio: caracteres que ninguém vê (largura

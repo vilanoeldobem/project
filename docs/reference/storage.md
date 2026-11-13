@@ -1,7 +1,7 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
-> **Atualizado em:** 2026-11-12
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
@@ -28,7 +28,9 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 
-Esta versão contém 0001–0010, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+| `0011_village_expansion.sql` | expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
+
+Esta versão contém 0001–0011, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
 retiradas. A 0007 chamava-se 0010
 enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
@@ -158,6 +160,9 @@ candidatura e de análise a consultam para projetar `withdrawn` e recusar envios
 
 ### lots
 
+Só terrenos reservados a ONGs aprovadas (DEC-028): 8 até a v10, 12 a partir da v11 (a 0011 move os oito primeiros
+para a fachada da praça sem tocar em `state` nem em `ngo_id`).
+
 | Coluna | Tipo | Notas |
 |---|---|---|
 | `id` | TEXT PK | `<street>-<NN>`, ex.: `plaza-01` |
@@ -165,6 +170,28 @@ candidatura e de análise a consultam para projetar `withdrawn` e recusar envios
 | `x`, `z` | REAL | posição no mundo; espelha `LOTS` em `packages/shared/src/game/world.ts` |
 | `state` | TEXT | `available`, `application_sent`, `under_review`, `published` (DEC-028); ver transições em [api.md](api.md#análise-administrativa-dec-037) |
 | `ngo_id` | TEXT FK → ngos | candidatura que reserva ou ocupa o terreno |
+
+### residential_plots (v11, PROPOSTA)
+
+Terrenos residenciais ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Estrutura do mundo, como
+`lots`: as 112 linhas vêm da migração e espelham `RESIDENTIAL_PLOTS` em `packages/shared/src/game/world.ts`
+(testes conferem linha a linha, no texto da migração e no banco migrado). **A posse está desligada**
+(`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-16](../decisions/open-questions.md)): nada grava `owner_id` nem
+`claimed_at`.
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | TEXT PK | `<faixa>-<NN>`, ex.: `premium-01`, `standard-32`, `economy-64` |
+| `tier` | TEXT | `premium`, `standard` ou `economy` |
+| `slot` | INTEGER | posição dentro da faixa; único com `tier` |
+| `x`, `z` | REAL | centro do terreno |
+| `facing` | REAL | rotação (rad) para a rua em frente |
+| `owner_id` | TEXT FK → users, `ON DELETE SET NULL` | sempre `NULL` nesta versão; nunca sai pela API |
+| `claimed_at` | TEXT | sempre `NULL` nesta versão |
+
+Não há coluna de preço: o que uma faixa exige é um requisito no código (`VILLAGE_PLAN`), nunca um valor. Dado
+pessoal: nenhum enquanto `owner_id` for nulo; se a posse for ligada, `owner_id` liga um terreno a uma conta e a
+exclusão da conta o libera.
 
 ### users (v4)
 

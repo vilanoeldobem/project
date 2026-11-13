@@ -112,10 +112,10 @@ recusado no motor e a interface explica **Conclua a missão atual primeiro**.
 
 | NPC | Papel | Posição | Semente |
 |---|---|---|---|
-| Baltazar (`sleigh-keeper`) | Guardião do trenó do Noel | `(-2.5, 28.5)` | `sleigh-keeper` |
+| Baltazar (`sleigh-keeper`) | Guardião do trenó do Noel | `(-6, 21.8)` | `sleigh-keeper` |
 | Dona Filó (`market-keeper`) | Mercadora do mercado oeste | `(-18.6, 0)` | `market-keeper` |
 | Seu Nivaldo (`postmaster`) | Carteiro da Vila | `(4.5, 11.8)` | `postmaster` |
-| Aurora (`pond-keeper`) | Vigia do lago congelado | `(24.5, -2.5)` | `pond-keeper` |
+| Aurora (`pond-keeper`) | Vigia do lago congelado | `(16.3, -10.4)` | `pond-keeper` |
 | Dona Guida (`storyteller`) | Contadora de histórias | `(5, 4)` | `storyteller` |
 
 - Os cinco usam o gerador `villager` com semente igual ao `npc_id` e bloqueiam o avatar com a mesma pegada dos
@@ -144,10 +144,10 @@ deliberada no teste, não pode ser um deslize.
 
 | NPC (`NPCS`, pegada de morador em `QUEST_OBSTACLES`) | `id` | `x` | `z` | `rot` |
 |---|---|---:|---:|---|
-| Baltazar | `sleigh-keeper` | `-2.5` | `28.5` | `Math.atan2(2.5, -28.5)` |
+| Baltazar | `sleigh-keeper` | `-6` | `21.8` | `Math.atan2(6, -21.8)` |
 | Dona Filó | `market-keeper` | `-18.6` | `0` | `Math.atan2(18.6, 0)` |
 | Seu Nivaldo | `postmaster` | `4.5` | `11.8` | `Math.atan2(-4.5, -11.8)` |
-| Aurora | `pond-keeper` | `24.5` | `-2.5` | `Math.atan2(-24.5, 2.5)` |
+| Aurora | `pond-keeper` | `16.3` | `-10.4` | `Math.atan2(-16.3, 10.4)` |
 | Dona Guida | `storyteller` | `5` | `4` | `Math.atan2(-5, -4)` |
 
 | Coleta (`QUEST_SPAWNS`, raio de coleta `1.4`, sem colisor) | `questId` | `objectId` | `x` | `z` |
@@ -156,18 +156,23 @@ deliberada no teste, não pode ser um deslize.
 | `bell-pine-east` | `harness-bells` | `reindeer-bell` | `12.9` | `9.2` |
 | `crate-street` | `ornament-crates` | `ornament-crate` | `-14.5` | `8.6` |
 | `crate-market` | `ornament-crates` | `ornament-crate` | `-16.8` | `-3.6` |
-| `lantern-lake-1` | `lake-lanterns` | `lake-lantern` | `23.2` | `17` |
-| `lantern-lake-2` | `lake-lanterns` | `lake-lantern` | `30.5` | `10` |
+| `lantern-lake-1` | `lake-lanterns` | `lake-lantern` | `19.5` | `14.5` |
+| `lantern-lake-2` | `lake-lanterns` | `lake-lantern` | `22.5` | `5.5` |
 
 Os dois sinos e a primeira lanterna foram afastados dos pinheiros (antes `(-10, -12.4)`, `(12.2, 9.5)` e
 `(23.5, 17)`): com o colisor do pinheiro do tamanho das ramas desenhadas
 ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)), os pontos antigos ficavam dentro dele. Os ids
 não mudaram.
 
+Com a expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)) o trenó, o lago e o trenó
+pequeno foram para a faixa festiva da praça, e com eles Baltazar (antes `(-2.5, 28.5)`), Aurora (antes
+`(24.5, -2.5)`), as duas lanternas do lago (antes `(23.2, 17)` e `(30.5, 10)`) e a interação `sled-ride` (antes
+`(2.5, 27)`): os lugares antigos ficaram sob a fachada de terrenos e lojas. Os ids não mudaram.
+
 | Interação (`QUEST_INTERACTIONS`) | `questId` | `x` | `z` | `radius` |
 |---|---|---:|---:|---:|
 | `mailbox-open` | `frozen-mailbox` | `2.4` | `12.6` | `3.5` |
-| `sled-ride` | `kids-sled-run` | `2.5` | `27` | `3.5` |
+| `sled-ride` | `kids-sled-run` | `13.44` | `-19.8` | `3.5` |
 
 | Peça | `x` | `z` | `rot` | `r` |
 |---|---:|---:|---|---:|
