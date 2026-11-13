@@ -270,6 +270,9 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
  * administration must be able to take it down. Same guards as the applicant's own removal: the revision on screen,
  * one batch claimed by this operation's token, the revision bumped (an open review goes stale), the row gone
  * before the object. Needs the bucket, not the upload flag; the audit row carries ids only.
+ *
+ * The applicant may be gone: a published NGO keeps its logo when the account is erased, with `ngo_files.uploaded_by`
+ * set to NULL. The cleanup intent, which needs an owner, is then recorded under the administrator who removes it.
  */
 export async function removeLogoAdmin(request: Request, env: Env, ngoId: string): Promise<Response> {
   const admin = await requireAdmin(request, env);
@@ -299,7 +302,7 @@ export async function removeLogoAdmin(request: Request, env: Env, ngoId: string)
         AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ? AND kind = 'logo')`)
       .bind(now, token, ngoId, row.revision, fileId, ngoId),
     db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
-      SELECT id,ngo_id,uploaded_by,1 FROM ngo_files WHERE id=? AND ngo_id=? AND ${MINE}`).bind(fileId, ngoId, ngoId, token),
+      SELECT id,ngo_id,COALESCE(uploaded_by, ?),1 FROM ngo_files WHERE id=? AND ngo_id=? AND ${MINE}`).bind(admin.id, fileId, ngoId, ngoId, token),
     db.prepare(`DELETE FROM ngo_files WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(fileId, ngoId, ngoId, token),
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.logo_remove', ?, ? WHERE ${MINE}`)
       .bind(newId(), admin.id, `ngo:${ngoId}`, JSON.stringify({ file: fileId, revision: row.revision + 1 }), ngoId, token),
