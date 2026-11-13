@@ -1,16 +1,28 @@
 /**
  * What the HUD draws at arrival and around the game menu (IMPL-0022), server-side, no browser: no dialog in
  * front of the village, the three paths one press away with their names, one "Menu" button, no zoom buttons
- * and no brand, the line that says how to walk only until the first walk, and tooltips only on controls that
- * can be icon-only.
+ * and no brand, the line that says how to walk only until the first walk, the account chip with a long nickname
+ * or a blocked account, and tooltips only on controls that can be icon-only or whose name is cut. What only a browser can measure (sizes, overlap, what a tooltip covers) is
+ * in the rules of `styles.css` that the last tests read.
  */
+
 import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Me } from "@vila/shared/accounts/contract";
 
+import css from "../styles.css?raw";
+
 const ADMIN: Me = { id: "a1", name: "Ana Lima", nickname: "ana_admin", city: "Recife", email: "ana@example.com", role: "admin" };
+
+const PLAYER: Me = { id: "p1", name: "Pessoa Teste", nickname: "ana", city: "Recife", email: "p@example.com", role: "player" };
+const BLOCKED = { message: "Motivo.", at: "2026-11-01T12:00:00Z" };
+/** 20 characters: the longest nickname the API accepts. */
+const LONG = "nome_muito_comprido1";
+
+/** The declarations of the first rule with exactly this selector. */
+const rule = (selector: string, sheet = css) => new RegExp(`(?:^|[}\\n])\\s*${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(sheet)?.[1] ?? "";
 
 const html = (element: ReactElement) => renderToStaticMarkup(element);
 /** Every `<button …>…</button>`: its attributes and its visible text. */
@@ -171,8 +183,50 @@ describe("with the menu open", () => {
   });
 });
 
+describe("account chip", () => {
+  /** The account chip: its attributes and its label, span by span. */
+  const chip = (page: string) => {
+    const [, attributes, inner] = /<button([^>]*aria-label="Sua conta[^>]*)>(.*?)<\/button>/.exec(page) ?? [];
+    return { attributes, label: /<span class="chip__label">(.*)<\/span>$/.exec(inner ?? "")?.[1] };
+  };
+
+  it("shows a short nickname whole, with no mark of a cut name", async () => {
+    const { hud, useAccount } = await load();
+    useAccount.setState({ enabled: true, user: PLAYER });
+    expect(chip(hud()).label).toBe('<span class="chip__name">@ana</span>');
+    expect(chip(hud()).attributes).not.toContain("chip--cut");
+  });
+
+  it("keeps '(bloqueada)' in a span of its own, whole, whatever the nickname", async () => {
+    const { hud, useAccount } = await load();
+    for (const nickname of ["ana", "joao_pedro", LONG]) {
+      useAccount.setState({ enabled: true, user: { ...PLAYER, nickname, blocked: BLOCKED } });
+      expect(chip(hud()).label).toMatch(/^<span class="chip__name">@[^<]+<\/span><span class="chip__state"> \(bloqueada\)<\/span>$/);
+      expect(chip(hud()).attributes).toContain(`aria-label="Sua conta: ${nickname} (bloqueada)"`);
+    }
+    // No rule cuts the label any more: the only cut is the one the component makes in the nickname.
+    expect(css).not.toMatch(/\.chip__label[^{]*\{[^}]*(max-width|text-overflow)/);
+    expect(rule(".chip__state")).toContain("flex: none");
+  });
+
+  it("cuts only the nickname when it is long, and then offers the full text as a tooltip", async () => {
+    const { hud, useAccount } = await load();
+    useAccount.setState({ enabled: true, user: { ...PLAYER, nickname: LONG, blocked: BLOCKED } });
+    const long = chip(hud());
+    expect(long.label).toBe('<span class="chip__name">@nome_muito_…</span><span class="chip__state"> (bloqueada)</span>');
+    expect(long.attributes).toContain('class="btn btn--chip chip--cut"');
+    expect(long.attributes).toContain(`data-tip="Sua conta: ${LONG} (bloqueada)"`);
+    // The tooltip of a cut name shows at every width, on hover and on keyboard focus.
+    expect(css).toContain(".chip--cut[data-tip]:focus-visible::after { display: block; }");
+    expect(css).toContain("@media (hover: hover) { .chip--cut[data-tip]:hover::after { display: block; } }");
+    useAccount.setState({ enabled: true, user: { ...PLAYER, nickname: "doze_letras1" } }); // 12: the longest shown whole
+    expect(chip(hud()).label).toBe('<span class="chip__name">@doze_letras1</span>');
+    expect(chip(hud()).attributes).not.toContain("chip--cut");
+  });
+});
+
 describe("tooltips", () => {
-  it("exist only on controls that can be icon-only, and say the control's name", async () => {
+  it("exist only on controls that can be icon-only or have a cut name, and say the control's name", async () => {
     const { hud, useAccount } = await load();
     useAccount.setState({ enabled: true, user: ADMIN });
     const page = hud();
@@ -181,5 +235,20 @@ describe("tooltips", () => {
     // The sky view (always an icon), then the controls whose label gives way on narrow screens.
     expect(tipped.map((b) => /data-tip="([^"]*)"/.exec(b.attributes)![1])).toEqual(["Olhar o céu", "Indicadores", "Sua conta: ana_admin", "Ligar o modo moderação", "Menu"]);
     for (const b of tipped) expect(b.attributes).toMatch(/aria-label="/);
+  });
+
+  it("stay inside the screen: placed against their group, never wider than the HUD, and a long one wraps", () => {
+    // Against the chip, the tooltip of the account ran off the left edge at 320 px with a long nickname.
+    expect(rule(".hud__group")).toContain("position: relative");
+    expect(css).not.toMatch(/\.btn--chip\[data-tip\] \{[^}]*position: relative/);
+    const tip = rule(".btn--chip[data-tip]::after");
+    expect(tip).toContain("left: 0");
+    expect(tip).toContain("box-sizing: border-box; width: max-content; max-width: calc(100vw - var(--hud-left) - var(--hud-right))");
+    expect(tip).toContain("white-space: normal");
+    expect(rule(".hud__system .btn--chip[data-tip]::after")).toMatch(/left: auto; right: 0/);
+    // A pressed chip sinks with a transform and becomes the tooltip's containing block: no tooltip during the press.
+    expect(rule(".btn--chip[data-tip]:active::after")).toContain("content: none");
+    // The gutters the tooltip counts on are the ones the HUD is drawn with.
+    expect(rule(".hud")).toContain("padding: max(12px, env(safe-area-inset-top)) var(--hud-right) max(16px, env(safe-area-inset-bottom)) var(--hud-left)");
   });
 });

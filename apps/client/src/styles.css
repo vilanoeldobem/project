@@ -80,31 +80,42 @@ kbd {
  * another at any width: what does not fit wraps. Only the controls take clicks; the rest goes to the village.
  */
 .hud {
+  --hud-left: max(16px, env(safe-area-inset-left)); --hud-right: max(16px, env(safe-area-inset-right));
   position: fixed; inset: 0; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 8px;
-  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  padding: max(12px, env(safe-area-inset-top)) var(--hud-right) max(16px, env(safe-area-inset-bottom)) var(--hud-left);
 }
 .hud__top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
 .hud__nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; }
-.hud__group { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+.hud__group { position: relative; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 .hud__system { justify-content: flex-end; }
 /* Chips of the HUD: one height (a 44 px touch target), icon first, label when there is room. */
 .hud .btn--chip { min-width: 44px; min-height: 44px; white-space: nowrap; }
 .chip__icon { flex: none; }
 .chip--icon { padding-inline: 0; }
-.hud__system .chip__label { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
+/* No rule cuts a label. The account chip cuts a long nickname itself (`chipName`); its state is never cut. */
+.chip__state { flex: none; }
 .hud .btn--chip[aria-pressed="true"]:not(.is-on) { background: var(--pine); color: var(--cream); }
-/* Tooltip, only where a control is icon-only (always: `chip--icon`; by width: see the media queries). */
-.btn--chip[data-tip] { position: relative; }
+/*
+ * Tooltip, only where a control is icon-only (always: `chip--icon`; by width: see the media queries) or its
+ * name is cut (`chip--cut`). It is placed against the group of its chip, from the group's outer edge (the left
+ * one of "now in the village", the right one of the system group), and is never wider than the HUD: it stays
+ * inside the screen at every width, and a long one wraps. A pressed chip is its own containing block (it sinks
+ * with a transform), so the tooltip is hidden during the press.
+ */
 .btn--chip[data-tip]::after {
   content: attr(data-tip); display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 1; pointer-events: none;
-  padding: 4px 10px; border-radius: 8px; white-space: nowrap; font-size: 0.8rem; font-weight: 800;
+  box-sizing: border-box; width: max-content; max-width: calc(100vw - var(--hud-left) - var(--hud-right)); padding: 4px 10px; border-radius: 8px;
+  white-space: normal; overflow-wrap: anywhere; text-align: left; font-size: 0.8rem; font-weight: 800; line-height: 1.3;
   background: var(--pine); color: var(--cream); border: 2px solid var(--gold); box-shadow: var(--shadow);
 }
 .hud__system .btn--chip[data-tip]::after { left: auto; right: 0; }
 .chip--icon[data-tip]:focus-visible::after { display: block; }
 @media (hover: hover) { .chip--icon[data-tip]:hover::after { display: block; } }
+.btn--chip[data-tip]:active::after { content: none; }
 @media (max-width: 1359px) {
+.chip--cut[data-tip]:focus-visible::after { display: block; }
   .chip--wide .chip__label { display: none; }
+@media (hover: hover) { .chip--cut[data-tip]:hover::after { display: block; } }
   .chip--wide { padding-inline: 0; }
   .chip--wide[data-tip]:focus-visible::after { display: block; }
 }
@@ -237,9 +248,12 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   .panel__body { padding: 10px 14px 16px; }
 }
 @media (max-width: 640px) and (hover: hover) { .hud__system .btn--chip[data-tip]:hover::after { display: block; } }
-/* The narrowest phones: smaller gutters, 40 px chips and no clock symbol, so the first row stays one row. */
+/*
+ * The narrowest phones (up to 360 px wide): smaller gutters, chips at least 40 px wide instead of 44 (their
+ * height stays 44 px) and no clock symbol, so the first row stays one row.
+ */
 @media (max-width: 360px) {
-  .hud { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
+  .hud { --hud-left: max(12px, env(safe-area-inset-left)); --hud-right: max(12px, env(safe-area-inset-right)); }
   .hud__top { gap: 6px; }
   .hud__group { gap: 4px; }
   .env-chip__clock { display: none; }
