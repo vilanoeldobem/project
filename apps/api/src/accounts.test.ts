@@ -87,9 +87,9 @@ describe("feature flag and origin", () => {
     env.ACCOUNTS_ENABLED = "false";
     env.QUESTS_V1_ENABLED = "false";
     const moderation = { presence: false, block: false };
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, files: false, withdrawal: false, moderation });
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, files: false, withdrawal: false, moderation, residentialPlots: false });
     env.QUESTS_V1_ENABLED = "true";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, files: false, withdrawal: false, moderation });
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, files: false, withdrawal: false, moderation, residentialPlots: false });
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });

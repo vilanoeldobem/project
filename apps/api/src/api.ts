@@ -3,9 +3,10 @@
  *
  * Public, read-only:
  *   GET /health      → { ok, version, environment, db, mail, files }
- *   GET /config      → { accounts, quests, files, withdrawal, moderation }  (feature flags the client needs)
+ *   GET /config      → { accounts, quests, files, withdrawal, moderation, residentialPlots }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
+ *   GET /residential-plots → residential plots and their state, never who holds one (IMPL-0023, PROPOSTA)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *   GET /ngos/:id/logo → logo of a published NGO, from R2 (IMPL-0017; only when NGO_FILES_ENABLED = "true")
  *
@@ -37,6 +38,7 @@ import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
+import { residentialPlots, residentialPlotsEnabled } from "./residential-plots";
 import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 import { withdrawNgo } from "./ngo-withdrawal";
 import { consumeTicket, issueTicket } from "./presence-moderation";
@@ -63,6 +65,13 @@ export interface Env {
    * binding to this Worker. Off in production and staging.
    */
   PRESENCE_MODERATION_ENABLED?: string;
+  /**
+   * "true" would open the ownership of residential plots (PROPOSTA; IMPL-0023, OQ-16). Needs ACCOUNTS_ENABLED
+   * and migration 0011. Off in production and staging: no recorded product decision lets a player hold land
+   * (DEC-028 reserves plots for NGOs). Today it only changes what `GET /residential-plots` answers: there is
+   * no claim route yet.
+   */
+  RESIDENTIAL_PLOTS_ENABLED?: string;
   ENVIRONMENT?: string;
   /** Comma-separated page origins allowed to read the API from a browser (exact match). */
   ALLOWED_ORIGINS?: string;
@@ -226,6 +235,8 @@ async function route(request: Request, env: Env): Promise<Response> {
           accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true",
           // What works right now (IMPL-0021, PROPOSTA), so the apps show only that.
           moderation: { presence: accounts && env.PRESENCE_MODERATION_ENABLED === "true", block: accounts && env.ACCOUNT_BLOCK_ENABLED === "true" },
+          // Ownership of residential plots (IMPL-0023, PROPOSTA): computed from the flags alone, like the others.
+          residentialPlots: residentialPlotsEnabled(env),
         }, { headers: NO_STORE });
       }
       case "/indicators":
@@ -238,6 +249,8 @@ async function route(request: Request, env: Env): Promise<Response> {
         if (rows === null) return json({ error: "db_unavailable" }, { status: 503 });
         return json({ lots: rows }, { headers: NO_STORE });
       }
+      case "/residential-plots":
+        return await residentialPlots(env);
       default: {
         const logo = PUBLIC_LOGO.exec(pathname);
         if (logo) return await publicLogo(request, env, logo[1]);
