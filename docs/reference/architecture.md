@@ -299,7 +299,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | segredo `RESEND_API_KEY` | fora do `wrangler.jsonc` (`wrangler secret put`) | Chave do Resend (só o link de acesso, IMPL-0012) |
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
-| api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala (IMPL-0021) |
+| api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala, só quando o bilhete foi emitido (IMPL-0021) |
 | api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
 | api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
 | api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, **ainda não criado** (IMPL-0017) |

@@ -9,6 +9,31 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
+
+- API: um administrador volta a conseguir **remover o logo publicado de uma ONG cujo responsável excluiu a conta**
+  (respondia `500` e o logo continuava público). A pendência de limpeza do objeto fica em nome do administrador
+  quando não há mais quem enviou o arquivo.
+- API: a remoção de logo confere no próprio batch que quem pede **ainda é administrador**, como as rotas de papel e
+  de bloqueio (`403 admin_only`; antes, um administrador rebaixado durante o pedido ainda concluía a remoção).
+- API, **PROPOSTA** (remoção de visitante): pelo binding de serviço, `POST /moderation/consume` só cobra o limite da
+  sala de um bilhete **que foi emitido**; um bilhete inventado recebe o mesmo `404` sem gastar o limite. Antes,
+  visitantes anônimos podiam esgotar o limite da sala e fazer o bilhete verdadeiro ser recusado com `429`. Quem
+  chama pelo domínio público continua cobrado antes, por endereço.
+- API: num banco sem a migration 0010, `POST /auth/verify` e `POST /auth/link` respondem `503 schema_outdated`
+  **sem gravar nada** (antes, a confirmação gastava o link e gravava uma sessão inutilizável antes de responder
+  `503`, e o pedido de link enviava um link que não podia ser usado).
+- API, **PROPOSTA** (bloqueio de conta): a correção de dados (`POST /me`), a remoção de um arquivo ou de uma foto
+  pelo responsável e a criação do contador de progresso passam a conferir o bloqueio no próprio comando: o que
+  estava a caminho quando o bloqueio foi gravado responde `403 session_blocked` e não muda nada.
+- Contrato compartilhado, **PROPOSTA** (bloqueio de conta): a mensagem para a pessoa precisa de 10 caracteres que
+  ela consiga ver. Caracteres de formatação e de controle (largura zero, inversão de direção do texto…) são
+  removidos antes da contagem e não são guardados; quebra de linha e tabulação ficam.
+- Documentação: o guia de deploy aponta a parte do servidor de tempo real da remoção de visitante (§4.4; o servidor
+  não tem homologação) e corrige a resposta de uma API antiga a `POST /moderation/consume` (`405`, não `404`); a
+  IMPL-0021 registra que a decisão de candidatura, a retirada e a decisão de foto ainda não conferem quem pede na
+  gravação.
+
 ### Added — moderação dentro do jogo para administradores (IMPL-0021; remoção de sala e bloqueio PROPOSTA, desligados)
 
 - Jogo: **modo moderação**, só para conta conectada com papel Administrador. Botão "Moderação" no HUD, desligado a

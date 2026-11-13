@@ -35,10 +35,12 @@ sem sessão não dependem necessariamente dessas colunas. Aplicar o esquema ante
 
 A migration 0010 ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)) é pré-requisito de **toda
 rota que lê a sessão**: a conferência da sessão lê `users.blocked`. Num banco sem a 0010, com as contas ligadas,
-toda requisição com cookie de sessão válido, `POST /auth/register`, `POST /auth/verify` e (com a bandeira ligada)
-`POST /moderation/consume` respondem `503 schema_outdated`, nunca `500`, e nada é gravado com uma conferência mais
-fraca. `GET /me` sem sessão, `POST /auth/logout` e as rotas públicas continuam respondendo. Com as contas ligadas, a
-migration vem antes da API ([deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
+toda requisição com cookie de sessão válido, `POST /auth/register`, `POST /auth/link`, `POST /auth/verify` e (com a
+bandeira ligada, para um bilhete bem formado) `POST /moderation/consume` respondem `503 schema_outdated`, nunca
+`500`, **e nada é gravado**: nenhuma conta, nenhum link, nenhuma sessão
+([o que cada rota de entrada faz](#cadastro-e-link-mágico-p13-oq-03)). `GET /me` sem sessão, `POST /auth/logout` e
+as rotas públicas continuam respondendo. Com as contas ligadas, a migration vem antes da API
+([deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 
 ### CORS
 
@@ -269,8 +271,24 @@ comando (pedidos em paralelo não passam do limite). Acima do limite a resposta 
 **Sem enumeração:** o nickname é conferido antes do e-mail (mesma resposta com ou sem conta); `/auth/link` responde
 `202` mesmo se o envio falhar (um `503` ali revelaria que a conta existe).
 
+**Banco sem a migration 0010:** uma sessão aberta ali não serviria para nada (toda rota com sessão responde
+`503 schema_outdated`), então as três rotas de entrada leem `users.blocked` **antes de gravar qualquer coisa** e
+respondem `503 schema_outdated` sem escrever:
+
+- `POST /auth/register`, com campos válidos: nenhuma conta é criada e nenhum link é gerado ou enviado (campos
+  inválidos continuam `400 invalid`).
+- `POST /auth/link`: `503` para **qualquer** e-mail (cadastrado, desconhecido ou malformado), então a resposta
+  continua sem dizer se a conta existe; nenhum link é gerado ou enviado.
+- `POST /auth/verify`: `503` para qualquer token de formato aceito, válido ou não (fora do formato continua
+  `400 invalid_token`). O link **não é marcado como usado**, nenhuma sessão é gravada, nenhum cookie é enviado e
+  `verified_at` não muda; depois de aplicada a migration, o mesmo link ainda vale dentro dos seus 15 minutos.
+
+Num banco em dia nada disso muda: a consulta de `/auth/link` é a mesma para todo e-mail, e a confirmação continua
+de uso único (só vence a requisição que marca `used_at`).
+
 **Correção (`POST /me`):** `{name, nickname, city}` corrige os dados (direito de correção; também desfaz um cadastro
-feito por outra pessoa com este e-mail antes do dono entrar). O e-mail não é editável.
+feito por outra pessoa com este e-mail antes do dono entrar). O e-mail não é editável. Se a conta for bloqueada
+enquanto o pedido está a caminho, a correção é recusada no próprio comando: `403 session_blocked`, nada muda.
 
 **Exclusão (`DELETE /me`):** apaga a conta, as sessões, os links e os eventos de missão (cascata no D1); uma
 candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vira `NULL`). Grava `audit_events`
@@ -759,9 +777,14 @@ só o mecanismo; nada aqui autoriza a ativação.
 | `POST /admin/users/:id/block` | `{accountId, message}` | `200 {user}` com `blocked: true` |
 | `POST /admin/users/:id/unblock` | `{accountId}` | `200 {user}` com `blocked: false` |
 
-`message` é a **mensagem para a pessoa bloqueada**: 10 a 1000 caracteres depois de aparar espaços, contados como
-no SQLite (pontos de código). Ela lê esse texto como foi escrito, em `GET /me` (`user.blocked.message`). Não é uma
-anotação interna, e não existe uma. A resposta, a lista de contas e a auditoria nunca trazem o texto.
+`message` é a **mensagem para a pessoa bloqueada**: 10 a 1000 caracteres, contados como no SQLite (pontos de
+código) **depois de tirar o que ninguém vê** e de aparar espaços. Caracteres de formatação e de controle
+(categorias Unicode Cf e Cc: espaço de largura zero, inversão de direção do texto, hífen opcional, retorno de
+carro…) são removidos antes da contagem e não são guardados; quebra de linha e tabulação dentro do texto ficam.
+Dez caracteres invisíveis, portanto, não são uma mensagem (`400 message_required`), e uma inversão de direção não
+chega à pessoa. Ela lê o texto guardado, em `GET /me` (`user.blocked.message`). Não é uma anotação interna, e não
+existe uma. A resposta, a lista de contas e a auditoria nunca trazem o texto. A regra é uma só
+(`cleanBlockMessage`, `packages/shared/src/accounts/moderation.ts`), na API e no painel.
 
 **O que o bloqueio faz, no servidor:**
 
@@ -770,9 +793,14 @@ anotação interna, e não existe uma. A resposta, a lista de contas e a auditor
   uma **sessão restrita**: `GET /me` (com `blocked: {message, at}`), `POST /auth/logout` e `DELETE /me` funcionam;
   toda outra rota com sessão responde `403 session_blocked` (progresso, correção de dados, candidatura, arquivos,
   fotos, rotas de admin). É assim que a pessoa lê o motivo: depois de provar que o e-mail é dela.
-- **Escritas em andamento são recusadas no SQL:** candidatura ou reenvio, gravação de progresso e a confirmação
-  de um envio de logo, documento ou foto conferem o bloqueio dentro do próprio batch. Um envio que estava a
-  caminho quando o bloqueio foi gravado não é guardado.
+- **Escritas em andamento são recusadas no SQL:** candidatura ou reenvio, correção de dados (`POST /me`),
+  gravação de progresso (inclusive a criação do contador de gravações da conta), a confirmação de um envio de
+  logo, documento ou foto e a remoção de um arquivo ou de uma foto pelo responsável conferem o bloqueio dentro do
+  próprio comando ou batch, e respondem `403 session_blocked` (o envio de arquivo responde
+  `409 application_changed` e o de foto, `409 photo_limit_or_owner_changed`). O que estava a caminho quando o
+  bloqueio foi gravado não é guardado nem apagado. As únicas escritas que não conferem o bloqueio são as que só
+  concluem limpezas já registradas de bytes fora de uso (envio abandonado, foto já removida) e o registro
+  provisório de um envio, descartado quando a confirmação é recusada.
 - **A exclusão da conta nunca é tirada:** `DELETE /me` funciona na sessão restrita. A exclusão apaga a conta e o
   registro do bloqueio (com a mensagem); a auditoria guarda só os ids. **Nada guarda o e-mail depois da
   exclusão**: ele pode ser cadastrado de novo. O bloqueio é da conta, não da pessoa (pergunta na OQ-11).
@@ -794,11 +822,11 @@ registro>"}`, sem o texto.
 |---|---|
 | `404 not_found` | bloqueio com a bandeira desligada; conta inexistente (inclusive excluída durante o pedido) |
 | `401 not_signed_in`, `403 admin_only`, `409 account_changed` | sessão, papel e conta em uso |
-| `400 message_required` (+ `fields.message`) | bloqueio sem a mensagem para a pessoa (10 a 1000 caracteres) |
+| `400 message_required` (+ `fields.message`) | bloqueio sem a mensagem para a pessoa (10 a 1000 caracteres visíveis; caracteres de formatação e de controle não contam) |
 | `403 self_block` | bloquear a própria conta |
 | `409 admin_account` | a conta-alvo é de um administrador (inclusive promovida durante o pedido) |
 | `409 bad_transition` | bloquear conta já bloqueada; desbloquear conta que não está bloqueada (inclusive por pedido concorrente) |
-| `403 session_blocked` | qualquer rota com sessão, fora as três acima, chamada por uma conta bloqueada |
+| `403 session_blocked` | qualquer rota com sessão, fora as três acima, chamada por uma conta bloqueada (inclusive bloqueada enquanto o pedido estava a caminho) |
 | `503 schema_outdated` | banco sem a migration 0010 |
 
 ### Remover um visitante de uma sala (IMPL-0021, PROPOSTA)
@@ -838,10 +866,16 @@ sala a chama pelo binding de serviço como `POST https://api.internal/moderation
 host e não passa pela conferência de origem das rotas de conta.
 Não envia nenhum cabeçalho CORS, e exige `Content-Type: application/json` (corpo de até 1 000 bytes), então uma
 página não consegue chamá-la nem ler a resposta. É limitada pelo binding `MODERATION_LIMITER` (60 requisições a
-cada 60 s): a chave é o endereço de quem chama (`CF-Connecting-IP`, no domínio público) ou, nas chamadas do binding
-de serviço, que não têm endereço, a **sala** (`room:<n>`), para que uma sala movimentada não gaste o limite das
-outras. Sem o binding de limite (homologação, testes) nada é limitado e nada falha; a sala tem os próprios
-limites por conexão (um `["m", …]` por segundo, dez por minuto). Tudo o que não
+cada 60 s), de duas formas. **Com endereço** (`CF-Connecting-IP`, quem chama pelo domínio público): a chave é o
+endereço e o limite é cobrado **antes** de olhar o bilhete, seja qual for o corpo. **Pelo binding de serviço**, que
+não tem endereço: a chave é a **sala** (`room:<n>`), para que uma sala movimentada não gaste o limite das outras, e
+o limite só é cobrado de um bilhete **que foi emitido** (uma leitura pela chave primária do SHA-256, que não grava
+nada). Um bilhete que ninguém emitiu, ou um corpo malformado, recebe o mesmo `404` sem gastar o limite da sala: a
+sala repassa qualquer `["m", …]` bem formado de qualquer conexão, e sem isso visitantes anônimos esgotariam o
+limite e o bilhete verdadeiro do administrador seria recusado com `429`. Um bilhete emitido repetido em excesso
+(sala ou alvo errado, já usado, expirado) continua limitado. Sem o binding de limite (homologação, testes) nada é
+limitado e nada falha; a sala tem os próprios limites por conexão (um `["m", …]` por segundo, dez por minuto).
+Tudo o que não
 é um bilhete válido e não usado para aquela sala e aquele alvo recebe a mesma resposta `404 not_found` — inclusive
 bilhete, sala ou alvo malformados, e a rota com a bandeira ou as contas desligadas. Uma tentativa com sala ou alvo
 errado não gasta o bilhete.
@@ -855,7 +889,7 @@ errado não gasta o bilhete.
 | `404 not_found` | consumo | bilhete desconhecido, usado, expirado, de outra sala ou alvo; administrador rebaixado, bloqueado ou excluído; bandeira ou contas desligadas |
 | `405 method_not_allowed` (`Allow: POST`) | consumo | método diferente de `POST` (`OPTIONS` responde `204` sem CORS) |
 | `415 json_required`, `413 too_large`, `400 bad_json` | consumo | corpo que não é um objeto JSON pequeno |
-| `429 too_many_requests` | consumo | limite do `MODERATION_LIMITER` |
+| `429 too_many_requests` | consumo | limite do `MODERATION_LIMITER`: por endereço (domínio público), ou por sala para um bilhete emitido (binding) |
 | `503 db_unavailable`, `503 schema_outdated` | as duas | sem binding D1; banco sem a migration 0010 |
 
 ### Remoção de logo por administrador (IMPL-0021)
@@ -874,9 +908,16 @@ operação num único batch, e só a requisição vencedora grava a auditoria `n
 detalhe `{"file","revision"}`). Em seguida `/lots` devolve `ngo_logo: null` e `GET /ngos/:id/logo` responde `404`.
 A remoção não conta no limite diário de alterações de arquivos da candidatura.
 
+Como nas rotas de papel e de bloqueio, a remoção só é gravada se quem pede **ainda é administrador** (e não está
+bloqueado) quando o batch confirma. Vale também **depois que o responsável excluiu a conta**: a ONG publicada
+continua na Vila com o logo, sem responsável (`applicant_id` e `ngo_files.uploaded_by` nulos), e a administração
+ainda consegue tirá-lo do ar; a pendência de limpeza do objeto (`media_upload_intents`) fica então em nome do
+administrador que removeu.
+
 | Erro | Quando |
 |---|---|
 | `401 not_signed_in`, `403 admin_only`, `409 account_changed` | sessão, papel e conta em uso |
+| `403 admin_only` (ou `401 not_signed_in`, conta excluída) | quem pediu deixou de ser administrador entre a conferência da sessão e a gravação; nada é removido |
 | `404 not_found` | id que não é UUID, ONG inexistente ou sem logo |
 | `400 revision_required` | sem `revision` inteiro ≥ 1 |
 | `503 files_unavailable` | sem o binding `FILES` |
@@ -1014,13 +1055,13 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 400 | `invalid_token` | link desconhecido, expirado ou já usado |
 | API | 503 | `mail_unavailable` | produção sem `RESEND_API_KEY` ou falha no envio |
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |
-| API | 403 | `admin_only` | rota `/admin/*` sem papel `admin`; mudança de papel, bloqueio ou desbloqueio pedido por quem deixou de ser administrador antes da gravação |
-| API | 403 | `session_blocked` | conta bloqueada (IMPL-0021, PROPOSTA) em qualquer rota com sessão, exceto `GET /me`, `POST /auth/logout` e `DELETE /me` |
+| API | 403 | `admin_only` | rota `/admin/*` sem papel `admin`; mudança de papel, bloqueio, desbloqueio ou remoção de logo pedido por quem deixou de ser administrador antes da gravação |
+| API | 403 | `session_blocked` | conta bloqueada (IMPL-0021, PROPOSTA) em qualquer rota com sessão, exceto `GET /me`, `POST /auth/logout` e `DELETE /me`; também a escrita que estava a caminho quando o bloqueio foi gravado |
 | API | 400 | `bad_role` | mudança de papel com `role` diferente de `player` e `admin` |
 | API | 403 | `self_role` | mudar o próprio papel |
 | API | 409 | `last_admin` | rebaixar o único administrador (só em disputa entre os dois últimos) |
 | API | 409 | `account_blocked` | promover uma conta bloqueada |
-| API | 400 | `message_required` (+ `fields.message`) | bloqueio sem a mensagem para a pessoa (10 a 1000 caracteres) |
+| API | 400 | `message_required` (+ `fields.message`) | bloqueio sem a mensagem para a pessoa (10 a 1000 caracteres visíveis) |
 | API | 403 | `self_block` | bloquear a própria conta |
 | API | 409 | `admin_account` | bloquear a conta de um administrador |
 | API | 400 | `bad_room`, `bad_target` | bilhete de moderação com sala fora de `0…7` ou alvo que não é inteiro seguro positivo |
