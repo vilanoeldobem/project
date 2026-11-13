@@ -15,7 +15,7 @@ terrenos); [IMPL-0002](0002-donations-disabled-until-partner-contract.md) (sem f
 `packages/shared/src/game/{world,navigation}.ts`, `migrations/0011_village_expansion.sql`,
 `apps/api/src/residential-plots.ts`, `apps/client/src/scene/{Village,Ground,Player}.tsx`,
 `apps/client/src/scene/{villageModels,groundRuns}.ts`, `apps/client/src/scene/gen/{houses,shops}.ts`,
-`apps/client/src/ui/{Village,VillageAction}.tsx`
+`apps/client/src/ui/{Village,Hud}.tsx`
 
 ## Contexto
 
@@ -145,9 +145,15 @@ placa mostra o aviso em texto, o id e que o espaço ainda não está disponível
 ### 7. Interação
 
 Terreno residencial, porta de loja e placa usam a mesma interação "perto de algo" dos terrenos de ONG (E, Enter ou
-toque no botão de ação; um clique na construção leva o avatar até o ponto de uso). O botão desses três tipos está em
-`ui/VillageAction.tsx`, ao lado do HUD e com as classes dele, porque `Hud.tsx` estava sendo refeito em paralelo;
-juntar os três casos ao `switch` do HUD é um passo seguinte, sem mudança visível.
+toque no botão de ação; um clique na construção leva o avatar até o ponto de uso). Os três são tipos de `Nearby`
+(`game/store.ts`) e o botão é o único botão de ação contextual do HUD (`actionLabel` e `activate`, `ui/Hud.tsx`):
+valem para eles as regras da [IMPL-0022](0022-immersive-entry-and-game-menu.md) (Enter pertence ao controle em
+foco e E abre o que está perto com qualquer foco; tecla mantida pressionada abre uma vez; o botão some com um
+painel ou o menu aberto; ordem do Esc; clique no véu). Os três painéis são o `Panel` comum.
+
+Na primeira versão desta fase o botão ficava num componente à parte (`ui/VillageAction.tsx`, com escuta de teclado
+própria), porque `Hud.tsx` estava sendo refeito em paralelo. Ele foi incorporado ao HUD e removido na integração
+com a IMPL-0022 (2026-11-13).
 
 ### 8. Navegação
 
@@ -248,6 +254,6 @@ O que foi feito para caber no orçamento:
   daquele ADR valem para o raio de 34 u.
 - [IMPL-0008](0008-multiplayer-presence-durable-objects.md): presença anônima sem mudança; o servidor limita a pose
   ao novo `WORLD_RADIUS`, que vem do pacote compartilhado.
-- Referência: [architecture.md §2.2 e §10](../reference/architecture.md), [storage.md](../reference/storage.md),
+- Referência: [architecture.md §2.2, §2.4 e §10](../reference/architecture.md), [storage.md](../reference/storage.md),
   [api.md](../reference/api.md), [deploy.md](../guides/deploy.md).
 - Perguntas ao dono do produto: [OQ-17, OQ-18, OQ-19](open-questions.md).

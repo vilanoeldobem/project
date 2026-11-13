@@ -218,10 +218,13 @@ ruas e o raio do mundo. Decisão, números e o que fica para depois em
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
   `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 272 peças
   assados em 24 blocos, um por faixa de cada lado). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor.
-- **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance. Árvore, NPC, atril e terreno de ONG vão para
-  `nearby` (botão de ação do HUD); terreno residencial, loja e placa vão para `place` (botão de
-  `ui/VillageAction.tsx`, com as mesmas teclas: E, Enter, toque). Nunca os dois ao mesmo tempo. Os painéis estão em
-  `ui/Village.tsx` e não têm botão além de fechar.
+- **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance e grava um único alvo em `nearby`: árvore,
+  NPC, atril e terreno de ONG primeiro; terreno residencial, porta de loja ou placa só quando nenhum daqueles está
+  ao alcance. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
+  as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
+  mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
+  ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
+  em espera) e não têm botão além de fechar.
 - **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
   ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
 - **Regra de vista** (`SIGHTLINE`, `sightlines()`): avenidas livres de coisa alta até a árvore; de todo terreno, a

@@ -23,6 +23,10 @@ Cada versão indica o schema D1 que entrega.
 - **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o que ela vai oferecer e
   que ainda não abriu. Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
   aviso em texto, o id e que o espaço não está disponível para aluguel (OQ-18).
+- **Um botão de ação para tudo o que está perto.** Terreno residencial, porta de loja e placa usam o botão de ação
+  contextual do HUD e as mesmas regras de casa, terreno de ONG, árvore e morador (IMPL-0022): E abre com qualquer
+  foco, Enter só com o foco fora de um controle, tecla mantida pressionada abre uma vez, o botão some com um painel
+  ou o menu aberto. Os três painéis fecham pelo "×", pelo Esc e por um clique fora, como os demais.
 - **As faixas se reconhecem pelo ambiente:** calçamento (pedra, neve batida, neve pisada), frente do terreno (muro
   com portão e lanternas, cerca de ripas, lanterna numa estaca), o que fica entre vizinhos (jardim com arbustos,
   cerca-viva, lenha empilhada), tamanho da casa e postes de rua.

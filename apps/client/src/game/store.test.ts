@@ -181,6 +181,60 @@ describe("a passing notice (toast)", () => {
   });
 });
 
+describe("what is near the avatar", () => {
+  it("is written only when the target changes: the frame loop calls it 60 times a second", async () => {
+    const { useVila } = await load();
+    let writes = 0;
+    const stop = useVila.subscribe(() => writes++);
+    const { setNearby } = useVila.getState();
+    for (let frame = 0; frame < 3; frame++) setNearby(null);
+    expect(writes).toBe(0);
+    // A fresh object per call, as a test would pass it: the comparison is by kind and id, not by identity.
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "shop", shopId: "shop-02" });
+    expect(writes).toBe(1);
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "shop", shopId: "shop-03" });
+    expect(writes).toBe(2);
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "billboard", billboardId: "billboard-03" });
+    expect(writes).toBe(3);
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "plot", plotId: "economy-07" });
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "plot", plotId: "economy-08" });
+    expect(writes).toBe(5);
+    for (let frame = 0; frame < 3; frame++) setNearby({ kind: "tree" });
+    expect(writes).toBe(6);
+    for (let frame = 0; frame < 3; frame++) setNearby(null);
+    stop();
+    expect(writes).toBe(7);
+  });
+
+  it("is one target at a time: a place of the expanded village is a kind of it, not a second state", async () => {
+    const { useVila } = await load();
+    expect(useVila.getState()).not.toHaveProperty("place");
+    expect(useVila.getState()).not.toHaveProperty("setPlace");
+  });
+
+  it("tells every kind apart by its own id", async () => {
+    const { sameNearby } = await import("./store");
+    const all = [
+      null,
+      { kind: "tree" },
+      { kind: "donation-panel" },
+      { kind: "lot", lotId: "plaza-01" },
+      { kind: "lot", lotId: "plaza-12" },
+      { kind: "npc", npcId: "storyteller" },
+      { kind: "npc", npcId: "postmaster" },
+      { kind: "quest", interactionId: "mailbox-open" },
+      { kind: "quest", interactionId: "sled-ride" },
+      { kind: "plot", plotId: "premium-01" },
+      { kind: "plot", plotId: "economy-64" },
+      { kind: "shop", shopId: "shop-01" },
+      { kind: "shop", shopId: "shop-04" },
+      { kind: "billboard", billboardId: "billboard-01" },
+      { kind: "billboard", billboardId: "billboard-04" },
+    ] as const;
+    for (const [i, a] of all.entries()) for (const [j, b] of all.entries()) expect([i, j, sameNearby(a, b ? { ...b } : b)]).toEqual([i, j, i === j]);
+  });
+});
+
 describe("game menu state", () => {
   it("opens on its list, moves between its views and closes", async () => {
     const { useVila } = await load();

@@ -642,8 +642,8 @@ Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here 
 - [x] Scene: ground runs, shops, billboards, residences per side and tier, street lamps, forest sectors, outline
 - [x] Interaction: plot, shop and billboard panels; action button beside the HUD (`ui/VillageAction.tsx`)
 - [x] Docs: ADR 0023, OQ-17..19 (numbered OQ-16..18 before the merge with main, where OQ-16 is the entry/menu ratification), architecture, storage, api, deploy, content, quests, changelog, AGENTS.md
-- [ ] Follow-up after the HUD rework merges: fold `place` into `Hud.tsx` (`actionLabel` / `activate`) and delete
-      `ui/VillageAction.tsx`
+- [x] Follow-up after the HUD rework merges: fold `place` into `Hud.tsx` (`actionLabel` / `activate`) and delete
+      `ui/VillageAction.tsx` (done at the merge with main: the three places are kinds of `Nearby`)
 - [ ] Not run here: `verify-quests.mjs`, `verify-accounts.mjs`, `apps/client/scripts/verify.mjs` (they need the
       stack on the default ports); frame time on a phone
 

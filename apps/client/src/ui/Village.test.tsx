@@ -1,24 +1,26 @@
 /**
  * What a visitor reads on the panels of the expanded village (IMPL-0023, PROPOSTA; server-side render, no
  * browser): every panel says what is there and that it is not open, and none offers anything to buy, to claim
- * or to rent. The action button names the place the avatar stands at.
+ * or to rent. They are ordinary panels (veil, Escape, the walk held). The action that opens them is the HUD's
+ * one contextual action (`Hud.test.tsx`).
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { billboardNotice, BILLBOARDS, PLOT_TIERS, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
 
-import { type Place, useVila } from "../game/store";
+import { sim, walkRoute } from "../game/sim";
+import { useVila } from "../game/store";
+import { pressEscape } from "../lib/escape";
 import { Lot } from "./Lot";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./Village";
-import { actionPlace, VillageActionButton } from "./VillageAction";
 
 /** Words that would turn a placeholder into a sale: none may appear on these panels. */
 const MONEY = /R\$|\bcomprar?\b|\bcompre\b|\bpreço\b|\bmoedas?\b|\bpagar\b|\bpagamento\b|\balugue\b|\bcarrinho\b/i;
 /** Every button of a rendered panel except the one that closes it. */
 const buttons = (html: string) => (html.match(/<button[^>]*>/g) ?? []).filter((b) => !b.includes('aria-label="Fechar"'));
 
-afterEach(() => useVila.setState({ panel: { kind: "none" }, nearby: null, place: null }));
+afterEach(() => useVila.setState({ panel: { kind: "none" }, menu: null, nearby: null }));
 
 describe("residential plot panel", () => {
   it.each(PLOT_TIERS)("says the id, the tier, what the tier requires and that ownership is not open (%s)", (tier) => {
@@ -78,44 +80,32 @@ describe("billboard panel", () => {
   });
 });
 
-describe("contextual action of the village", () => {
-  const button = (place: Place) => renderToStaticMarkup(<VillageActionButton place={place} onOpen={() => {}} />);
+describe("the three panels behave like every other panel", () => {
+  const PANELS = [
+    { state: { kind: "plot", plotId: "economy-07" }, element: <PlotPanel plotId="economy-07" /> },
+    { state: { kind: "shop", shopId: "shop-02" }, element: <ShopPanel shopId="shop-02" /> },
+    { state: { kind: "billboard", billboardId: "billboard-02" }, element: <BillboardPanel billboardId="billboard-02" /> },
+  ] as const;
 
-  it("names the place the avatar stands at, on the HUD's own action button", () => {
-    expect(button({ kind: "plot", id: "economy-07" })).toContain("Ver terreno residencial");
-    expect(button({ kind: "shop", id: "shop-02" })).toContain("Ver loja");
-    expect(button({ kind: "billboard", id: "billboard-02" })).toContain("Ler placa");
-    expect(button({ kind: "shop", id: "shop-02" })).toContain('class="btn btn--primary hud__action"');
-    expect(button(null)).toBe("");
+  it.each(PANELS)("$state.kind: the shared dialog inside the veil, with the one close button", ({ element }) => {
+    const html = renderToStaticMarkup(element);
+    // `ui/Panel.tsx`: the veil that closes on a press outside, around a modal dialog that takes the focus.
+    expect(html).toMatch(/^<div class="backdrop"><div class="panel" role="dialog" aria-modal="true" aria-label="[^"]+" tabindex="-1">/);
+    expect(html.match(/<button[^>]*aria-label="Fechar"/g)).toHaveLength(1);
   });
 
-  it("shows nothing away from a place, under an open panel, or while the HUD's own action is up", () => {
-    const shop: Place = { kind: "shop", id: "shop-02" };
-    expect(actionPlace({ panel: { kind: "none" }, nearby: null, place: shop })).toBe(shop);
-    expect(actionPlace({ panel: { kind: "none" }, nearby: null, place: null })).toBeNull();
-    expect(actionPlace({ panel: { kind: "missions" }, nearby: null, place: shop })).toBeNull();
-    expect(actionPlace({ panel: { kind: "none" }, nearby: { kind: "tree" }, place: shop })).toBeNull();
+  it.each(PANELS)("$state.kind: Escape closes it and that press does not open the menu; the menu does not open over it", ({ state }) => {
+    useVila.getState().open(state);
+    useVila.getState().openMenu();
+    expect(useVila.getState().menu).toBeNull();
+    expect(pressEscape({ target: null })).toBe("close-panel");
+    expect(useVila.getState().panel).toEqual({ kind: "none" });
+    expect(useVila.getState().menu).toBeNull();
   });
 
-  it("opens the panel of the place: plot, shop or billboard", () => {
-    const opened: unknown[] = [];
-    for (const place of [{ kind: "plot", id: "economy-07" }, { kind: "shop", id: "shop-02" }, { kind: "billboard", id: "billboard-02" }] as const) {
-      const el = VillageActionButton({ place, onOpen: (p) => opened.push(p) }) as { props: { children: { props: { onClick: () => void } } } };
-      el.props.children.props.onClick();
-    }
-    expect(opened).toEqual([{ kind: "plot", plotId: "economy-07" }, { kind: "shop", shopId: "shop-02" }, { kind: "billboard", billboardId: "billboard-02" }]);
-  });
-
-  it("keeps the store's place by identity, so the frame loop writes it only when it changes", () => {
-    const shop: Place = { kind: "shop", id: "shop-02" };
-    let writes = 0;
-    const stop = useVila.subscribe(() => writes++);
-    useVila.getState().setPlace(shop);
-    useVila.getState().setPlace(shop);
-    useVila.getState().setPlace(null);
-    useVila.getState().setPlace(null);
-    stop();
-    expect(writes).toBe(2);
+  it.each(PANELS)("$state.kind: holds the walk while it is open, like every panel", ({ state }) => {
+    expect(walkRoute({ panel: { kind: "none" } })).toBe(sim.route);
+    expect(walkRoute({ panel: state })).toBeNull();
   });
 });
 

@@ -17,7 +17,6 @@ import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
-import { VillageAction } from "./ui/VillageAction";
 import { Wordmark } from "./ui/Wordmark";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -51,7 +50,6 @@ export function App() {
       {/* The visitor lands in the village: no panel opens by itself (PROPOSTA, IMPL-0022). */}
       <Hud />
       <ModerationFlag />
-      <VillageAction />
       <GameMenu />
       {panel.kind === "donation" && <Donation />}
       {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} unlisted={Object.keys(lots).length > 0 && !lots[panel.lotId]} onChanged={loadLots} />}

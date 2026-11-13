@@ -10,7 +10,7 @@ import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigatio
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim, walkRoute } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
-import { type Nearby, type Place, useVila } from "../game/store";
+import { type Nearby, useVila } from "../game/store";
 import { attachZoomGestures } from "../lib/zoom-gestures";
 import {
   BILLBOARDS,
@@ -48,13 +48,13 @@ const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", int
 const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
 const NEAR_PANEL: Nearby = { kind: "donation-panel" };
 /**
- * Places of the expanded village (IMPL-0023): where each one is used from, and the object handed to the store
+ * Places of the expanded village (IMPL-0023): where each one is used from, and the target handed to the store
  * while the avatar stands there. Built once, like the targets above.
  */
-const PLACES: Array<{ x: number; z: number; place: NonNullable<Place> }> = [
-  ...SHOPS.map((s) => ({ ...s.door, place: { kind: "shop" as const, id: s.id } })),
-  ...BILLBOARDS.map((b) => ({ ...b.point, place: { kind: "billboard" as const, id: b.id } })),
-  ...RESIDENTIAL_PLOTS.map((p) => ({ ...p.front, place: { kind: "plot" as const, id: p.id } })),
+const PLACES: Array<{ x: number; z: number; near: NonNullable<Nearby> }> = [
+  ...SHOPS.map((s) => ({ x: s.door.x, z: s.door.z, near: { kind: "shop" as const, shopId: s.id } })),
+  ...BILLBOARDS.map((b) => ({ x: b.point.x, z: b.point.z, near: { kind: "billboard" as const, billboardId: b.id } })),
+  ...RESIDENTIAL_PLOTS.map((p) => ({ x: p.front.x, z: p.front.z, near: { kind: "plot" as const, plotId: p.id } })),
 ];
 const NEAR_TREE: Nearby = { kind: "tree" };
 /** Smallest centre distance wins; targets within 0.5 of each other fall back to the priority order. */
@@ -243,7 +243,8 @@ export function Player({ lots }: { lots: Collider[] }) {
       blobMaterial.uniforms.uOpacity.value = (shadows ? 0.2 : 0.34) * (1 - lift * 2);
     }
 
-    // ---- closest interaction: NPC, quest interaction, donation lectern, tree, then lot (see `beats`).
+    // ---- closest interaction: NPC, quest interaction, donation lectern, tree, then lot (see `beats`); a shop,
+    // a billboard or a residential plot only when none of those is in reach. One target, one action button.
     let best: Nearby = null;
     let bestDist = 0;
     let bestPrio = 0;
@@ -287,17 +288,15 @@ export function Player({ lots }: { lots: Collider[] }) {
       if (dist < lotDist) (lot = i), (lotDist = dist);
     }
     if (lot >= 0 && beats(lotDist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[lot];
-    s.setNearby(best);
     // Shops, billboards and residential plots (IMPL-0023): only when nothing above is in reach.
-    let place: Place = null;
     if (!best) {
       let placeDist = PLACE_INTERACT_DISTANCE;
       for (let i = 0; i < PLACES.length; i++) {
         const dist = Math.hypot(PLACES[i].x - pose.x, PLACES[i].z - pose.z);
-        if (dist < placeDist) (place = PLACES[i].place), (placeDist = dist);
+        if (dist < placeDist) (best = PLACES[i].near), (placeDist = dist);
       }
     }
-    s.setPlace(place);
+    s.setNearby(best);
 
     // ---- outline: shown while a building stands between the avatar and the camera (checked when the avatar moved).
     const h = hidden.current;

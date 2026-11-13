@@ -29,21 +29,44 @@ export type Panel =
  */
 export type MenuView = "root" | "settings" | "controls" | "help" | "leave";
 
-/** Closest interactive target near the avatar (drives the action button). */
+/**
+ * Closest interactive target near the avatar: it drives the one contextual action of the HUD (`ui/Hud.tsx`).
+ * The last three are the places of the expanded village (IMPL-0023, PROPOSTA): a residential plot, a shop door
+ * and a billboard, offered only when nothing else is in reach (`scene/Player.tsx`).
+ */
 export type Nearby =
   | { kind: "tree" }
   | { kind: "lot"; lotId: string }
   | { kind: "npc"; npcId: NpcId }
   | { kind: "quest"; interactionId: string }
   | { kind: "donation-panel" }
+  | { kind: "plot"; plotId: string }
+  | { kind: "shop"; shopId: string }
+  | { kind: "billboard"; billboardId: string }
   | null;
 
-/**
- * Closest place of the expanded village near the avatar (IMPL-0023): a residential plot, a shop door or a
- * billboard. Kept apart from `Nearby`: it has its own action button (`ui/VillageAction.tsx`), and at most one
- * of the two is set at a time.
- */
-export type Place = { kind: "plot" | "shop" | "billboard"; id: string } | null;
+/** Two targets are the same thing: same kind and, where a kind has many, same id. Allocates nothing. */
+export function sameNearby(a: Nearby, b: Nearby): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  switch (a.kind) {
+    case "lot":
+      return b.kind === "lot" && a.lotId === b.lotId;
+    case "npc":
+      return b.kind === "npc" && a.npcId === b.npcId;
+    case "quest":
+      return b.kind === "quest" && a.interactionId === b.interactionId;
+    case "plot":
+      return b.kind === "plot" && a.plotId === b.plotId;
+    case "shop":
+      return b.kind === "shop" && a.shopId === b.shopId;
+    case "billboard":
+      return b.kind === "billboard" && a.billboardId === b.billboardId;
+    case "tree":
+    case "donation-panel":
+      return a.kind === b.kind;
+  }
+}
 
 // v2: mission ids were renamed to English in 0.2.0; v1 progress is discarded. This key holds GUEST progress
 // only: a signed-in account's progress lives on the server (and in memory), so on a shared browser the next
@@ -156,10 +179,8 @@ interface VilaState {
   setSkyView: (on: boolean) => void;
   open: (panel: Panel) => void;
   close: () => void;
+  /** Called every frame: only a change of target is stored (`sameNearby`). */
   setNearby: (n: Nearby) => void;
-  place: Place;
-  /** Called every frame with a prebuilt object per place: only a change of identity is stored. */
-  setPlace: (p: Place) => void;
   /**
    * Walks to a point (null stops). The stored target is the resolved destination: the nearest walkable
    * spot when the request lands on an obstacle or outside the world, so the marker shows where the avatar
@@ -235,18 +256,7 @@ export const useVila = create<VilaState>((set, get) => ({
   open: (panel) => set({ panel, menu: null }),
   close: () => set({ panel: { kind: "none" } }),
   setNearby: (nearby) => {
-    const cur = get().nearby;
-    if (cur && nearby && cur.kind === nearby.kind) {
-      if (cur.kind === "lot" && nearby.kind === "lot" && cur.lotId === nearby.lotId) return;
-      if (cur.kind === "npc" && nearby.kind === "npc" && cur.npcId === nearby.npcId) return;
-      if (cur.kind === "quest" && nearby.kind === "quest" && cur.interactionId === nearby.interactionId) return;
-      if (cur.kind !== "lot" && cur.kind !== "npc" && cur.kind !== "quest") return;
-    } else if (cur === nearby) return;
-    set({ nearby });
-  },
-  place: null,
-  setPlace: (place) => {
-    if (get().place !== place) set({ place });
+    if (!sameNearby(get().nearby, nearby)) set({ nearby });
   },
   setTarget: (target) => {
     if (target) {
