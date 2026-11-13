@@ -7,11 +7,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { billboardNotice, BILLBOARDS, PLOT_TIERS, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
 
 import { sim, walkRoute } from "../game/sim";
 import { useVila } from "../game/store";
 import { pressEscape } from "../lib/escape";
+import type { LotInfo } from "../lib/api";
+import { Explore } from "./Explore";
 import { Lot } from "./Lot";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./Village";
 
@@ -115,5 +117,31 @@ describe("lot the API does not list yet", () => {
     expect(html).toContain("Este terreno ainda não recebe candidaturas.");
     expect(html).not.toContain("Candidatar minha ONG");
     expect(html).not.toContain("Conheça o cadastro");
+  });
+});
+
+describe("Explorar ONGs with the 12 lots of the frontage", () => {
+  /** One row per lot: its name and its state, as shown. */
+  const rows = (lots: Record<string, LotInfo>) =>
+    [...renderToStaticMarkup(<Explore lots={lots} />).matchAll(/<li><span><strong>(.*?)<\/strong><small>(.*?)<\/small><\/span><button class="btn btn--small">Ir até lá<\/button><\/li>/g)].map((m) => [m[1], m[2]]);
+  const info = (id: string, state: LotInfo["state"], ngo_name: string | null = null) => ({ id, state, ngo_name }) as LotInfo;
+
+  it("lists every lot once, each with its way there", () => {
+    expect(LOTS).toHaveLength(12);
+    const all = Object.fromEntries(LOTS.map((l) => [l.id, info(l.id, "available")]));
+    expect(rows(all)).toEqual(LOTS.map((l) => [`Terreno ${l.slot}`, "Terreno disponível"]));
+    expect(new Set(LOTS.map((l) => l.slot)).size).toBe(12);
+  });
+
+  it("names a published house and counts it", () => {
+    const all = Object.fromEntries(LOTS.map((l) => [l.id, info(l.id, "available")]));
+    all["plaza-12"] = info("plaza-12", "published", "Associação Exemplo");
+    expect(rows(all).at(-1)).toEqual(["Associação Exemplo", "Casa publicada"]);
+    expect(renderToStaticMarkup(<Explore lots={all} />)).toContain("1 casa publicada na praça.");
+  });
+
+  it("does not call a lot available when the API does not list it (a database before migration 0011)", () => {
+    const eight = Object.fromEntries(LOTS.slice(0, 8).map((l) => [l.id, info(l.id, "available")]));
+    expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill("Ainda não recebe candidaturas")]);
   });
 });

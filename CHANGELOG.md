@@ -44,7 +44,8 @@ Cada versão indica o schema D1 que entrega.
   ficam agora a cerca de 31 u da árvore (eram 22 u).
 - Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
-  não lista (banco antes da 0011) não oferece candidatura.
+  não lista (banco antes da 0011) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
+  recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
 - Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores; a cena no spawn foi de 70
   chamadas e ~122 mil triângulos para 124 e ~217 mil (preset Média). A grade de navegação cobre o mundo novo com a
   mesma célula de 0,25 u; a pior rota medida leva 4,8 ms para planejar.
