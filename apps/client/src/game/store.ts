@@ -163,10 +163,17 @@ interface VilaState {
   restoreGuest: () => void;
   /** Guest progress was migrated to an account: this browser keeps none of it. */
   clearGuest: () => void;
+  /** Shows a passing notice (`toast`) for `TOAST_MS`; a newer one replaces it. */
   notify: (text: string) => void;
 }
 
 let toastSeq = 0;
+
+/**
+ * How long a passing notice (`toast`) stays. The store removes it: its fade (`styles.css`, the same time) is
+ * only how it looks, and under `prefers-reduced-motion` there is no fade at all.
+ */
+export const TOAST_MS = 3_600;
 
 const initialProgress = loadProgress();
 
@@ -259,7 +266,13 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ progress: p, progressOwner: null, look: sanitizeLook(get().look, p) });
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
-  notify: (text) => set({ toast: { id: ++toastSeq, text } }),
+  notify: (text) => {
+    const toast = { id: ++toastSeq, text };
+    set({ toast });
+    setTimeout(() => {
+      if (get().toast === toast) set({ toast: null });
+    }, TOAST_MS);
+  },
 }));
 
 const missionDoneMessage = (m: Mission) => `Missão concluída: ${m.title} · +${m.xp} XP`;

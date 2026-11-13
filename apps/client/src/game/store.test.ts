@@ -4,6 +4,8 @@
  * own that a panel replaces. Runs in Node with a stubbed `localStorage`; the store is re-imported per test
  * because it reads the browser's storage once per page load.
  */
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let storage: Map<string, string>;
@@ -11,9 +13,9 @@ let storage: Map<string, string>;
 /** A fresh page load in the same browser (the storage is kept). */
 async function load() {
   vi.resetModules();
-  const { useVila, MOVE_HINT_MS, ZOOM_MAX, ZOOM_MIN } = await import("./store");
+  const { useVila, MOVE_HINT_MS, TOAST_MS, ZOOM_MAX, ZOOM_MIN } = await import("./store");
   const { sim } = await import("./sim");
-  return { useVila, sim, MOVE_HINT_MS, ZOOM_MAX, ZOOM_MIN };
+  return { useVila, sim, MOVE_HINT_MS, TOAST_MS, ZOOM_MAX, ZOOM_MIN };
 }
 
 beforeEach(() => {
@@ -141,6 +143,46 @@ describe("the line that says how to walk", () => {
     expect(useVila.getState().moveHint).toBe(true);
     useVila.getState().setTarget({ x: -8, z: 0 });
     expect(useVila.getState().moveHint).toBe(false);
+  });
+});
+
+describe("a passing notice (toast)", () => {
+  const css = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+
+  it("leaves the screen after its time by the store's clock, not by an animation", async () => {
+    vi.useFakeTimers();
+    const { useVila, TOAST_MS } = await load();
+    useVila.getState().notify("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
+    expect(useVila.getState().toast?.text).toBe("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
+    vi.advanceTimersByTime(TOAST_MS - 1);
+    expect(useVila.getState().toast).not.toBeNull();
+    vi.advanceTimersByTime(1);
+    expect(useVila.getState().toast).toBeNull();
+  });
+
+  it("is not cut short by the time of the notice it replaced", async () => {
+    vi.useFakeTimers();
+    const { useVila, TOAST_MS } = await load();
+    useVila.getState().notify("first");
+    vi.advanceTimersByTime(TOAST_MS - 500);
+    useVila.getState().notify("second");
+    vi.advanceTimersByTime(500); // the time of the first one is up
+    expect(useVila.getState().toast?.text).toBe("second");
+    vi.advanceTimersByTime(TOAST_MS - 500);
+    expect(useVila.getState().toast).toBeNull();
+  });
+
+  it("fades for exactly the time the store keeps it", async () => {
+    const { TOAST_MS } = await load();
+    expect(/\.toast \{[^}]*animation: toast ([\d.]+)s /.exec(css)?.[1]).toBe(String(TOAST_MS / 1000));
+  });
+
+  it("is drawn without the animation under reduced motion, instead of ending at once on its invisible last frame", () => {
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}/s.exec(css)?.[1] ?? "";
+    // The rule that shortens every animation would take the toast straight to `opacity: 0`.
+    expect(reduced).toMatch(/animation-duration: 0\.01ms !important/);
+    expect(reduced).toMatch(/\.toast \{ animation: none; \}/);
+    expect(css).toMatch(/@keyframes toast \{[^@]*100% \{ opacity: 0; \}/);
   });
 });
 
