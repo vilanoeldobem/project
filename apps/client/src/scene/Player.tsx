@@ -46,8 +46,13 @@ const GIFT_RADIUS = 1.4;
  * Never shown in the open, and not when only the feet are behind something.
  */
 const SEE_THROUGH = new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthTest: false, depthWrite: false, fog: false });
-/** The avatar or the camera moved this far (u) since the last look: look again. */
+/** The avatar moved this far (u) since the last look: look again. */
 const LOOK_AGAIN = 0.2;
+/**
+ * …or the camera moved at all (it eases to its place for a second after the avatar stops, and the answer must
+ * be the one for where it comes to rest). One look is a couple of microseconds.
+ */
+const CAMERA_MOVED = 0.01;
 
 const blobVertex = /* glsl */ `
 varying vec2 vUv;
@@ -247,10 +252,10 @@ export function Player({ published }: { published: string }) {
     s.setNearby(near.current);
 
     // ---- see-through tint: shown while the camera cannot see the avatar's chest or head. Looked at again only
-    // when the avatar or the camera has moved.
+    // when the avatar or the camera has moved: never while both are at rest.
     const h = hidden.current;
     const eye = camera.position;
-    if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > LOOK_AGAIN || Math.abs(eye.x - h.cx) + Math.abs(eye.y - h.cy) + Math.abs(eye.z - h.cz) > LOOK_AGAIN) {
+    if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > LOOK_AGAIN || Math.abs(eye.x - h.cx) + Math.abs(eye.y - h.cy) + Math.abs(eye.z - h.cz) > CAMERA_MOVED) {
       h.x = pose.x;
       h.z = pose.z;
       h.cx = eye.x;

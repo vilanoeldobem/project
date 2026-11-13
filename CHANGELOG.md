@@ -80,8 +80,8 @@ Cada versão indica o schema D1 que entrega.
   o avatar anda até o ponto de uso e o marcador do toque fica lá; um toque num telhado que cobre a rua anda até o
   ponto da rua.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
-  não lista (banco antes da 0012) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
-  recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
+  não lista (banco antes da 0012) não oferece candidatura e aparece como "Terreno em preparação" (os 12 terrenos
+  aparecem na lista "Explorar ONGs", cada um com "Ir até lá").
 - Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores. Os blocos residenciais e os
   setores da floresta só entram na passada de sombra enquanto a sombra de alguma peça deles aparece na tela, e as
   janelas e lanternas dos blocos são duas malhas para a Vila inteira; a imagem não muda. A cena no spawn foi de 70

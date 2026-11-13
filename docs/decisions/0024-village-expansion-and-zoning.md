@@ -481,7 +481,8 @@ compridas).
     têm um andar e cumeeira paralela à rua, e **o avatar é desenhado uma segunda vez, nas próprias cores e meio
     transparente, por cima de tudo, enquanto a câmera não vê o peito ou a cabeça dele** (`scene/occlusion.ts`,
     pura e testada: uma reta da câmera a cada um dos dois pontos, contra o mapa de colunas dos chalés, das lojas,
-    da árvore e dos pinheiros, refeita só quando o avatar ou a câmera andou 0,2 u). Ainda assim, nas ruas do lado
+    da árvore e dos pinheiros, refeita só quando o avatar andou 0,2 u ou a câmera se mexeu; nunca com os dois
+    parados). Ainda assim, nas ruas do lado
     sul parte do caminho é vista só assim. Chalés de ONG de dois andares (gerador existente) escondem mais.
     A primeira versão usava a pegada de uma construção até 6 u ao sul do avatar e um contorno vermelho chapado:
     nos 1 440 pontos de rua medidos na revisão com raios na cena real, ela concordava com os raios em 1 230

@@ -247,8 +247,8 @@ uma migration nova. Decisão, números e o que fica para depois em
 - **Avatar visto através das construções:** a câmera olha do sul, de cima; enquanto ela não vê o peito ou a cabeça
   do avatar, ele é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é
   uma reta de verdade (`scene/occlusion.ts`: da câmera aos dois pontos, contra o mapa de colunas dos chalés, das
-  lojas, da árvore e dos pinheiros de `scene/sceneColliders.ts`), refeito só quando o avatar ou a câmera andou
-  0,2 u. Só o próprio avatar: os outros visitantes não têm esse desenho. "Olhar o céu" usa as mesmas colunas para
+  lojas, da árvore e dos pinheiros de `scene/sceneColliders.ts`), refeito só quando o avatar andou 0,2 u ou a
+  câmera se mexeu (nunca com os dois parados). Só o próprio avatar: os outros visitantes não têm esse desenho. "Olhar o céu" usa as mesmas colunas para
   subir a câmera por cima dos telhados onde uma construção ficaria na vista.
 - **Rótulos 3D e o HUD** (`Label` em `scene/Props.tsx`, `lib/hud-chrome.ts`): um rótulo só existe na página com o
   objeto a até 28 u do avatar, e fica escondido enquanto cairia sobre um botão, a linha de como andar ou um aviso
