@@ -363,7 +363,7 @@ await playMemory(page);
 await openNpc(page, "Seu Nivaldo");
 await dialogButton(page, /Concluir missão \(\+30 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
-// Walk to the front of the published lot: 5.2 u from its centre, outside the chalet's porch (the house
+// Walk to the front of the published lot: 5.3 u from its centre (`LOT_FRONT`), outside the chalet's porch (the house
 // blocks the avatar up to 4.5 u in front, IMPL-0016) and inside the lot's reach (6 u). The route planner
 // goes around whatever stands in between, so no detour along the street is needed any more.
 // Lots stand on the square's frontage (IMPL-0024): 30.5 u from the tree along the axis of their side and 5 u
@@ -372,7 +372,7 @@ const lotIndex = Number(publishedLot.split("-")[1]) - 1;
 const side = lotIndex < 8 ? lotIndex : 2 * (lotIndex - 8) + 1;
 const half = lotIndex < 8 ? 1 : -1;
 const angle = (side * Math.PI) / 4;
-await walkTo(page, 25.3 * Math.cos(angle) - half * 5 * Math.sin(angle), 25.3 * Math.sin(angle) + half * 5 * Math.cos(angle));
+await walkTo(page, 25.2 * Math.cos(angle) - half * 5 * Math.sin(angle), 25.2 * Math.sin(angle) + half * 5 * Math.cos(angle));
 await page.getByRole("button", { name: /Ver terreno/ }).click();
 await page.getByRole("dialog").getByText("Destinatário: esta ONG").waitFor({ timeout: 10000 });
 await page.waitForFunction((lot) => window.__vila.progress().seen[`newest-house-visit:${lot}`], publishedLot, { timeout: 15000 }).catch(() => fail("newest-house-visit: lot visit not recorded"));

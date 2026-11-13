@@ -61,8 +61,29 @@ export const PLACE_INTERACT_DISTANCE = 3.2;
 // ring street, festive band), the square's frontage (plots reserved for approved NGOs, DEC-028, and the
 // Christmas shops) and three residential rings, one per tier.
 //
-// Everything below is derived from `VILLAGE_PLAN`: change a count or a size there and the positions, the
-// streets, the world radius, the seed checked by the tests and the scene all follow.
+// What follows the plan, and what does not:
+//
+// - `layoutVillage(plan)` derives the rings, the lots, the shops and billboards, the residential plots, the
+//   street graph and the world radius. The belt of tall pines, the street lamps, the lane lanterns, the wood
+//   yard, the dressing of the rows, the ground and the navigation grid follow the plan in force (`VILLAGE`).
+// - The scenery of the square is placed by hand for the plan in force: 8 avenues, a square of 26 u, a shop
+//   every two sides. The plaza lamps and benches, the three small pines, the market, the sleigh, the pond,
+//   the snowmen, the critters, the quest NPCs, the quest items and the gifts do not move with the plan.
+//
+// So the knobs are of two kinds:
+//
+// - safe to turn (nothing by hand is in their way; the tests of the layout and of the walk check the result):
+//   a tier's `perHalf`, `width`, `depth` and `house`, `streetWidth`, `backYard` and `edge`;
+// - turn only with the scenery of the square reviewed: `sides` (`assertPlan` refuses any other number: an
+//   avenue would run over what stands in the square), `plazaRadius`, `ringStreet`, `squareApothem`,
+//   `avenueWidth`, `laneWidth`, `frontage` and `shopEvery`.
+//
+// Ids are positional (`plaza-NN`, `shop-NN`, `<tier>-NN`: the n-th place counted around the village), so
+// they are stable only for an unchanged plan: another `shopEvery`, `frontage.perHalf` or tier `perHalf`
+// renumbers or moves lots and plots, including the ones stored in D1 (`lots.id`, `ngos.requested_lot_id`,
+// `progress_events`, quest objectives, `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`).
+// Once migration 0012 is applied to a database, changing the plan needs a new migration that moves or
+// renames those rows; `village.test.ts` pins the ids to their places and says so when it fails.
 // ---------------------------------------------------------------------------------------------------------
 
 /** Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-17). */
@@ -92,7 +113,7 @@ export interface TierPlan {
   /** pt-BR name shown on the plot panel. */
   label: string;
   requirement: TierRequirement;
-  /** Plots on each half of a side (two half rows per side, one on each side of the lane). */
+  /** Plots on each half of a side (two half rows per side, one on each side of the lane). 0 = no ring, no street. */
   perHalf: number;
   /** Plot width along the street and depth away from it (multiples of 0.5 u). */
   width: number;
@@ -115,7 +136,7 @@ export interface VillagePlan {
   backYard: number;
   /** The square's frontage: `perHalf` plots of `width` × `depth` on each half of a side. */
   frontage: { perHalf: number; width: number; depth: number };
-  /** Every `shopEvery`-th side gives the first plot of its frontage to a shop (0 = no shops). */
+  /** Every `shopEvery`-th side gives the first plot of its frontage to a shop (0 = no shops). Moves lot ids. */
   shopEvery: number;
   /** Walkable ground beyond the outermost corner. */
   edge: number;
@@ -281,7 +302,54 @@ export const SHOP_SIGN_HEIGHT = 8;
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
 const upToHalf = (v: number) => Math.ceil(v * 2 - 1e-9) / 2;
-const pad2 = (n: number) => String(n).padStart(2, "0");
+/**
+ * The number part of an id: two digits, or as many as the largest of `count` needs, so every id of a kind has
+ * the same width (`economy-064`…`economy-112` in a plan with 112 plots; today's ids are unchanged).
+ */
+const numbered = (n: number, count: number) => String(n).padStart(Math.max(2, String(count).length), "0");
+
+/** How many avenues the hand-placed scenery of the square is laid out for (see the note above `VILLAGE_PLAN`). */
+export const SCENERY_SIDES = 8;
+
+/**
+ * Refuses a plan the layout cannot draw, with a message that names the field, instead of a village full of
+ * `NaN`. It checks the shape of the numbers, not the taste of the plan: whether a valid plan still has every
+ * place reachable is what the tests of the plan in force check.
+ */
+export function assertPlan(plan: VillagePlan): void {
+  const fail = (what: string): never => {
+    throw new RangeError(`village plan: ${what}`);
+  };
+  const positive = (name: string, v: number) => void ((Number.isFinite(v) && v > 0) || fail(`${name} must be a positive number, got ${v}`));
+  const atLeastZero = (name: string, v: number) => void ((Number.isFinite(v) && v >= 0) || fail(`${name} must be zero or more, got ${v}`));
+  const count = (name: string, v: number) => void ((Number.isInteger(v) && v >= 0) || fail(`${name} must be a whole number, zero or more, got ${v}`));
+  if (!Number.isInteger(plan.sides)) fail(`sides must be a whole number, got ${plan.sides}`);
+  if (plan.sides !== SCENERY_SIDES) fail(`sides must be ${SCENERY_SIDES}, got ${plan.sides}: the scenery of the square (lamps, pines, market, sleigh, NPCs, quest items) is placed by hand for ${SCENERY_SIDES} avenues, review it first`);
+  positive("plazaRadius", plan.plazaRadius);
+  positive("ringStreet[0]", plan.ringStreet[0]);
+  if (!(plan.ringStreet[0] >= plan.plazaRadius && plan.ringStreet[1] > plan.ringStreet[0])) fail(`ringStreet must lie outside the plaza, inner edge first, got [${plan.ringStreet.join(", ")}]`);
+  if (!(Number.isFinite(plan.squareApothem) && plan.squareApothem > plan.ringStreet[1])) fail(`squareApothem must be beyond the round street (${plan.ringStreet[1]}), got ${plan.squareApothem}`);
+  positive("avenueWidth", plan.avenueWidth);
+  positive("streetWidth", plan.streetWidth);
+  positive("laneWidth", plan.laneWidth);
+  atLeastZero("backYard", plan.backYard);
+  atLeastZero("edge", plan.edge);
+  count("frontage.perHalf", plan.frontage.perHalf);
+  count("shopEvery", plan.shopEvery);
+  // A lot or a shop is a 7 × 7 pad with room for a porch 1 u in front of it.
+  if (!(Number.isFinite(plan.frontage.width) && plan.frontage.width >= 7)) fail(`frontage.width must be at least 7 (the pad of a lot), got ${plan.frontage.width}`);
+  if (!(Number.isFinite(plan.frontage.depth) && plan.frontage.depth >= 8)) fail(`frontage.depth must be at least 8 (the pad of a lot and its porch), got ${plan.frontage.depth}`);
+  for (const tier of PLOT_TIERS) {
+    const t = plan.tiers[tier];
+    count(`tiers.${tier}.perHalf`, t.perHalf);
+    positive(`tiers.${tier}.width`, t.width);
+    positive(`tiers.${tier}.depth`, t.depth);
+    count(`tiers.${tier}.house.halfWidth`, t.house.halfWidth);
+    count(`tiers.${tier}.house.halfDepth`, t.house.halfDepth);
+    if (!(Number.isFinite(t.house.offset) && Number.isFinite(t.house.porch))) fail(`tiers.${tier}.house needs a number for offset and porch`);
+    if (!(Number.isInteger(t.requirement.level) && t.requirement.level >= 1)) fail(`tiers.${tier}.requirement.level must be a whole number from 1, got ${t.requirement.level}`);
+  }
+}
 
 /** Frame of side `s`: outward axis `n`, tangent `t` (counter-clockwise) and the rotation that faces the tree. */
 export function sideFrame(plan: VillagePlan, s: number) {
@@ -298,6 +366,7 @@ const avenueCut = (plan: VillagePlan) => plan.avenueWidth / (2 * Math.cos(Math.P
  * row length allow), lots, shops, billboards, residential plots and the street graph. Pure and deterministic.
  */
 export function layoutVillage(plan: VillagePlan): VillageLayout {
+  assertPlan(plan);
   const tan = Math.tan(Math.PI / plan.sides), cos = Math.cos(Math.PI / plan.sides);
   const cut = avenueCut(plan);
   /** Smallest apothem at which a half row of `reach` fits between the lane and the avenue. */
@@ -313,6 +382,8 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
   rings.push({ zone: "frontage", front, back: front + plan.frontage.depth, street: null, reach: frontageReach });
   for (const tier of PLOT_TIERS) {
     const t = plan.tiers[tier];
+    // A tier without plots takes no room: no ring and no street.
+    if (t.perHalf === 0) continue;
     const reach = plan.laneWidth / 2 + t.perHalf * t.width;
     const behind = rings[rings.length - 1].back + plan.backYard;
     front = Math.max(behind + plan.streetWidth, fits(reach));
@@ -323,24 +394,26 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
 
   // Frontage: lots for NGOs (DEC-028) and the shops. The plot at the porch line holds a 7 × 7 pad whose
   // chalet may add a porch 1 u towards the square, so the pad's centre is 4.5 u behind the line.
+  // Ids are positional: the n-th lot (or shop) in the order below. See the note above `VILLAGE_PLAN`.
   const frontage = rings[0];
   const lots: LotDef[] = [];
   const shops: ShopDef[] = [];
   const billboards: BillboardDef[] = [];
-  const slots: Array<{ s: number; half: -1 | 1; i: number }> = [];
+  const slots: Array<{ s: number; half: -1 | 1; i: number; shop: boolean }> = [];
   // The counter-clockwise halves first: the eight lots that already existed keep their ids there.
   for (const half of [1, -1] as const)
-    for (let i = 0; i < plan.frontage.perHalf; i++) for (let s = 0; s < plan.sides; s++) slots.push({ s, half, i });
-  for (const { s, half, i } of slots) {
+    for (let i = 0; i < plan.frontage.perHalf; i++)
+      for (let s = 0; s < plan.sides; s++) slots.push({ s, half, i, shop: plan.shopEvery > 0 && s % plan.shopEvery === 0 && half === -1 && i === 0 });
+  const shopCount = slots.filter((slot) => slot.shop).length, lotCount = slots.length - shopCount;
+  for (const { s, half, i, shop: isShop } of slots) {
     const f = sideFrame(plan, s);
     const along = half * (plan.laneWidth / 2 + (i + 0.5) * plan.frontage.width);
     const centre = at(s, frontage.front + 4.5, along);
-    const isShop = plan.shopEvery > 0 && s % plan.shopEvery === 0 && half === -1 && i === 0;
     if (!isShop) {
-      lots.push({ id: `plaza-${pad2(lots.length + 1)}`, slot: lots.length + 1, ...centre, facing: f.facing });
+      lots.push({ id: `plaza-${numbered(lots.length + 1, lotCount)}`, slot: lots.length + 1, ...centre, facing: f.facing });
       continue;
     }
-    const id = `shop-${pad2(shops.length + 1)}`;
+    const id = `shop-${numbered(shops.length + 1, shopCount)}`;
     shops.push({
       id,
       ...centre,
@@ -348,14 +421,17 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
       door: at(s, frontage.front - 0.5, along),
       keeper: { ...at(s, frontage.front - 0.2, along - 2.2), rot: f.facing },
     });
-    billboards.push({ id: `billboard-${pad2(billboards.length + 1)}`, shopId: id, x: centre.x, y: SHOP_SIGN_HEIGHT, z: centre.z, point: at(s, frontage.front - 0.5, along - 3.4) });
+    billboards.push({ id: `billboard-${numbered(billboards.length + 1, shopCount)}`, shopId: id, x: centre.x, y: SHOP_SIGN_HEIGHT, z: centre.z, point: at(s, frontage.front - 0.5, along - 3.4) });
   }
 
   // Residential rows: packed from the lane outwards, so what is left over is a verge beside the avenue.
+  // Ids are positional here too: the n-th plot of the tier, counter-clockwise from the east side.
   const rows: RowDef[] = [];
   for (const tier of PLOT_TIERS) {
     const t = plan.tiers[tier];
-    const ring = rings.find((r) => r.zone === tier)!;
+    const ring = rings.find((r) => r.zone === tier);
+    if (!ring) continue;
+    const plotCount = 2 * plan.sides * t.perHalf;
     let slot = 0;
     for (let s = 0; s < plan.sides; s++) {
       const f = sideFrame(plan, s);
@@ -368,7 +444,7 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
           const middle = ring.front + t.depth / 2;
           slot++;
           plots.push({
-            id: `${tier}-${pad2(slot)}`,
+            id: `${tier}-${numbered(slot, plotCount)}`,
             tier,
             slot,
             ...at(s, middle, along),
@@ -396,6 +472,7 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
   const ringRadius = (plan.ringStreet[0] + plan.ringStreet[1]) / 2;
   const streets = rings.filter((r) => r.street).map((r) => (r.street![0] + r.street![1]) / 2);
   const polar = (radius: number, angle: number) => ({ x: round2(radius * Math.cos(angle)), z: round2(radius * Math.sin(angle)) });
+  const pad2 = (n: number) => numbered(n, plan.sides);
   for (let s = 0; s < plan.sides; s++) {
     // Avenue `s` leaves the square between side `s` and side `s + 1`.
     const avenue = ((2 * s + 1) * Math.PI) / plan.sides;
@@ -407,7 +484,8 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
     });
     link(prev, node(`avenue-${pad2(s + 1)}-end`, polar(worldRadius - 1, avenue)), "avenue", plan.avenueWidth);
     // Lane of side `s`: from the edge of the square, between the two plots of the frontage, across every street
-    // and out past the last ring.
+    // and out past the last ring. With no residential ring it meets no street, so it stays out of the graph.
+    if (streets.length === 0) continue;
     let lane = node(`lane-${pad2(s + 1)}-square`, at(s, frontage.front - 2, 0));
     streets.forEach((apothem, k) => {
       const here = node(`lane-${pad2(s + 1)}-street-${k + 1}`, at(s, apothem, 0));
@@ -449,8 +527,14 @@ export const RESIDENTIAL_PLOTS: ResidentialPlot[] = VILLAGE.plots;
 export const RESIDENTIAL_ROWS: RowDef[] = VILLAGE.rows;
 export const PATH_GRAPH: PathGraph = VILLAGE.graph;
 
+/**
+ * How far in front of a lot's centre its "Ir até lá" point is. A porch ends 4.5 u from the centre and a planned
+ * route keeps the avatar's body (0.45 u) 0.25 u clear of it: 5.2 u is exactly that boundary, where rounding
+ * decides whether the point is open ground, so the point stands 0.1 u beyond it.
+ */
+export const LOT_FRONT = 5.3;
 /** Where the avatar stands in front of a lot: the "Ir até lá" point of the Explore panel. */
-export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + 5.2 * Math.sin(lot.facing)), z: round2(lot.z + 5.2 * Math.cos(lot.facing)) });
+export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + LOT_FRONT * Math.sin(lot.facing)), z: round2(lot.z + LOT_FRONT * Math.cos(lot.facing)) });
 
 /**
  * What each shop will offer (PROPOSTA, no catalogue yet): shown on the shop's panel next to "ainda não abriu".
@@ -491,6 +575,11 @@ export const GIFTS = [
  * change even though palms became pines (DEC-042 idempotency).
  */
 const PLAZA_PINES: [number, number][] = [[10, 10], [-10, -10], [-11, 9.5]];
+/**
+ * Rounds to a whole voxel, a half away from zero on both sides (`Math.round` sends 80.5 to 81 and -80.5 to
+ * -80, which left the belt one unit nearer on the west and on the north than on the east and on the south).
+ */
+const roundAway = (v: number) => Math.sign(v) * Math.round(Math.abs(v) + 1e-9);
 const BELT = VILLAGE.rings[VILLAGE.rings.length - 1];
 export const PINES: [number, number][] = [
   ...PLAZA_PINES,
@@ -499,7 +588,7 @@ export const PINES: [number, number][] = [
     const apothem = BELT.back + VILLAGE_PLAN.backYard + 3.5;
     return [-1, 1].map((half): [number, number] => {
       const along = half * Math.min(BELT.reach * 0.55, 9);
-      return [Math.round(apothem * f.nx + along * f.tx), Math.round(apothem * f.nz + along * f.tz)];
+      return [roundAway(apothem * f.nx + along * f.tx), roundAway(apothem * f.nz + along * f.tz)];
     });
   }).flat(),
 ];
@@ -958,18 +1047,23 @@ export function surfaceAt(x: number, z: number): Surface {
 }
 
 /**
- * Sightline rule (IMPL-0024). The tree is the heart of the village, so the main streets are views of it:
+ * Sightline rule (IMPL-0024): what the layout keeps open towards the tree, each rule stated as exactly what
+ * `village.test.ts` checks. "Tall" means the chalets (of lots and of residential plots), the shops and the
+ * pines; lamp posts, lanterns, stalls, the sleigh, fences and hedges are not counted.
  *
- * 1. Every avenue is a straight, open corridor to the tree: nothing taller than `maxHeight` stands within
- *    `margin` of its edges, from its far end to the tree's boughs.
- * 2. Every residential plot fronts a street that reaches an avenue in a straight line: from the street in
- *    front of the plot, the walk along it to the avenue of its half row passes no tall thing, and is at
- *    most `maxWalk` long. So from any plot the tree is at most one corner away.
- * 3. Every lot and shop of the frontage faces the square: nothing tall stands between its porch line and the
- *    round street of the plaza, on the straight line to the tree.
+ * 1. Avenues. Every avenue is a straight corridor to the tree: no tall thing stands within `margin` of its
+ *    edges, from its far end to the tree's boughs. This is the rule that can fail: a pine, a lot or a row
+ *    placed on an avenue's line breaks it.
+ * 2. Plots. The walk along the street from the front of a residential plot to the avenue of its half row is
+ *    at most `maxWalk` long. That stretch holding no tall thing is checked too, but it follows from the
+ *    layout (nothing is ever placed on a street), so only the length says something about a plan.
+ * 3. Frontage. No tall thing stands between the porch line of a lot or a shop and the round street of the
+ *    plaza, on the line towards the tree. It also follows from the layout (the band between them holds only
+ *    low scenery) and guards against a tall thing being placed there later.
  *
- * Tall things are the chalets (of lots and of residential plots), the shops and the pines. Lamp posts,
- * lanterns, stalls, fences and hedges are thin or low and do not count.
+ * The rule does not say the tree is seen from every plot or lot. A plot sees its street, not the tree; and
+ * the straight line from a lot to the tree may cross low scenery of the square (today the sleigh in front of
+ * `plaza-03`, a small pine in front of `plaza-04` and the panettone stall in front of `shop-03`).
  */
 export const SIGHTLINE = { maxHeight: 3, margin: 0.25, maxWalk: 30 } as const;
 
@@ -981,9 +1075,10 @@ export interface Sightline {
   width: number;
 }
 
-/** The avenue corridors (rule 1) and, per plot, lot and shop, the views of rules 2 and 3. */
+/** The avenue corridors (rule 1) and, per plot, lot and shop, the stretches of rules 2 and 3. */
 export function sightlines(village: VillageLayout = VILLAGE): { corridors: Sightline[]; fronts: Sightline[] } {
   const { plan, graph } = village;
+  const pad2 = (n: number) => numbered(n, plan.sides);
   const nodeAt = (id: string) => graph.nodes.find((n) => n.id === id)!;
   const towards = (p: { x: number; z: number }, radius: number) => ({ x: (p.x * radius) / Math.hypot(p.x, p.z), z: (p.z * radius) / Math.hypot(p.x, p.z) });
   const corridors: Sightline[] = [];
