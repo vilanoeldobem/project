@@ -112,7 +112,7 @@ describe("the three panels behave like every other panel", () => {
 });
 
 describe("lot the API does not list yet", () => {
-  it("offers no application on a lot older databases do not have (before migration 0011)", () => {
+  it("offers no application on a lot older databases do not have (before migration 0012)", () => {
     const html = renderToStaticMarkup(<Lot lotId="plaza-12" unlisted />);
     expect(html).toContain("Este terreno ainda não recebe candidaturas.");
     expect(html).not.toContain("Candidatar minha ONG");
@@ -140,7 +140,7 @@ describe("Explorar ONGs with the 12 lots of the frontage", () => {
     expect(renderToStaticMarkup(<Explore lots={all} />)).toContain("1 casa publicada na praça.");
   });
 
-  it("does not call a lot available when the API does not list it (a database before migration 0011)", () => {
+  it("does not call a lot available when the API does not list it (a database before migration 0012)", () => {
     const eight = Object.fromEntries(LOTS.slice(0, 8).map((l) => [l.id, info(l.id, "available")]));
     expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill("Ainda não recebe candidaturas")]);
   });

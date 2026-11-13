@@ -12,7 +12,7 @@ const STATE_LABEL: Record<LotState, string> = {
 
 /**
  * Lots around the square; "Ir até lá" walks the avatar to the front of the lot. A lot the API answered without
- * (a database before migration 0011, which adds the lots of the expanded village, IMPL-0023) is listed as not
+ * (a database before migration 0012, which adds the lots of the expanded village, IMPL-0023) is listed as not
  * taking applications yet, as its own panel says (`Lot`, `unlisted`), instead of as available.
  */
 export function Explore({ lots }: { lots: Record<string, LotInfo> }) {

@@ -124,7 +124,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   applied remotely: add a new file; never edit or renumber.
 - The whole world layout is derived from `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, IMPL-0023): change
   the plan, never scatter positions. Its lots and residential plots must stay in sync with the seed migrations
-  (`0002_seed_lots.sql`, `0011_village_expansion.sql`; tests check the SQL text and the migrated tables), and the
+  (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text and the migrated tables), and the
   layout must keep the rules of `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by
   distance, the sightline rule, every place reachable on foot).
 - Every solid thing drawn in the village has a collider sized from its voxels (IMPL-0016): add or move a prop and
@@ -139,7 +139,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
   `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
   `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.
-- `GET /residential-plots` is an always-on public route over a table production does not have yet (0011): it
+- `GET /residential-plots` is an always-on public route over a table production does not have yet (0012): it
   answers the shared layout, every plot "unavailable", wherever the table is missing, and never who holds a plot.
 - Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.
 

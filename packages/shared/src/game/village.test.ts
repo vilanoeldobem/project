@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import seed from "../../../../migrations/0011_village_expansion.sql?raw";
+import seed from "../../../../migrations/0012_village_expansion.sql?raw";
 
 import { type Collider, distanceTo, footprint } from "./collision";
 import { createBody, MOTION, STEP } from "./motion";
@@ -221,7 +221,7 @@ describe("village plan in force (IMPL-0023, PROPOSTA)", () => {
     expect(standard).toBeGreaterThan(economy);
   });
 
-  it("matches the seed of migration 0011: the moved lots, the new lots and every residential plot", () => {
+  it("matches the seed of migration 0012: the moved lots, the new lots and every residential plot", () => {
     for (const lot of LOTS)
       expect(seed, lot.id).toContain(lot.slot <= 8 ? `UPDATE lots SET x = ${lot.x}, z = ${lot.z} WHERE id = '${lot.id}';` : `('${lot.id}', 'plaza', ${lot.slot}, ${lot.x}, ${lot.z})`);
     expect(seed.match(/UPDATE lots SET/g)).toHaveLength(8);

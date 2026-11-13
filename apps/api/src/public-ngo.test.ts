@@ -137,12 +137,12 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 });
 
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
-// on any schema the code may meet (v3 to v11), whatever the flags and the bucket, and never with a 500. None of them
+// on any schema the code may meet (v3 to v12), whatever the flags and the bucket, and never with a 500. None of them
 // may read a table from a later migration: neither the withdrawal ledger (0009, IMPL-0020), anything 0010 adds
 // (the account block and the moderation tickets, IMPL-0021), nor the donation tables (0011, IMPL-0023) is part of
-// any public read while their flags are off. The residential plots (0011, IMPL-0023) are the one public read of a
+// any public read while their flags are off. The residential plots (0012, IMPL-0023) are the one public read of a
 // newer table, and it answers the shared layout, every plot "unavailable", wherever the table is missing.
-it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   const wrong: string[] = [];
   for (let flags = 0; flags < 512; flags++) for (const published of [true, false]) {
@@ -181,12 +181,12 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on 
       residentialPlots: accounts && Boolean(flags & 128),
       donations: Boolean(flags & 256),
     });
-    // `/lots` keeps its shape and its rows: the eight lots of 0002 everywhere, twelve once 0011 is applied.
-    expect(lots.map((lot) => lot.id)).toEqual(LOTS.slice(0, upTo >= 11 ? LOTS.length : 8).map((lot) => lot.id));
+    // `/lots` keeps its shape and its rows: the eight lots of 0002 everywhere, twelve once 0012 is applied.
+    expect(lots.map((lot) => lot.id)).toEqual(LOTS.slice(0, upTo >= 12 ? LOTS.length : 8).map((lot) => lot.id));
     expect(Object.keys(lots[0]).sort()).toEqual(["id", "ngo_id", "ngo_logo", "ngo_name", "ngo_summary", "slot", "state", "street", "x", "z"]);
     // Residential plots: the same layout on every schema; something to hold only with the table and both flags.
     const plots = await (await get("/residential-plots")).json() as { enabled: boolean; plots: Array<Record<string, unknown>> };
-    const open = upTo >= 11 && accounts && Boolean(flags & 128);
+    const open = upTo >= 12 && accounts && Boolean(flags & 128);
     expect(plots.enabled).toBe(open);
     expect(plots.plots.map((plot) => plot.id)).toEqual(RESIDENTIAL_PLOTS.map((plot) => plot.id));
     expect(new Set(plots.plots.map((plot) => plot.state))).toEqual(new Set([open ? "available" : "unavailable"]));

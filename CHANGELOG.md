@@ -9,7 +9,7 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Added — expansão da Vila (IMPL-0023, **PROPOSTA**; schema D1 v11)
+### Added — expansão da Vila (IMPL-0023, **PROPOSTA**; schema D1 v12)
 
 - **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
   da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
@@ -32,7 +32,7 @@ Cada versão indica o schema D1 que entrega.
   cerca-viva, lenha empilhada), tamanho da casa e postes de rua.
 - API: `GET /residential-plots` (pública; estado de cada terreno, nunca o dono) e `residentialPlots` em
   `GET /config`. Num banco sem a tabela nova a rota responde o layout com tudo "indisponível".
-- Migration `0011_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
+- Migration `0012_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
   `residential_plots` (colunas de posse vazias, sem coluna de preço).
 - Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
   da lareira em cada casa.
@@ -44,7 +44,7 @@ Cada versão indica o schema D1 que entrega.
   ficam agora a cerca de 31 u da árvore (eram 22 u).
 - Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
-  não lista (banco antes da 0011) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
+  não lista (banco antes da 0012) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
   recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
 - Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores. Os blocos residenciais e os
   setores da floresta só entram na passada de sombra enquanto a sombra de alguma peça deles aparece na tela, e as

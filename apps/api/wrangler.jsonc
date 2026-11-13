@@ -51,7 +51,7 @@
     "PRESENCE_MODERATION_ENABLED": "false",
     // Ownership of residential plots (PROPOSTA, IMPL-0023). Off until the product owner answers OQ-17: no
     // recorded decision lets a player hold land (DEC-028 reserves plots for NGOs). Needs ACCOUNTS_ENABLED and
-    // migration 0011; there is no claim route yet, so today it only changes what GET /residential-plots answers.
+    // migration 0012; there is no claim route yet, so today it only changes what GET /residential-plots answers.
     "RESIDENTIAL_PLOTS_ENABLED": "false",
     // Donations and the AbacatePay reconciliation (PROPOSTA, IMPL-0023). Off until the partner contract and the
     // payment rules exist (PEN-004, PEN-006, PEN-026). Needs ACCOUNTS_ENABLED and migration 0011.

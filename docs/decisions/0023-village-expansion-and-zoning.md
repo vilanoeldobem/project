@@ -12,7 +12,7 @@ DEC-028 (terrenos são de ONGs), DEC-042 (missões dão só XP), PEN-008 (patroc
 terrenos); [IMPL-0002](0002-donations-disabled-until-partner-contract.md) (sem fluxo de dinheiro),
 [IMPL-0010](0010-seeded-procedural-voxel-content.md) (conteúdo por semente),
 [IMPL-0016](0016-click-navigation-and-colliders.md) (colisores e navegação); código:
-`packages/shared/src/game/{world,navigation}.ts`, `migrations/0011_village_expansion.sql`,
+`packages/shared/src/game/{world,navigation}.ts`, `migrations/0012_village_expansion.sql`,
 `apps/api/src/residential-plots.ts`, `apps/client/src/scene/{Village,Ground,Player}.tsx`,
 `apps/client/src/scene/{villageModels,groundRuns,shadowCasters}.ts`, `apps/client/src/scene/ShadowCulling.tsx`,
 `apps/client/src/scene/gen/{houses,shops}.ts`,
@@ -119,10 +119,11 @@ nenhum lugar: o teste da migração e o dos painéis conferem isso.
 
 ### 5. Dados e API
 
-- **Migração 0011** (aditiva): move os 8 terrenos que existiam (mesmos ids, mesmo estado, mesma ONG), acrescenta 4
+- **Migração 0012** (aditiva; chamava-se 0011 até a integração com as doações, cuja migration ficou com esse
+  número; nunca tinha sido aplicada em lugar nenhum): move os 8 terrenos que existiam (mesmos ids, mesmo estado, mesma ONG), acrescenta 4
   na tabela `lots`, que continua sendo só de terrenos de ONG, e cria `residential_plots` (id, faixa, posição,
   orientação, `owner_id` e `claimed_at` nulos, que nada grava ainda). Sem coluna de preço.
-- **`GET /lots`** não muda de forma nem de comportamento: 8 linhas num banco antes da 0011, 12 depois.
+- **`GET /lots`** não muda de forma nem de comportamento: 8 linhas num banco antes da 0012, 12 depois.
 - **`GET /residential-plots`** (pública, sempre ligada): id, faixa, posição e estado de cada terreno, **nunca quem
   é o dono**. Com a bandeira desligada, todo terreno responde `"unavailable"`. Num banco sem a tabela (produção
   está na migração 0003) ou sem banco, responde o layout das constantes compartilhadas, tudo `"unavailable"`, nunca
@@ -315,9 +316,9 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
     decorativo saiu de onde passa uma avenida;
   - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6
     mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
-  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0011: antes dela o jogo os desenha e o painel
+  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha e o painel
     diz que ainda não recebem candidaturas.
-- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0011, depois de aplicada
+- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0012, depois de aplicada
   em produção, não se edita: um plano novo é uma migração nova. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
   posse só muda o estado respondido para `"available"`; não ligar antes da resposta à OQ-17.
 

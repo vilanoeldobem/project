@@ -1,8 +1,8 @@
 # Missões da Vila (quests-v1)
 
 > **Status:** Implementado no cliente, na API e no código compartilhado, atrás de flags; conteúdo **PROPOSTA**
-> (DEC-039 a DEC-042; catálogo pendente em PEN-025) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
-> **Atualizado em:** 2026-11-11
+> (DEC-039 a DEC-042; catálogo pendente em PEN-025) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `packages/shared/src/game/quests.ts`, `packages/shared/src/game/progress.ts`,
 > `packages/shared/src/game/world.ts`, `apps/client/src/{game,scene,ui}`, `apps/api/src/progress.ts`;
 > conteúdo em `content/proposals/quests-v1/` (PROPOSTA). Decisão técnica:

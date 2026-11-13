@@ -200,7 +200,7 @@ export interface BillboardDef {
   point: { x: number; z: number };
 }
 
-/** A residential plot (PROPOSTA, OQ-17). Mirrors a `residential_plots` row (migration 0011). */
+/** A residential plot (PROPOSTA, OQ-17). Mirrors a `residential_plots` row (migration 0012). */
 export interface ResidentialPlot {
   id: string;
   tier: PlotTier;
@@ -439,12 +439,12 @@ export const STREET_OUTER = VILLAGE_PLAN.ringStreet[1];
 
 /**
  * Lots reserved for approved NGOs (DEC-028), on the square's frontage. Mirrors the `lots` rows (migrations
- * 0002, 0003 and 0011); a test keeps them in sync. `plaza-01`…`plaza-08` existed before the expansion.
+ * 0002, 0003 and 0012); a test keeps them in sync. `plaza-01`…`plaza-08` existed before the expansion.
  */
 export const LOTS: LotDef[] = VILLAGE.lots;
 export const SHOPS: ShopDef[] = VILLAGE.shops;
 export const BILLBOARDS: BillboardDef[] = VILLAGE.billboards;
-/** Residential plots (PROPOSTA). Mirrors the `residential_plots` rows (migration 0011); a test keeps them in sync. */
+/** Residential plots (PROPOSTA). Mirrors the `residential_plots` rows (migration 0012); a test keeps them in sync. */
 export const RESIDENTIAL_PLOTS: ResidentialPlot[] = VILLAGE.plots;
 export const RESIDENTIAL_ROWS: RowDef[] = VILLAGE.rows;
 export const PATH_GRAPH: PathGraph = VILLAGE.graph;

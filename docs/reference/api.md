@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v11 · **Atualizado em:** 2026-11-13
+> **Schema D1:** v12 · **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,account-moderation,presence-moderation,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `apps/api/src/{account-moderation,presence-moderation,logo-removal}.test.ts`,
 > `packages/shared/src/accounts/{validate,files,contract,moderation,errors}.ts`, `apps/server/src/handler.ts`,
@@ -157,10 +157,10 @@ andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas n
 ```
 
 São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`plaza-08`) num banco antes da
-migração 0011, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
+migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
 ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
 jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
-a rota não lista (banco antes da 0011) aparece no jogo sem aceitar candidatura.
+a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
 
 `ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 
@@ -190,7 +190,7 @@ estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca d
 um requisito (um nível), guardado em `VILLAGE_PLAN` no código compartilhado, nunca um preço. Não há `POST`: nenhuma
 rota grava posse nesta versão (`405` para qualquer método além de `GET`, `HEAD` e `OPTIONS`).
 
-**Esquemas antigos.** A tabela vem com a migração 0011 e produção está na 0003. Num banco sem a tabela, ou sem
+**Esquemas antigos.** A tabela vem com a migração 0012 e produção está na 0003. Num banco sem a tabela, ou sem
 banco, a rota responde `200` com o layout das constantes compartilhadas e todo terreno `unavailable`
 (`enabled: false`), com qualquer combinação de bandeiras. Outro erro de banco continua sendo `500`.
 
@@ -804,7 +804,7 @@ Regras:
   valores, nunca CNPJ, URL ou referência do comprovante. Nenhuma chave, segredo ou dado do pagador é registrado.
 - **Schema**: com a bandeira ligada e o banco sem a migration 0011, as rotas de doação respondem
   `503 schema_outdated` (inclusive o webhook); com a bandeira desligada nenhuma rota pública lê as tabelas novas
-  e `/indicators` continua `null` (teste cobre v3 a v11).
+  e `/indicators` continua `null` (teste cobre v3 a v12).
 
 ### Listas do painel administrativo (IMPL-0015)
 

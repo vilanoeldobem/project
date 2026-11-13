@@ -1,6 +1,6 @@
 /**
  * Residential plots and the lots of the expanded village (IMPL-0023, PROPOSTA): the public read, the flag, the
- * seed of migration 0011 against the shared layout, and what the migration keeps of the lots that existed.
+ * seed of migration 0012 against the shared layout, and what the migration keeps of the lots that existed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +28,7 @@ beforeEach(() => {
   env = { DB: db, ENVIRONMENT: "test", ACCOUNTS_ENABLED: "false", RESIDENTIAL_PLOTS_ENABLED: "false", ALLOWED_ORIGINS: ORIGIN };
 });
 
-describe("migration 0011 against the shared layout", () => {
+describe("migration 0012 against the shared layout", () => {
   it("seeds exactly the lots of the layout, in order", () => {
     const rows = db.sql("SELECT id, street, slot, x, z, state, ngo_id FROM lots ORDER BY slot");
     expect(rows).toEqual(LOTS.map((l) => ({ id: l.id, street: "plaza", slot: l.slot, x: l.x, z: l.z, state: "available", ngo_id: null })));
@@ -47,12 +47,18 @@ describe("migration 0011 against the shared layout", () => {
   });
 
   it("moves the lots that existed and keeps their state and their NGO", async () => {
-    const old = createD1({ upTo: 10 });
+    // The schema just before it: the donation tables of 0011 are there and must come through untouched.
+    const old = createD1({ upTo: 11 });
     await old.prepare("INSERT INTO ngos (id, name, cnpj, summary, status) VALUES (?, 'Associação Exemplo', '11222333000181', 'Resumo', 'published')").bind(NGO_ID).run();
     await old.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = 'plaza-03'").bind(NGO_ID).run();
     await old.prepare("UPDATE lots SET state = 'under_review' WHERE id = 'plaza-07'").run();
     expect(old.sql("SELECT COUNT(*) AS n FROM lots")).toEqual([{ n: 8 }]);
-    old.migrate("0011_village_expansion.sql");
+    await old.prepare("INSERT INTO ngo_payment_configs (ngo_id, payment_method, sub_account_id) VALUES (?, 'abacatepay', 'dev_sacc_11222333000181')").bind(NGO_ID).run();
+    const before = old.sql("SELECT name, sql FROM sqlite_master WHERE name LIKE '%donation%' OR name LIKE '%payment%' OR name LIKE '%abacatepay%' ORDER BY name");
+    expect(before.map((t) => t.name)).toEqual(expect.arrayContaining(["donation_settings", "ngo_payment_configs", "donations", "donation_redirects", "abacatepay_webhook_events"]));
+    old.migrate("0012_village_expansion.sql");
+    expect(old.sql("SELECT name, sql FROM sqlite_master WHERE name LIKE '%donation%' OR name LIKE '%payment%' OR name LIKE '%abacatepay%' ORDER BY name")).toEqual(before);
+    expect(old.sql("SELECT ngo_id, payment_method, sub_account_id FROM ngo_payment_configs")).toEqual([{ ngo_id: NGO_ID, payment_method: "abacatepay", sub_account_id: "dev_sacc_11222333000181" }]);
     const rows = old.sql("SELECT id, slot, x, z, state, ngo_id FROM lots ORDER BY slot");
     expect(rows.map(({ id, slot, x, z }) => ({ id, slot, x, z }))).toEqual(LOTS.map(({ id, slot, x, z }) => ({ id, slot, x, z })));
     expect(rows.filter((r) => r.state !== "available")).toEqual([
@@ -105,7 +111,7 @@ describe("GET /residential-plots", () => {
     expect(db.sql("SELECT owner_id FROM residential_plots WHERE id = 'economy-07'")).toEqual([{ owner_id: null }]);
   });
 
-  it.each([3, 4, 5, 6, 7, 8, 9, 10])("answers the shared layout, all unavailable, on schema v%i without the table (both flags on)", async (upTo) => {
+  it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers the shared layout, all unavailable, on schema v%i without the table (both flags on)", async (upTo) => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     env.DB = createD1({ upTo });
     env.ACCOUNTS_ENABLED = env.RESIDENTIAL_PLOTS_ENABLED = "true";

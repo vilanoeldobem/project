@@ -1,7 +1,7 @@
 # Versionamento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
-> **Atualizado em:** 2026-11-12
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `package.json`, `apps/*/package.json`, `packages/shared/package.json`,
 > `apps/api/src/api.ts` (`VERSION`), `CHANGELOG.md`
 

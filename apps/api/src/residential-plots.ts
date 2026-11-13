@@ -9,7 +9,7 @@
  * requires is a level, kept in the shared plan (`VILLAGE_PLAN`), never an amount.
  *
  * Always-on public route: it must answer on every schema the code may meet. Production's database is at
- * migration 0003 and `residential_plots` comes with 0011, so a missing table (or no database at all) answers
+ * migration 0003 and `residential_plots` comes with 0012, so a missing table (or no database at all) answers
  * the layout from the shared constants, every plot "unavailable", never a 500. Who holds a plot is never part
  * of the answer, on any schema or flag.
  */

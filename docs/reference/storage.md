@@ -1,12 +1,12 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
 > **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation,donations,abacatepay}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v11 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v12 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -28,12 +28,15 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 | `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0023](../decisions/0023-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
-| `0011_village_expansion.sql` | expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
+| `0012_village_expansion.sql` | expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
 
-Esta versão contém 0001–0011, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+Esta versão contém 0001–0012, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
 retiradas; a 0010 acrescenta o bloqueio de conta e os bilhetes de moderação; a 0011 acrescenta as doações e a
-conciliação com a AbacatePay, sem tocar nas tabelas existentes.
+conciliação com a AbacatePay, sem tocar nas tabelas existentes; a 0012 move os terrenos de ONG para a fachada da
+praça, acrescenta quatro e cria os terrenos residenciais, sem tocar nas tabelas da 0011.
+A 0012 chamava-se 0011 enquanto estava em revisão: nunca foi aplicada em lugar nenhum e recebeu o próximo número
+livre ao integrar, depois da 0011 das doações.
 A 0007 chamava-se 0010
 enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
 Simuladores locais com a antiga 0010 são bases alternativas: usar nova base isolada, sem renomear seu histórico
@@ -45,7 +48,7 @@ Operações de conta que encontrem ausência das novas colunas retornam `503 sch
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
 ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
-`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v11 (com as contas ligadas, a migration
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v12 (com as contas ligadas, a migration
 vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 A 0010 é pré-requisito de **toda rota que lê a sessão**, com qualquer combinação de bandeiras: a conferência da
 sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas e as três rotas de entrada (cadastro, pedido
@@ -191,7 +194,7 @@ duplica crédito. Nenhuma rota pública lê estas tabelas com a bandeira desliga
 
 ### lots
 
-Só terrenos reservados a ONGs aprovadas (DEC-028): 8 até a v10, 12 a partir da v11 (a 0011 move os oito primeiros
+Só terrenos reservados a ONGs aprovadas (DEC-028): 8 até a v11, 12 a partir da v12 (a 0012 move os oito primeiros
 para a fachada da praça sem tocar em `state` nem em `ngo_id`).
 
 | Coluna | Tipo | Notas |
@@ -202,7 +205,7 @@ para a fachada da praça sem tocar em `state` nem em `ngo_id`).
 | `state` | TEXT | `available`, `application_sent`, `under_review`, `published` (DEC-028); ver transições em [api.md](api.md#análise-administrativa-dec-037) |
 | `ngo_id` | TEXT FK → ngos | candidatura que reserva ou ocupa o terreno |
 
-### residential_plots (v11, PROPOSTA)
+### residential_plots (v12, PROPOSTA)
 
 Terrenos residenciais ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Estrutura do mundo, como
 `lots`: as 112 linhas vêm da migração e espelham `RESIDENTIAL_PLOTS` em `packages/shared/src/game/world.ts`
