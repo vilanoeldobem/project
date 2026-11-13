@@ -691,3 +691,26 @@ Branch `feat/village-expansion`, merged with `origin/main` (21658a1: no welcome 
   map from far away. Measure the shadow pass apart from the main pass before merging geometry further.
 - `renderer.info` counts both passes; a per-mesh count from the scene graph says which pass a triangle is in.
 
+## Second integration with main: Pix donations (PR #37) — 2026-11-13
+
+`main` gained the donations (IMPL-0023, migration 0011, `DONATIONS_ENABLED` "false" in production and staging)
+while the village expansion was being integrated. Both had taken the same numbers.
+
+- [x] Merge, both features kept: `/config` answers `residentialPlots` and `donations`; both flags "false" in
+      `wrangler.jsonc`; the all-schemas matrix gives each flag its own bit (9 flags, 512 combinations per schema)
+- [x] Village migration renumbered to `0012_village_expansion.sql` (never applied anywhere); matrix v3 to v12;
+      0012 applied on a v11 database leaves the donation tables as they were
+- [x] Village decision renumbered to IMPL-0024 (`docs/decisions/0024-village-expansion-and-zoning.md`)
+- [x] Donations against the larger village: the per-NGO donation follows the NGO, not the lot (tests for
+      `plaza-09`…`plaza-12`, flag off and on); nothing in the donation code was changed
+- [x] Gates and browser checks rerun on the merged tree (own ports, GTM stubbed, provider never called)
+- [ ] Reported, not fixed (donation code of PR #37): the webhook replay guard compares a millisecond timestamp,
+      so `donations.test.ts` › "ignores a replay of an event already applied, even after a later dispute" fails
+      whenever its three deliveries fall in the same millisecond
+
+### Lessons
+
+- Before merging a long branch, fetch again and compare `ls migrations docs/decisions` with `origin/main`:
+  numbers are taken in the order of integration (`docs/reference/versioning.md`).
+- A flag added to the all-schemas matrix needs its own bit; two branches adding "the next bit" collide silently.
+
