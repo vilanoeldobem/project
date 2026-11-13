@@ -195,7 +195,8 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12])("answers every always-on public route
   expect(wrong).toEqual([]);
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
-});
+  // 1,024 requests per schema: well past the default 5 s on a CI runner (v10–v12 took 5–7 s there).
+}, 60_000);
 
 it("counts in the public indicator only what the village shows: published NGOs on a published lot", async () => {
   const approved = async () => ((await (await get("/indicators")).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators.find((indicator) => indicator.key === "approved_ngos")?.value;
