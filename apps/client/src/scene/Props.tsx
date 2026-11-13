@@ -3,7 +3,7 @@ import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
-import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS } from "@vila/shared/game/world";
+import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 import { useVila } from "../game/store";
@@ -31,11 +31,14 @@ export function ChristmasTree() {
   );
 }
 
-/** Lamp posts and benches: every copy shares one geometry (one draw call per material role). */
+/**
+ * Lamp posts (the plaza's and the street corners', IMPL-0023) and benches: every copy shares one geometry
+ * (one draw call per material role).
+ */
 export function Lamps() {
   const v = useMemo(lamp, []);
   const b = useMemo(bench, []);
-  const lamps = useMemo(() => LAMPS.map(([x, z]): Placement => ({ x, z })), []);
+  const lamps = useMemo(() => [...LAMPS, ...STREET_LAMPS].map(([x, z]): Placement => ({ x, z })), []);
   return (
     <>
       <Voxels voxels={v} size={0.5} emissive={GLOW} placements={lamps} />
@@ -115,7 +118,8 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         const pub = isPublished(lot.id);
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]}>
-            <Label y={pub ? 7.5 : 5} text={pub ? String(info[lot.id]?.ngo_name) : "Terreno disponível"} />
+            {/* Twelve lots now: a label is mounted only near the avatar, like the villagers' (see `Label`). */}
+            <Label y={pub ? 7.5 : 5} text={pub ? String(info[lot.id]?.ngo_name) : "Terreno disponível"} x={lot.x} z={lot.z} />
           </group>
         );
       })}
@@ -153,9 +157,10 @@ function Gift({ id, x, z }: { id: string; x: number; z: number }) {
 /**
  * Distance limit (world units) for NPC and lectern DOM labels: `@react-three/drei`'s `Html` projects every
  * mounted label on the main thread each frame, so labels on the far side of the village are pure DOM cost.
- * 24 u covers the plaza (radius 12) plus the camera's 21 u reach and the 4.5 u interaction distance.
+ * 24 u covers the plaza (radius 12) plus the camera's 21 u reach and the 4.5 u interaction distance; from the
+ * tree it reaches the porches of the square's frontage (26 u), so the lots around the square read from there.
  */
-const LABEL_RADIUS = 24;
+const LABEL_RADIUS = 28;
 
 /**
  * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within

@@ -33,6 +33,11 @@ export interface MeshOptions {
   groups?: number;
   /** Groups that skip AO (emissive bulbs must keep their colour). */
   noAo?: ReadonlySet<number>;
+  /**
+   * Skips the downward faces of the base layer (y = 0): a model that stands on the ground is never seen
+   * from underneath. Faces that look down higher up (eaves, awnings) are kept: the sky view sees them.
+   */
+  noFloor?: boolean;
   /** Converts a CSS colour to linear RGB (three's `Color` in the app; injectable for tests). */
   toLinear: (css: string) => [number, number, number];
 }
@@ -52,6 +57,7 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
   const size = opts.size ?? 1;
   const groups = opts.groups ?? 1;
   const groupOf = opts.groupOf ?? (() => 0);
+  const noFloor = opts.noFloor === true;
 
   // Deduplicate cells (last voxel wins), and index occupancy of grid-aligned cells.
   const solid = new Set<number>();
@@ -84,6 +90,7 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
     }
     for (let d = 0; d < 3; d++)
       for (const s of [1, -1]) {
+        if (noFloor && d === 1 && s === -1 && v[1] === 0) continue;
         p[0] = v[0]; p[1] = v[1]; p[2] = v[2];
         p[d] += s;
         if (!filled(p[0], p[1], p[2])) counts[g]++;
@@ -115,6 +122,7 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
     for (let d = 0; d < 3; d++) {
       const u = (d + 1) % 3, w = (d + 2) % 3;
       for (const s of [1, -1]) {
+        if (noFloor && onGrid && d === 1 && s === -1 && v[1] === 0) continue;
         if (onGrid) {
           p[0] = v[0]; p[1] = v[1]; p[2] = v[2];
           p[d] += s;

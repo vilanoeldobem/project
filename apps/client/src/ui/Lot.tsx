@@ -12,8 +12,10 @@ import { Panel, Status } from "./Panel";
 /**
  * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
  * moderation actions of the house (IMPL-0021, `LotModeration`); `onChanged` reads the lots again after one.
+ * `unlisted`: the API answered its lots and this one is not among them (a database before migration 0011, which
+ * adds the lots of the expanded village, IMPL-0023): the lot is drawn, but it cannot take an application yet.
  */
-export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info?: LotInfo; onChanged?: () => void }) {
+export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { lotId: string; info?: LotInfo; unlisted?: boolean; onChanged?: () => void }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
@@ -78,7 +80,9 @@ export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info
         <li>Meio confiável de confirmar os valores destinados à organização.</li>
       </ol>
       <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      {accounts ? (
+      {unlisted ? (
+        <p className="note">Este terreno ainda não recebe candidaturas.</p>
+      ) : accounts ? (
         <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
           Candidatar minha ONG
         </button>

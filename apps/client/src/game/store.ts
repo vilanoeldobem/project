@@ -18,7 +18,11 @@ export type Panel =
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
-  | { kind: "npc"; npcId: NpcId };
+  | { kind: "npc"; npcId: NpcId }
+  // The expanded village (IMPL-0023, PROPOSTA): honest "not open yet" panels, no purchase and no claim.
+  | { kind: "plot"; plotId: string }
+  | { kind: "shop"; shopId: string }
+  | { kind: "billboard"; billboardId: string };
 
 /** Closest interactive target near the avatar (drives the action button). */
 export type Nearby =
@@ -28,6 +32,13 @@ export type Nearby =
   | { kind: "quest"; interactionId: string }
   | { kind: "donation-panel" }
   | null;
+
+/**
+ * Closest place of the expanded village near the avatar (IMPL-0023): a residential plot, a shop door or a
+ * billboard. Kept apart from `Nearby`: it has its own action button (`ui/VillageAction.tsx`), and at most one
+ * of the two is set at a time.
+ */
+export type Place = { kind: "plot" | "shop" | "billboard"; id: string } | null;
 
 // v2: mission ids were renamed to English in 0.2.0; v1 progress is discarded. This key holds GUEST progress
 // only: a signed-in account's progress lives on the server (and in memory), so on a shared browser the next
@@ -94,6 +105,9 @@ interface VilaState {
   open: (panel: Panel) => void;
   close: () => void;
   setNearby: (n: Nearby) => void;
+  place: Place;
+  /** Called every frame with a prebuilt object per place: only a change of identity is stored. */
+  setPlace: (p: Place) => void;
   /**
    * Walks to a point (null stops). The stored target is the resolved destination: the nearest walkable
    * spot when the request lands on an obstacle or outside the world, so the marker shows where the avatar
@@ -148,6 +162,10 @@ export const useVila = create<VilaState>((set, get) => ({
       if (cur.kind !== "lot" && cur.kind !== "npc" && cur.kind !== "quest") return;
     } else if (cur === nearby) return;
     set({ nearby });
+  },
+  place: null,
+  setPlace: (place) => {
+    if (get().place !== place) set({ place });
   },
   setTarget: (target) => {
     if (target) return set({ target: planWalk(target.x, target.z), skyView: false });

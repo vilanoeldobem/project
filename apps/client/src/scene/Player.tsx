@@ -1,16 +1,18 @@
 import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { CircleGeometry, type Group, type Mesh, ShaderMaterial, Vector3 } from "three";
+import { CircleGeometry, type Group, type Mesh, MeshBasicMaterial, ShaderMaterial, Vector3 } from "three";
 
 import { U } from "./environment/materials";
 import { events } from "../game/events";
+import { distanceTo } from "@vila/shared/game/collision";
 import { type Collider, MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
-import { type Nearby, useVila } from "../game/store";
+import { type Nearby, type Place, useVila } from "../game/store";
 import {
+  BILLBOARDS,
   DONATION_PANEL,
   GIFTS,
   INTERACT_DISTANCE,
@@ -18,9 +20,12 @@ import {
   LOTS,
   NPCS,
   OBSTACLES,
+  PLACE_INTERACT_DISTANCE,
   QUEST_INTERACTIONS,
   QUEST_OBSTACLES,
   QUEST_SPAWNS,
+  RESIDENTIAL_PLOTS,
+  SHOPS,
   surfaceAt,
   TREE_RADIUS,
 } from "@vila/shared/game/world";
@@ -41,10 +46,29 @@ const NEAR_NPC: Nearby[] = NPCS.map((n) => ({ kind: "npc", npcId: n.id }));
 const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", interactionId: i.id }));
 const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
 const NEAR_PANEL: Nearby = { kind: "donation-panel" };
+/**
+ * Places of the expanded village (IMPL-0023): where each one is used from, and the object handed to the store
+ * while the avatar stands there. Built once, like the targets above.
+ */
+const PLACES: Array<{ x: number; z: number; place: NonNullable<Place> }> = [
+  ...SHOPS.map((s) => ({ ...s.door, place: { kind: "shop" as const, id: s.id } })),
+  ...BILLBOARDS.map((b) => ({ ...b.point, place: { kind: "billboard" as const, id: b.id } })),
+  ...RESIDENTIAL_PLOTS.map((p) => ({ ...p.front, place: { kind: "plot" as const, id: p.id } })),
+];
 const NEAR_TREE: Nearby = { kind: "tree" };
 /** Smallest centre distance wins; targets within 0.5 of each other fall back to the priority order. */
 const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestPrio: number) =>
   !best || dist < bestDist - 0.5 || (dist - bestDist <= 0.5 && prio < bestPrio);
+/**
+ * See-through outline of the avatar (IMPL-0023): the camera looks north from above, so a chalet south of a
+ * street hides whoever walks right behind it. While a building stands between the avatar and the camera, the
+ * avatar is drawn once more, flat and translucent, over everything. Never shown in the open.
+ */
+const OUTLINE = new MeshBasicMaterial({ color: "#FFE9B0", transparent: true, opacity: 0.6, depthTest: false, depthWrite: false, fog: false });
+/** How far towards the camera (south) a building can stand and still hide the avatar: its height over the camera's slope. */
+const HIDES = [1.2, 2.4, 3.6, 4.8, 6];
+/** A collider this large is a building (chalet or shop); lamp posts, fences and villagers hide nobody. */
+const isBuilding = (c: Collider) => (c.hx ?? 0) >= 2 && (c.hz ?? 0) >= 2;
 /** Mouse wheel and pinch sensitivity (zoom factor per pixel of wheel delta). */
 const WHEEL_ZOOM = 0.0015;
 
@@ -68,7 +92,8 @@ void main() {
 /**
  * The avatar: click/tap target → route around the colliders (`navigation.ts`, planned once per click) →
  * fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk animation, contact shadow and
- * camera. Gameplay facts (footsteps, gifts) go out on the event bus. `lots` = colliders of the eight lots.
+ * camera. Gameplay facts (footsteps, gifts) go out on the event bus. `lots` = colliders of the lots and of the
+ * chalets of the residential plots.
  */
 export function Player({ lots }: { lots: Collider[] }) {
   const root = useRef<Group>(null);
@@ -91,6 +116,9 @@ export function Player({ lots }: { lots: Collider[] }) {
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
   const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...lots], [lots, questsOn]);
+  const buildings = useMemo(() => colliders.filter(isBuilding), [colliders]);
+  const outline = useRef<Array<Group | null>>([]);
+  const hidden = useRef({ x: NaN, z: NaN, on: false });
   // The navigation field follows the collider set (rebuilt only when a house or the quests flag changes).
   const field = useMemo(() => createNavField(colliders), [colliders]);
   useEffect(() => {
@@ -286,14 +314,40 @@ export function Player({ lots }: { lots: Collider[] }) {
       bestDist = treeDist;
       bestPrio = 4;
     }
-    // Lots are far apart: at most one is within reach, and the first match is enough.
+    // Lots: two neighbours of the frontage can be within reach at once, and the nearest one wins.
+    let lot = -1, lotDist = LOT_INTERACT_DISTANCE;
     for (let i = 0; i < LOTS.length; i++) {
       const dist = Math.hypot(LOTS[i].x - pose.x, LOTS[i].z - pose.z);
-      if (dist >= LOT_INTERACT_DISTANCE) continue;
-      if (beats(dist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[i];
-      break;
+      if (dist < lotDist) (lot = i), (lotDist = dist);
     }
+    if (lot >= 0 && beats(lotDist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[lot];
     s.setNearby(best);
+    // Shops, billboards and residential plots (IMPL-0023): only when nothing above is in reach.
+    let place: Place = null;
+    if (!best) {
+      let placeDist = PLACE_INTERACT_DISTANCE;
+      for (let i = 0; i < PLACES.length; i++) {
+        const dist = Math.hypot(PLACES[i].x - pose.x, PLACES[i].z - pose.z);
+        if (dist < placeDist) (place = PLACES[i].place), (placeDist = dist);
+      }
+    }
+    s.setPlace(place);
+
+    // ---- outline: shown while a building stands between the avatar and the camera (checked when the avatar moved).
+    const h = hidden.current;
+    if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > 0.2) {
+      h.x = pose.x;
+      h.z = pose.z;
+      let on = false;
+      for (let i = 0; i < buildings.length && !on; i++) {
+        const c = buildings[i];
+        if (Math.abs(c.x - pose.x) > 12 || Math.abs(c.z - pose.z) > 12) continue;
+        for (let k = 0; k < HIDES.length && !on; k++) on = distanceTo(c, pose.x, pose.z + HIDES[k]) < 0;
+      }
+      h.on = on;
+    }
+    const show = h.on && !s.skyView;
+    for (const o of outline.current) if (o && o.visible !== show) o.visible = show;
 
     // ---- camera: eased follow with a small look-ahead along the velocity.
     ahead.lerp(goal.set(b.vx, 0, b.vz).multiplyScalar(LOOK_AHEAD * U.uMotion.value), 1 - Math.exp(-3 * dt));
@@ -308,24 +362,35 @@ export function Player({ lots }: { lots: Collider[] }) {
   });
 
   const limb = (i: number) => (el: Group | null) => void (limbs.current[i] = el);
+  /** The outline of one part: a second drawing of the same voxels, inside the part's own animated group. */
+  const ghost = (i: number, voxels: typeof parts.body) => (
+    <group ref={(el) => void (outline.current[i] = el)} visible={false}>
+      <Voxels voxels={voxels} size={AVATAR_SIZE} material={OUTLINE} castShadow={false} />
+    </group>
+  );
   return (
     <>
       <group ref={root} position={[sim.pose.x, 0, sim.pose.z]}>
         <group ref={rig}>
         <group ref={torso}>
           <Voxels voxels={parts.body} size={AVATAR_SIZE} />
+          {ghost(0, parts.body)}
           <group ref={limb(2)} position={[-2 * AVATAR_SIZE, SHOULDER_Y, 0]}>
             <Voxels voxels={parts.armL} size={AVATAR_SIZE} />
+            {ghost(1, parts.armL)}
           </group>
           <group ref={limb(3)} position={[2 * AVATAR_SIZE, SHOULDER_Y, 0]}>
             <Voxels voxels={parts.armR} size={AVATAR_SIZE} />
+            {ghost(2, parts.armR)}
           </group>
         </group>
         <group ref={limb(0)} position={[-AVATAR_SIZE, HIP_Y, 0]}>
           <Voxels voxels={parts.legL} size={AVATAR_SIZE} />
+          {ghost(3, parts.legL)}
         </group>
         <group ref={limb(1)} position={[AVATAR_SIZE, HIP_Y, 0]}>
           <Voxels voxels={parts.legR} size={AVATAR_SIZE} />
+          {ghost(4, parts.legR)}
         </group>
         </group>
         <mesh ref={blob} geometry={blobGeometry} material={blobMaterial} position-y={0.03} renderOrder={1} />

@@ -45,7 +45,7 @@ import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost
 import { donationPanel } from "./gen/quest-items";
 import { shop } from "./gen/shops";
 import { bench, lamp, lotMarker, pine, reindeer, sleigh, snowman, tree, type Voxel } from "./models";
-import { billboardFrame, chimneyOf, dressingModel, residence } from "./village";
+import { billboardFrame, chimneyOf, dressingModel, residence } from "./villageModels";
 
 /** A voxel whose underside is below this height is at the avatar's legs, body or face: it must block. */
 const MUST_BLOCK = 2;

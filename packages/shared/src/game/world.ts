@@ -792,7 +792,7 @@ export function plotColliders(plot: ResidentialPlot, house: readonly Rect[] | nu
 
 /**
  * What is drawn around the chalets of a row, besides the ground (IMPL-0023): the cues that tell the tiers
- * apart without a badge. Each part is a small voxel model (`apps/client/src/scene/village.ts`) and its
+ * apart without a badge. Each part is a small voxel model (`apps/client/src/scene/villageModels.ts`) and its
  * footprint, and every one blocks the avatar. The fillers also close the gap between two chalets of a row,
  * which is wider than the avatar but too narrow to plan a route through.
  *

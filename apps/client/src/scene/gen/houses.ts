@@ -33,6 +33,12 @@ export interface HouseOptions {
   porch?: number;
   /** false = the roof ends at the side walls (cottages standing close together). */
   eaves?: boolean;
+  /**
+   * The ridge of a gable roof runs along the street (the chalet's x axis) instead of from front to back. The
+   * roof then rises from a low eave over the door to a ridge at mid-depth, so the gable no longer stands as a
+   * wall, a whole roof tall, between the camera and whoever walks on the street in front of the chalet.
+   */
+  ridgeAlongStreet?: boolean;
 }
 
 export function house(seed: Seed, options: HouseOptions = {}): GenModel {
@@ -76,6 +82,16 @@ export function house(seed: Seed, options: HouseOptions = {}): GenModel {
       if (ex < 0 || ez < 0) break;
       for (let x = -ex; x <= ex; x++) for (let z = -ez; z <= ez; z++) if (Math.abs(x) === ex || Math.abs(z) === ez || ex === 0 || ez === 0) v.push([x, base + k, z, roofColor]);
       peak = base + k;
+    }
+  } else if (options.ridgeAlongStreet) {
+    // The same gable, turned a quarter: slopes fall to the front and to the back, gable ends on the side walls.
+    const span = hz + 1;
+    for (let k = 0; k <= span; k++) {
+      const z = span - k;
+      const y = base + k;
+      for (let x = -hx - over; x <= hx + over; x++) for (const sz of z === 0 ? [0] : [-z, z]) v.push([x, y, sz, roofColor]);
+      peak = Math.max(peak, y);
+      if (k > 0) for (const x of [-hx, hx]) for (let gz = -z + 1; gz <= z - 1; gz++) v.push([x, base + k - 1, gz, gz === 0 && k === Math.ceil(span / 2) ? P.window : wall]);
     }
   } else {
     const steep = style === "aframe" ? 2 : 1;

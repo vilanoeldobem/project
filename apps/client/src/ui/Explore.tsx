@@ -1,5 +1,5 @@
 import { useVila } from "../game/store";
-import { LOTS } from "@vila/shared/game/world";
+import { lotFront, LOTS } from "@vila/shared/game/world";
 import type { LotInfo, LotState } from "../lib/api";
 import { Panel } from "./Panel";
 
@@ -10,7 +10,7 @@ const STATE_LABEL: Record<LotState, string> = {
   published: "Casa publicada",
 };
 
-/** Lots around the plaza; "Ir até lá" walks the avatar there. */
+/** Lots around the square; "Ir até lá" walks the avatar to the front of the lot. */
 export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
   const { setTarget, close } = useVila.getState();
   const published = LOTS.filter((l) => lots[l.id]?.state === "published").length;
@@ -33,7 +33,7 @@ export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
               <button
                 className="btn btn--small"
                 onClick={() => {
-                  setTarget({ x: l.x * 0.82, z: l.z * 0.82 });
+                  setTarget(lotFront(l));
                   close();
                 }}
               >

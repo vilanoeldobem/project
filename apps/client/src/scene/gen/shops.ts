@@ -2,7 +2,7 @@
  * Christmas shops (IMPL-0023, PROPOSTA; budget: houses). A low building on the square's frontage: stone
  * base, painted walls, a door between two lit display windows, a striped awning above head height and a
  * flat stepped roof that carries the billboard frame. Front = +z. No text, logo or brand in the model: the
- * shop's name is a flat label and its notice a billboard (`village.ts`). The walls fill the footprint every
+ * shop's name is a flat label and its notice a billboard (`Village.tsx`). The walls fill the footprint every
  * shop shares (`SHOP_SOLID` in the shared world).
  */
 import { PALETTE as P } from "@vila/shared/game/world";
