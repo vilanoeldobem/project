@@ -6,7 +6,6 @@ import {
   billboardNotice,
   BILLBOARDS,
   PALETTE as P,
-  PLACE_INTERACT_DISTANCE,
   type PlotTier,
   RESIDENTIAL_DRESSING,
   RESIDENTIAL_PLOTS,
@@ -16,23 +15,12 @@ import {
   VILLAGE_PLAN,
 } from "@vila/shared/game/world";
 import { env } from "../environment/runtime";
-import { sim } from "../game/sim";
-import { type Panel, useVila } from "../game/store";
+import { groundUnder, tapResidence, visit } from "../game/clicks";
 import { shop } from "./gen/shops";
 import { Label } from "./Props";
 import { type CasterPart, modelExtent, partAt } from "./shadowCasters";
 import { BILLBOARD_PANEL, billboardFrame, dressingItems, residence } from "./villageModels";
 import { joinLitRoles, type MergeItem, MergedVoxels, mergeVoxelModels } from "./Voxels";
-
-/**
- * A click on a building of the village: its panel opens from where it is used (the same reach as the action
- * button); from farther away the avatar walks to that spot instead, like a click on a villager.
- */
-function visit(spot: { x: number; z: number }, panel: Panel) {
-  const { open, setTarget } = useVila.getState();
-  if (Math.hypot(spot.x - sim.pose.x, spot.z - sim.pose.z) < PLACE_INTERACT_DISTANCE) open(panel);
-  else setTarget(spot);
-}
 
 const nearest = <T extends { x: number; z: number }>(list: readonly T[], x: number, z: number): T =>
   list.reduce((a, b) => (Math.hypot(b.x - x, b.z - z) < Math.hypot(a.x - x, a.z - z) ? b : a));
@@ -210,11 +198,13 @@ export function Residences() {
     const sides = [...out.values()].map((b) => ({ plots: b.plots, geometries: mergeVoxelModels(b.items), casters: b.items.flatMap(castersOf) }));
     return { sides, lit: joinLitRoles(sides.map((side) => side.geometries)) };
   }, []);
-  /** A click on a chalet or on anything of its plot: the plot's panel, or the walk to its front. */
+  /**
+   * A click on a chalet or on anything of its plot: the plot's panel or the walk to its front, unless the
+   * ground under the pointer is the street behind a roof (`tapResidence`).
+   */
   const open = (plots: readonly ResidentialPlot[]) => (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    const plot = nearest(plots, e.point.x, e.point.z);
-    visit(plot.front, { kind: "plot", plotId: plot.id });
+    tapResidence(nearest(plots, e.point.x, e.point.z), groundUnder(e.ray.origin, e.ray.direction));
   };
   return (
     <>

@@ -223,6 +223,37 @@ Na primeira versão desta fase o botão ficava num componente à parte (`ui/Vill
 própria), porque `Hud.tsx` estava sendo refeito em paralelo. Ele foi incorporado ao HUD e removido na integração
 com a IMPL-0022 (2026-11-13).
 
+**O botão de ação nas ruas residenciais** (`game/nearby.ts`, pura e testada; revisão da fase, issue #41). Cada
+terreno residencial é um alvo e os alcances se sobrepõem ao longo da rua: oferecido em movimento, o botão virava uma
+faixa de avisos trocando de frente em frente e piscando entre as fileiras. Duas regras:
+
+- **um terreno residencial só é oferecido com o avatar parado** (abaixo de 0,2 u/s; some acima de 0,6 u/s). Lojas,
+  placas, terrenos de ONG, a árvore e os NPCs continuam oferecidos em movimento, como antes;
+- **histerese:** o alvo oferecido fica enquanto o avatar está a até 0,6 u além do alcance dele, a menos que entre
+  no alcance algo de um tipo que vem antes na ordem, ou que outro alvo do mesmo tipo esteja 0,5 u mais perto.
+
+Medido com o planejador e o passo do próprio jogo, andando um lado inteiro da rua econômica (da avenida 1 à avenida
+2, 6,7 s): **antes, botão na tela em 83 % do trajeto, com 15 trocas e 5 sumiços de menos de 0,25 s; depois, 0 %,
+0 e 0**, e o botão do terreno aparece quando o avatar para em frente a ele (`game/nearby.test.ts` fixa esses
+números). A linha de como andar da primeira visita só cede o lugar a um botão de ação: andando por uma rua
+residencial não há botão, e ela continua na tela.
+
+**Um clique, uma intenção** (`game/clicks.ts`, pura e testada). O chão andava no `pointerdown` e a construção agia
+no `click` seguinte: abrir o painel de um terreno, de uma loja ou de uma placa do próprio ponto de uso deixava uma
+caminhada de 7 a 9 u esperando o painel fechar, e de longe o marcador do toque caía atrás da construção. Agora:
+
+- o chão só anda quando é a primeira coisa sob o ponteiro que responde a clique; com um chalé, uma loja, a árvore
+  ou um terreno na frente, quem decide é o clique nessa coisa;
+- clique numa loja, numa placa ou num chalé residencial: do alcance do botão de ação abre o painel; de longe,
+  anda até o ponto de uso, com o marcador lá. Clique num NPC: igual, com o alcance de conversa;
+- clique num terreno de ONG, na árvore ou no atril abre o painel, como antes;
+- **um painel aberto por clique na cena descarta a caminhada que estava em curso** (o clique é a intenção nova).
+  O painel aberto pelo botão de ação ou pelo menu mantém a caminhada, que continua ao fechar (IMPL-0022);
+- numa rua, os telhados da fileira ao sul cobrem a rua na tela, e um toque destinado à rua caía num telhado (na
+  rua econômica do lado sul, cerca de metade dos toques na tela ia para a frente de um terreno). Vale o chão sob
+  o ponteiro: se ele é calçamento de rua, avenida, travessa ou praça, o avatar anda até esse ponto; só o toque
+  cujo chão é o próprio terreno (o chalé, o quintal) vai para a frente do terreno.
+
 ### 8. Navegação
 
 A grade de 0,25 u foi mantida (as rotas em volta da praça ficam exatamente como eram), agora sobre o disco de
@@ -351,8 +382,8 @@ antes.
 A vista que estourava o orçamento (primeira linha) ficou em 116 chamadas e 210 944 triângulos; a pior das 18 vistas
 medidas é a praça com o zoom todo afastado às 17:50 no preset Alta: 133 chamadas e 225 838 triângulos. Os "antes"
 desta tabela são da árvore integrada e, em duas vistas, ficam acima dos da tabela anterior: na porta da loja, as 5
-chamadas e os 340 triângulos a mais são o contorno do avatar, que é desenhado ali (uma loja fica entre ele e a
-câmera) e entrou depois daquela medição.
+chamadas e os 340 triângulos a mais são o avatar desenhado uma segunda vez, visto através da loja que fica entre
+ele e a câmera (na época, um contorno vermelho), e entrou depois daquela medição.
 
 **Como foi conferido que a imagem não muda:**
 
@@ -391,9 +422,22 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
   continua respondendo todas as rotas públicas.
 - **Pior para quem joga hoje:**
   - a câmera olha do sul, de cima: uma casa ao sul de uma rua esconde quem anda rente a ela. As casas residenciais
-    têm um andar e cumeeira paralela à rua, e o avatar ganha um contorno vermelho translúcido quando há uma
-    construção entre ele e a câmera; ainda assim, nas ruas do lado sul parte do caminho é vista só pelo contorno. Chalés de ONG de
-    dois andares (gerador existente) escondem mais;
+    têm um andar e cumeeira paralela à rua, e **o avatar é desenhado uma segunda vez, nas próprias cores e meio
+    transparente, por cima de tudo, enquanto a câmera não vê o peito ou a cabeça dele** (`scene/occlusion.ts`,
+    pura e testada: uma reta da câmera a cada um dos dois pontos, contra o mapa de colunas dos chalés, das lojas,
+    da árvore e dos pinheiros, refeita só quando o avatar ou a câmera andou 0,2 u). Ainda assim, nas ruas do lado
+    sul parte do caminho é vista só assim. Chalés de ONG de dois andares (gerador existente) escondem mais.
+    A primeira versão usava a pegada de uma construção até 6 u ao sul do avatar e um contorno vermelho chapado:
+    nos 1 440 pontos de rua medidos na revisão com raios na cena real, ela concordava com os raios em 1 230
+    (85 %), pintava de vermelho um avatar à vista em até um terço dos pontos de uma rua e não aparecia em
+    esquinas, atrás da árvore e nas fileiras em diagonal; a regra nova concorda em 1 430 (99 %; nos outros 10 ela
+    diz "à vista" e os raios acharam algo no caminho: postes, barracas, o trenó e as peças das fileiras não
+    entram na conta da regra). **Os outros visitantes não têm esse desenho:** só o
+    próprio avatar;
+  - "Olhar o céu" punha a câmera 10 u ao sul do avatar, a 3,6 u do chão: numa rua residencial isso é dentro de um
+    chalé ou de cara para a parede dos fundos dele. Onde há uma construção nessa vista, a câmera agora sobe por
+    cima dos telhados (`clearSkyOffset`: a primeira de cinco posições, cada uma mais alta, sem construção a menos
+    de 14 u em 13 direções da imagem); na praça e nas avenidas a vista baixa de sempre é mantida;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador

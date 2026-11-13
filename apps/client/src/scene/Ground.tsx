@@ -2,8 +2,7 @@ import { useEffect, useMemo } from "react";
 import { BufferAttribute, BufferGeometry, Color } from "three";
 
 import { WORLD_RADIUS } from "@vila/shared/game/world";
-import { events } from "../game/events";
-import { useVila } from "../game/store";
+import { groundIsFirst, walkTo } from "../game/clicks";
 import { WALK } from "../lib/controls";
 import { selectVisitorAt } from "../lib/moderation";
 import { solidMaterial } from "./environment/materials";
@@ -14,7 +13,6 @@ import { groundRuns } from "./groundRuns";
  * in the shared world is the layout). One draw call.
  */
 export function Ground() {
-  const setTarget = useVila((s) => s.setTarget);
   const geometry = useMemo(() => {
     const runs = groundRuns(Math.ceil(WORLD_RADIUS) + 3);
     const positions = new Float32Array(runs.length * 12), normals = new Float32Array(runs.length * 12), colors = new Float32Array(runs.length * 12);
@@ -52,14 +50,15 @@ export function Ground() {
         onPointerDown={(e) => {
           // Only the first finger walks: a second one starts a pinch zoom (Player).
           if (!WALK.accepts({ button: e.button, isPrimary: e.nativeEvent.isPrimary })) return;
+          // A chalet, a shop, the tree or a lot stands in front of the ground here: its own click decides what
+          // this press does (`game/clicks.ts`), and the ground walks nowhere.
+          if (!groundIsFirst(e.intersections, e.eventObject)) return;
           e.stopPropagation();
           // Moderation mode only (PROPOSTA, IMPL-0021): a click on another visitor selects it instead of walking.
           // The removal itself is flat HTML on the HUD; for everybody else this is always false.
           if (selectVisitorAt(e.ray.origin, e.ray.direction)) return;
-          setTarget({ x: e.point.x, z: e.point.z });
           // Feedback goes where the avatar will end up, which is not always where the click landed.
-          const to = useVila.getState().target;
-          if (to) events.emit({ type: "tap", x: to.x, z: to.z });
+          walkTo(e.point.x, e.point.z);
         }}
       >
         <circleGeometry args={[WORLD_RADIUS + 3, 64]} />

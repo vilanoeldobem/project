@@ -226,9 +226,11 @@ uma migration nova. Decisão, números e o que fica para depois em
   assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
   para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
   setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
-- **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance e grava um único alvo em `nearby`: árvore,
-  NPC, atril e terreno de ONG primeiro; terreno residencial, porta de loja ou placa só quando nenhum daqueles está
-  ao alcance. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
+- **Interação:** `Player` pergunta, a cada quadro, o que está ao alcance (`game/nearby.ts`, pura) e grava um único
+  alvo em `nearby`: árvore, NPC, atril e terreno de ONG primeiro; porta de loja ou placa só quando nenhum daqueles
+  está ao alcance; **terreno residencial só com o avatar parado** (andar por uma rua não é uma faixa de avisos). O
+  alvo oferecido tem histerese: fica até 0,6 u além do próprio alcance e só troca por outro do mesmo tipo que
+  esteja 0,5 u mais perto. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
   as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
   mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
   ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
@@ -237,8 +239,20 @@ uma migration nova. Decisão, números e o que fica para depois em
   própria Vila". Nenhum diz "em breve", requisito, venda ou aluguel enquanto `/config.residentialPlots` é falso, e
   nenhum mostra id cru (os ids ficam em atributos `data-`). Um terreno de ONG que a API não lista é "Terreno em
   preparação" no rótulo 3D, no painel e na lista (`lib/lots.ts`).
-- **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
-  ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
+- **Clique na cena** (`game/clicks.ts`, pura): o chão só anda quando é a primeira coisa sob o ponteiro que
+  responde a clique. Clique em loja, placa ou chalé residencial abre o painel do alcance do botão de ação e, de
+  longe, anda até o ponto de uso, com o marcador do toque lá; num chalé cujo telhado cobre a rua na tela, vale o
+  chão sob o ponteiro (calçamento: anda até o ponto tocado). Terreno de ONG, árvore e atril abrem o painel. Um
+  painel aberto por clique na cena descarta a caminhada em curso.
+- **Avatar visto através das construções:** a câmera olha do sul, de cima; enquanto ela não vê o peito ou a cabeça
+  do avatar, ele é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é
+  uma reta de verdade (`scene/occlusion.ts`: da câmera aos dois pontos, contra o mapa de colunas dos chalés, das
+  lojas, da árvore e dos pinheiros de `scene/sceneColliders.ts`), refeito só quando o avatar ou a câmera andou
+  0,2 u. Só o próprio avatar: os outros visitantes não têm esse desenho. "Olhar o céu" usa as mesmas colunas para
+  subir a câmera por cima dos telhados onde uma construção ficaria na vista.
+- **Colisores da cena:** `scene/sceneColliders.ts` monta a lista que o avatar contorna (obstáculos fixos, NPCs e
+  atril com as quests, terrenos de ONG e os 112 chalés residenciais); `scene/colliders.test.ts` audita essa mesma
+  lista contra os voxels desenhados, então tirar um tipo de colisor dela falha num teste unitário.
 - **Regra de vista** (`SIGHTLINE`, `sightlines()`): (1) toda avenida é um corredor livre de coisa alta (chalé,
   loja, pinheiro) até as ramas da árvore; (2) da frente de todo terreno residencial, a avenida fica a no máximo
   30 u pela rua; (3) nada alto entre a linha das varandas da fachada e a rua redonda. As regras 2 e 3 decorrem do

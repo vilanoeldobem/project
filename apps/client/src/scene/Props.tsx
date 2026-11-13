@@ -6,6 +6,7 @@ import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, 
 import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
+import { openFromScene, visit } from "../game/clicks";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
@@ -23,9 +24,8 @@ const GLOW = [P.gold];
 
 export function ChristmasTree() {
   const v = useMemo(tree, []);
-  const open = useVila((s) => s.open);
   return (
-    <group onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
+    <group onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "donation" }))}>
       <Voxels voxels={v} emissive={BULBS} />
       <Label y={14.5} text="Doação global" />
     </group>
@@ -59,7 +59,6 @@ const padDummy = new Object3D();
  */
 export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const marker = useMemo(lotMarker, []);
-  const open = useVila((s) => s.open);
   const isPublished = (id: string) => info[id]?.state === "published" && !!info[id]?.ngo_name;
   const published = useMemo(() => LOTS.filter((l) => isPublished(l.id)), [info]);
   const available = useMemo(() => LOTS.filter((l) => !isPublished(l.id)), [info]);
@@ -94,7 +93,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
     const lot = e.instanceId === undefined ? undefined : list[e.instanceId];
     if (!lot) return;
     e.stopPropagation();
-    open({ kind: "lot", lotId: lot.id });
+    openFromScene({ kind: "lot", lotId: lot.id });
   };
   return (
     <>
@@ -105,7 +104,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
           key={lot.id}
           position={[lot.x, 0, lot.z]}
           rotation-y={lot.facing}
-          onClick={(e) => (e.stopPropagation(), open({ kind: "lot", lotId: lot.id }))}
+          onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "lot", lotId: lot.id }))}
         >
           <Voxels voxels={model.voxels} size={model.size} glow={model.glow} />
         </group>
@@ -201,8 +200,6 @@ function npcMarker(npc: NpcPlacement, progress: Progress): string {
  */
 export function QuestNpcs() {
   const progress = useVila((s) => s.progress);
-  const open = useVila((s) => s.open);
-  const setTarget = useVila((s) => s.setTarget);
   const models = useMemo(() => NPCS.map((npc) => ({ npc, m: villager(npc.seed) })), []);
   return (
     <>
@@ -213,9 +210,8 @@ export function QuestNpcs() {
           rotation-y={npc.rot}
           onClick={(e) => {
             e.stopPropagation();
-            if (Math.hypot(npc.x - sim.pose.x, npc.z - sim.pose.z) < INTERACT_DISTANCE) open({ kind: "npc", npcId: npc.id });
             // Too far to talk: walk there instead. The walk ends next to the NPC, on the avatar's side.
-            else setTarget({ x: npc.x, z: npc.z });
+            visit(npc, { kind: "npc", npcId: npc.id }, INTERACT_DISTANCE);
           }}
         >
           <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow />
@@ -266,10 +262,9 @@ export function QuestItems() {
  * both open the same donation modal. A proposal like the NPCs, so it is mounted only with the quests flag.
  */
 export function DonationLectern() {
-  const open = useVila((s) => s.open);
   const m = useMemo(() => donationPanel("donation-panel"), []);
   return (
-    <group position={[DONATION_PANEL.x, 0, DONATION_PANEL.z]} rotation-y={DONATION_PANEL.rot} onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
+    <group position={[DONATION_PANEL.x, 0, DONATION_PANEL.z]} rotation-y={DONATION_PANEL.rot} onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "donation" }))}>
       <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} castShadow />
       <Label y={2.2} text="Doação global" x={DONATION_PANEL.x} z={DONATION_PANEL.z} />
     </group>

@@ -56,7 +56,18 @@ Cada versão indica o schema D1 que entrega.
 - O lago, o trenó com as renas, o trenó pequeno, duas lanternas e dois NPCs das quests mudaram de lugar, para
   dentro da faixa festiva da praça; um morador decorativo saiu de onde passa uma avenida. Os terrenos de ONG
   ficam agora a cerca de 31 u da árvore (eram 22 u).
-- Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
+- Enquanto a câmera não vê o peito ou a cabeça do avatar (uma construção, a árvore ou um pinheiro no caminho), ele
+  é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é uma reta da câmera
+  ao avatar contra o mapa de colunas de cada construção (antes: a pegada de uma construção ao sul e um contorno
+  vermelho chapado, que aparecia com o avatar à vista e faltava atrás de esquinas e da árvore). Só o próprio
+  avatar; os outros visitantes não têm esse desenho.
+- "Olhar o céu" sobe a câmera por cima dos telhados onde uma construção ficaria na vista (ruas residenciais); na
+  praça a vista é a de sempre.
+- O botão de ação de um terreno residencial só aparece com o avatar parado, e o alvo oferecido tem histerese: numa
+  rua econômica o botão ficava na tela em 83 % do trajeto, trocando 15 vezes; agora, 0 %.
+- Um clique, uma intenção: clicar numa construção não deixa mais uma caminhada esperando o painel fechar; de longe,
+  o avatar anda até o ponto de uso e o marcador do toque fica lá; um toque num telhado que cobre a rua anda até o
+  ponto da rua.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
   não lista (banco antes da 0012) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
   recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
