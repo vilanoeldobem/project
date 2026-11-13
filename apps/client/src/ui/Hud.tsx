@@ -20,8 +20,8 @@ const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
   "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
 };
 
-/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1). */
-function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
+/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1; places of IMPL-0024). */
+export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   switch (nearby.kind) {
     case "npc":
       return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
@@ -33,6 +33,51 @@ function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
       return "🎄 Doação global";
     case "lot":
       return "🏡 Ver terreno";
+    case "plot":
+      return "🏠 Ver terreno residencial";
+    case "shop":
+      return "🎁 Ver loja";
+    case "billboard":
+      return "📜 Ler placa";
+  }
+}
+
+/**
+ * The one contextual action of the game: what the action button, E and Enter do with the thing the avatar is
+ * next to. Every kind of `Nearby` is decided here and nowhere else, so a lot, a villager, the tree and the
+ * places of the expanded village (residential plot, shop, billboard: IMPL-0024) follow the same rules: the key
+ * map, a held key, the hint that gives way, Escape. Each opens its panel, except a quest interaction, which
+ * records its event.
+ */
+export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof useVila.getState>, "open" | "record" | "notify"> = useVila.getState()): void {
+  switch (n.kind) {
+    case "npc":
+      vila.open({ kind: "npc", npcId: n.npcId });
+      return;
+    case "quest": {
+      // The quest and the event come from the interaction itself; an unknown id records nothing.
+      const interaction = QUEST_INTERACTIONS.find((i) => i.id === n.interactionId);
+      if (!interaction) return;
+      vila.record(interaction.questId, interaction.id);
+      const done = INTERACTION_COPY[interaction.id]?.done;
+      if (done) vila.notify(done);
+      return;
+    }
+    case "donation-panel":
+    case "tree":
+      vila.open({ kind: "donation" });
+      return;
+    case "lot":
+      vila.open({ kind: "lot", lotId: n.lotId });
+      return;
+    case "plot":
+      vila.open({ kind: "plot", plotId: n.plotId });
+      return;
+    case "shop":
+      vila.open({ kind: "shop", shopId: n.shopId });
+      return;
+    case "billboard":
+      vila.open({ kind: "billboard", billboardId: n.billboardId });
   }
 }
 
@@ -62,8 +107,6 @@ export function Hud() {
   const idle = useVila((s) => s.panel.kind === "none" && s.menu === null);
   const menuOpen = useVila((s) => s.menu !== null);
   const progress = useVila((s) => s.progress);
-  const record = useVila((s) => s.record);
-  const notify = useVila((s) => s.notify);
   const done = MISSIONS.filter((m) => progress.completed[m.id]).length;
   const toast = useVila((s) => s.toast);
   const quests = useQuestsEnabled();
@@ -74,29 +117,6 @@ export function Hud() {
   const moderationOn = useModeration((s) => s.on);
   /** The moderation block is on screen (`ModerationBar`): the line that says how to walk gives it the room. */
   const moderation = moderating(user, moderationOn);
-
-  const activate = (n: NonNullable<Nearby>) => {
-    switch (n.kind) {
-      case "npc":
-        open({ kind: "npc", npcId: n.npcId });
-        return;
-      case "quest": {
-        // The quest and the event come from the interaction itself; an unknown id records nothing.
-        const interaction = QUEST_INTERACTIONS.find((i) => i.id === n.interactionId);
-        if (!interaction) return;
-        record(interaction.questId, interaction.id);
-        const done = INTERACTION_COPY[interaction.id]?.done;
-        if (done) notify(done);
-        return;
-      }
-      case "donation-panel":
-      case "tree":
-        open({ kind: "donation" });
-        return;
-      case "lot":
-        open({ kind: "lot", lotId: n.lotId });
-    }
-  };
 
   useEffect(() => {
     // The one key listener of the game: every key comes from the key map (`lib/hud-keys.ts`).
@@ -116,11 +136,11 @@ export function Hud() {
       const action = hudKeyAction(e.key, target, n !== null, e.repeat);
       if (action === "zoom-in") zoomBy(1 / ZOOM_STEP);
       else if (action === "zoom-out") zoomBy(ZOOM_STEP);
-      else if (action === "activate" && n) activate(n);
+      else if (action === "activate" && n) activate(n, vila);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [nearby, open, record, notify, zoomBy]);
+  }, [zoomBy]);
 
   return (
     <div className="hud">

@@ -28,23 +28,29 @@ mkdirSync(out, { recursive: true });
 
 /** The avatar stops within 0.15 u of its destination; the rest is slack for the render interpolation. */
 const TOLERANCE = 0.3;
-/** Per walk. Software GL runs the simulation several times slower than real time (the longest leg is 6 s). */
+/** Per walk. Software GL runs the simulation several times slower than real time (the longest leg is 17 s). */
 const TIME_LIMIT = 90000;
 
 /** Open ground, chained from the spawn (0, 9): each must be reached exactly. */
 const LEGS = [
-  ["sleigh keeper's spot (was 18.5 u short)", -2.5, 28.5],
+  ["sleigh keeper's spot (was 18.5 u short)", -6, 21.8],
   ["market keeper's spot (was 10.7 u short)", -18.6, 0],
-  ["pond keeper's spot (was 20 u short)", 24.5, -2.5],
+  ["pond keeper's spot (was 20 u short)", 16.3, -10.4],
   ["postmaster's spot", 4.5, 11.8],
   ["storyteller's spot", 5, 4],
   ["lectern's spot", 4.6, 6.4],
   ["across the tree", 0, -15],
   ["behind the market stalls, between the fences", -23, 0],
-  ["by the lake lantern, north-east edge", 30.5, 10],
-  ["south-west corner", -28, -14],
-  ["behind the sleigh and the reindeer", 2, 32.5],
-  ["east, past the pond", 26, -12],
+  ["by the lake lantern, east of the square", 22.5, 5.5],
+  ["south-west avenue, between two lots of the frontage", -28, -14],
+  ["behind the sleigh and the reindeer", 2, 22.8],
+  ["north-east avenue, past the pond", 26, -12],
+  // The expanded village (IMPL-0024): streets, a plot front of each tier, the wood yard, and all the way back.
+  ["premium street, behind the frontage", 37.5, 6],
+  ["front of premium-01", 38.75, -7.5],
+  ["front of standard-10, on the far side", 6.25, 54.25],
+  ["front of economy-01, the farthest plot", 67.75, -22.5],
+  ["end of the northern lane, by the wood yard", 0, -78],
   ["just behind the lamp post south of the spawn", 0, 13.8],
   ["back to the spawn", 0, 9],
 ];
@@ -59,8 +65,12 @@ const BLOCKED = [
   { name: "pine", from: [-4, -4], click: [-10, -10], at: [-10, -10], range: [2.65, 3.25] },
   { name: "market-stall", from: [15, 0], click: [20.5, 0], at: [20.5, 0], range: [1.5, 2.1] },
   { name: "snowman", from: [6, 9], click: [9.5, 4], at: [9.5, 4], range: [1.3, 1.9] },
-  { name: "sleigh", from: [-4, 22], click: [-4, 30.5], at: [-3.5, 30.5], range: [1.7, 2.3] },
-  { name: "outside-the-world", from: [18, 18], click: [60, 60], at: [0, 0], range: [33.6, 34.01] },
+  { name: "sleigh", from: [-2.2, 16], click: [-2.2, 20.2], at: [-2.2, 20.2], range: [1.7, 2.3] },
+  // The expanded village (IMPL-0024): a shop's wall, the firewood between two cottages, the log pile.
+  { name: "shop", from: [5, 24], click: [5, 30.5], at: [5, 30.5], range: [3.95, 4.55] },
+  { name: "firewood", from: [66.5, -19.5], click: [72.5, -19.5], at: [72.5, -19.5], range: [2.95, 3.55] },
+  { name: "log-pile", from: [3.5, -77], click: [3.5, -80], at: [3.5, -80], range: [1.2, 1.8] },
+  { name: "outside-the-world", from: [18, 18], click: [200, 200], at: [0, 0], range: [82.1, 82.51] },
 ];
 
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });

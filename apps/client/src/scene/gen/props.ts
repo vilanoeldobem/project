@@ -194,6 +194,23 @@ function stall(seed: Seed, goods: "mixed" | "panetone"): GenModel {
   return { voxels: done(out), size: 0.42 }; // people-sized: the counter reaches the avatar's waist
 }
 
+/** Log pile (the wood yard, IMPL-0024): two rows of three logs and one on top, cut ends lighter, snow on the top log. Runs along X. */
+export function logPile(seed: Seed): GenModel {
+  const r = new Rng(seed, "log-pile");
+  const barks = [P.trunk, P.wood, V.woodDark] as const;
+  const v: Voxel[] = [];
+  const log = (y: number, z: number) => {
+    const bark = r.pick(barks);
+    const cut = r.pick([V.woodLight, V.furLight]);
+    box(v, -3, 3, y, y, z, z, (x) => (Math.abs(x) === 3 ? cut : bark));
+  };
+  for (const y of [0, 1]) for (const z of [-1, 0, 1]) log(y, z);
+  log(2, 0);
+  const snowy = r.int(0, 2);
+  const out = snowCap(v, P.snow, (x, z) => z === 0 && (x + snowy) % 3 !== 0);
+  return { voxels: done(out), size: 0.5 };
+}
+
 export const marketStall = (seed: Seed) => stall(seed, "mixed");
 /** Panettone stand: a Brazilian Christmas staple, warm dome loaves on the counter. */
 export const panettoneStand = (seed: Seed) => stall(seed, "panetone");
@@ -208,4 +225,5 @@ export const PROPS: Generator[] = [
   { id: "garland", category: "props", name: "Guirlanda", generate: garland },
   { id: "market-stall", category: "props", name: "Barraca", generate: marketStall },
   { id: "panettone-stand", category: "props", name: "Barraca de panetone", generate: panettoneStand },
+  { id: "log-pile", category: "props", name: "Pilha de lenha", generate: logPile },
 ];

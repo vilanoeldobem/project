@@ -64,6 +64,20 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 export const fetchIndicators = () => getJson<{ updatedAt: string; indicators: Indicator[] }>("/indicators");
 export const fetchLots = () => getJson<{ lots: LotInfo[] }>("/lots");
 
+export type PlotState = "unavailable" | "available" | "occupied";
+
+/** A residential plot as the API answers it (IMPL-0024, PROPOSTA): its state, never who holds it. */
+export interface PlotInfo {
+  id: string;
+  state: PlotState;
+}
+
+/**
+ * Residential plots (`GET /residential-plots`): `enabled` is false and every state "unavailable" while ownership
+ * is off. Null when the API cannot be read or is older than the route.
+ */
+export const fetchResidentialPlots = () => getJson<{ enabled: boolean; plots: PlotInfo[] }>("/residential-plots");
+
 /** One photo of a published NGO's public gallery (IMPL-0018, PROPOSTA): `url` is a path on the API. */
 export interface GalleryPhoto {
   id: string;

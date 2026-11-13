@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import seed from "../../../../migrations/0002_seed_lots.sql?raw";
+import expansion from "../../../../migrations/0012_village_expansion.sql?raw";
 
 import { applyEvent, EMPTY_PROGRESS, levelOf, MISSIONS } from "./progress";
 import { clampToWorld, LOTS, TREE_KEEP_OUT, WORLD_RADIUS } from "./world";
@@ -34,11 +35,16 @@ describe("missions (DEC-042)", () => {
 });
 
 describe("world", () => {
-  it("lot positions match the seed migration", () => {
-    for (const [i, lot] of LOTS.entries()) {
-      // 0002 seeds legacy ids `praca-NN`; 0003 renames them to `plaza-NN` keeping coordinates.
-      expect(seed).toContain(`${i + 1}, ${lot.x}, ${lot.z})`);
+  it("lot positions match the seed migrations", () => {
+    // 0002 seeds the first eight lots with legacy ids `praca-NN`; 0003 renames them to `plaza-NN`; 0012 moves
+    // them to the square's frontage and adds the others (IMPL-0024). `village.test.ts` checks 0012 row by row,
+    // residential plots included, and `apps/api` checks the migrated tables themselves.
+    for (const lot of LOTS.slice(0, 8)) {
+      expect(seed).toContain(`('praca-${String(lot.slot).padStart(2, "0")}', 'praca', ${lot.slot},`);
+      expect(expansion).toContain(`UPDATE lots SET x = ${lot.x}, z = ${lot.z} WHERE id = '${lot.id}';`);
     }
+    for (const lot of LOTS.slice(8)) expect(expansion).toContain(`('${lot.id}', 'plaza', ${lot.slot}, ${lot.x}, ${lot.z})`);
+    expect(LOTS.map((l) => l.slot)).toEqual(LOTS.map((_, i) => i + 1));
   });
 
   it("keeps the avatar inside the world and outside the tree", () => {

@@ -630,3 +630,87 @@ files, gallery and progress work, and fix the findings of its review. Dark, PROP
   channel, lot release as a DEC) and OQ-09 (mission whose target left the village).
 
 Delivery record: [docs/implementation/ngo-withdrawal-report.md](../docs/implementation/ngo-withdrawal-report.md).
+
+## Village expansion, phase 1 — 2026-11-13 (IMPL-0024, branch `feat/village-expansion`)
+
+Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here re-decides them.
+
+- [x] Layout from one plan (`VILLAGE_PLAN` → `layoutVillage`): 8 avenues, 8 lanes, frontage (12 NGO lots, 4 shops,
+      4 billboards), 16 / 32 / 64 residential plots, world radius 82.5, street graph, sightline rule
+- [x] Migration 0012, numbered 0011 until the donations of PR #37 took that number (moves 8 lots, adds 4, creates `residential_plots`); seed sync tests on the SQL and on SQLite
+- [x] API: `GET /residential-plots`, `RESIDENTIAL_PLOTS_ENABLED`, `/config.residentialPlots`; matrix v3..v12
+- [x] Scene: ground runs, shops, billboards, residences per side and tier, street lamps, forest sectors, outline
+- [x] Interaction: plot, shop and billboard panels; action button beside the HUD (`ui/VillageAction.tsx`)
+- [x] Docs: ADR 0023, OQ-17..19 (numbered OQ-16..18 before the merge with main, where OQ-16 is the entry/menu ratification), architecture, storage, api, deploy, content, quests, changelog, AGENTS.md
+- [x] Follow-up after the HUD rework merges: fold `place` into `Hud.tsx` (`actionLabel` / `activate`) and delete
+      `ui/VillageAction.tsx` (done at the merge with main: the three places are kinds of `Nearby`)
+- [x] `verify-quests.mjs`, `verify-accounts.mjs`, `apps/client/scripts/verify.mjs`: run at the integration with
+      main (next section)
+- [ ] Not measured: frame time on a phone
+
+### Review
+
+- Measured on the local build (M5, Chrome with GPU, medium, spawn): 70 → 124 draw calls, 121.6k → 217.3k triangles;
+  navigation field 1.45 → 8.2 ms, worst plan 1.77 → 4.84 ms. Budget: 150 calls, 250k triangles at default zoom.
+- Worse for a player today: a row south of a street hides whoever walks close behind it (mitigated by low roofs and
+  the outline, not solved); NGO lots are farther from the tree; quest scenery moved.
+
+### Lessons
+
+- Two files that differ only in case (`village.ts`, `Village.tsx`) break module resolution on macOS: name pure
+  modules differently from components.
+- Three `wrangler dev` processes cannot share one `--persist-to` directory (SQLITE_BUSY): one directory per Worker.
+- zustand selectors read the initial state under `renderToStaticMarkup`: keep a pure view component to test.
+
+## Integration of the village expansion with main (IMPL-0022 + IMPL-0024) — 2026-11-13
+
+Branch `feat/village-expansion`, merged with `origin/main` (21658a1: no welcome modal, trimmed HUD, Esc menu).
+
+- [x] Merge, both features kept. Conflicts: `App.tsx`, `scene/Player.tsx`, `architecture.md` (the village plan is
+      §2.4 now; §2.3 is the arrival and the HUD), `decisions/README.md`, `open-questions.md`, `CHANGELOG.md`
+- [x] Open questions renumbered: OQ-16 stays the entry/menu ratification; the expansion's are OQ-17 (players and
+      plots), OQ-18 (billboards), OQ-19 (final lot plan)
+- [x] One contextual action: plot, shop and billboard are kinds of `Nearby`, handled by `actionLabel` / `activate`
+      in `ui/Hud.tsx`; `ui/VillageAction.tsx`, `Place` and `setPlace` are gone
+- [x] "Explorar ONGs" with 12 lots; a lot the API does not list says "Ainda não recebe candidaturas"
+- [x] Render cost of the zoomed-out view inside the budget: blocks whose shadow is not seen stay out of the
+      shadow pass (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`); windows and lanterns of the rows in two
+      meshes. 152 calls / 274 086 triangles → 116 / 210 944 (numbers and method in ADR 0023)
+- [x] Browser checks on the merged tree, against Workers on other ports (8787 was in use): `verify.mjs`,
+      `verify-collisions.mjs`, `verify-quests.mjs`, `verify-accounts.mjs`, `smoke-api.sh`,
+      `verify-media-local.mjs --progress --withdrawal` and `--browser`
+- [x] `verify-accounts.mjs` step 5b reached the lot by old coordinates: it goes through "Explorar ONGs" now
+- [ ] Not run: `verify-live.mjs` (deployed game only), the dashboard's own scripts, anything on a phone
+
+### Lessons
+
+- The fixed origins of a local build (`localhost:8787/8788/8797/8799`) can be pointed at other ports without a
+  rebuild: Chrome `--host-rules="MAP localhost:8787 127.0.0.1:18787, …"` (a rule may name a port).
+- `verify-accounts.mjs` with a rerouted API: name it `localhost`. With `127.0.0.1` the session cookie is lost.
+- three.js culls a mesh, shadow pass included, with one sphere: a long merged block is drawn into the shadow
+  map from far away. Measure the shadow pass apart from the main pass before merging geometry further.
+- `renderer.info` counts both passes; a per-mesh count from the scene graph says which pass a triangle is in.
+
+## Second integration with main: Pix donations (PR #37) — 2026-11-13
+
+`main` gained the donations (IMPL-0023, migration 0011, `DONATIONS_ENABLED` "false" in production and staging)
+while the village expansion was being integrated. Both had taken the same numbers.
+
+- [x] Merge, both features kept: `/config` answers `residentialPlots` and `donations`; both flags "false" in
+      `wrangler.jsonc`; the all-schemas matrix gives each flag its own bit (9 flags, 512 combinations per schema)
+- [x] Village migration renumbered to `0012_village_expansion.sql` (never applied anywhere); matrix v3 to v12;
+      0012 applied on a v11 database leaves the donation tables as they were
+- [x] Village decision renumbered to IMPL-0024 (`docs/decisions/0024-village-expansion-and-zoning.md`)
+- [x] Donations against the larger village: the per-NGO donation follows the NGO, not the lot (tests for
+      `plaza-09`…`plaza-12`, flag off and on); nothing in the donation code was changed
+- [x] Gates and browser checks rerun on the merged tree (own ports, GTM stubbed, provider never called)
+- [ ] Reported, not fixed (donation code of PR #37): the webhook replay guard compares a millisecond timestamp,
+      so `donations.test.ts` › "ignores a replay of an event already applied, even after a later dispute" fails
+      whenever its three deliveries fall in the same millisecond
+
+### Lessons
+
+- Before merging a long branch, fetch again and compare `ls migrations docs/decisions` with `origin/main`:
+  numbers are taken in the order of integration (`docs/reference/versioning.md`).
+- A flag added to the all-schemas matrix needs its own bit; two branches adding "the next bit" collide silently.
+

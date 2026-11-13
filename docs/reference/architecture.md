@@ -1,7 +1,7 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
-> **Atualizado em:** 2026-11-12
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
 
@@ -88,7 +88,8 @@ na praça ([§2.3](#23-chegada-hud-e-menu-do-jogo)).
 ### 2.2 Colisores e navegação por clique
 
 Decisão e alternativas em [IMPL-0016](../decisions/0016-click-navigation-and-colliders.md). O layout é
-**PROPOSTA** (PEN-017/PEN-023); o que segue descreve só o que bloqueia o avatar.
+**PROPOSTA** (PEN-017/PEN-023; o plano em vigor está em §2.4 e em
+[IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)); o que segue descreve só o que bloqueia o avatar.
 
 **Colisor** (`shared/game/collision.ts`): um retângulo arredondado no chão. `{ x, z, r }` é um círculo; com `hx`/`hz`
 (meias-medidas do núcleo) e `ux`/`uz` (direção do eixo), uma cápsula ou caixa orientada. Raio do avatar: `0,45`.
@@ -112,23 +113,30 @@ cabeça do avatar e girada com a peça.
 | Atril de doação | círculo `r 0,5` | só com as quests ligadas |
 | Terreno disponível | 4 estacas `r 0,5` + placa (cápsula 3 × 1) | o piso do terreno é caminhável |
 | Chalé (ONG publicada) | caixas das paredes e da varanda | pegada do próprio modelo (`GenModel.solid`) |
-| Presentes, itens de quest, lago, borda do mundo | nenhum | a borda é o limite `WORLD_RADIUS = 34` |
+| Chalé de terreno residencial | caixas das paredes e da varanda | pegada do modelo de `residence()`; sempre desenhado (`plotColliders`) |
+| Loja | caixa 7 × 7 | paredes; o toldo e a moldura da placa ficam acima da cabeça |
+| Muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha | caixas pela pegada (voxels de 0,5 u) | o que distingue as faixas residenciais (`RESIDENTIAL_DRESSING`); cerca-viva e lenha fecham o vão entre dois chalés |
+| Pilha de lenha (pátio da lenha) | caixa 3,5 × 1,5 | |
+| Presentes, itens de quest, lago, borda do mundo | nenhum | a borda é o limite `WORLD_RADIUS = 82,5` |
 
 `apps/client/src/scene/colliders.test.ts` compara cada modelo desenhado com o seu colisor nos dois sentidos: nenhum
 voxel sólido fica mais de 0,3 u fora de um colisor e nenhum contorno de colisor fica a mais de 0,35 u de um voxel.
 
 **Navegação** (`shared/game/navigation.ts`):
 
-- `createNavField(colisores)`: grade de 0,25 u sobre o disco do mundo; célula livre = avatar a pelo menos 0,25 u de
-  todo colisor. Refeita só quando os colisores mudam (casa publicada, bandeira das quests): ≈ 3 ms.
+- `createNavField(colisores)`: grade de 0,25 u sobre o disco do mundo (82,5 u de raio: ≈ 437 000 células); célula
+  livre = avatar a pelo menos 0,25 u de todo colisor. Refeita só quando os colisores mudam (casa publicada,
+  bandeira das quests): ≈ 8 ms com os ≈ 550 colisores da Vila.
 - `planRoute`: resolve o destino (o clique, ou o ponto caminhável mais próximo, do lado de quem chega), vai em linha
   reta se ele está à vista, senão A* na grade e "puxar a corda" para sobrarem poucos trechos retos. Limite: as
-  células caminháveis (≈ 44 000).
+  células caminháveis (≈ 200 000); medido: mediana de 0,5 ms entre frentes de terreno, 4,8 ms na pior rota (166 u).
+  O rascunho da busca usa custos de 32 bits (≈ 10,5 MB, alocado na primeira busca).
 - `stepWalk`: segue a rota no passo fixo, sem alocar; replaneja se o avatar parar de progredir.
 - O alvo guardado no estado (`target`) é o destino resolvido: o marcador e o brilho do clique aparecem onde o avatar
   vai parar.
-- Alcance dos terrenos: `LOT_INTERACT_DISTANCE = 6` (a varanda do chalé termina a 4,5 u do centro); árvore, NPCs e
-  atril usam `INTERACT_DISTANCE = 4,5`.
+- Alcance dos terrenos: `LOT_INTERACT_DISTANCE = 6` (a varanda do chalé termina a 4,5 u do centro; com dois
+  terrenos vizinhos ao alcance, vale o mais próximo); árvore, NPCs e atril usam `INTERACT_DISTANCE = 4,5`; terreno
+  residencial, porta de loja e placa usam `PLACE_INTERACT_DISTANCE = 3,2` a partir do seu ponto de uso.
 
 Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http://localhost:8799` (só local).
 
@@ -191,6 +199,39 @@ na OQ-16).
   presença e o ambiente continuam (`game/menu-runs.test.ts`).
 - **Onde a marca aparece:** título da página, tela de carregamento (`Wordmark`) e site público. A página tem um
   `<h1>` só para leitores de tela.
+
+### 2.4 Plano da Vila (IMPL-0024, PROPOSTA)
+
+Tudo vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas, placas,
+ruas e o raio do mundo. Decisão, números e o que fica para depois em
+[IMPL-0024](../decisions/0024-village-expansion-and-zoning.md).
+
+| Peça | Onde | Constante |
+|---|---|---|
+| 8 avenidas (a 22,5° + 45°·k) e 8 travessas (no meio de cada lado) | da praça à borda | `PATH_GRAPH` (80 nós, 120 arestas) |
+| Fachada da praça: 12 terrenos de ONG e 4 lojas | 26 a 34 u do centro, ao longo de cada lado | `LOTS`, `SHOPS` |
+| Placas (uma por loja, no telhado) | sobre as lojas | `BILLBOARDS`, `VILLAGE_NOTICES` |
+| Anéis residenciais: 16 premium, 32 padrão, 64 econômico | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS` |
+| O que distingue as faixas | junto a cada casa | `RESIDENTIAL_DRESSING` (peças), `groundAt()` (calçamento), `STREET_LAMPS` |
+| Pátio da lenha, lugar do lojista, lugar da lareira | ponta da travessa norte; ao lado de cada porta; dentro de cada casa | `WOOD_YARD`, `ShopDef.keeper`, `ResidentialPlot.hearth` |
+
+- **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
+  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 272 peças
+  assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
+  para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
+  setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
+- **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance e grava um único alvo em `nearby`: árvore,
+  NPC, atril e terreno de ONG primeiro; terreno residencial, porta de loja ou placa só quando nenhum daqueles está
+  ao alcance. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
+  as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
+  mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
+  ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
+  em espera) e não têm botão além de fechar.
+- **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
+  ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
+- **Regra de vista** (`SIGHTLINE`, `sightlines()`): avenidas livres de coisa alta até a árvore; de todo terreno, a
+  avenida fica a no máximo 30 u pela rua em frente. Conferida em `shared/game/village.test.ts`, também para
+  variações do plano.
 
 ## 3. API (`apps/api/src`)
 
@@ -416,6 +457,8 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
 | Chamadas de desenho (medido, `verify.mjs`, Média, "dia-neve") | 56 (antes da malha de voxels: 96), sombra incluída |
 | Triângulos por quadro (mesma cena) | ~108 mil (antes: ~362 mil) |
+| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
+| Passada de sombra | Blocos residenciais (24) e setores da floresta (8) só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 
 Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;

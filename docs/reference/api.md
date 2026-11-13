@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v11 · **Atualizado em:** 2026-11-13
+> **Schema D1:** v12 · **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,account-moderation,presence-moderation,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `apps/api/src/{account-moderation,presence-moderation,logo-removal}.test.ts`,
 > `packages/shared/src/accounts/{validate,files,contract,moderation,errors}.ts`, `apps/server/src/handler.ts`,
@@ -82,7 +82,8 @@ Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (bindi
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false, "quests": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false }, "donations": false }
+{ "accounts": false, "quests": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
+  "residentialPlots": false, "donations": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
@@ -116,6 +117,11 @@ script local `dev`.
 As duas bandeiras ficam `"false"` em produção e staging e `true` no script local `dev`. A gestão de papéis e a
 remoção de logo por administrador não têm bandeira própria (valem com as contas ligadas).
 
+`residentialPlots` é `true` só com as contas ligadas **e** `RESIDENTIAL_PLOTS_ENABLED = "true"`. A posse de
+terrenos residenciais é **PROPOSTA** ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md),
+[OQ-17](../decisions/open-questions.md)): desligada em produção, em staging e no script local `dev`. Não existe
+rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde.
+
 `donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
 existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
 (IMPL-0002) e nenhuma rota `/donations/*` existe. Doações são **PROPOSTA**
@@ -146,14 +152,47 @@ Terrenos e, só quando a ONG está `published`, nome, resumo e logo dela. `Cache
 andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas nunca expõem dados da organização.
 
 ```json
-{ "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 20.33, "z": 8.42,
+{ "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 30.5, "z": 5,
               "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null, "ngo_logo": null } ] }
 ```
+
+São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`plaza-08`) num banco antes da
+migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
+([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
+jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
+a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
 
 `ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 
 `ngo_logo` é o caminho do logo nesta API (`/ngos/<id>/logo?v=<versão>`) quando a ONG publicada tem um; senão
 `null`. Com o envio de arquivos desligado é sempre `null` (e a tabela `ngo_files` nem é lida).
+
+### GET /residential-plots
+
+Terrenos residenciais da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**) e o
+estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca diz quem é o dono de um terreno.**
+
+```json
+{ "enabled": false,
+  "plots": [ { "id": "premium-01", "tier": "premium", "slot": 1, "x": 44.5, "z": -7.5, "facing": -1.5708,
+               "state": "unavailable" } ] }
+```
+
+| Campo | Significado |
+|---|---|
+| `enabled` | `true` só quando há algo a possuir: contas ligadas, `RESIDENTIAL_PLOTS_ENABLED = "true"` e a tabela `residential_plots` presente |
+| `tier` | `premium`, `standard` ou `economy` (da mais perto da árvore para a mais longe) |
+| `slot` | posição dentro da faixa, a partir de 1 |
+| `x`, `z`, `facing` | centro do terreno e rotação (rad) que o vira para a rua em frente; espelham `RESIDENTIAL_PLOTS` |
+| `state` | `unavailable` enquanto a posse está desligada; com ela ligada, `available` ou `occupied` |
+
+112 terrenos (16 premium, 32 padrão, 64 econômico), sempre na mesma ordem. O que cada faixa exige não está aqui: é
+um requisito (um nível), guardado em `VILLAGE_PLAN` no código compartilhado, nunca um preço. Não há `POST`: nenhuma
+rota grava posse nesta versão (`405` para qualquer método além de `GET`, `HEAD` e `OPTIONS`).
+
+**Esquemas antigos.** A tabela vem com a migração 0012 e produção está na 0003. Num banco sem a tabela, ou sem
+banco, a rota responde `200` com o layout das constantes compartilhadas e todo terreno `unavailable`
+(`enabled: false`), com qualquer combinação de bandeiras. Outro erro de banco continua sendo `500`.
 
 ### GET /ngos/:id/logo
 
@@ -765,7 +804,7 @@ Regras:
   valores, nunca CNPJ, URL ou referência do comprovante. Nenhuma chave, segredo ou dado do pagador é registrado.
 - **Schema**: com a bandeira ligada e o banco sem a migration 0011, as rotas de doação respondem
   `503 schema_outdated` (inclusive o webhook); com a bandeira desligada nenhuma rota pública lê as tabelas novas
-  e `/indicators` continua `null` (teste cobre v3 a v11).
+  e `/indicators` continua `null` (teste cobre v3 a v12).
 
 ### Listas do painel administrativo (IMPL-0015)
 

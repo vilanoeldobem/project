@@ -3,7 +3,7 @@ import { lazy, Suspense, useMemo } from "react";
 
 import { usePreset } from "../environment/settings";
 import type { Collider } from "@vila/shared/game/motion";
-import { HOUSE_ENVELOPE, lotColliders, LOTS } from "@vila/shared/game/world";
+import { HOUSE_ENVELOPE, lotColliders, LOTS, plotColliders, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
@@ -17,12 +17,21 @@ import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
+import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
 import { house } from "./gen/houses";
+import { residence } from "./villageModels";
+import { Billboards, Residences, Shops } from "./Village";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
+
+/**
+ * Walls and porch of the chalet of every residential plot (IMPL-0024): the footprint of the very model
+ * `Residences` draws. Static, so built once.
+ */
+const HOMES: Collider[] = RESIDENTIAL_PLOTS.flatMap((plot) => plotColliders(plot, residence(plot).solid ?? null));
 
 /**
  * 3D village. Snowy Christmas village whose light follows the real São Paulo time and whose fictional
@@ -38,7 +47,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
   const published = LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => l.id).join();
   const lotSolids = useMemo((): Collider[] => {
     const ids = new Set(published.split(","));
-    return LOTS.flatMap((l) => lotColliders(l, ids.has(l.id) ? (house(l.id).solid ?? HOUSE_ENVELOPE) : null));
+    return [...LOTS.flatMap((l) => lotColliders(l, ids.has(l.id) ? (house(l.id).solid ?? HOUSE_ENVELOPE) : null)), ...HOMES];
   }, [published]);
   return (
     <Canvas
@@ -51,6 +60,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
       <RenderStats maxDpr={preset.maxDpr} />
       <EnvironmentDriver />
       <Lighting />
+      <ShadowCulling />
       <Sky />
       <Suspense fallback={null}>
         <Snowfield />
@@ -69,6 +79,9 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <PlacedProps />
         <Sleigh />
         <Lots info={lots} />
+        <Shops />
+        <Billboards />
+        <Residences />
         <Gifts />
         <Footprints />
         <ClickMarker />

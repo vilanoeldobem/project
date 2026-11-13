@@ -1,6 +1,6 @@
 # Perguntas abertas ao dono do produto
 
-> **Status:** 10 abertas · **Atualizado em:** 2026-11-12
+> **Status:** 13 abertas · **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** este arquivo; pendências oficiais em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 Perguntas que o código não decide. Cada uma tem a escolha conservadora usada até a resposta. Respondida → vira ADR
@@ -20,6 +20,9 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-14 | Retirada de ONG publicada (PROPOSTA, [IMPL-0020](0020-ngo-publication-withdrawal.md)): o que a retirada significa para a conta do responsável e para o CNPJ? Pode ser desfeita? A organização pode voltar? O terreno é liberado para outra ONG? O que é guardado, por quanto tempo, e o que é dito à organização? | ratificar o comportamento atual / permitir nova candidatura depois da retirada (da mesma conta, do mesmo CNPJ, ou de ambos) / criar restauração por admin / definir prazo e descarte dos dados | **Bandeira desligada** (`NGO_WITHDRAWAL_ENABLED = "false"` em produção e homologação): nenhuma retirada acontece. O código, se ligado, faz o que está descrito abaixo; nada disso é decisão de produto | ligar a retirada em homologação ou produção | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; revisão do PR #33 |
 | OQ-15 | Galeria institucional conciliada: ratificar quantidade, tamanho, PNG/JPEG, dimensões, direitos de imagem, consentimentos, retenção e procedimento para órfãos? Como tratar fotos depois da exclusão da conta? | Ratificar a proposta ou ajustar antes de receber arquivos reais; definir retenção por estado editorial | Galeria com revisão individual, no bucket privado `FILES`, separada de logo/comprovantes; PNG/JPEG tratados pelo parser compartilhado; `NGO_PHOTOS_ENABLED` desligada. Sem WebP nesta versão. Exclusão da conta remove toda a galeria, inclusive fotos aprovadas; leitura pública exige terreno publicado. Texto/versionamento da declaração e conferência de direitos de imagem aguardam decisão operacional | Ativar galeria e receber fotos reais; integração visual posterior | [IMPL-0018](0018-ngo-files-reconciliation.md), DEC-028/037, PEN-019 |
 | OQ-16 | Chegada sem tela de boas-vindas (PROPOSTA, [IMPL-0022](0022-immersive-entry-and-game-menu.md)): o visitante cai direto na praça, os três caminhos (Explorar ONGs, Jogar, Doação global) ficam no HUD com nome, a marca provisória não aparece durante o jogo (só no título, no carregamento e no site) e a promessa da Vila passou para "Ajuda", no menu do jogo. Isso atende à DEC-008 e à P01? A marca deve voltar à tela de jogo quando a logo for aprovada (DEC-022/024)? | ratificar / manter uma tela de boas-vindas na primeira visita / pôr a marca aprovada num canto do HUD | Seguir com a IMPL-0022 como proposta: nada bloqueia a praça, os três caminhos e a doação global continuam visíveis desde a chegada, e a marca volta quando houver logo aprovada | Tratar a chegada e o HUD como decisão; arte final do HUD | [IMPL-0022](0022-immersive-entry-and-game-menu.md), DEC-008, DEC-022, DEC-024, PEN-016, P01 |
+| OQ-17 | Terrenos residenciais (PROPOSTA, [IMPL-0024](0024-village-expansion-and-zoning.md)): um jogador pode ter um terreno na Vila? A DEC-028 reserva terrenos a ONGs aprovadas e nenhuma decisão registrada fala de jogadores. Se puder, o que cada faixa (premium, padrão, econômico) exige? | Não permitir (as casas seguem como cenário) / permitir por desbloqueio jogando, com requisito por faixa / outro modelo | **Posse desligada** (`RESIDENTIAL_PLOTS_ENABLED = "false"` em produção e homologação): os 112 terrenos aparecem, todos "indisponíveis", e o painel diz que a posse ainda não está aberta. Não existe rota de posse. O requisito no código é um marcador: nível 5, 3 e 2. Nunca um preço: não há moeda nem compra (DEC-042, IMPL-0002) | Fase de posse de terrenos | IMPL-0024, DEC-028, DEC-042 |
+| OQ-18 | Placas das lojas (PROPOSTA, [IMPL-0024](0024-village-expansion-and-zoning.md)): elas podem um dia mostrar algo de patrocinadores ou parceiros (PEN-008 não decidiu patrocínio)? Com que regras, sabendo que o público provável inclui crianças e adolescentes? | Só avisos da Vila, sempre / conteúdo de parceiros aprovados, com regras e revisão / não ter placas | **Só avisos da própria Vila**, texto fixo escrito no repositório, sem marca e sem conteúdo de terceiros. O painel diz que o espaço não está disponível para aluguel. Nenhum código de aluguel existe | Qualquer uso das placas por terceiros | IMPL-0024, PEN-008 |
+| OQ-19 | Plano final de terrenos (PEN-017/PEN-023): quantos terrenos de ONG, quantos residenciais por faixa, quantas lojas, e em que disposição? | Ratificar o plano em vigor / ajustar contagens e medidas / outro desenho | Plano em vigor em `VILLAGE_PLAN` (PROPOSTA): 12 terrenos de ONG, 4 lojas, 16 + 32 + 64 residenciais, raio de 82,5 u. Tudo é derivado do plano: mudar um número muda o mundo, e uma migração nova acompanha | Aplicar a migração 0012 em produção com números definitivos | IMPL-0024, PEN-017, PEN-023 |
 
 **OQ-11, o que só o dono do produto responde sobre o bloqueio de conta.** O bloqueio é PROPOSTA e fica desligado
 (**`ACCOUNT_BLOCK_ENABLED = "false"` até a resposta**). O código entrega só o mecanismo
@@ -99,6 +102,33 @@ item precisa ser ratificado ou mudado, e nenhum foi decidido pelo código:
 8. **Cenas abertas e missões.** Quem já está na Vila continua vendo a casa até recarregar, e a missão
    `newest-house-visit` pode ficar sem objetivo se a última casa sair (OQ-09). Isso precisa de tratamento antes
    de ligar a retirada?
+
+**OQ-17, o que só o dono do produto responde sobre os terrenos residenciais.** A posse é PROPOSTA e fica desligada
+(**`RESIDENTIAL_PLOTS_ENABLED = "false"` até a resposta**). O código entrega só o lugar: os terrenos no layout, a
+tabela com as colunas de posse vazias e uma leitura pública que nunca diz quem é o dono.
+
+1. **Pode existir.** Um jogador pode ter um terreno? Isso convive com a DEC-028 (terrenos são de ONGs aprovadas) ou
+   pede uma decisão nova?
+2. **Requisito por faixa.** Se puder: o que cada faixa exige? Hoje o marcador é um nível (5, 3 e 2). Os níveis vêm
+   só de missões e quests, e do nível 3 em diante dependem das quests, que estão desligadas em produção.
+3. **Limites.** Um terreno por conta? Dá para trocar? O terreno volta a ficar livre depois de quanto tempo sem
+   uso? (Sem recompensa por tempo online: é regra do projeto.)
+4. **Menores de idade.** O público provável inclui crianças e adolescentes (ECA Digital, LGPD): ter um terreno
+   exige conta, e as contas dependem da revisão já pendente. Algo a mais para esta função?
+5. **O que o dono faz com o terreno.** Só a casa gerada, ou escolhas de aparência? As lojas entram nisso (itens
+   liberados jogando)?
+6. **Exclusão da conta.** Hoje o banco só libera o terreno. É o esperado?
+
+**OQ-18, o que só o dono do produto responde sobre as placas.** Enquanto não houver resposta, as quatro placas
+mostram avisos da Vila e nada mais.
+
+1. **Terceiros.** Uma placa pode mostrar o nome ou a mensagem de um patrocinador, de um parceiro ou de uma ONG da
+   Vila? A PEN-008 (patrocínio) segue sem decisão.
+2. **Crianças.** Publicidade que alcança crianças tem regras próprias. Que revisão jurídica precisa existir antes
+   de qualquer conteúdo de terceiros? (A conferir por quem fizer a revisão, entre outras normas: Código de Defesa
+   do Consumidor, art. 37; Resolução Conanda nº 163/2014; ECA Digital.)
+3. **Dinheiro.** "Aluguel" de placa seria um fluxo de pagamento: depende de PEN-004 e PEN-006, como as doações.
+4. **Quem aprova.** Quem escreve e quem aprova cada aviso, mesmo os da própria Vila?
 
 ## Resolvidas
 

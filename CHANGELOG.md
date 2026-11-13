@@ -9,6 +9,55 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — expansão da Vila (IMPL-0024, **PROPOSTA**; schema D1 v12)
+
+- **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
+  da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
+  depois, três anéis de terrenos residenciais: 16 premium, 32 padrão e 64 econômico. O raio do mundo foi de 34 para
+  82,5 u. Do terreno mais distante até a árvore são 8,8 s a pé. Tudo é derivado de um plano só (`VILLAGE_PLAN`).
+- **Terrenos residenciais visíveis, posse desligada.** Chegar perto de um terreno e usar a ação (E, Enter ou toque)
+  mostra o id, a faixa, o que a faixa exige e "A posse de terrenos ainda não está aberta.". O que a faixa exige é
+  um requisito (um nível, alcançado jogando), nunca um preço: não há moeda, valor nem botão de compra. Nenhuma
+  decisão de produto permite que um jogador tenha um terreno (DEC-028): fica como pergunta aberta (OQ-17), atrás de
+  `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação.
+- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o que ela vai oferecer e
+  que ainda não abriu. Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
+  aviso em texto, o id e que o espaço não está disponível para aluguel (OQ-18).
+- **Um botão de ação para tudo o que está perto.** Terreno residencial, porta de loja e placa usam o botão de ação
+  contextual do HUD e as mesmas regras de casa, terreno de ONG, árvore e morador (IMPL-0022): E abre com qualquer
+  foco, Enter só com o foco fora de um controle, tecla mantida pressionada abre uma vez, o botão some com um painel
+  ou o menu aberto. Os três painéis fecham pelo "×", pelo Esc e por um clique fora, como os demais.
+- **As faixas se reconhecem pelo ambiente:** calçamento (pedra, neve batida, neve pisada), frente do terreno (muro
+  com portão e lanternas, cerca de ripas, lanterna numa estaca), o que fica entre vizinhos (jardim com arbustos,
+  cerca-viva, lenha empilhada), tamanho da casa e postes de rua.
+- API: `GET /residential-plots` (pública; estado de cada terreno, nunca o dono) e `residentialPlots` em
+  `GET /config`. Num banco sem a tabela nova a rota responde o layout com tudo "indisponível".
+- Migration `0012_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
+  `residential_plots` (colunas de posse vazias, sem coluna de preço).
+- Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
+  da lareira em cada casa.
+
+### Changed — expansão da Vila (IMPL-0024)
+
+- O lago, o trenó com as renas, o trenó pequeno, duas lanternas e dois NPCs das quests mudaram de lugar, para
+  dentro da faixa festiva da praça; um morador decorativo saiu de onde passa uma avenida. Os terrenos de ONG
+  ficam agora a cerca de 31 u da árvore (eram 22 u).
+- Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
+- Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
+  não lista (banco antes da 0012) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
+  recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
+- Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores. Os blocos residenciais e os
+  setores da floresta só entram na passada de sombra enquanto a sombra de alguma peça deles aparece na tela, e as
+  janelas e lanternas dos blocos são duas malhas para a Vila inteira; a imagem não muda. A cena no spawn foi de 70
+  chamadas e ~122 mil triângulos para 102 e ~165 mil (preset Média, 12:00 com neve); com o zoom todo afastado
+  sobre a praça (15:30, céu limpo) são 116 chamadas e ~211 mil triângulos, dentro do orçamento de 150 e 250 mil
+  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; a pior rota medida
+  leva 4,8 ms para planejar.
+- Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
+- Verificação: `verify-accounts.mjs` chega à casa publicada por "Explorar ONGs" → "Ir até lá" (antes andava até a
+  posição antiga do terreno e, com os arquivos ligados, como roda no CI, não chegava) e confere os 12 terrenos na
+  lista; as coordenadas de `verify-collisions.mjs` e `verify-quests.mjs` são as do plano novo.
+
 ### Changed — chegada direta na Vila e HUD enxuto (IMPL-0022, PROPOSTA do responsável técnico; OQ-16)
 
 - Jogo: **a página abre direto na praça.** Não há mais painel de boas-vindas nem botão "Entrar na Vila": o primeiro

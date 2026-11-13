@@ -5,7 +5,10 @@
  *
  * - **Field** (`createNavField`, built when the collider set changes): a 0.25 u grid over the world disc.
  *   A cell is free when an avatar centred on it keeps `NAV.clearance` from every collider. Free cells are
- *   grouped into regions; the largest one is the walkable village.
+ *   grouped into regions; the largest one is the walkable village. The grid grew with the village
+ *   (IMPL-0024: 82.5 u of radius, about 437 000 cells): the cell stays 0.25 u, so every route keeps the
+ *   precision it had around the square, and the search scratch is kept small instead (32-bit costs, the
+ *   path written over the spent heap).
  * - **Plan** (`planRoute`, on click): resolve the destination to the nearest walkable point, go straight
  *   when it is in plain sight, otherwise A* over the grid (bounded by the number of free cells) followed by
  *   string pulling, so the route is a few straight legs instead of a staircase.
@@ -66,7 +69,7 @@ export interface NavField {
   walkable: number;
 }
 
-/** Builds the navigation field for a collider set. Linear in grid cells plus collider areas (about 1 ms). */
+/** Builds the navigation field for a collider set. Linear in grid cells plus collider areas (about 11 ms at 82.5 u). */
 export function createNavField(colliders: readonly Collider[]): NavField {
   const blocked = new Uint8Array(CELLS);
   for (let iz = 0; iz < SIDE; iz++) for (let ix = 0; ix < SIDE; ix++) if (!inWorld(at(ix), at(iz))) blocked[iz * SIDE + ix] = 1;
@@ -185,22 +188,25 @@ export const createRoute = (): Route => ({
 
 /** Search scratch, shared by every field (same grid size) and allocated on the first search. */
 interface Scratch {
-  g: Float64Array;
-  f: Float64Array;
+  /** Costs in cell units: 32 bits hold every route of the village exactly enough (ties are broken by cell index). */
+  g: Float32Array;
+  f: Float32Array;
   parent: Int32Array;
   seen: Uint32Array;
   heap: Int32Array;
   slot: Int32Array;
+  /** The found path. Same memory as `heap`: a path is written only after its search ended. */
   path: Int32Array;
 }
 let scratch: Scratch | null = null;
 let generation = 0;
 /** The scratch arrays with a fresh visit generation (`seen[i] === generation` = visited by this search). */
 function nextSearch(): Scratch {
-  const s = (scratch ??= {
-    g: new Float64Array(CELLS), f: new Float64Array(CELLS), parent: new Int32Array(CELLS), seen: new Uint32Array(CELLS),
-    heap: new Int32Array(CELLS), slot: new Int32Array(CELLS), path: new Int32Array(CELLS),
-  });
+  if (!scratch) {
+    const heap = new Int32Array(CELLS);
+    scratch = { g: new Float32Array(CELLS), f: new Float32Array(CELLS), parent: new Int32Array(CELLS), seen: new Uint32Array(CELLS), heap, slot: new Int32Array(CELLS), path: heap };
+  }
+  const s = scratch;
   if (++generation > 0xfffffff0) {
     s.seen.fill(0);
     generation = 1;

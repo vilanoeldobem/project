@@ -89,4 +89,17 @@ describe("meshVoxels", () => {
     expect(m.centers[0]).toBeCloseTo(1);
     expect(m.centers[1]).toBeCloseTo(0.25);
   });
+
+  it("skips the downward faces of the base layer when asked, and nothing else", () => {
+    // Two voxels on the ground and one overhanging above: only the two on the ground lose their underside.
+    const model: Voxel[] = [[0, 0, 0, "#fff"], [1, 0, 0, "#fff"], [0, 1, 0, "#fff"], [0, 1, 1, "#fff"]];
+    const [all] = meshVoxels(model, { toLinear: () => [1, 1, 1] });
+    const [grounded] = meshVoxels(model, { toLinear: () => [1, 1, 1], noFloor: true });
+    expect(all.faces - grounded.faces).toBe(2);
+    let down = 0;
+    for (let i = 0; i < grounded.faces; i++) if (grounded.normals[i * 12 + 1] === -1) down++;
+    expect(down).toBe(1); // the overhang keeps its underside
+    expect(grounded.positions.length).toBe(grounded.faces * 12);
+    expect(grounded.indices.length).toBe(grounded.faces * 6);
+  });
 });

@@ -22,7 +22,7 @@ prazo oficial **30/11/2026** (DEC-043)
 |---|---|---|
 | P01 Praça + doação global | Praça voxel, árvore central, três entradas (Explorar ONGs, Jogar, Doação global) | **Parcial** — doação sem pagamento |
 | P02 Indicadores públicos | Indicadores com "—" quando não há fonte verificável | **Parcial** |
-| P03 Terrenos | 8 terrenos ao redor da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível | **Parcial** |
+| P03 Terrenos | 12 terrenos de ONG na fachada da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível. Em volta, lojas, placas e 112 terrenos residenciais como PROPOSTA (posse desligada, [IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md)) | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
 | P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel publicado em 2026-11-12 ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |

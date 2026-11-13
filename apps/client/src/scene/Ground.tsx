@@ -1,38 +1,51 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { BufferAttribute, BufferGeometry, Color } from "three";
 
-import { PALETTE as P, PLAZA_RADIUS, STREET_INNER, STREET_OUTER, WORLD_RADIUS } from "@vila/shared/game/world";
+import { WORLD_RADIUS } from "@vila/shared/game/world";
 import { events } from "../game/events";
 import { useVila } from "../game/store";
 import { WALK } from "../lib/controls";
 import { selectVisitorAt } from "../lib/moderation";
-import { Voxels } from "./Voxels";
-import type { Voxel } from "./models";
+import { solidMaterial } from "./environment/materials";
+import { groundRuns } from "./groundRuns";
 
-/** Snowy voxel ground: cobbled plaza with snow patches, packed-snow ring street, deep snow beyond. */
+/**
+ * Snowy ground: cobbled plaza, packed-snow streets, the paving of each tier and deep snow beyond (`groundAt`
+ * in the shared world is the layout). One draw call.
+ */
 export function Ground() {
   const setTarget = useVila((s) => s.setTarget);
-  const voxels = useMemo(() => {
-    const v: Voxel[] = [];
-    const R = WORLD_RADIUS + 3;
-    // Cheap value noise so snow reads as relief, not a flat white plane (spec §2.4).
-    const n = (x: number, z: number) => Math.sin(x * 0.37 + z * 0.11) * Math.cos(z * 0.29 - x * 0.07);
-    for (let x = -R; x <= R; x++)
-      for (let z = -R; z <= R; z++) {
-        const r = Math.hypot(x, z);
-        if (r > R) continue;
-        const noise = n(x, z);
-        let c: string;
-        if (r <= PLAZA_RADIUS) c = noise > 0.35 ? P.snowShade : (x + z) % 2 === 0 ? P.stone : P.stoneDark;
-        else if (r < STREET_INNER) c = P.snow;
-        else if (r <= STREET_OUTER) c = Math.floor(r * 2) % 7 === 0 ? P.streetDark : noise > 0.5 ? P.snowShade : P.street;
-        else c = noise > 0.45 ? P.snowDeep : noise > -0.2 ? P.snow : P.snowShade;
-        v.push([x, -1, z, c]);
-      }
-    return v;
+  const geometry = useMemo(() => {
+    const runs = groundRuns(Math.ceil(WORLD_RADIUS) + 3);
+    const positions = new Float32Array(runs.length * 12), normals = new Float32Array(runs.length * 12), colors = new Float32Array(runs.length * 12);
+    const indices = new Uint32Array(runs.length * 6);
+    const tint = new Color();
+    const cache = new Map<string, [number, number, number]>();
+    runs.forEach(([x0, x1, z, c], i) => {
+      let rgb = cache.get(c);
+      if (!rgb) cache.set(c, (rgb = [tint.set(c).r, tint.g, tint.b]));
+      const corners = [[x0 - 0.5, z - 0.5], [x0 - 0.5, z + 0.5], [x1 + 0.5, z + 0.5], [x1 + 0.5, z - 0.5]];
+      corners.forEach(([x, cz], k) => {
+        const o = (i * 4 + k) * 3;
+        positions[o] = x;
+        positions[o + 2] = cz;
+        normals[o + 1] = 1;
+        colors.set(rgb, o);
+      });
+      indices.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+    });
+    const g = new BufferGeometry();
+    g.setAttribute("position", new BufferAttribute(positions, 3));
+    g.setAttribute("normal", new BufferAttribute(normals, 3));
+    g.setAttribute("color", new BufferAttribute(colors, 3));
+    g.setIndex(new BufferAttribute(indices, 1));
+    g.computeBoundingSphere();
+    return g;
   }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
   return (
     <group>
-      <Voxels voxels={voxels} castShadow={false} />
+      <mesh geometry={geometry} material={solidMaterial} receiveShadow />
       <mesh
         rotation-x={-Math.PI / 2}
         position-y={0.01}
@@ -49,7 +62,7 @@ export function Ground() {
           if (to) events.emit({ type: "tap", x: to.x, z: to.z });
         }}
       >
-        <circleGeometry args={[WORLD_RADIUS + 3, 48]} />
+        <circleGeometry args={[WORLD_RADIUS + 3, 64]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
     </group>

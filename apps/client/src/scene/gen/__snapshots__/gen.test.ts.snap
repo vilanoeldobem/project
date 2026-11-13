@@ -72,6 +72,14 @@ exports[`generator snapshots > lantern keeps the output of fixed seeds stable 1`
 ]
 `;
 
+exports[`generator snapshots > log-pile keeps the output of fixed seeds stable 1`] = `
+[
+  "2a77922b",
+  "27747607",
+  "8ea7e36d",
+]
+`;
+
 exports[`generator snapshots > mailbox keeps the output of fixed seeds stable 1`] = `
 [
   "698c216e",
@@ -165,6 +173,14 @@ exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] 
   "b6400131",
   "b6400131",
   "ca568aaf",
+]
+`;
+
+exports[`generator snapshots > shop keeps the output of fixed seeds stable 1`] = `
+[
+  "2ea71bd7",
+  "d4f3eed7",
+  "6f981610",
 ]
 `;
 

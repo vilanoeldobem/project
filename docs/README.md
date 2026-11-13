@@ -1,7 +1,7 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
-> **Atualizado em:** 2026-11-11
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-13
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
 
@@ -56,6 +56,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Logo e documentos de ONG (R2) | Implementado, desligado em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019, OQ-12) (IMPL-0017) | [api](reference/api.md#arquivos-da-candidatura-impl-0017) · [storage](reference/storage.md#5-arquivos-no-r2-impl-0017) |
 | Retirada de ONG publicada | Implementado como PROPOSTA, desligado em produção e homologação (`NGO_WITHDRAWAL_ENABLED`); política PENDENTE (OQ-14) (IMPL-0020) | [api](reference/api.md#retirada-administrativa-de-ong-publicada-impl-0020-proposta) · [0020](decisions/0020-ngo-publication-withdrawal.md) |
 | Administrador e moderação | Papéis geridos pela API e remoção de logo por administrador implementados (valem com as contas ligadas); bloqueio de conta e remoção de visitante de uma sala implementados como PROPOSTA, desligados em produção e homologação (`ACCOUNT_BLOCK_ENABLED`, `PRESENCE_MODERATION_ENABLED`); política de sanções PENDENTE (OQ-11); telas do painel e do jogo implementadas (IMPL-0021) | [api](reference/api.md#papéis-impl-0021) · [0021](decisions/0021-administrator-role-and-moderation.md) |
+| Expansão da Vila: praça maior, lojas, placas e terrenos residenciais | Layout, cena e leitura pública implementados como PROPOSTA; posse de terrenos desligada em produção e homologação (`RESIDENTIAL_PLOTS_ENABLED`); migration 0012 não aplicada no remoto; política PENDENTE (OQ-17, OQ-18, OQ-19) (IMPL-0024) | [architecture](reference/architecture.md#24-plano-da-vila-impl-0024-proposta) · [api](reference/api.md#get-residential-plots) · [0023](decisions/0024-village-expansion-and-zoning.md) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
 | Painel administrativo (`apps/dash`, `dash.*`) | Publicado em 2026-11-12, contas desligadas (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |
 | Missões e XP | Parcial (local; no servidor só com conta); `quests-v1` atrás de flags, conteúdo PROPOSTA (PEN-025) | [quests](reference/quests.md) · [domain-model](explanation/domain-model.md) |

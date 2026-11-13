@@ -16,6 +16,7 @@ import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { NpcDialog } from "./ui/NpcDialog";
+import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
 import { Wordmark } from "./ui/Wordmark";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -51,7 +52,10 @@ export function App() {
       <ModerationFlag />
       <GameMenu />
       {panel.kind === "donation" && <Donation />}
-      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} onChanged={loadLots} />}
+      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} unlisted={Object.keys(lots).length > 0 && !lots[panel.lotId]} onChanged={loadLots} />}
+      {panel.kind === "plot" && <PlotPanel plotId={panel.plotId} />}
+      {panel.kind === "shop" && <ShopPanel shopId={panel.shopId} />}
+      {panel.kind === "billboard" && <BillboardPanel billboardId={panel.billboardId} />}
       {panel.kind === "explore" && <Explore lots={lots} />}
       {panel.kind === "memory" && <MemoryGame />}
       {panel.kind === "missions" && <Missions lots={lots} />}

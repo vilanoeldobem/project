@@ -19,8 +19,11 @@ import { PixDonation } from "./PixDonation";
  * Donations (IMPL-0023; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
  * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
+ *
+ * `unlisted`: the API answered its lots and this one is not among them (a database before migration 0012, which
+ * adds the lots of the expanded village, IMPL-0024): the lot is drawn, but it cannot take an application yet.
  */
-export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info?: LotInfo; onChanged?: () => void }) {
+export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { lotId: string; info?: LotInfo; unlisted?: boolean; onChanged?: () => void }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
@@ -168,7 +171,9 @@ export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info
         <li>Meio confiável de confirmar os valores destinados à organização.</li>
       </ol>
       <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      {accounts ? (
+      {unlisted ? (
+        <p className="note">Este terreno ainda não recebe candidaturas.</p>
+      ) : accounts ? (
         <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
           Candidatar minha ONG
         </button>

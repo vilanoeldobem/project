@@ -375,6 +375,8 @@ describe("withdrawal (IMPL-0020, PROPOSTA)", () => {
     expect(ACTION_LABEL["ngo.withdraw"]).toBe("Retirada da Vila pela administração");
     expect(actionText("ngo.withdraw", JSON.stringify({ from: "published", to: "withdrawn", revision: 3, lots: ["plaza-03"], hasReason: true }))).toBe("Retirada da Vila pela administração");
     expect(FLAG_LABEL.withdrawal).toBe("Retirada de ONG publicada (PROPOSTA)");
+    // The ownership of residential plots (IMPL-0024) is a proposal too, and says so.
+    expect(FLAG_LABEL.residentialPlots).toBe("Posse de terrenos residenciais (PROPOSTA)");
   });
 });
 

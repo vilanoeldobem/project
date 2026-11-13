@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LOTS, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
+
 import { createD1 } from "../test/d1.mjs";
 import { createR2 } from "../test/r2.mjs";
 import { handleApi, type Env } from "./api";
@@ -135,14 +137,15 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 });
 
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
-// on any schema the code may meet (v3 to v11), whatever the flags and the bucket, and never with a 500. None of them
+// on any schema the code may meet (v3 to v12), whatever the flags and the bucket, and never with a 500. None of them
 // may read a table from a later migration: neither the withdrawal ledger (0009, IMPL-0020), anything 0010 adds
 // (the account block and the moderation tickets, IMPL-0021), nor the donation tables (0011, IMPL-0023) is part of
-// any public read while their flags are off.
-it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+// any public read while their flags are off. The residential plots (0012, IMPL-0024) are the one public read of a
+// newer table, and it answers the shared layout, every plot "unavailable", wherever the table is missing.
+it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   const wrong: string[] = [];
-  for (let flags = 0; flags < 256; flags++) for (const published of [true, false]) {
+  for (let flags = 0; flags < 512; flags++) for (const published of [true, false]) {
     db = createD1({ upTo });
     env = {
       DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: flags & 1 ? "true" : "false",
@@ -150,12 +153,13 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on 
       FILES: flags & 8 ? createR2() as unknown as R2Bucket : undefined,
       NGO_WITHDRAWAL_ENABLED: flags & 16 ? "true" : "false",
       ACCOUNT_BLOCK_ENABLED: flags & 32 ? "true" : "false", PRESENCE_MODERATION_ENABLED: flags & 64 ? "true" : "false",
-      DONATIONS_ENABLED: flags & 128 ? "true" : "false",
+      RESIDENTIAL_PLOTS_ENABLED: flags & 128 ? "true" : "false",
+      DONATIONS_ENABLED: flags & 256 ? "true" : "false",
     };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', ?)").bind(NGO_ID, published ? "published" : "submitted").run();
     await db.prepare("UPDATE lots SET ngo_id=?,state=? WHERE id='plaza-01'").bind(NGO_ID, published ? "published" : "application_sent").run();
     const expected: Record<string, number> = {
-      "/health": 200, "/config": 200, "/indicators": 200, "/lots": 200, "/environment": 200,
+      "/health": 200, "/config": 200, "/indicators": 200, "/lots": 200, "/environment": 200, "/residential-plots": 200,
       [PATH]: published ? 200 : 404, [`/ngos/${UNKNOWN_ID}`]: 404, [`${PATH}/logo`]: 404, [`${PATH}/photos/${UNKNOWN_ID}`]: 404,
     };
     for (const [path, status] of Object.entries(expected)) {
@@ -174,13 +178,25 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers every always-on public route on 
     expect(await (await get("/config")).json()).toEqual({
       accounts, quests: false, files: accounts && Boolean(flags & 2) && Boolean(flags & 8), withdrawal: accounts && Boolean(flags & 16),
       moderation: { block: accounts && Boolean(flags & 32), presence: accounts && Boolean(flags & 64) },
-      donations: Boolean(flags & 128),
+      residentialPlots: accounts && Boolean(flags & 128),
+      donations: Boolean(flags & 256),
     });
+    // `/lots` keeps its shape and its rows: the eight lots of 0002 everywhere, twelve once 0012 is applied.
+    expect(lots.map((lot) => lot.id)).toEqual(LOTS.slice(0, upTo >= 12 ? LOTS.length : 8).map((lot) => lot.id));
+    expect(Object.keys(lots[0]).sort()).toEqual(["id", "ngo_id", "ngo_logo", "ngo_name", "ngo_summary", "slot", "state", "street", "x", "z"]);
+    // Residential plots: the same layout on every schema; something to hold only with the table and both flags.
+    const plots = await (await get("/residential-plots")).json() as { enabled: boolean; plots: Array<Record<string, unknown>> };
+    const open = upTo >= 12 && accounts && Boolean(flags & 128);
+    expect(plots.enabled).toBe(open);
+    expect(plots.plots.map((plot) => plot.id)).toEqual(RESIDENTIAL_PLOTS.map((plot) => plot.id));
+    expect(new Set(plots.plots.map((plot) => plot.state))).toEqual(new Set([open ? "available" : "unavailable"]));
+    expect(Object.keys(plots.plots[0]).sort()).toEqual(["facing", "id", "slot", "state", "tier", "x", "z"]);
   }
   expect(wrong).toEqual([]);
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
-});
+  // 1,024 requests per schema: well past the default 5 s on a CI runner (v10–v12 took 5–7 s there).
+}, 60_000);
 
 it("counts in the public indicator only what the village shows: published NGOs on a published lot", async () => {
   const approved = async () => ((await (await get("/indicators")).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators.find((indicator) => indicator.key === "approved_ngos")?.value;

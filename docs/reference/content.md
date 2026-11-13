@@ -39,12 +39,14 @@
 | `garland` | Guirlanda | props | comprimento, curvatura, lâmpadas, laços | 44 / 154 |
 | `market-stall` | Barraca | props | toldo listrado, madeira, largura, mercadorias | 111 / 318 |
 | `panettone-stand` | Barraca de panetone | props | toldo, madeira, largura (toque brasileiro) | 110 / 322 |
+| `log-pile` | Pilha de lenha | props | casca e corte de cada tora, neve no topo (pegada fixa de 3,5 × 1,5 u; pátio da lenha, [IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)) | 54 / 114 (12 sementes do teste) |
 | `quest-reindeer-bell` | Sino do arreio | props | metal ouro/bronze, altura e largura da boca, tom da faixa, estilo do laço, orientação | 57 / 138 |
 | `quest-lucky-charm` | Patuá da sorte | props | par de tecido, cordão, selo frontal, boca arrepiada, lado do raminho, orientação | 50 / 108 |
 | `quest-ornament-crate` | Caixa de enfeites | props | madeira, profundidade, altura, combinação de bolas emissivas, topo, lado da neve | 68 / 156 |
 | `quest-donation-panel` | Painel de doação global | props | madeira, largura, altura, moldura, guirlanda, lâmpada, orientação | 77 / 196 |
 | `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
+| `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
 | `dog` | Cachorro | animals | pelagem, manchas, porte, orelhas, coleira | 80 / 190 |
@@ -62,6 +64,15 @@ casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real
 fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua).
 `house()` devolve também `solid`: os retângulos das paredes e da varanda, que viram os colisores do chalé
 ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)).
+
+Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), PROPOSTA): cada um recebe um
+`house` com a semente = id do terreno (`premium-01`…) e as opções da sua faixa (`residence()` em
+`apps/client/src/scene/villageModels.ts`): pegada fixa (7 × 7 com varanda, 7 × 5, 5 × 5 sem beiral), um andar,
+sem telhado alpino e com a cumeeira ao longo da rua. Sem opções, `house()` devolve o que sempre devolveu (os
+terrenos de ONG não mudaram). A casa é cenário: nenhuma chaminé solta fumaça enquanto ninguém for dono;
+`chimneyOf()` dá o topo da chaminé para quando houver lareira. As lojas usam `shop` com a semente = id da loja. As
+peças que distinguem as faixas (muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha) e a moldura da
+placa são modelos fixos em `villageModels.ts`, não geradores.
 
 Moradores e animais (PROPOSTA de decoração, `CRITTERS` em `packages/shared/src/game/world.ts`): 3 moradores, um
 cachorro, um gato no banco, dois passarinhos nos postes, um coelho e uma coruja num pinheiro, cada um com semente

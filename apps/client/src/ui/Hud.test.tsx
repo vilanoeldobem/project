@@ -46,8 +46,8 @@ async function load({ moved = false } = {}) {
   vi.doMock("../game/store", () => ({ ...store, useVila: live(store.useVila) }));
   vi.doMock("../lib/account", () => ({ ...account, useAccount: live(account.useAccount) }));
   vi.doMock("../lib/moderation", () => ({ ...moderation, useModeration: live(moderation.useModeration) }));
-  const { Hud, PATHS } = await import("./Hud");
-  return { Hud, PATHS, useVila: store.useVila, useAccount: account.useAccount, useModeration: moderation.useModeration, hud: () => html(<Hud />) };
+  const { Hud, PATHS, activate } = await import("./Hud");
+  return { Hud, PATHS, activate, useVila: store.useVila, useAccount: account.useAccount, useModeration: moderation.useModeration, hud: () => html(<Hud />) };
 }
 
 afterEach(() => {
@@ -232,6 +232,69 @@ describe("with the menu open", () => {
     useVila.getState().openMenu();
     expect(hud()).toContain("Modo moderação ligado");
     expect(hud()).not.toContain("Desligar modo moderação");
+  });
+});
+
+describe("the one contextual action, for the places of the expanded village too (IMPL-0024)", () => {
+  const PLACES = [
+    { near: { kind: "plot", plotId: "economy-07" }, label: "🏠 Ver terreno residencial", panel: { kind: "plot", plotId: "economy-07" } },
+    { near: { kind: "shop", shopId: "shop-02" }, label: "🎁 Ver loja", panel: { kind: "shop", shopId: "shop-02" } },
+    { near: { kind: "billboard", billboardId: "billboard-02" }, label: "📜 Ler placa", panel: { kind: "billboard", billboardId: "billboard-02" } },
+  ] as const;
+  /** Every contextual action button on the page. */
+  const actions = (page: string) => buttons(page).filter((b) => b.attributes.includes("hud__action"));
+
+  it.each(PLACES)("$near.kind: is the HUD's own action button, one of it, inside the HUD and with the E key cap", async ({ near, label }) => {
+    const { hud, useVila } = await load();
+    useVila.setState({ nearby: near });
+    const page = hud();
+    expect(actions(page)).toHaveLength(1);
+    expect(page).toContain(`<button class="btn btn--primary hud__action">${label} <kbd>E</kbd></button>`);
+    // One HUD layer: the temporary button drew a second one beside it.
+    expect(page.match(/class="hud"/g)).toHaveLength(1);
+    expect(page.indexOf("hud__action")).toBeGreaterThan(page.indexOf('class="hud__bottom"'));
+  });
+
+  it.each(PLACES)("$near.kind: follows the rules of every action: hidden under a panel and under the menu, and the hint gives way", async ({ near }) => {
+    const { hud, useVila } = await load();
+    useVila.setState({ sceneReady: true });
+    expect(hud()).toContain("hud__hint");
+    useVila.setState({ nearby: near });
+    expect(hud()).not.toContain("hud__hint");
+    expect(actions(hud())).toHaveLength(1);
+    useVila.getState().open({ kind: "missions" });
+    expect(actions(hud())).toHaveLength(0);
+    useVila.getState().close();
+    useVila.getState().openMenu();
+    expect(actions(hud())).toHaveLength(0);
+    useVila.getState().closeMenu();
+    expect(actions(hud())).toHaveLength(1);
+  });
+
+  it.each(PLACES)("$near.kind: opens its panel, which closes the menu like every panel", async ({ near, panel }) => {
+    const { activate, useVila } = await load();
+    activate(near);
+    expect(useVila.getState().panel).toEqual(panel);
+    expect(useVila.getState().menu).toBeNull();
+  });
+
+  it("opens what it always opened for the tree, the lectern, a lot and a villager", async () => {
+    const { activate, useVila } = await load();
+    const opened = (near: Parameters<typeof activate>[0]) => (activate(near), useVila.getState().panel);
+    expect(opened({ kind: "tree" })).toEqual({ kind: "donation" });
+    expect(opened({ kind: "donation-panel" })).toEqual({ kind: "donation" });
+    expect(opened({ kind: "lot", lotId: "plaza-12" })).toEqual({ kind: "lot", lotId: "plaza-12" });
+    expect(opened({ kind: "npc", npcId: "storyteller" })).toEqual({ kind: "npc", npcId: "storyteller" });
+  });
+
+  it("is the only action button and the only reader of the key map: the temporary component is gone", async () => {
+    const sources = import.meta.glob("../**/*.{ts,tsx}", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    const files = Object.entries(sources).filter(([path]) => !/\.test\.tsx?$/.test(path));
+    expect(files.length).toBeGreaterThan(40);
+    expect(files.filter(([, text]) => text.includes("hud__action")).map(([path]) => path)).toEqual(["./Hud.tsx"]);
+    // The keys of the game are read in one place (`hudKeyAction`, `boundAction`): no second listener answers E or Enter.
+    expect(files.filter(([, text]) => /\b(hudKeyAction|boundAction)\(/.test(text)).map(([path]) => path).sort()).toEqual(["../lib/hud-keys.ts", "./Hud.tsx"]);
+    expect(files.some(([path]) => path.includes("VillageAction"))).toBe(false);
   });
 });
 

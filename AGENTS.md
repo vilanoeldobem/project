@@ -83,6 +83,14 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   flag without explicit approval, and never decide the sanction policy in code. The text an admin writes when
   blocking is a message the blocked person reads, not a private note; a block never takes away reading the reason
   or deleting the account.
+- Village expansion ([IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md)) is **PROPOSTA**. Plots
+  around the square stay reserved for approved NGOs (DEC-028). Residential plots are drawn, but **ownership is
+  off**: `RESIDENTIAL_PLOTS_ENABLED` is "false" in production and staging, no recorded product decision lets a
+  player hold land, and what a tier should require is the product owner's to answer (OQ-17). Never flip the flag
+  without explicit approval. A tier asks a *requirement* (a level reached by playing, `VILLAGE_PLAN`), never a
+  price: no R$ value, no in-game currency, no "comprar" button (DEC-042, IMPL-0002). Shops say what they will
+  offer and that they are not open; billboards show only the village's own notices from the repository, never
+  third-party content or a brand, and are not for rent (PEN-008, OQ-18). No vehicles: everything is on foot.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -114,12 +122,25 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   also holds the bytes of gallery photos under the same rules, and `ngo_photos` in D1 decides who may read them. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
-- World layout constants (`packages/shared/src/game/world.ts`) and `migrations/0002_seed_lots.sql` must stay
-  in sync (a test checks it).
+- The whole world layout is derived from `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, IMPL-0024): change
+  the plan, never scatter positions. Its lots and residential plots must stay in sync with the seed migrations
+  (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text and the migrated tables), and the
+  layout must keep the rules of `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by
+  distance, the sightline rule, every place reachable on foot).
 - Every solid thing drawn in the village has a collider sized from its voxels (IMPL-0016): add or move a prop and
   its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
-- UI text is flat HTML over the canvas (readable, accessible); 3D labels are short.
+- UI text is flat HTML over the canvas (readable, accessible); 3D labels are short. A billboard's notice is also
+  on its panel as flat text.
+- One contextual action (IMPL-0022, IMPL-0024): whatever the avatar can use nearby is a kind of `Nearby`
+  (`game/store.ts`), labelled and opened by `actionLabel` / `activate` in `ui/Hud.tsx`, the game's only reader of the
+  key map (`lib/hud-keys.ts`). Never add a second action button or key listener; a new panel is the shared `Panel`.
+- Render budget (IMPL-0024): 150 draw calls and 250 000 triangles per frame, shadow pass included. A large baked
+  block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
+  `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
+  `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.
+- `GET /residential-plots` is an always-on public route over a table production does not have yet (0012): it
+  answers the shared layout, every plot "unavailable", wherever the table is missing, and never who holds a plot.
 - Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.
 
 ## Forbidden without explicit human authorisation
