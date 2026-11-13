@@ -25,7 +25,15 @@ export function ModerationChip() {
 export function ModerationChipView({ user, on, onToggle }: { user: Me | null; on: boolean; onToggle: () => void }) {
   if (!canModerate(user)) return null;
   return (
-    <button className={`btn btn--chip${on ? " is-on" : ""}`} aria-pressed={on} aria-label="Modo moderação" title={on ? "Desligar o modo moderação" : "Ligar o modo moderação"} onClick={onToggle}>
+    // `data-moderation` marks a moderation control: Enter on it is its own, even next to a house (`lib/hud-keys.ts`).
+    <button
+      className={`btn btn--chip${on ? " is-on" : ""}`}
+      aria-pressed={on}
+      aria-label="Modo moderação"
+      title={on ? "Desligar o modo moderação" : "Ligar o modo moderação"}
+      data-moderation="switch"
+      onClick={onToggle}
+    >
       🛡️ <span>Moderação</span>
     </button>
   );
