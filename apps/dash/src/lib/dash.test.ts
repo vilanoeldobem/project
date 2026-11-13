@@ -31,7 +31,19 @@ import {
 import { forgetReturn, rememberReturn, RETURN_KEY, RETURN_TTL_MS, type ReturnStore, takeReturn } from "./return-to";
 import { logoRefusalText, sendDecision, sendLogoRemoval, sendWithdrawal } from "./review";
 import { hrefOf, namesSection, parseRoute, SECTIONS } from "./router";
-import { EXPIRED_LINK, isAdmin, lostAdmin, openSession, type Session, SESSION_ENDED, sessionChangedBy, viewOf } from "./session";
+import {
+  EXPIRED_LINK,
+  isAdmin,
+  lostAdmin,
+  openSession,
+  sameDashboard,
+  type Session,
+  SESSION_CONTRADICTED,
+  SESSION_ENDED,
+  sessionChangedBy,
+  trackSession,
+  viewOf,
+} from "./session";
 import { THEME } from "./theme";
 
 const BASE = "https://api.example";
@@ -437,31 +449,145 @@ describe("session", () => {
       expect([code, sessionChangedBy(code)]).toEqual([code, false]);
   });
 
+  /**
+   * The app as it runs, without React: the API client tells the tracker about refusals (services.ts), the tracker
+   * reads the session (App.tsx), and whenever the dashboard is drawn its accounts section reads the list, as
+   * `Users` does when it mounts. A fake API that keeps contradicting itself would make this run for ever, so the
+   * fake stops answering after `limit` requests and the test fails on the count.
+   */
+  function runningApp(answers: Record<string, [number, unknown]>, limit = 40) {
+    const { fetcher, sent } = fakeFetch(answers);
+    const shown: Array<{ session: Session; demoted: boolean }> = [];
+    const capped = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (sent.length >= limit) throw new TypeError("too many requests");
+      return fetcher(input, init);
+    }) as typeof fetch;
+    const api = createApi(BASE, capped, (e) => sessionChangedBy(e.code) && tracker.refused());
+    const tracker = trackSession(api, (session, demoted) => {
+      shown.push({ session, demoted });
+      if (viewOf(session) === "dashboard") void api.users().catch(() => null);
+    });
+    return {
+      tracker,
+      api,
+      shown,
+      requests: () => sent.map((s) => `${s.init.method} ${s.url.slice(BASE.length)}`),
+      views: () => shown.map((s) => viewOf(s.session)),
+      /** Waits until nothing new was asked or drawn for a few turns of the event loop. */
+      settle: async () => {
+        for (let quiet = 0, seen = -1; quiet < 5; ) {
+          await new Promise((done) => setTimeout(done, 0));
+          const now = sent.length + shown.length;
+          quiet = now === seen ? quiet + 1 : 0;
+          seen = now;
+        }
+      },
+    };
+  }
+
   it("moves an administrator demoted while using the dashboard to the admin-only state on the next request, without a loop", async () => {
     // The role was taken by another administrator: the session is still valid, `/admin/*` now answers admin_only.
-    const { fetcher, sent } = fakeFetch({
-      "GET /admin/users": [403, { error: "admin_only" }],
-      "GET /config": [200, { accounts: true }],
-      "GET /me": [200, { user: PLAYER }],
-    });
-    const before: Session = { kind: "signed_in", user: ADMIN };
-    const after: Session[] = [];
-    let reading = false;
-    // The wiring of App.tsx and services.ts: a refusal about the session starts one read, unless one is in flight.
-    const api = createApi(BASE, fetcher, (e) => {
-      if (!sessionChangedBy(e.code) || reading) return;
-      reading = true;
-      void openSession(api, null, SESSION_ENDED).then((s) => {
-        reading = false;
-        after.push(s);
-      });
-    });
-    await expect(api.users()).rejects.toMatchObject({ status: 403, code: "admin_only" });
-    await vi.waitFor(() => expect(after).toHaveLength(1));
-    expect(after[0]).toEqual({ kind: "signed_in", user: PLAYER });
-    expect([viewOf(after[0]), lostAdmin(before, after[0])]).toEqual(["not_admin", true]);
+    const answers: Record<string, [number, unknown]> = { "GET /admin/users": [200, { users: [], next: null }], "GET /config": [200, { accounts: true }], "GET /me": [200, { user: ADMIN }] };
+    const app = runningApp(answers);
+    app.tracker.follow(openSession(app.api, null));
+    await app.settle();
+    expect(app.views()).toEqual(["dashboard"]);
+    answers["GET /admin/users"] = [403, { error: "admin_only" }];
+    answers["GET /me"] = [200, { user: PLAYER }];
+    await expect(app.api.users()).rejects.toMatchObject({ status: 403, code: "admin_only" });
+    await app.settle();
+    expect(app.views()).toEqual(["dashboard", "starting", "not_admin"]);
+    expect(app.shown[2]).toEqual({ session: { kind: "signed_in", user: PLAYER }, demoted: true });
     // One refused request, one session read (`/config`, `/me`), and nothing after it: the admin-only screen asks for nothing.
-    expect(sent.map((s) => `${s.init.method} ${s.url.slice(BASE.length)}`)).toEqual(["GET /admin/users", "GET /config", "GET /me"]);
+    expect(app.requests().slice(3)).toEqual(["GET /admin/users", "GET /config", "GET /me"]);
+  });
+
+  it("sends a session that really ended to the sign-in screen, with the notice", async () => {
+    const answers: Record<string, [number, unknown]> = { "GET /admin/users": [200, { users: [], next: null }], "GET /config": [200, { accounts: true }], "GET /me": [200, { user: ADMIN }] };
+    const app = runningApp(answers);
+    app.tracker.follow(openSession(app.api, null));
+    await app.settle();
+    answers["GET /admin/users"] = [401, { error: "not_signed_in" }];
+    answers["GET /me"] = [200, { user: null }];
+    await expect(app.api.users()).rejects.toMatchObject({ code: "not_signed_in" });
+    await app.settle();
+    expect(app.shown.slice(1)).toEqual([
+      { session: { kind: "loading" }, demoted: false },
+      { session: { kind: "signed_out", notice: SESSION_ENDED }, demoted: false },
+    ]);
+    expect(app.requests().slice(3)).toEqual(["GET /admin/users", "GET /config", "GET /me"]);
+  });
+
+  it.each([
+    [403, "admin_only"],
+    [403, "session_blocked"],
+    [401, "not_signed_in"],
+  ])("does not loop when admin routes answer %i %s while /me still says administrator", async (status, code) => {
+    // An API that contradicts itself: every admin route refuses, `/me` keeps answering the same administrator.
+    const app = runningApp({ "GET /admin/users": [status, { error: code }], "GET /config": [200, { accounts: true }], "GET /me": [200, { user: ADMIN }] });
+    app.tracker.follow(openSession(app.api, null));
+    await app.settle();
+    // The dashboard was drawn once, its request was refused, the session was read once more, and that is all.
+    expect(app.requests()).toEqual(["GET /config", "GET /me", "GET /admin/users", "GET /config", "GET /me"]);
+    expect(app.views()).toEqual(["dashboard", "starting", "unavailable"]);
+    expect(app.shown[2]).toEqual({ session: { kind: "unavailable", token: null, reason: SESSION_CONTRADICTED }, demoted: false });
+
+    // "Tentar de novo" is the only thing that asks again, and each press costs the same bounded round.
+    for (let press = 1; press <= 3; press++) {
+      app.tracker.reopen(null);
+      await app.settle();
+      expect(app.requests()).toHaveLength(5 + 5 * press);
+      expect(app.views().slice(-4)).toEqual(["starting", "dashboard", "starting", "unavailable"]);
+    }
+
+    // Once the API agrees with itself again, the same button opens the dashboard for good.
+    const healthy = runningApp({ "GET /admin/users": [200, { users: [], next: null }], "GET /config": [200, { accounts: true }], "GET /me": [200, { user: ADMIN }] });
+    healthy.tracker.reopen(null);
+    await healthy.settle();
+    expect(healthy.views()).toEqual(["starting", "dashboard"]);
+    expect(healthy.requests()).toEqual(["GET /config", "GET /me", "GET /admin/users"]);
+  });
+
+  it("calls it a contradiction only when the same account is still shown the dashboard", () => {
+    const admin: Session = { kind: "signed_in", user: ADMIN };
+    expect(sameDashboard(admin, admin)).toBe(true);
+    expect(sameDashboard(admin, { kind: "signed_in", user: { ...ADMIN, name: "Ana L." } })).toBe(true);
+    for (const after of [
+      { kind: "signed_in", user: PLAYER },
+      { kind: "signed_in", user: { ...ADMIN, blocked: BLOCK } },
+      { kind: "signed_in", user: { ...ADMIN, id: "u2" } },
+      { kind: "signed_out" },
+      { kind: "accounts_off" },
+      { kind: "unavailable", token: null },
+    ] satisfies Session[])
+      expect([after, sameDashboard(admin, after)]).toEqual([after, false]);
+    expect(sameDashboard({ kind: "loading" }, admin)).toBe(false);
+    expect(sameDashboard({ kind: "accounts_off" }, { kind: "accounts_off" })).toBe(false);
+    expect(SESSION_CONTRADICTED).toContain("Tente de novo");
+  });
+
+  it("drops a session read that answers after a newer one began, and after a sign-out", async () => {
+    const shown: Session[] = [];
+    const tracker = trackSession(fake({ me: async () => ({ user: ADMIN }) }), (s) => shown.push(s));
+    let late!: (s: Session) => void;
+    tracker.follow(new Promise<Session>((resolve) => (late = resolve)));
+    tracker.reopen(null);
+    await vi.waitFor(() => expect(shown).toHaveLength(2));
+    late({ kind: "signed_out" });
+    await new Promise((done) => setTimeout(done, 0));
+    expect(shown).toEqual([{ kind: "loading" }, { kind: "signed_in", user: ADMIN }]);
+    tracker.reopen(null);
+    tracker.signedOut();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(shown.slice(2)).toEqual([{ kind: "loading" }, { kind: "signed_out" }]);
+    // A refusal while a read is in flight starts no second one.
+    const calls: string[] = [];
+    const busy = trackSession(fake({}, calls), () => undefined);
+    busy.reopen(null);
+    busy.refused();
+    busy.refused();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(calls).toEqual(["config", "me"]);
   });
 
   it("says the role was taken only when the same account was an administrator a moment ago", () => {

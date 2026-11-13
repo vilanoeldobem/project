@@ -27,6 +27,9 @@ export type Session =
 
 export const EXPIRED_LINK = "Esse link expirou ou já foi usado. Peça um novo abaixo.";
 export const SESSION_ENDED = "Sua sessão terminou. Entre de novo.";
+/** The API refused a request as if the session had changed, and then said the session is the same. */
+export const SESSION_CONTRADICTED =
+  "A API recusou um pedido deste painel como se a sessão tivesse mudado, mas a sessão continua a mesma. O painel parou de pedir para não repetir sem fim. Tente de novo em instantes.";
 
 /**
  * Startup, and again whenever the API says the session changed: reads the flag, consumes a magic-link token if
@@ -89,3 +92,68 @@ export const sessionChangedBy = (code: string): boolean => SESSION_CODES.has(cod
 /** The same account was an administrator a moment ago and is not any more: say so on the admin-only screen. */
 export const lostAdmin = (before: Session, after: Session): boolean =>
   before.kind === "signed_in" && after.kind === "signed_in" && isAdmin(before) && viewOf(after) === "not_admin" && before.user.id === after.user.id;
+
+/**
+ * The session read after a refusal says what the one before it said: the same account, still shown the dashboard.
+ * The API contradicts itself (an admin route refuses while `/me` still answers an administrator), and drawing the
+ * dashboard again would only repeat the refused request.
+ */
+export const sameDashboard = (before: Session, after: Session): boolean =>
+  before.kind === "signed_in" && after.kind === "signed_in" && viewOf(before) === "dashboard" && viewOf(after) === "dashboard" && before.user.id === after.user.id;
+
+/**
+ * Follows who is using the dashboard: every session read goes through here, and `show` gets what the app draws
+ * (`demoted`: the same account was an administrator until this read). No React, so the rules are tested as they
+ * run:
+ *   - a read that answers after a newer one began is dropped;
+ *   - a refusal about the session (`sessionChangedBy`) starts one read, unless one is in flight;
+ *   - when that read changes nothing (`sameDashboard`), the dashboard is not drawn again: the app shows the
+ *     "unavailable" state with `SESSION_CONTRADICTED`, where only "Tentar de novo" asks for anything. Without
+ *     this the dashboard and the session read would call each other for as long as the API contradicts itself.
+ */
+export function trackSession(api: Pick<Api, "config" | "verify" | "me">, show: (session: Session, demoted: boolean) => void) {
+  /** Number of the latest session read: an older one that answers late is dropped. */
+  let latest = 0;
+  /** True while a session read is in flight: its own refusals must not start another one. */
+  let opening = false;
+  /** The last session that was read (not "loading"): what the next one is compared with. */
+  let settled: Session = { kind: "loading" };
+
+  /** `refused`: the session as it was when a refusal asked for this read. */
+  const follow = (reading: Promise<Session>, refused?: Session) => {
+    const mine = ++latest;
+    opening = true;
+    void reading.then((read) => {
+      if (mine !== latest) return;
+      opening = false;
+      const session: Session = refused && sameDashboard(refused, read) ? { kind: "unavailable", token: null, reason: SESSION_CONTRADICTED } : read;
+      const demoted = lostAdmin(settled, session);
+      settled = session;
+      show(session, demoted);
+    });
+  };
+
+  return {
+    /** Follows a read that is already under way (the one of the page load). */
+    follow: (reading: Promise<Session>) => follow(reading),
+    /** Reads the session again (a link token, "Tentar de novo"), showing "loading" meanwhile. */
+    reopen: (token: string | null, notice?: string) => {
+      show({ kind: "loading" }, false);
+      follow(openSession(api, token, notice));
+    },
+    /** A call was refused because who is signed in changed: read the session again, once. */
+    refused: () => {
+      if (opening) return;
+      const before = settled;
+      show({ kind: "loading" }, false);
+      follow(openSession(api, null, SESSION_ENDED), before);
+    },
+    /** The person signed out here: whatever read is still in flight no longer matters. */
+    signedOut: () => {
+      latest++;
+      opening = false;
+      settled = { kind: "signed_out" };
+      show(settled, false);
+    },
+  };
+}
