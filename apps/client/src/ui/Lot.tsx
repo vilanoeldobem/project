@@ -6,10 +6,14 @@ import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { fetchLogo, type LotInfo } from "../lib/api";
 import { BlobImage } from "./BlobImage";
+import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
 
-/** Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). */
-export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
+/**
+ * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
+ * moderation actions of the house (IMPL-0021, `LotModeration`); `onChanged` reads the lots again after one.
+ */
+export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info?: LotInfo; onChanged?: () => void }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
@@ -22,6 +26,7 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
   }, [info?.state, info?.ngo_name, lotId]);
   const n = Number(lotId.split("-")[1]);
   const accounts = useAccount((s) => s.enabled);
+  const moderation = useLotModerating();
 
   if (info?.state === "published" && info.ngo_name) {
     return (
@@ -31,6 +36,9 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
         // The NGO's public logo (IMPL-0017), when it has one and it loads.
         mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : undefined}
         wide
+        // The key changes when the moderation section leaves (role lost, mode off, signed out): the focus that
+        // was in it goes back to the dialog.
+        contentKey={moderation ? "published:moderation" : "published"}
       >
         <div className="ngo-hud">
           <section>
@@ -47,13 +55,15 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
             </button>
           </section>
         </div>
+        {info.ngo_id && <LotModeration ngoId={info.ngo_id} name={info.ngo_name} onChanged={onChanged} />}
       </Panel>
     );
   }
 
   const inReview = info && info.state !== "available";
   return (
-    <Panel kicker={`Terreno ${n}`} title={inReview ? "Candidatura em análise" : "Sua ONG pode estar aqui"}>
+    // The key sends the focus back to the dialog when a withdrawal (IMPL-0021) takes the house off this panel.
+    <Panel kicker={`Terreno ${n}`} title={inReview ? "Candidatura em análise" : "Sua ONG pode estar aqui"} contentKey={info?.state ?? "unknown"}>
       {inReview ? (
         <p>
           Casa ainda não publicada. <Status>Em análise</Status>

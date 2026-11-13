@@ -2,9 +2,9 @@
 
 const b64url = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
-/** 256-bit random token, URL-safe. */
-export function randomToken(): string {
-  return b64url(crypto.getRandomValues(new Uint8Array(32)));
+/** Random token, URL-safe: 256 bits by default (43 characters); 24 bytes give 192 bits in exactly 32 characters. */
+export function randomToken(bytes = 32): string {
+  return b64url(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
 export async function sha256Hex(value: string): Promise<string> {

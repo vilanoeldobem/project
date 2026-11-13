@@ -141,7 +141,12 @@ async function main() {
       await freePort(port);
       const appDir = join(root, "apps", app);
       const localConfig = JSON.parse((await readFile(join(appDir, "wrangler.jsonc"), "utf8")).replace(/^\s*\/\/.*$/gm, ""));
-      assert.ok(!localConfig.d1_databases && !localConfig.r2_buckets && !localConfig.services);
+      assert.ok(!localConfig.d1_databases && !localConfig.r2_buckets);
+      // The realtime server's only binding to another Worker is `API` (IMPL-0021). It is dropped from this local
+      // copy so it can never reach a Worker registered under that name on this machine; a removal request then
+      // fails closed, which is what the room does without the binding.
+      assert.deepEqual((localConfig.services ?? []).map((s) => s.binding), app === "server" ? ["API"] : []);
+      delete localConfig.services;
       delete localConfig.account_id;
       localConfig.name = `vila-media-${app}-local`;
       Object.assign(localConfig, { routes: [], workers_dev: false, preview_urls: false });

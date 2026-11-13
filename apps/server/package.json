@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Vila Noel do Bem — realtime Worker (server.vilanoeldobem.com.br): VillageRoom Durable Object presence over WebSocket",
   "scripts": {
-    "dev": "wrangler dev --port 8788 --inspector-port 9231 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799",
+    "dev": "wrangler dev --port 8788 --inspector-port 9231 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799 --var PRESENCE_MODERATION_ENABLED:true",
     "build": "tsc --noEmit -p . && wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",

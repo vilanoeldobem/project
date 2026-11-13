@@ -12,7 +12,7 @@ import { SERVICES } from "../lib/services";
 export function Shell({ route, user, onSignOut, children }: { route: Route; user: Me | null; onSignOut: () => void; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const label = SECTIONS.find((s) => s.section === route.section)!.label;
-  const where = `${route.section}/${route.section === "applications" ? (route.id ?? "") : ""}`;
+  const where = `${route.section}/${route.section === "applications" ? (route.id ?? (route.unknown ? "?" : "")) : ""}`;
   const shown = useRef(where);
   useEffect(() => {
     document.title = `${label} — Painel administrativo — Vila Noel do Bem`;

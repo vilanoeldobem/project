@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { PALETTE as P, PLAZA_RADIUS, STREET_INNER, STREET_OUTER, WORLD_RADIUS } from "@vila/shared/game/world";
 import { events } from "../game/events";
 import { useVila } from "../game/store";
+import { selectVisitorAt } from "../lib/moderation";
 import { Voxels } from "./Voxels";
 import type { Voxel } from "./models";
 
@@ -38,6 +39,9 @@ export function Ground() {
           // Only the first finger walks: a second one starts a pinch zoom (Player).
           if (e.button !== 0 || !e.nativeEvent.isPrimary) return;
           e.stopPropagation();
+          // Moderation mode only (PROPOSTA, IMPL-0021): a click on another visitor selects it instead of walking.
+          // The removal itself is flat HTML on the HUD; for everybody else this is always false.
+          if (selectVisitorAt(e.ray.origin, e.ray.direction)) return;
           setTarget({ x: e.point.x, z: e.point.z });
           // Feedback goes where the avatar will end up, which is not always where the click landed.
           const to = useVila.getState().target;

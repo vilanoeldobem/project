@@ -9,13 +9,22 @@
   // SQLite-backed class (free plan); presence stays in memory, storage is never written.
   "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "VillageRoom" }] },
   "migrations": [{ "tag": "v1-village-room", "new_sqlite_classes": ["VillageRoom"] }],
+  // The only way a room reaches the API (PROPOSTA, IMPL-0021): consuming a moderation ticket, Worker to Worker,
+  // no shared secret. The API Worker must exist before this one is deployed (docs/guides/deploy.md §4.4);
+  // without the binding every removal request is answered 0.
+  "services": [{ "binding": "API", "service": "vilanoeldobem-api" }],
   "vars": {
     "ENVIRONMENT": "production",
     // Exact page origins allowed to join a room (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br",
     // Seconds without real activity before a connection is closed (IMPL-0014). Whole number, 60 to 86400;
     // anything else falls back to 300.
-    "IDLE_TIMEOUT_SECONDS": "300"
+    "IDLE_TIMEOUT_SECONDS": "300",
+    // Removing a visitor from a room at an administrator's request (PROPOSTA, IMPL-0021). Off until the owner
+    // approves it and both Workers are deployed with the binding above; the API has a flag of the same name.
+    // With it off the room answers 0 to every ["m", …] and never calls the API (local dev turns it on in
+    // package.json "dev").
+    "PRESENCE_MODERATION_ENABLED": "false"
   },
   "routes": [{ "pattern": "server.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },

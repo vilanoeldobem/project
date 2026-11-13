@@ -1,12 +1,12 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
 > **Atualizado em:** 2026-11-12
-> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal}.ts`
+> **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v9 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v10 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -26,8 +26,9 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0007_ngo_media_reconciliation.sql` | galeria `ngo_photos`, registro `media_upload_intents`, token de escrita `ngos.file_write_token` e intenção durável `users.files_deleting` (IMPL-0018) |
 | `0008_progress_write_guard.sql` | revisão por conta e token da gravação de progresso; requer as tabelas de `0004` ([IMPL-0019](../decisions/0019-progress-concurrency-and-acknowledgment.md)) |
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
+| `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 
-Esta versão contém 0001–0009, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+Esta versão contém 0001–0010, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
 retiradas. A 0007 chamava-se 0010
 enquanto estava em revisão: nunca foi aplicada no remoto e recebeu o próximo número livre antes de integrar.
@@ -40,8 +41,12 @@ Operações de conta que encontrem ausência das novas colunas retornam `503 sch
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
 ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
-`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v9 (com as contas ligadas, a migration
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v10 (com as contas ligadas, a migration
 vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
+A 0010 é pré-requisito de **toda rota que lê a sessão**, com qualquer combinação de bandeiras: a conferência da
+sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas e as três rotas de entrada (cadastro, pedido
+e confirmação do link) respondem `503 schema_outdated` sem gravar nada. Nenhuma rota pública lê `users.blocked`,
+`account_blocks` ou `moderation_tickets`.
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -171,10 +176,51 @@ candidatura e de análise a consultam para projetar `withdrawn` e recusar envios
 | `nickname_key` | TEXT UNIQUE | nickname em minúsculas (unicidade sem diferenciar maiúsculas) |
 | `city` | TEXT | Cidade (P13) |
 | `email` | TEXT UNIQUE | E-mail em minúsculas; nunca público, nunca em log |
-| `role` | TEXT | `player` (padrão) ou `admin` (concedido à mão, DEC-037) |
+| `role` | TEXT | `player` (a interface mostra "Padrão") ou `admin` ("Administrador"). O primeiro administrador é criado à mão; os demais, pelo painel ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md), DEC-037) |
 | `verified_at` | TEXT | preenchido pelo primeiro link confirmado |
 | `files_deleting` | INTEGER 0/1 | v7; intenção durável de exclusão, impede alterações de evidências durante limpeza R2 |
+| `blocked` | INTEGER 0/1 | v10, **PROPOSTA**; `1` enquanto há um bloqueio em vigor em `account_blocks`. Lida em toda conferência de sessão; muda no mesmo batch do registro |
+| `moderation_token` | TEXT | v10; UUID da última mudança de papel, bloqueio ou desbloqueio: só a requisição vencedora grava o registro e a auditoria |
 | `created_at` | TEXT | RFC 3339 UTC |
+
+### account_blocks (v10, PROPOSTA)
+
+Registro dos bloqueios de conta ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)).
+**PROPOSTA**: só recebe linhas novas com `ACCOUNT_BLOCK_ENABLED = "true"` (desligada em produção e homologação);
+quais sanções existem, quem aplica, duração, recurso e aviso são PENDENTES ([OQ-11](../decisions/open-questions.md)).
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `id` | TEXT PK | UUID; citado no detalhe da auditoria (`{"block": id}`) |
+| `user_id` | TEXT FK → users, `ON DELETE CASCADE` | a conta bloqueada; a exclusão da conta apaga o registro |
+| `message` | TEXT, 10 a 1000 caracteres | **mensagem para a pessoa bloqueada**, mostrada a ela como foi escrita (`GET /me`); não é anotação interna. A API guarda o texto sem caracteres de formatação ou de controle invisíveis (a restrição do banco confere só o tamanho) |
+| `blocked_by` | TEXT | id do administrador (nunca e-mail); sem FK, como em `audit_events` |
+| `blocked_at` | TEXT | RFC 3339 UTC |
+| `lifted_at` | TEXT | `NULL` enquanto o bloqueio vale; instante do desbloqueio |
+| `lifted_by` | TEXT | id do administrador que desbloqueou |
+
+Índice único parcial `idx_account_blocks_active` em `(user_id) WHERE lifted_at IS NULL`: no máximo um bloqueio em
+vigor por conta; bloqueios anteriores ficam como histórico. Nenhuma rota pública lê esta tabela.
+
+### moderation_tickets (v10, PROPOSTA)
+
+Bilhetes de uso único para remover um visitante de uma sala do servidor de tempo real
+([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md), **PROPOSTA**, atrás de
+`PRESENCE_MODERATION_ENABLED`).
+
+| Coluna | Tipo | Notas |
+|---|---|---|
+| `ticket_hash` | TEXT PK | SHA-256 (hex) do bilhete; o bilhete em claro nunca é gravado |
+| `admin_id` | TEXT FK → users, `ON DELETE CASCADE` | o administrador que pediu |
+| `room` | INTEGER ≥ 0 | sala (`0…7`) |
+| `target` | INTEGER > 0 | id anônimo da conexão do visitante (IMPL-0008): não é conta nem dado pessoal |
+| `created_at`, `expires_at` | TEXT | RFC 3339 UTC; validade de 30 segundos |
+| `used_at` | TEXT | preenchido pelo consumo; `NULL` enquanto não usado |
+| `consume_token` | TEXT | UUID do consumo vencedor: só ele grava a auditoria |
+
+Índice `(admin_id, created_at)` para o limite de 10 bilhetes por administrador por minuto. Linhas com mais de um
+minuto são apagadas quando qualquer bilhete é emitido. O Durable Object da sala nunca guarda o bilhete nem o
+resultado.
 
 ### login_tokens (v4)
 
@@ -229,6 +275,10 @@ conflito com progresso de visitante. Contenção persistente retorna `409 progre
 | `ngo.file_read` | admin que baixou um **documento** | `ngo:<id>` | `{kind, file}` |
 | `ngo.file_cleanup` | admin que iniciou recuperação | `ngo:<id>` | `{requested}`; quantidade selecionada, registrada antes de excluir bytes; não prova sucesso |
 | `user.delete` | a própria conta | `user:<id>` | `NULL` |
+| `ngo.logo_remove` (IMPL-0021) | admin | `ngo:<id>` | `{file, revision}` |
+| `user.role_change` (IMPL-0021) | admin | `user:<id>` | `{from, to}` (`player` / `admin`) |
+| `user.block`, `user.unblock` (PROPOSTA, IMPL-0021) | admin | `user:<id>` | `{block}` (id do registro em `account_blocks`; sem o texto da mensagem) |
+| `presence.remove` (PROPOSTA, IMPL-0021) | admin que pediu o bilhete | `room:<n>` | `{target}` (id anônimo da conexão; sem o bilhete e sem endereço). Registra que a remoção foi **autorizada** (bilhete consumido), não que uma conexão foi fechada: o alvo pode ter saído antes |
 
 Lida pelo painel administrativo em `GET /admin/audit` (o autor aparece pelo nickname; consultar não grava nada
 aqui: só mutações são auditadas — [IMPL-0015](../decisions/0015-dash-backoffice-app.md); a exceção é o download de
@@ -238,14 +288,14 @@ um documento de ONG por um admin, `ngo.file_read` — [IMPL-0017](../decisions/0
 
 Dados pessoais guardados (P13, DEC-038): **Nome, Nickname, Cidade e E-mail**, só na tabela `users`. Só o nickname
 aparece para outras pessoas (inclusive para o admin, que vê quem enviou a candidatura só pelo nickname). A lista de
-contas do painel administrativo (`GET /admin/users`) traz nickname, papel, cidade, data de criação e se a conta foi
-verificada — nunca e-mail ou nome. Tokens e
+contas do painel administrativo (`GET /admin/users`) traz nickname, papel, cidade, data de criação, se a conta foi
+verificada e se está bloqueada — nunca e-mail, nome ou a mensagem do bloqueio. Tokens e
 sessões ficam só como hash. IP é usado apenas como chave do limite de requisições (`AUTH_LIMITER`) e não é gravado.
 Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 
 | Dado | Retenção (PROPOSTA, a confirmar na revisão LGPD / ECA Digital) |
 |---|---|
-| Cadastro não confirmado | apagado depois de 24 h (na próxima chamada de cadastro) |
+| Cadastro não confirmado | apagado depois de 24 h (na próxima chamada de cadastro); **exceto** se estiver bloqueado: fica até o desbloqueio ou a exclusão da conta (OQ-11) |
 | Link de acesso | válido por 15 min, uso único; a linha fica até a conta ser excluída |
 | Sessão | 30 dias; sessões vencidas da conta são apagadas no próximo login; logout apaga a sessão |
 | Conta, sessões, links, eventos de missão | apagados em `DELETE /me` |
@@ -254,6 +304,8 @@ Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 | Logo (R2) | de candidatura fora da Vila (não publicada, ou retirada): apagado com a conta; de ONG publicada em terreno publicado: fica, como a ONG |
 | Galeria (R2) | todas as fotos são removidas ao excluir a conta, inclusive as aprovadas; falha de limpeza permite repetição |
 | Registro de retirada (`ngo_withdrawals`, D1; PROPOSTA) | fica, com a mensagem enviada à organização, inclusive depois da exclusão da conta do responsável; **sem prazo definido** (OQ-14) |
+| Registro de bloqueio (`account_blocks`, D1; PROPOSTA) | fica, com a mensagem, enquanto a conta existir (inclusive depois de desbloqueada); **apagado com a conta** em `DELETE /me`. Depois da exclusão nada guarda o e-mail: ele pode ser cadastrado de novo. **Sem prazo definido** (OQ-11) |
+| Bilhete de moderação (`moderation_tickets`, D1; PROPOSTA) | 30 segundos de validade; a linha (só o hash) é apagada na emissão seguinte, depois de um minuto, ou com a conta do administrador |
 | Intenção de arquivo (D1) | até finalizar o upload ou confirmar a limpeza; cancelamento de envio abandonado pode ser solicitado após 15 min, sem prazo automático de retenção |
 
 ## 4. Dados que **não** ficam no D1 nesta versão

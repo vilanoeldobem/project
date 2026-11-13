@@ -119,19 +119,26 @@ function QuestBook({ progress, lots }: { progress: Progress; lots: Record<string
   );
 }
 
-/** Where progress is kept: this browser (guest), the account, or waiting for the connection. */
+/**
+ * Where progress is kept, in one sentence: this browser (a guest, or a blocked account, IMPL-0021 PROPOSTA: the
+ * API refuses its progress, so nothing is sent and nothing is waiting for a connection), the account, or waiting
+ * for the connection. Pure.
+ */
+export function savedWhere(s: { signedIn: boolean; blocked: boolean; pending: boolean; onAccount: boolean }): string {
+  if (!s.signedIn) return "Seu progresso fica salvo neste navegador.";
+  if (s.blocked) return "Conta bloqueada: o progresso fica só neste navegador.";
+  if (s.pending || !s.onAccount) return "Sem conexão com a Vila: seu progresso será enviado para a sua conta quando a conexão voltar.";
+  return "Seu progresso fica salvo na sua conta.";
+}
+
 function SavedWhere() {
   const signedIn = useAccount((s) => !!s.user);
+  const blocked = useAccount((s) => !!s.user?.blocked);
   const pending = useAccount((s) => s.sync === "pending");
   const onAccount = useVila((s) => s.progressOwner !== null);
-  const text = !signedIn
-    ? "Seu progresso fica salvo neste navegador."
-    : pending || !onAccount
-      ? "Sem conexão com a Vila: seu progresso será enviado para a sua conta quando a conexão voltar."
-      : "Seu progresso fica salvo na sua conta.";
   return (
     <p className="note" role="status">
-      {text}
+      {savedWhere({ signedIn, blocked, pending, onAccount })}
     </p>
   );
 }

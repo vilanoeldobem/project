@@ -13,6 +13,7 @@ import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { ClickMarker } from "./ClickMarker";
 import { Ground } from "./Ground";
+import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
@@ -73,6 +74,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <ClickMarker />
         <Player lots={lotSolids} />
         <RemotePlayers />
+        <ModerationMarker />
         <Snow />
         <Sparkles />
         <GameplayBursts />

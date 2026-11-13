@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
 > **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -19,6 +19,8 @@ api.vilanoeldobem.com.br    ──▶ Worker "vilanoeldobem-api"    (apps/api) �
                                     desligado em produção)
 server.vilanoeldobem.com.br ──▶ Worker "vilanoeldobem-server" (apps/server)
                                  └─ /room?i=N (WebSocket) ──▶ Durable Object VillageRoom "plaza-0…7" (binding ROOMS)
+                                 └─ service binding API ──▶ Worker "vilanoeldobem-api" /moderation/consume
+                                    (PROPOSTA, IMPL-0021; desligado em produção)
 dash.vilanoeldobem.com.br   ──▶ Worker "vilanoeldobem-dash"   (apps/dash: Static Assets, SPA, _headers por build)
                                  — painel administrativo, IMPL-0015 (publicado em 2026-11-12)
 
@@ -31,7 +33,8 @@ navegador em dash.*  ── fetch (CORS + cookie __Host-vila_session) ──▶ 
 packages/shared (@vila/shared/…) ── importado por client, dash, api e server (lógica pura, sem build)
 ```
 
-O cliente fala direto com cada serviço; não há service binding entre Workers. Os hosts de cada build vêm de
+O cliente fala direto com cada serviço. Entre Workers existe um único service binding: o do servidor de tempo real
+para a API (`API`), usado só para consumir um tíquete de moderação (PROPOSTA, IMPL-0021; [§4](#4-servidor-de-tempo-real-appsserversrc)). Os hosts de cada build vêm de
 `apps/client/src/lib/endpoints.ts` (produção → subdomínios; `vite` e `--mode workers` → Workers locais `:8787` e
 `:8788`).
 
@@ -53,8 +56,9 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Desempenho | `scene/RenderStats.tsx`, `scene/perf.ts` | Chamadas, triângulos, p50/p95 do quadro; resolução adaptativa |
 | Interface | `ui/*` | HUD e painéis HTML acessíveis sobre o canvas |
 | Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Hosts da API e do servidor por modo de build; `fetch` em `api.*` com degradação silenciosa (retorna `null`) |
-| Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. Com `/config.files` ligado ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA), a tela da candidatura ganha "Arquivos da candidatura" (`ui/ApplicationFiles.tsx`, `lib/files.ts`): logo e documentos conferidos no navegador com as mesmas regras da API e enviados já sem metadados; o painel do terreno publicado mostra o logo (`ui/BlobImage.tsx`: lido por `fetch` e exibido por URL de objeto, sem alargar a CSP). A análise administrativa saiu do jogo: admins veem só o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) |
-| Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla |
+| Conta | `lib/account.ts`, `ui/Account.tsx`, `ui/NgoApplication.tsx`, `shared/accounts/{validate,contract,errors}.ts` | Bandeira `/config`, link mágico, sessão (cookie `HttpOnly` que o cliente não lê), sincronização do progresso e candidatura de ONG em 4 etapas ([IMPL-0011](../decisions/0011-accounts-magic-link-ngo-review.md)); tudo some com a bandeira desligada. Com `/config.files` ligado ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA), a tela da candidatura ganha "Arquivos da candidatura" (`ui/ApplicationFiles.tsx`, `lib/files.ts`): logo e documentos conferidos no navegador com as mesmas regras da API e enviados já sem metadados; o painel do terreno publicado mostra o logo (`ui/BlobImage.tsx`: lido por `fetch` e exibido por URL de objeto, sem alargar a CSP). A análise administrativa saiu do jogo: admins veem o link "Abrir painel administrativo" para `dash.*` ([IMPL-0015](../decisions/0015-dash-backoffice-app.md)) e, só com o modo moderação ligado, as ações da linha "Moderação". O painel da conta mostra o papel pelo rótulo compartilhado (`ROLE_LABEL`: "Padrão" / "Administrador"). **Conta bloqueada** (IMPL-0021, PROPOSTA): quando `/me` traz `blocked`, ou quando qualquer rota responde `403 session_blocked` (o cliente relê `/me`), o painel da conta mostra só "Conta bloqueada", a mensagem da administração e a data, e oferece apenas sair e excluir a conta; a sincronização do progresso para sem erro na tela (a Vila volta ao progresso de visitante deste navegador, e os eventos pendentes ficam guardados para quando o bloqueio for desfeito) e a tela da candidatura não consulta a API |
+| Rede | `shared/net/protocol.ts`, `net/multiplayer.ts`, `scene/RemotePlayers.tsx` | Presença em tempo real ([IMPL-0008](../decisions/0008-multiplayer-presence-durable-objects.md)) via `server.*`: pose própria a ≤ 10 Hz, outros visitantes por interpolação de snapshots (150 ms no passado), todos os avatares remotos em 6 chamadas de desenho. Reconexão por `planAfterClose` (puro, testado): sala cheia → próxima; queda → espera exponencial; fechamento por inatividade (`4002`, [IMPL-0014](../decisions/0014-realtime-idle-timeout.md)) ou aba oculta por 2 min → espera o próximo toque, clique ou tecla; **remoção por administrador** (`4003`, PROPOSTA, IMPL-0021) → estado `removed`: aviso "Você foi removido da sala por um administrador." no HUD (`RemovedNotice`), nenhum temporizador e nenhuma reconexão durante 60 s (`REMOVED_HOLD_MS`), mesmo com toques ou teclas; depois disso o próximo toque, clique ou tecla reconecta na mesma sala. Não conta como erro de rede e o resto do jogo segue normal. `presenceLink()` e `onPresenceEvent()` entregam ao fluxo de moderação a conexão aberta (sala e id anunciados pela sala) e as respostas `["m", …]` |
+| Moderação | `lib/moderation.ts`, `lib/ngo-moderation.ts`, `lib/confirm.ts`, `net/removal.ts`, `net/pick.ts`, `ui/Moderation.tsx`, `ui/LotModeration.tsx`, `ui/Confirm.tsx`, `scene/ModerationMarker.tsx` | Exceção estreita da [IMPL-0021](../decisions/0021-administrator-role-and-moderation.md): só para conta conectada com papel `admin` e não bloqueada. **Modo moderação**: botão "Moderação" no HUD (`aria-pressed`), desligado a cada carregamento; ligado, a faixa "Modo moderação" fica no topo da tela, acima de qualquer painel. O modo desliga sozinho ao sair, trocar de conta, ser bloqueado, perder o papel (`403 admin_only` faz o cliente reler `/me`) ou quando a sessão termina em outro lugar (`401 not_signed_in` com uma conta na tela: o cliente relê `/me` uma vez, sai com o aviso "Sua sessão terminou. Entre de novo." e não relê pela mesma causa por 60 s). Fora do modo, nada de moderação é renderizado nem consultado na API. **Casa de ONG publicada** (painel do terreno): lê a candidatura por `GET /admin/applications/:id` e mostra só o que pode funcionar — "Remover logo" (`/config.files` e a candidatura tem logo), "Remover foto" para cada foto da galeria pública (`GET /ngos/:id`, vazia com as fotos desligadas, cruzada com `GET /admin/ngos/:id/photos` para a revisão; se essa leitura falha, a seção diz "Não foi possível ler as fotos agora." e oferece tentar de novo), "Retirar ONG da Vila" (`/config.withdrawal`, com a mensagem obrigatória para a organização; PROPOSTA, IMPL-0020) e o link "Abrir no painel" (`<dash>/#applications/<id>`, nova aba). Nada é oferecido ao administrador responsável pela própria organização nem durante a exclusão da conta do responsável. Cada ação relê a candidatura, pede uma confirmação que nomeia a organização e envia a `revision` lida; `409 stale_revision` relê e pede a confirmação de novo (nunca reenvia sozinho); uma recusa mostra a frase do erro; o sucesso relê `/lots`. **Remover visitante** (PROPOSTA, só com `/config.moderation.presence`): um clique no avatar de outro visitante o seleciona (o raio do clique do chão contra uma cápsula por avatar, `pickAvatar`; clique no chão vazio continua andando, e fora do modo o clique nunca seleciona), ou "Selecionar visitante mais próximo" pelo teclado; um anel no chão marca o selecionado. "Remover da sala" pede confirmação e segue bilhete (`POST /admin/moderation/ticket`) → `encodeRemove` na conexão aberta → resposta da sala para aquele alvo. Limites do cliente, mais estritos que os da sala e da API: um pedido por vez; 1100 ms entre mensagens, contados do envio ou da resposta, o que vier depois; no máximo 9 mensagens em 61 s, contadas quando saem; o pedido do bilhete tem 5 s de prazo; 5 s sem resposta da sala é falha e, depois dela, nada mais é enviado naquela conexão até a resposta chegar ou a conexão mudar (as respostas não têm identificador de pedido); se o visitante sai entre o bilhete e o envio, nada é enviado. O resultado de um pedido feito antes de o modo ser desligado e religado, ou de a seleção mudar, é descartado, e qualquer mudança de seleção fecha a confirmação aberta: a confirmação nunca troca de alvo. Só `ok: true` vira "removido"; o resto é "Não foi possível remover agora." com o motivo. O bilhete nunca é guardado, exibido nem registrado. **Confirmações** (`Confirm`, `confirmAllowed`): o foco vai para a pergunta, não para o botão; o segundo clique de um duplo clique, a tecla mantida pressionada e os primeiros 600 ms são ignorados. No HUD, Enter ativa o botão em foco só quando ele é um controle de moderação (`lib/hud-keys.ts`); nos demais botões continua abrindo o que está perto, como antes. Resultados em regiões `aria-live`; nenhum controle de moderação fica dentro do canvas |
 | Worker | `worker/index.ts`, `worker/handle.ts` | Roda antes dos arquivos só para redirecionar os outros hosts para `play.*`, com o mesmo caminho e query: `app.*` (301, endereço antigo) e `client.*` (302, apelido); o resto vai para os Static Assets |
 
 `World` é carregado sob demanda (`React.lazy`): a tela de entrada aparece antes do Three.js.
@@ -132,9 +136,9 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
 | `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
 | `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
-| `crypto.ts` | UUID, token aleatório de 256 bits, SHA-256 |
+| `crypto.ts` | UUID, token aleatório (256 bits por padrão; 192 bits em 32 caracteres para o bilhete de moderação), SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
-| `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin` |
+| `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin`. `requireUser` recusa a sessão de conta bloqueada (`403 session_blocked`); `requireSession` é só para o que a pessoa bloqueada mantém: `GET /me`, sair e excluir a conta (IMPL-0021) |
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
 | `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
@@ -144,9 +148,26 @@ Verificação em navegador: `node apps/client/scripts/verify-collisions.mjs http
 | `ngo-photos.ts` | Galeria institucional PROPOSTA, bandeira `NGO_PHOTOS_ENABLED` desligada em produção, separada de comprovantes; aprovação por foto, bytes privados em `FILES` e publicação condicionada à revisão técnica/operacional |
 | `admin.ts` | Análise administrativa (DEC-037): lista, detalhe com histórico e arquivos, decisões auditadas |
 | `ngo-withdrawal.ts` | Retirada administrativa de ONG publicada (IMPL-0020, **PROPOSTA**, bandeira `NGO_WITHDRAWAL_ENABLED` desligada): registro em `ngo_withdrawals`, liberação dos terrenos e auditoria num batch com token exclusivo; a mensagem é para a organização |
-| `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome), paginadas |
+| `backoffice.ts` | Listas só de leitura do painel administrativo (IMPL-0015): `GET /admin/audit` e `GET /admin/users` (sem e-mail e sem nome; com papel e bloqueio), paginadas |
+| `account-moderation.ts` | Papéis e bloqueio de conta ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)): `POST /admin/users/:id/role`, `…/block`, `…/unblock`. Um batch por mudança, conferindo no SQL o estado da conta-alvo e que quem pede ainda é administrador; só o vencedor grava registro e auditoria. O bloqueio é **PROPOSTA** (`ACCOUNT_BLOCK_ENABLED` desligada); a mensagem é para a pessoa bloqueada |
+| `presence-moderation.ts` | Remoção de visitante de uma sala (IMPL-0021, **PROPOSTA**, `PRESENCE_MODERATION_ENABLED` desligada): bilhete de uso único para o administrador (`POST /admin/moderation/ticket`) e consumo pelo servidor de tempo real (`POST /moderation/consume`, sem sessão e sem CORS) |
 
 Único app com acesso ao D1 e ao bucket R2. Detalhes em [api.md](api.md) e [storage.md](storage.md).
+
+**Administrador e moderação ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)):** dois papéis,
+Padrão (`player`) e Administrador (`admin`); o painel continua com o login próprio da aplicação, e os papéis são
+concedidos e retirados pelo painel, com auditoria (o primeiro administrador segue sendo criado no banco). Um
+administrador também tem, **dentro do jogo**, as ações de moderação — exceção estreita à regra da IMPL-0015: o
+jogo pode mostrar *ações* de moderação a um administrador conectado; listas, filas de análise e auditoria ficam
+no painel. Duas partes são **PROPOSTA** e ficam desligadas em produção e homologação:
+
+- **Bloqueio de conta** (`ACCOUNT_BLOCK_ENABLED`; política PENDENTE na [OQ-11](../decisions/open-questions.md)):
+  encerra as sessões e deixa à conta uma sessão restrita (ler o motivo, sair, excluir a conta). A conferência é
+  feita em toda leitura de sessão (`users.blocked`, migration 0010), então as rotas com sessão respondem
+  `503 schema_outdated` num banco sem a 0010. Nenhuma rota pública lê as tabelas novas.
+- **Remover um visitante de uma sala** (`PRESENCE_MODERATION_ENABLED`, na API e no servidor): a presença continua
+  anônima. A API só emite e confere um bilhete de uso único; a sala o devolve por um binding de serviço e nunca
+  fica sabendo quem é o administrador. É uma cortesia, não um banimento: um visitante anônimo pode voltar.
 
 **Retirada de publicação (PROPOSTA, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)):** desligada em
 produção e homologação (`NGO_WITHDRAWAL_ENABLED`); a política é PENDENTE ([OQ-14](../decisions/open-questions.md)).
@@ -196,6 +217,13 @@ exatamente `DASH_ORIGIN`, o link abre `dash.*/#login=<token>` em vez do jogo; a 
   `IDLE_TIMEOUT_SECONDS` (`idleTimeoutMs` em `env.ts`, padrão 300 s). Sem alarme (alarme grava no storage): a hora
   fica em memória, com uma cópia aproximada (a cada 30 s) no anexo do WebSocket, que o runtime guarda junto da
   conexão e não no storage do objeto. Assim uma aba esquecida não mantém o timer, e a cobrança de duração, ligados.
+- Remoção de visitante por administrador (**PROPOSTA**, [IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); `PRESENCE_MODERATION_ENABLED`,
+  desligada em produção): `room.ts` aplica os limites por conexão ao pedido `["m", alvo, tíquete]`; `room-do.ts`
+  (`removeOnRequest`) pergunta à API se o tíquete vale, por `moderation.ts` (`consumeTicket`: service binding `API`,
+  limite de 3 s, só `200 {"ok":true}` é sim), e só então fecha o alvo com `4003`. É a única chamada do servidor à
+  API. A sala continua sem saber quem é ninguém; não guarda nem registra o tíquete, a resposta ou quem pediu, e só
+  atende pedidos depois de 35 s em memória (`REMOVAL_WARMUP_MS`). Protocolo em
+  [api.md](api.md#remoção-por-administrador-proposta).
 
 ## 5. Código compartilhado (`packages/shared/src`)
 
@@ -271,11 +299,16 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | segredo `RESEND_API_KEY` | fora do `wrangler.jsonc` (`wrangler secret put`) | Chave do Resend (só o link de acesso, IMPL-0012) |
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
+| api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala, só quando o bilhete foi emitido (IMPL-0021) |
+| api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
+| api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
 | api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, **ainda não criado** (IMPL-0017) |
 | api | `vars.NGO_FILES_ENABLED` | `"false"` | Envio de logo e documentos desligado até a lista de documentos (PEN-019) e a revisão LGPD |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |
 | server | `vars.IDLE_TIMEOUT_SECONDS` | `"300"` | Segundos sem atividade até a sala fechar a conexão (IMPL-0014); inteiro de 60 a 86400, senão vale 300 |
+| server | `services[0]` | binding `API` → Worker `vilanoeldobem-api` | Única chamada do servidor à API: consumir tíquete de moderação (PROPOSTA, IMPL-0021); sem o binding a sala responde `0` |
+| server | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante por administrador desligada (PROPOSTA, IMPL-0021); o script `dev` liga |
 | dash | `assets.not_found_handling` | `single-page-application` | App de página única; sem `main` (não há script de Worker) nem bindings |
 | dash | `workers_dev`, `preview_urls` | `false` | O painel só responde no domínio próprio |
 
@@ -290,6 +323,12 @@ origens exatas; o servidor recusa WebSocket de outra origem (`403`), o que bloqu
 Rotas de conta: só respondem a `Origin` permitida (`403 forbidden_origin`); mutações exigem
 `Content-Type: application/json` (`415`), o que força o preflight de CORS; sessão e links guardados só como hash;
 cookie `HttpOnly`, `Secure`, `SameSite=Lax`; nenhum dado pessoal em log.
+
+`POST /moderation/consume` (IMPL-0021, PROPOSTA) é a única rota de escrita sem sessão e sem conferência de
+`Origin`: quem a chama é o servidor de tempo real, por binding de serviço, e a credencial é o bilhete (192 bits
+aleatórios, guardado como hash, 30 segundos, uso único, preso a um administrador, uma sala e um alvo). Ela não
+envia nenhum cabeçalho CORS e só aceita JSON, então nenhuma página consegue usá-la; responde o mesmo `404` a tudo
+o que não é um bilhete válido e tem limite de requisições próprio.
 
 Arquivos de ONG ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): bucket R2 privado, lido só pela API; o formato é
 conferido pelos bytes (SVG e HTML recusados), imagens perdem os metadados antes de serem guardadas, e os bytes saem
@@ -326,12 +365,12 @@ importa nada dos outros apps: o que divide com o jogo está em `packages/shared/
 
 | Camada | Arquivos | Responsabilidade |
 |---|---|---|
-| Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `accounts_disabled`) |
-| Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta |
-| Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`) |
-| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts` | Carregamento por tela, listas paginadas ("Carregar mais"), rótulos; envio da decisão e da retirada (recarregam a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique) |
+| Serviços | `lib/endpoints.ts`, `lib/services.ts`, `lib/api.ts`, `lib/ids.ts` | Host da API por modo de build (o único destino de `fetch`); cliente da API com `credentials: "include"`; aviso quando a sessão muda (`not_signed_in`, `admin_only`, `session_blocked`, `accounts_disabled`); só um id bem formado entra no caminho de uma requisição (o resto é recusado como `not_found`, sem requisição) |
+| Sessão | `lib/session.ts`, `lib/login-token.ts`, `public/login-fragment.js`, `lib/return-to.ts` | Lê `/config`, consome o token `#login=` (tirado da barra de endereço antes de tudo; o resto do fragmento fica como estava) ou restaura a sessão por `/me`; com contas desligadas não chama rota de conta; decide a tela de cada sessão (`viewOf`); `trackSession` relê a sessão quando uma rota recusa (`admin_only`, `session_blocked`, `not_signed_in`) e, se a releitura devolve a mesma conta ainda no painel, mostra o estado "indisponível" em vez de reler de novo (só "Tentar de novo" repete); guarda por 20 minutos, no `localStorage` do navegador, o id da candidatura pedida por um link seguido sem sessão, para abrir essa candidatura depois da entrada |
+| Navegação | `lib/router.ts` | Roteador de hash (`#/applications`, `#/applications/<id>`, `#/lots`, `#/audit`, `#/users`, `#/system`, `#/pending`); a barra depois de `#` é opcional: `#applications/<id>` é o link que o jogo monta ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)). Id malformado ou desconhecido → "Candidatura não encontrada." |
+| Dados | `lib/hooks.ts`, `lib/format.ts`, `lib/review.ts`, `lib/files.ts`, `lib/moderation.ts` | Carregamento por tela, listas paginadas ("Carregar mais", releitura das páginas em tela), rótulos; envio da decisão, da retirada e da remoção de logo (recarregam a candidatura em `stale_revision`); download de documento (uma leitura auditada por clique); papéis e bloqueio: o que cada linha oferece, o texto de cada confirmação e o envio de cada ação |
 | Aparência | `lib/theme.ts`, `styles.css` | Cores vindas de `PALETTE` (`packages/shared/src/game/world.ts`); um único CSS, sem estilo inline |
-| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download, e a ação "Retirar da Vila" de uma ONG publicada (IMPL-0020, PROPOSTA; só quando `/config` traz `withdrawal: true`), com o campo nomeado como mensagem para a organização; terrenos; auditoria; contas; estado do sistema; áreas pendentes |
+| Telas | `ui/SignIn.tsx`, `ui/Shell.tsx`, `ui/Applications.tsx`, `ui/Lots.tsx`, `ui/Audit.tsx`, `ui/Users.tsx`, `ui/System.tsx`, `ui/Pending.tsx` | Entrada; menu e sessão; análise de ONGs (movida do jogo), com a seção "Arquivos" ([IMPL-0017](../decisions/0017-ngo-files-r2.md)): logo em prévia, documentos só por download, e a ação "Retirar da Vila" de uma ONG publicada (IMPL-0020, PROPOSTA; só quando `/config` traz `withdrawal: true`), com o campo nomeado como mensagem para a organização; terrenos; auditoria; contas; estado do sistema; áreas pendentes. IMPL-0021: em "Usuários", papel com os rótulos compartilhados ("Padrão" / "Administrador"), "Tornar administrador" / "Tornar padrão", "Bloquear conta" (PROPOSTA; só com `/config` → `moderation.block: true`) e "Desbloquear" (sempre que a conta está bloqueada); no detalhe da candidatura, "Remover logo"; em "Sistema", as bandeiras `moderation.presence` e `moderation.block`. Toda ação tem um segundo passo (`Confirmation` em `ui/common.tsx`) que nomeia a conta ou a organização, diz a consequência e só libera o botão depois de marcada a frase de confirmação |
 | Build | `security-headers.ts`, `vite.config.ts` | `_headers` por build (CSP com a API da build) |
 
 Quem vê o quê:
@@ -341,12 +380,21 @@ Quem vê o quê:
 | API sem resposta | "API indisponível" e "Tentar de novo" |
 | Contas desligadas (`/config` → `accounts: false`) | Menu completo com o aviso "Contas desligadas": só dados públicos (`/lots`, `/health`, `/config`); as seções que precisam de sessão explicam por que estão vazias |
 | Sem sessão | Só a tela "Entrar" (pede o link; não cria conta) |
-| Sessão sem papel `admin` | Só "Apenas administradores" e o botão "Sair" |
+| Sessão sem papel `admin` | Só "Apenas administradores" e o botão "Sair". Se a conta era administradora até a requisição anterior (rebaixada com o painel aberto), a tela diz que o papel foi retirado: a recusa `admin_only` faz o painel reler a sessão uma vez, sem laço |
+| Conta bloqueada (`/me` → `blocked`; IMPL-0021, PROPOSTA) | Só "Conta bloqueada", a mensagem da administração como foi escrita e o botão "Sair", qualquer que seja o papel |
 | Admin | Todas as seções |
 
 A API impõe o papel em cada rota `/admin/*`; o que o painel esconde é conveniência, não proteção. As seções
-"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs — este último agora só com as decisões que faltam, PEN-019 e OQ-12) são avisos sem função, e a de contas não tem ação
-de sanção (regras não definidas, DEC-037).
+"Pendentes" (Doações, Indicadores, Documentos e logos das ONGs — este último agora só com as decisões que faltam, PEN-019 e OQ-12) são avisos sem função.
+
+Na seção "Usuários" ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md)) continuam sem aparecer
+e-mail e nome. Ninguém age sobre a própria linha ("Você não pode mudar o próprio papel."), a conta de um
+administrador não é bloqueada ("Remova o papel de administrador antes…") e uma conta bloqueada só pode ser
+desbloqueada. O texto do bloqueio é pedido como "Mensagem para a pessoa (ela vai ler)", com a regra compartilhada
+(`cleanBlockMessage`, 10 a 1000 caracteres). Depois de uma ação a linha mostra o que a API respondeu e a lista é
+relida; uma recusa mostra a frase da API (`last_admin`, `account_blocked`, `admin_account`, …). O bloqueio é
+**PROPOSTA**: a seção traz um aviso de que a política de sanções é pergunta aberta (OQ-11) e de que hoje o bloqueio
+não tem prazo, recurso nem aviso por e-mail.
 
 ## Limitações conhecidas
 
@@ -360,6 +408,13 @@ de sanção (regras não definidas, DEC-037).
 - Retirada de ONG publicada implementada como PROPOSTA e desligada (`NGO_WITHDRAWAL_ENABLED`): sem restauração,
   sem aviso por e-mail, sem atualização de cenas abertas; o que ela significa para a conta e o CNPJ é pergunta
   aberta (OQ-14).
+- Papéis geridos pelo painel e remoção de logo por administrador valem com as contas ligadas (IMPL-0021). Bloqueio
+  de conta e remoção de visitante de uma sala são PROPOSTA e estão desligados (`ACCOUNT_BLOCK_ENABLED`,
+  `PRESENCE_MODERATION_ENABLED`): o bloqueio é da conta, não da pessoa (excluir a conta libera o e-mail), não tem
+  prazo, recurso nem aviso por e-mail (OQ-11); a remoção de sala não impede o visitante anônimo de voltar (recarregar
+  a página reconecta na hora: a espera de 60 s é só do cliente aberto). As telas do jogo estão descritas na linha
+  "Moderação" do [§2](#2-cliente-appsclientsrc); as do painel, no §11. No jogo, a galeria de fotos não é
+  exibida aos visitantes: o administrador vê as fotos públicas só dentro do modo moderação, para poder removê-las.
 - Nickname sem moderação; sem e-mail de aviso das decisões.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo

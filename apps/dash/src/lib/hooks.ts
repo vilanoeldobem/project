@@ -41,8 +41,24 @@ export interface Paged<T> {
   error: string;
   loading: boolean;
   more: () => void;
-  /** Repeats the request that failed (the first page or the last "more"); what is loaded stays. */
+  /** Repeats the request that failed (the first page, the last "more" or a reload); what is loaded stays. */
   retry: () => void;
+  /** Reads again, from the API, as many pages as are on screen (after a change, or when the screen is out of date). */
+  reload: () => void;
+  /** Changes what is on screen without a request (a row the API has just answered with). */
+  patch: (change: (items: T[]) => T[]) => void;
+}
+
+/** The first `count` pages of a newest-first list, read one after the other, as one page. Pure. */
+export async function readPages<T>(fetchPage: (before?: string) => Promise<Page<T>>, count: number): Promise<Page<T>> {
+  const items: T[] = [];
+  let before: string | undefined;
+  for (let read = 0; ; ) {
+    const page = await fetchPage(before);
+    items.push(...page.items);
+    if (page.next === null || ++read >= count) return { items, next: page.next };
+    before = page.next;
+  }
 }
 
 /** Newest-first list read page by page ("Carregar mais"): the first page replaces, the next ones append. */
@@ -54,16 +70,19 @@ export function usePaged<T>(fetchPage: (before?: string) => Promise<Page<T>>): P
   const fetcher = useRef(fetchPage);
   fetcher.current = fetchPage;
   const request = useRef(0);
-  const asked = useRef<string | undefined>(undefined);
-  const load = useCallback((before?: string) => {
+  /** Pages on screen, and the request to repeat on "Tentar de novo". */
+  const pages = useRef(0);
+  const again = useRef<() => void>(() => {});
+  /** One request at a time: a newer one makes the answer of an older one be dropped. */
+  const run = useCallback((read: () => Promise<Page<T>>, done: (page: Page<T>) => void) => {
     const mine = ++request.current;
-    asked.current = before;
+    again.current = () => run(read, done);
     setLoading(true);
     setError("");
-    fetcher.current(before).then(
+    read().then(
       (page) => {
         if (mine !== request.current) return;
-        setItems((current) => (before && current ? [...current, ...page.items] : page.items));
+        done(page);
         setNext(page.next);
         setLoading(false);
       },
@@ -74,6 +93,25 @@ export function usePaged<T>(fetchPage: (before?: string) => Promise<Page<T>>): P
       }
     );
   }, []);
+  const load = useCallback(
+    (before?: string) =>
+      run(
+        () => fetcher.current(before),
+        (page) => {
+          pages.current = before ? pages.current + 1 : 1;
+          setItems((current) => (before && current ? [...current, ...page.items] : page.items));
+        }
+      ),
+    [run]
+  );
+  const reload = useCallback(() => {
+    const count = Math.max(1, pages.current);
+    run(
+      () => readPages(fetcher.current, count),
+      (page) => setItems(page.items)
+    );
+  }, [run]);
+  const patch = useCallback((change: (items: T[]) => T[]) => setItems((current) => (current ? change(current) : current)), []);
   useEffect(() => load(), [load]);
-  return { items, hasMore: next !== null, error, loading, more: () => next && !loading && load(next), retry: () => load(asked.current) };
+  return { items, hasMore: next !== null, error, loading, more: () => next && !loading && load(next), retry: () => again.current(), reload, patch };
 }

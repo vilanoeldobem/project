@@ -16,10 +16,13 @@
   ],
   // E-mail goes through Resend (IMPL-0012): the API key is the Worker secret RESEND_API_KEY (never a var; see
   // docs/guides/deploy.md). Without it sign-in e-mails fail closed with 503 "mail_unavailable".
-  // Sign-in requests per client IP (the IP is only a rate-limit key, never stored); uploads per account.
+  // Sign-in requests per client IP (the IP is only a rate-limit key, never stored); uploads per account;
+  // POST /moderation/consume per caller address (IMPL-0021; a call through the service binding has no address
+  // and is keyed by its room, charged only for a ticket that was issued).
   "ratelimits": [
     { "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } },
-    { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } }
+    { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } },
+    { "name": "MODERATION_LIMITER", "namespace_id": "1103", "simple": { "limit": 60, "period": 60 } }
   ],
   // Files of NGO applications (IMPL-0017): private bucket, no public bucket URL and no custom domain; every
   // byte is served by this Worker. The bucket must be created by hand, with approval, before a deploy
@@ -40,6 +43,12 @@
     // OQ-14 (what a withdrawal means for the account, the CNPJ, re-entry and retention). Needs ACCOUNTS_ENABLED
     // and migration 0009; it only gates new withdrawals.
     "NGO_WITHDRAWAL_ENABLED": "false",
+    // Account block (PROPOSTA, IMPL-0021). Off until the product owner answers OQ-11 (which sanctions exist, who
+    // applies them, appeal, duration, notice). Needs ACCOUNTS_ENABLED and migration 0010; it only gates new blocks.
+    "ACCOUNT_BLOCK_ENABLED": "false",
+    // Removing a visitor from a room of the realtime server (PROPOSTA, IMPL-0021). Needs ACCOUNTS_ENABLED,
+    // migration 0010 and the realtime server deployed with the same flag and its service binding to this Worker.
+    "PRESENCE_MODERATION_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -71,6 +80,8 @@
         "NGO_FILES_ENABLED": "false",
         "NGO_PHOTOS_ENABLED": "false",
         "NGO_WITHDRAWAL_ENABLED": "false",
+        "ACCOUNT_BLOCK_ENABLED": "false",
+        "PRESENCE_MODERATION_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

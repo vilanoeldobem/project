@@ -53,10 +53,12 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
       }),
     []
   );
+  // A blocked account (IMPL-0021, PROPOSTA) cannot read or send an application: nothing is asked of the API.
+  const blocked = Boolean(user?.blocked);
   useEffect(() => {
-    if (!user) return;
+    if (!user || blocked) return;
     load().catch((e) => setError(errorText(e)));
-  }, [user, load]);
+  }, [user, blocked, load]);
 
   if (!user)
     return (
@@ -64,6 +66,17 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
         <p className="lead">A candidatura é feita por uma conta da Vila (nome, nickname, cidade e e-mail).</p>
         <button className="btn btn--primary" onClick={() => open({ kind: "account", then: { kind: "ngo", lotId } })}>
           Entrar ou criar conta
+        </button>
+      </Panel>
+    );
+  if (blocked)
+    return (
+      <Panel kicker="Cadastro de ONGs" title="Conta bloqueada">
+        <p className="lead" data-state="blocked">
+          Sua conta está bloqueada pela administração da Vila: a candidatura de ONG não pode ser lida, enviada nem alterada.
+        </p>
+        <button className="btn btn--primary" onClick={() => open({ kind: "account" })}>
+          Ler a mensagem da administração
         </button>
       </Panel>
     );
