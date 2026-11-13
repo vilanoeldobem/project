@@ -12,7 +12,9 @@ import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, RESIDENTIAL_PLOTS, SHOP_
 import { sim, walkRoute } from "../game/sim";
 import { useVila } from "../game/store";
 import { pressEscape } from "../lib/escape";
+import { useAccount } from "../lib/account";
 import type { LotInfo } from "../lib/api";
+import { Donation } from "./Donation";
 import { Explore } from "./Explore";
 import { Lot } from "./Lot";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./Village";
@@ -117,6 +119,36 @@ describe("lot the API does not list yet", () => {
     expect(html).toContain("Este terreno ainda não recebe candidaturas.");
     expect(html).not.toContain("Candidatar minha ONG");
     expect(html).not.toContain("Conheça o cadastro");
+  });
+});
+
+describe("a published house on one of the new lots and the donations of IMPL-0023", () => {
+  const house = (lot: string): LotInfo => ({ id: lot, state: "published", ngo_id: "a0000000-0000-4000-8000-000000000001", ngo_name: "Associação Exemplo", ngo_summary: "Resumo público" }) as LotInfo;
+  afterEach(() => useAccount.setState({ donations: false }));
+
+  it.each(["plaza-09", "plaza-10", "plaza-11", "plaza-12"])("%s with donations off: the disabled button and the honest note, no payment", (lot) => {
+    expect(useAccount.getState().donations).toBe(false);
+    const html = renderToStaticMarkup(<Lot lotId={lot} info={house(lot)} />);
+    expect(html).toContain(`Terreno ${Number(lot.slice(-2))}`);
+    expect(html).toContain("Destinatário: esta ONG");
+    expect(html).toMatch(/<button class="btn btn--primary" disabled="">Doar para esta ONG<\/button>/);
+    expect(html).toContain("Pagamento ainda não habilitado (PEN-006).");
+    expect(html).not.toMatch(/Pix|QR Code|Gerar|página de pagamento/);
+    // The only other button of the house is the free game.
+    expect(buttons(html).filter((b) => !b.includes("disabled"))).toHaveLength(1);
+  });
+
+  it("is the same panel a house on an old lot gets", () => {
+    const strip = (html: string) => html.replace(/Terreno \d+/g, "Terreno N");
+    expect(strip(renderToStaticMarkup(<Lot lotId="plaza-12" info={house("plaza-12")} />))).toBe(strip(renderToStaticMarkup(<Lot lotId="plaza-01" info={house("plaza-01")} />)));
+  });
+
+  it("the global donation, reached from the HUD, the tree or the lectern, stays disabled and honest with donations off", () => {
+    const html = renderToStaticMarkup(<Donation />);
+    expect(html).toMatch(/<button class="btn btn--primary" disabled=""[^>]*>Doar<\/button>/);
+    expect(html).toContain("Doações ficam disponíveis após a definição e o contrato da instituição parceira.");
+    expect(html).toContain("não é dividida entre as ONGs da Vila");
+    expect(html).not.toMatch(/QR Code|Gerar Pix/);
   });
 });
 

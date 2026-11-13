@@ -345,6 +345,10 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
   daquele ADR valem para o raio de 34 u.
 - [IMPL-0008](0008-multiplayer-presence-durable-objects.md): presença anônima sem mudança; o servidor limita a pose
   ao novo `WORLD_RADIUS`, que vem do pacote compartilhado.
+- [IMPL-0023](0023-donations-abacatepay.md) (doações Pix, PROPOSTA, desligadas por `DONATIONS_ENABLED`): a doação por
+  ONG segue a ONG publicada, não o terreno, então vale igual para uma casa em `plaza-09`…`plaza-12`; com a bandeira
+  desligada o painel da casa mantém o botão desabilitado e a nota de sempre. A migration 0012 não toca nas tabelas
+  da 0011. Testes: `apps/api/src/residential-plots.test.ts`, `apps/client/src/ui/Village.test.tsx`.
 - Referência: [architecture.md §2.2, §2.4 e §10](../reference/architecture.md), [storage.md](../reference/storage.md),
   [api.md](../reference/api.md), [deploy.md](../guides/deploy.md).
 - Perguntas ao dono do produto: [OQ-17, OQ-18, OQ-19](open-questions.md).

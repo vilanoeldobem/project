@@ -74,6 +74,41 @@ describe("migration 0012 against the shared layout", () => {
   });
 });
 
+describe("a house on one of the four new lots and the donations of IMPL-0023", () => {
+  const info = `/ngos/${NGO_ID}/donation-info`;
+  const publishOn = async (lot: string) => {
+    await db.prepare("INSERT INTO ngos (id, name, cnpj, summary, status) VALUES (?, 'Associação Exemplo', '11222333000181', 'Resumo', 'published')").bind(NGO_ID).run();
+    await db.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = ?").bind(NGO_ID, lot).run();
+  };
+
+  it.each(["plaza-09", "plaza-10", "plaza-11", "plaza-12"])("on %s: no donation route with the flag off, the house's own donation with it on", async (lot) => {
+    await publishOn(lot);
+    // Off (production and staging): the route does not exist, and the public lot is as before.
+    env.DONATIONS_ENABLED = "false";
+    expect((await get(info)).status).toBe(404);
+    expect((await get("/donations/config")).status).toBe(404);
+    const { lots } = (await (await get("/lots")).json()) as { lots: Array<Record<string, unknown>> };
+    expect(lots.find((l) => l.id === lot)).toMatchObject({ state: "published", ngo_id: NGO_ID, ngo_name: "Associação Exemplo" });
+    // On, nothing configured by the administration yet: answered, and not enabled.
+    env.DONATIONS_ENABLED = "true";
+    const pending = await get(info);
+    expect(pending.status).toBe(200);
+    expect(await pending.json()).toMatchObject({ ngoId: NGO_ID, name: "Associação Exemplo", method: "abacatepay", enabled: false, confirmedDonations: 0, confirmedAmountCents: 0 });
+    // On and configured: the same answer a house on one of the first eight lots gets.
+    await db.prepare("INSERT INTO ngo_payment_configs (ngo_id, payment_method, sub_account_id) VALUES (?, 'abacatepay', 'dev_sacc_11222333000181')").bind(NGO_ID).run();
+    expect(await (await get(info)).json()).toMatchObject({ ngoId: NGO_ID, method: "abacatepay", enabled: true });
+  });
+
+  it("answers the same for a house on an old lot: the donation follows the NGO, not the lot", async () => {
+    await publishOn("plaza-12");
+    env.DONATIONS_ENABLED = "true";
+    const onNew = await (await get(info)).json();
+    await db.prepare("UPDATE lots SET state = 'available', ngo_id = NULL WHERE id = 'plaza-12'").run();
+    await db.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = 'plaza-01'").bind(NGO_ID).run();
+    expect(await (await get(info)).json()).toEqual(onNew);
+  });
+});
+
 describe("GET /residential-plots", () => {
   it("answers every plot as unavailable while ownership is off, and never caches", async () => {
     const res = await get("/residential-plots");
