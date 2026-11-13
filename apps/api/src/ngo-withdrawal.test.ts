@@ -150,6 +150,10 @@ describe("administrative NGO withdrawal", () => {
   it("names the reason as the message the organisation reads, and hands it to the applicant as written", async () => {
     const refused = await withdraw({ reason: "short" });
     expect(await refused.json()).toEqual({ error: "reason_required", fields: { reason: "Escreva a mensagem para a organização (10 a 1000 caracteres). Ela lê este texto." } });
+    // Text nobody can see is not a message: ten zero-width characters, or a direction override around four letters.
+    expect((await withdraw({ reason: "\u200b".repeat(10) })).status).toBe(400);
+    expect((await withdraw({ reason: "\u202eabcd\u202c\u200d\u200d\u200d\u200d" })).status).toBe(400);
+    expect((await withdraw({ reason: "ten letters\0" })).status).toBe(400);
     expect((await withdraw()).status).toBe(200);
     const own = await (await call("GET", "/ngo/application", undefined, "owner")).json() as { application: { withdrawal: { reason: string } } };
     expect(own.application.withdrawal.reason).toBe(REASON);

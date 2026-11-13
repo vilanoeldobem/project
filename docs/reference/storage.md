@@ -44,8 +44,9 @@ ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ng
 `/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v10 (com as contas ligadas, a migration
 vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 A 0010 é pré-requisito de **toda rota que lê a sessão**, com qualquer combinação de bandeiras: a conferência da
-sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas respondem `503 schema_outdated`. Nenhuma
-rota pública lê `users.blocked`, `account_blocks` ou `moderation_tickets`.
+sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas e as três rotas de entrada (cadastro, pedido
+e confirmação do link) respondem `503 schema_outdated` sem gravar nada. Nenhuma rota pública lê `users.blocked`,
+`account_blocks` ou `moderation_tickets`.
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -192,7 +193,7 @@ quais sanções existem, quem aplica, duração, recurso e aviso são PENDENTES 
 |---|---|---|
 | `id` | TEXT PK | UUID; citado no detalhe da auditoria (`{"block": id}`) |
 | `user_id` | TEXT FK → users, `ON DELETE CASCADE` | a conta bloqueada; a exclusão da conta apaga o registro |
-| `message` | TEXT, 10 a 1000 caracteres | **mensagem para a pessoa bloqueada**, mostrada a ela como foi escrita (`GET /me`); não é anotação interna |
+| `message` | TEXT, 10 a 1000 caracteres | **mensagem para a pessoa bloqueada**, mostrada a ela como foi escrita (`GET /me`); não é anotação interna. A API guarda o texto sem caracteres de formatação ou de controle invisíveis (a restrição do banco confere só o tamanho) |
 | `blocked_by` | TEXT | id do administrador (nunca e-mail); sem FK, como em `audit_events` |
 | `blocked_at` | TEXT | RFC 3339 UTC |
 | `lifted_at` | TEXT | `NULL` enquanto o bloqueio vale; instante do desbloqueio |

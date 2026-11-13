@@ -92,7 +92,10 @@ export interface Env {
   NGO_FILES_ENABLED?: string;
   /** Workers rate limiting binding for uploads, keyed by account id. */
   FILE_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
-  /** Workers rate limiting binding for `POST /moderation/consume`, keyed by client address, or by room through the service binding (no address there). */
+  /**
+   * Workers rate limiting binding for `POST /moderation/consume`, keyed by client address, or by room through the
+   * service binding (no address there; only a ticket that was issued is charged to its room).
+   */
   MODERATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 

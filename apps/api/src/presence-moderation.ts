@@ -23,9 +23,12 @@
  * the answer strictly: success is 200 with exactly `{"ok":true}`; everything that is not a valid unused ticket
  * for that room and target answers the same 404.
  *
- * Rate limit (`MODERATION_LIMITER`): a caller with a client address (the public hostname) is keyed by it; a call
- * through the binding has none and is keyed by its room, so one busy room cannot use up another's budget. The
- * room has its own per-connection limits (one `["m", …]` per second, ten per minute).
+ * Rate limit (`MODERATION_LIMITER`): a caller with a client address (the public hostname) is keyed by it and
+ * charged before the ticket is looked at. A call through the binding has no address and is keyed by its room, so
+ * one busy room cannot use up another's budget; there the room forwards whatever well-formed ticket any of its
+ * connections sent, so only a ticket somebody issued is charged. One that nobody issued costs a primary-key read
+ * and gets the same 404, or visitors could spend the room's budget and have a real ticket refused. The room has
+ * its own per-connection limits (one `["m", …]` per second, ten per minute).
  *
  * This is a courtesy removal, not a ban: an anonymous visitor can connect again. Blocking accounts is
  * account-moderation.ts.
@@ -75,13 +78,22 @@ export async function consumeTicket(request: Request, env: Env): Promise<Respons
   if (env.ACCOUNTS_ENABLED !== "true" || env.PRESENCE_MODERATION_ENABLED !== "true") throw new HttpError(404, "not_found");
   if (!env.DB) throw new HttpError(503, "db_unavailable");
   const { ticket, room, target } = await readJson(request, 1_000);
-  // A call through the service binding carries no client address: it is keyed by its room instead.
-  const caller = request.headers.get("CF-Connecting-IP") ?? (isRoom(room) ? `room:${room}` : "internal");
-  if (env.MODERATION_LIMITER && !(await env.MODERATION_LIMITER.limit({ key: caller })).success) throw new HttpError(429, "too_many_requests");
+  const charge = async (key: string) => {
+    if (env.MODERATION_LIMITER && !(await env.MODERATION_LIMITER.limit({ key })).success) throw new HttpError(429, "too_many_requests");
+  };
+  // The public hostname: whoever calls is charged first, whatever was sent.
+  const address = request.headers.get("CF-Connecting-IP");
+  if (address) await charge(address);
   if (typeof ticket !== "string" || !MODERATION_TICKET.test(ticket) || !isRoom(room) || !isTarget(target)) throw new HttpError(404, "not_found");
 
   const db = env.DB;
   const hash = await sha256Hex(ticket), now = new Date().toISOString(), token = newId();
+  if (!address) {
+    // The service binding (no client address): the room's budget is spent only on a ticket somebody issued. A
+    // read by primary key decides it and changes nothing; whether the ticket is still good is the batch below.
+    if (!(await db.prepare("SELECT 1 AS x FROM moderation_tickets WHERE ticket_hash = ?").bind(hash).first())) throw new HttpError(404, "not_found");
+    await charge(`room:${room}`);
+  }
   const [claimed] = await db.batch([
     db.prepare(
       `UPDATE moderation_tickets SET used_at = ?, consume_token = ?

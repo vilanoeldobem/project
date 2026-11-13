@@ -58,6 +58,19 @@ function beforeNextBatch(competing: () => Promise<unknown>) {
     return original(statements);
   }) as typeof db.batch;
 }
+/** Same, for a write that is one statement outside a batch: runs `competing` right before the first statement whose SQL matches. */
+function beforeStatement(sql: RegExp, competing: () => Promise<unknown>) {
+  const original = db.prepare.bind(db);
+  db.prepare = ((query: string) => {
+    const statement = original(query);
+    if (!sql.test(query)) return statement;
+    db.prepare = original;
+    return { ...statement, bind: (...values: unknown[]) => {
+      const bound = statement.bind(...values);
+      return { ...bound, run: async () => { await competing(); return bound.run(); } };
+    } };
+  }) as typeof db.prepare;
+}
 /** Same, for the conditional write of an upload's bytes: the reservation and the "still active" check already happened. */
 function beforeNextBytesPut(competing: () => Promise<unknown>) {
   const original = bucket.put.bind(bucket);
@@ -289,6 +302,7 @@ describe("account block (PROPOSTA, IMPL-0021)", () => {
     expect(blocked).toEqual({ status: 202, body: { ok: true }, headers: expect.any(Array) });
     expect(await link("bia@example.test")).toEqual(blocked);
     expect(await link("nobody@example.test")).toEqual(blocked);
+    expect(await link("not an e-mail")).toEqual(blocked);
     const register = (nickname: string, email: string) => seen(call("POST", "/auth/register", { name: "Nova Pessoa", nickname, city: "Natal", email }, "", GAME));
     expect(await register("nova_1", "ana@example.test")).toEqual(await register("nova_2", "bia@example.test"));
     expect(await register("nova_3", "new@example.test")).toEqual(blocked);
@@ -360,6 +374,20 @@ describe("account block (PROPOSTA, IMPL-0021)", () => {
     expect(user("ana").blocked).toBe(0);
     expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
     expect(db.sql("SELECT COUNT(*) AS n FROM sessions WHERE user_id = 'ana'")[0].n).toBe(1);
+  });
+
+  it("refuses a message made of characters nobody can see, and stores the message without them", async () => {
+    for (const message of ["\u200b".repeat(10), "\u202e".repeat(10), `\u2060\ufeff\u00ad\u200d curta \u200c\u061c\u2066\u2069`, "\u0007".repeat(12)]) {
+      const refused = await block("ana", "admin", message);
+      expect([JSON.stringify(message), refused.status, refused.body.error, refused.body.fields]).toEqual([JSON.stringify(message), 400, "message_required", { message: expect.stringMatching(/mensagem para a pessoa/) }]);
+    }
+    expect(user("ana").blocked).toBe(0);
+    expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
+    expect(audit()).toEqual([]);
+    // A direction override would show the reason backwards: the person reads the text without it.
+    expect((await block("ana", "admin", `\u202e${MESSAGE}\u200b`)).status).toBe(200);
+    expect(db.sql("SELECT message FROM account_blocks")).toEqual([{ message: MESSAGE }]);
+    expect((await signIn("ana@example.test")).body.user.blocked.message).toBe(MESSAGE);
   });
 
   it.each([10, 1000])("accepts a message of %i Unicode characters, consistently with the database constraint", async (count) => {
@@ -537,6 +565,58 @@ describe("block racing other writes", () => {
     expect(db.sql("SELECT * FROM progress_events")).toEqual([]);
   });
 
+  it("refuses in SQL a correction of name, nickname or city that was being sent when the block was recorded", async () => {
+    const before = db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'");
+    // The block commits after this request's session check and nickname check, right before its only write.
+    beforeStatement(/^UPDATE users SET name/, () => block("ana"));
+    const late = await call("POST", "/me", { name: "Another Name", nickname: "ana_again", city: "Natal" }, "ana", GAME);
+    expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(late.headers.get("Cache-Control")).toBe("no-store");
+    expect(db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'")).toEqual(before);
+    expect(user("ana").blocked).toBe(1);
+    // Without a block the same correction goes through, and nobody else's account is touched by it.
+    const corrected = await call("POST", "/me", { name: "Another Name", nickname: "bia_again", city: "Natal" }, "bia", GAME);
+    expect([corrected.status, corrected.body.user]).toEqual([200, expect.objectContaining({ id: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" })]);
+    expect(db.sql("SELECT nickname_key FROM users WHERE id = 'bia'")).toEqual([{ nickname_key: "bia_again" }]);
+  });
+
+  it("refuses in SQL the first progress of an account that was blocked before its write counter was created", async () => {
+    beforeStatement(/INTO progress_writes/, () => block("ana"));
+    const late = await call("POST", "/progress/events", { accountId: "ana", events: EVENTS }, "ana", GAME);
+    expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(db.sql("SELECT * FROM progress_writes")).toEqual([]);
+    expect(db.sql("SELECT * FROM progress_events")).toEqual([]);
+  });
+
+  it("refuses in SQL the removal of a file or of a gallery photo that was being sent when the block was recorded", async () => {
+    const created = await call("POST", "/ngo/application", { accountId: "ana", ...APPLICATION }, "ana", GAME);
+    const ngoId = created.body.application.id as string;
+    const media = { "X-Vila-Account": "ana", "Content-Type": "image/png", "X-Vila-Caption": "" };
+    const logo = await request("POST", "/ngo/application/files?kind=logo", "ana", GAME, media, png() as BodyInit);
+    const photo = await request("POST", `/ngo/photos?ngoId=${ngoId}&position=0`, "ana", GAME, media, png() as BodyInit);
+    expect([logo.status, photo.status]).toEqual([201, 201]);
+    const stored = () => [db.sql("SELECT id FROM ngo_files"), db.sql("SELECT id, status, cleanup_pending FROM ngo_photos"), db.sql("SELECT revision FROM ngos"), bucket.keys()];
+    const before = stored();
+    expect(before[3]).toHaveLength(2);
+
+    beforeNextBatch(() => block("ana"));
+    const file = await request("DELETE", `/ngo/application/files/${logo.body.file.id}`, "ana", GAME, { "X-Vila-Account": "ana" });
+    expect([file.status, file.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(stored()).toEqual(before);
+
+    // The same for the gallery, with the session the block ended put back.
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex("ana"), "ana", "2099-01-01").run();
+    await db.prepare("UPDATE users SET blocked = 0 WHERE id = 'ana'").run();
+    beforeNextBatch(() => db.prepare("UPDATE users SET blocked = 1 WHERE id = 'ana'").run());
+    const removal = await request("DELETE", `/ngo/photos/${photo.body.photo.id}`, "ana", GAME, { "X-Vila-Account": "ana" });
+    expect([removal.status, removal.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(stored()).toEqual(before);
+    expect(audit().map((row) => row.action)).toEqual(["ngo.submit", "ngo.file_add", "ngo.photo.upload", "user.block"]);
+    // An administrator still removes the photo of a blocked applicant.
+    const byAdmin = await call("POST", `/admin/ngo-photos/${photo.body.photo.id}/decision`, { accountId: "admin", action: "remove", revision: 1 }, "admin");
+    expect([byAdmin.status, byAdmin.body.photo.status]).toEqual([200, "removed"]);
+  });
+
   it("discards a logo and a gallery photo that were being uploaded when the block was recorded", async () => {
     const created = await call("POST", "/ngo/application", { accountId: "ana", ...APPLICATION }, "ana", GAME);
     const ngoId = created.body.application.id as string;
@@ -583,6 +663,9 @@ describe("migration 0010", () => {
     env = { ...env, DB: db, ACCOUNT_BLOCK_ENABLED: flag, PRESENCE_MODERATION_ENABLED: flag, NGO_WITHDRAWAL_ENABLED: flag };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id) VALUES(?, 'Exemplo', '11222333000181', 'published', 'ana', 'plaza-01')").bind(UUID).run();
     await db.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = 'plaza-01'").bind(UUID).run();
+    // A sign-in link that was issued before the code was deployed over the older database.
+    const linkToken = "t".repeat(43);
+    await db.prepare("INSERT INTO login_tokens(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex(linkToken), "ana", "2099-01-01").run();
     const tables = ["users", "sessions", "ngos", "lots", "audit_events", "progress_events", "login_tokens"];
     const before = tables.map((table) => db.sql(`SELECT * FROM ${table}`));
     const outdated: Array<[string, string, unknown?, string?]> = [
@@ -593,6 +676,9 @@ describe("migration 0010", () => {
       ["GET", "/progress", undefined, "ana"], ["POST", "/progress/events", { accountId: "ana", events: EVENTS }, "ana"],
       ["GET", "/ngo/application", undefined, "ana"], ["POST", "/ngo/application", { accountId: "bia", ...APPLICATION }, "bia"],
       ["POST", "/auth/register", { name: "Nova Pessoa", nickname: "nova", city: "Natal", email: "nova@example.test" }, ""],
+      // The link is not claimed and no session is opened; no link is sent that could not be used, whoever asks.
+      ["POST", "/auth/verify", { token: linkToken }, ""], ["POST", "/auth/verify", { token: "u".repeat(43) }, ""], ["POST", "/auth/verify", { token: linkToken }, "bia"],
+      ["POST", "/auth/link", { email: "ana@example.test" }, ""], ["POST", "/auth/link", { email: "nobody@example.test" }, ""], ["POST", "/auth/link", { email: "not an e-mail" }, ""],
       ...(flag === "true" ? [
         ["POST", "/admin/users/ana/block", { accountId: "admin", message: MESSAGE }], ["POST", "/admin/moderation/ticket", { accountId: "admin", room: 0, target: 1 }],
       ] as Array<[string, string, unknown]> : []),
@@ -605,6 +691,7 @@ describe("migration 0010", () => {
     if (flag === "false") for (const [path, body] of [["/admin/users/ana/block", { accountId: "admin", message: MESSAGE }], ["/admin/moderation/ticket", { accountId: "admin", room: 0, target: 1 }]] as const)
       expect([path, (await call("POST", path, body)).body]).toEqual([path, { error: "not_found" }]);
     expect(tables.map((table) => db.sql(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(db.sql("SELECT used_at FROM login_tokens")).toEqual([{ used_at: null }]);
     // What needs no session still answers: a signed-out visitor, signing out, and every public read.
     expect((await call("GET", "/me", undefined, "", GAME)).body).toEqual({ user: null });
     expect((await call("POST", "/auth/logout", {}, "", GAME)).status).toBe(204);

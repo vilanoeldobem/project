@@ -144,6 +144,55 @@ describe("administrator removes an NGO logo (IMPL-0021)", () => {
     expect(files()).toHaveLength(2); expect(bucket.keys()).toEqual([LOGO_KEY, DOCUMENT_KEY].sort()); expect(audit()).toEqual([]);
   });
 
+  it("refuses in SQL a removal by an administrator who was demoted, blocked or erased after the session check", async () => {
+    // The demotion commits between this request's session check and its batch.
+    beforeNextBatch(() => call("POST", "/admin/users/admin/role", { accountId: "admin2", role: "player" }, "admin2"));
+    const demoted = await removeLogo();
+    expect([demoted.status, demoted.body]).toEqual([403, { error: "admin_only" }]);
+    await db.prepare("UPDATE users SET role = 'admin' WHERE id = 'admin'").run();
+    beforeNextBatch(() => db.prepare("UPDATE users SET blocked = 1 WHERE id = 'admin'").run());
+    const blocked = await removeLogo();
+    expect([blocked.status, blocked.body]).toEqual([403, { error: "admin_only" }]);
+    beforeNextBatch(() => call("DELETE", "/me", undefined, "admin2"));
+    const erased = await removeLogo({}, "admin2");
+    expect([erased.status, erased.body]).toEqual([401, { error: "not_signed_in" }]);
+
+    expect(files()).toHaveLength(2); expect(bucket.keys()).toEqual([LOGO_KEY, DOCUMENT_KEY].sort());
+    expect(db.sql("SELECT revision FROM ngos")[0].revision).toBe(1);
+    expect(db.sql("SELECT * FROM media_upload_intents")).toEqual([]);
+    expect(audit().map((row) => [row.actor, row.action])).toEqual([["admin2", "user.role_change"], ["admin2", "user.delete"]]);
+    expect((await call("GET", `/ngos/${NGO}/logo`, undefined, "", null)).status).toBe(200);
+  });
+
+  it("removes a published logo after the applicant erased the account", async () => {
+    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    // The NGO stays in the village with its logo; nothing says who uploaded it any more.
+    expect(db.sql("SELECT id, uploaded_by FROM ngo_files")).toEqual([{ id: LOGO, uploaded_by: null }]);
+    expect(db.sql("SELECT applicant_id, revision FROM ngos")).toEqual([{ applicant_id: null, revision: 2 }]);
+    expect((await call("GET", `/ngos/${NGO}/logo`, undefined, "", null)).status).toBe(200);
+
+    const removed = await removeLogo({ revision: 2 });
+    expect(removed.status).toBe(200);
+    expect(removed.body.application).toMatchObject({ id: NGO, status: "published", revision: 3 });
+    expect((await call("GET", `/ngos/${NGO}/logo`, undefined, "", null)).status).toBe(404);
+    expect(files()).toEqual([]); expect(bucket.keys()).toEqual([]);
+    expect(db.sql("SELECT * FROM media_upload_intents")).toEqual([]);
+    expect(audit().filter((row) => row.action === "ngo.logo_remove")).toEqual([{ actor: "admin", action: "ngo.logo_remove", subject: `ngo:${NGO}`, detail: JSON.stringify({ file: LOGO, revision: 3 }) }]);
+  });
+
+  it("keeps a retryable cleanup, recorded under the administrator, when R2 fails after the applicant's erasure", async () => {
+    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    bucket.failNext("delete");
+    const answer = await removeLogo({ revision: 2 });
+    expect([answer.status, answer.body]).toEqual([503, { error: "file_cleanup_pending" }]);
+    expect((await call("GET", `/ngos/${NGO}/logo`, undefined, "", null)).status).toBe(404);
+    expect(db.sql("SELECT id, uploaded_by, cleanup_pending FROM media_upload_intents")).toEqual([{ id: LOGO, uploaded_by: "admin", cleanup_pending: 1 }]);
+    const recovered = await call("POST", `/admin/applications/${NGO}/files/recover`, undefined, "admin2", GAME, { "X-Vila-Account": "admin2" });
+    expect(recovered.body).toEqual({ cleaned: 1, remaining: 0 });
+    expect(bucket.keys()).toEqual([]);
+    expect(audit().map((row) => [row.actor, row.action])).toEqual([["owner", "user.delete"], ["admin", "ngo.logo_remove"], ["admin2", "ngo.file_cleanup"]]);
+  });
+
   it("makes a review opened on the previous revision stale", async () => {
     await db.prepare("UPDATE ngos SET status = 'submitted' WHERE id = ?").bind(NGO).run();
     await db.prepare("UPDATE lots SET state = 'application_sent' WHERE ngo_id = ?").bind(NGO).run();

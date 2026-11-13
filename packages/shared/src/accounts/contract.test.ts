@@ -64,6 +64,22 @@ describe("moderation rules (IMPL-0021, PROPOSTA)", () => {
     expect(BLOCK_MESSAGE_ERROR).toMatch(/10 a 1000 caracteres/);
   });
 
+  it("does not count text nobody can see: format and control characters leave the message before it is trimmed and counted", () => {
+    const invisible = [
+      "​".repeat(10), "‮".repeat(12), "⁠﻿­‍‌؜⁦⁩‎‏", "\u0007".repeat(10), "\u009f".repeat(10),
+      "\u{e0061}".repeat(10), "\r".repeat(10), "\n\t".repeat(10), `​curta${"​".repeat(20)}`, `‮${"​".repeat(9)}`,
+    ];
+    for (const value of invisible) expect([JSON.stringify(value), cleanBlockMessage(value)]).toEqual([JSON.stringify(value), null]);
+    // What is kept is what the person reads: no override that reverses the text, nothing hidden inside or around it.
+    expect(cleanBlockMessage("‮abcdefghij")).toBe("abcdefghij");
+    expect(cleanBlockMessage("​ Mensagem​ para­ a pessoa.⁩ ﻿")).toBe("Mensagem para a pessoa.");
+    expect(cleanBlockMessage(`${"x".repeat(1000)}${"​".repeat(50)}`)).toBe("x".repeat(1000));
+    expect(cleanBlockMessage(`${"x".repeat(1001)}${"​".repeat(50)}`)).toBeNull();
+    // Ordinary line breaks and tabs inside the message stay; a carriage return is a control character like any other.
+    expect(cleanBlockMessage("Primeira linha.\r\n\tSegunda linha.")).toBe("Primeira linha.\n\tSegunda linha.");
+    expect(cleanBlockMessage("\n\tMensagem para a pessoa.\t\n")).toBe("Mensagem para a pessoa.");
+  });
+
   it("states the ticket lifetime and budget the API and the realtime server both rely on", () => {
     // The room refuses removals while it could still be handed a ticket issued before it was in memory.
     expect(MODERATION_TICKET_TTL_MS).toBe(30_000);

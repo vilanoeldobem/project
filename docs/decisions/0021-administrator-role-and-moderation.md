@@ -88,7 +88,10 @@ script local `dev`.
    antes), conta já bloqueada ou não bloqueada (`409 bad_transition`). Mesmo batch com duas conferências do item 4.
    Auditoria `user.block` / `user.unblock`, assunto `user:<id>`, detalhe com o id do registro, **nunca o texto**.
 3. **O texto é uma mensagem para a pessoa.** O `message` (10 a 1000 caracteres) é entregue como foi escrito à
-   pessoa bloqueada. A validação, a documentação e os tipos dizem isso; não existe anotação interna.
+   pessoa bloqueada. A validação, a documentação e os tipos dizem isso; não existe anotação interna. Só conta o
+   que a pessoa vê: caracteres de formatação e de controle (categorias Unicode Cf e Cc, menos quebra de linha e
+   tabulação) são removidos antes de aparar e contar, e o texto guardado é o texto limpo. Dez caracteres de
+   largura zero não são um motivo, e uma inversão de direção do texto não chega à pessoa.
 4. **Regra da sessão (a menor regra coerente):** o bloqueio encerra todas as sessões da conta. Dali em diante, o
    link de acesso continua funcionando, **com as mesmas respostas de qualquer e-mail**, e abre uma **sessão
    restrita** que só faz três coisas: ler `GET /me` (com `blocked: {message, at}`), sair e excluir a conta
@@ -99,9 +102,11 @@ script local `dev`.
      e-mail é dela.
    - É assim que a **exclusão nunca é tirada**: o caminho documentado de exclusão (`DELETE /me`) continua
      funcionando para a conta bloqueada, pelo fluxo normal do link.
-5. **Escritas em andamento são recusadas no SQL.** Candidatura e reenvio, gravação de progresso e a confirmação de
-   um envio de logo, documento ou foto conferem `users.blocked` no próprio batch: o que estava a caminho quando o
-   bloqueio foi gravado não é guardado.
+5. **Escritas em andamento são recusadas no SQL.** Candidatura e reenvio, correção de dados (`POST /me`), gravação
+   de progresso, a confirmação de um envio de logo, documento ou foto e a remoção de um arquivo ou de uma foto pelo
+   responsável conferem `users.blocked` no próprio comando ou batch: o que estava a caminho quando o bloqueio foi
+   gravado não é guardado nem apagado. Não conferem o bloqueio só as escritas que concluem uma limpeza já
+   registrada de bytes fora de uso e o registro provisório de um envio, descartado quando a confirmação é recusada.
 6. **Exclusão de uma conta bloqueada.** Apaga a conta e, em cascata, o registro do bloqueio (a mensagem é texto
    sobre a pessoa). A auditoria guarda os ids. **Nada guarda o e-mail depois da exclusão**: guardar o e-mail (ou um
    hash) de quem foi bloqueado para impedir novo cadastro é retenção de dado pessoal depois da exclusão, e isso só
@@ -111,8 +116,11 @@ script local `dev`.
    convenção de `NGO_WITHDRAWAL_ENABLED`). **Desfazer um bloqueio não depende da bandeira**: desligá-la nunca
    pode deixar alguém bloqueado sem saída.
 8. **Schema.** Como a conferência de sessão lê `users.blocked`, toda rota com sessão responde
-   `503 schema_outdated` num banco sem a 0010 (nunca `500`, nunca uma conferência mais fraca). Nenhuma rota
-   pública lê o que a 0010 cria; elas respondem igual nos schemas v3 a v10, com qualquer combinação de bandeiras.
+   `503 schema_outdated` num banco sem a 0010 (nunca `500`, nunca uma conferência mais fraca). As rotas de entrada
+   (`/auth/register`, `/auth/link`, `/auth/verify`) leem a mesma coluna antes de gravar e respondem o mesmo `503`
+   sem escrever: nenhum link é enviado nem gasto e nenhuma sessão é aberta num banco em que ela não serviria.
+   Nenhuma rota pública lê o que a 0010 cria; elas respondem igual nos schemas v3 a v10, com qualquer combinação
+   de bandeiras.
 
 ### 6. Remoção de logo por administrador
 
@@ -121,7 +129,10 @@ remoção feita pelo responsável (revisão em tela, token da operação, revis�
 `ngo.logo_remove`), **em qualquer estado**. Um logo publicado é público, então a administração precisa poder
 tirá-lo do ar. Exige o bucket (`503` sem ele), não a bandeira de envio. Ninguém age como administração sobre a
 própria organização: o administrador responsável pela ONG recebe `403 self_review`, como nas outras ações
-administrativas.
+administrativas. O batch confere também, como no item 4, que quem pede **ainda é administrador** quando ele
+confirma (`403 admin_only` se não for). A remoção vale depois que o responsável excluiu a conta: o logo de uma ONG
+publicada fica na Vila sem responsável, e a pendência de limpeza do objeto é então registrada em nome do
+administrador que removeu.
 
 ### 7. Remover um visitante de uma sala — PROPOSTA, atrás de `PRESENCE_MODERATION_ENABLED`
 
@@ -146,8 +157,12 @@ A presença continua anônima e **o servidor de tempo real nunca fica sabendo qu
 
 `POST /moderation/consume` não tem sessão nem conferência de `Origin` (o bilhete é a credencial; a chamada chega
 pelo binding sem `Origin` e sem endereço de cliente), não envia nenhum cabeçalho CORS (uma página não consegue
-chamá-la) e tem limite de requisições próprio: por endereço para quem chama pelo domínio público, **por sala** para
-as chamadas do binding, que não têm endereço. Tudo o que não é um bilhete válido recebe o mesmo `404`. A validade
+chamá-la) e tem limite de requisições próprio: por endereço para quem chama pelo domínio público, cobrado antes de
+olhar o bilhete; **por sala** para as chamadas do binding, que não têm endereço, e ali cobrado só de um bilhete que
+foi emitido. A sala repassa qualquer `["m", …]` bem formado de qualquer conexão: se um bilhete inventado gastasse
+o limite da sala, visitantes anônimos fariam o bilhete verdadeiro do administrador ser recusado. O bilhete que
+ninguém emitiu custa uma leitura pela chave primária e recebe o mesmo `404`. Tudo o que não é um bilhete válido
+recebe o mesmo `404`. A validade
 do bilhete é a constante compartilhada `MODERATION_TICKET_TTL_MS` (`packages/shared/src/accounts/moderation.ts`),
 da qual o servidor de tempo real também depende.
 
@@ -204,6 +219,12 @@ da qual o servidor de tempo real também depende.
   `403 self_role`).
 - A rota `POST /moderation/consume` também responde no domínio público da API (toda rota responde); o bilhete de
   192 bits, o `404` único e o limite de requisições são a proteção.
+- **Limite conhecido:** as três mutações administrativas mais antigas — decisão de candidatura
+  (`POST /admin/applications/:id/decision`), retirada de ONG (`POST /admin/ngos/:id/withdraw`) e decisão sobre foto
+  (`POST /admin/ngo-photos/:id/decision`) — ainda não conferem na gravação que quem pede continua administrador (um
+  rebaixamento entre a leitura da sessão e o batch não as impede), e a decisão de candidatura também não confere
+  `accountId`; levar a elas a guarda das rotas desta entrega (papel, bloqueio, desbloqueio, remoção de logo) fica
+  para uma entrega seguinte.
 - **Entregue em conjunto:** a API e o contrato compartilhado, a mensagem `["m", …]` na sala com o binding de serviço
   no servidor de tempo real, e as telas do painel (papéis, bloqueio, remoção de logo, link para uma candidatura) e
   do jogo (modo moderação, ações na casa da ONG, remoção de visitante, conta bloqueada). O painel passou a usar o
