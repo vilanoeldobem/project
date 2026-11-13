@@ -9,7 +9,7 @@ import { MAX_MESSAGE_BYTES, MAX_ROOMS } from "@vila/shared/net/protocol";
 import { configuredVars, devVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
-import { sha256Hex } from "./crypto";
+import { randomToken, sha256Hex } from "./crypto";
 
 const GAME = "https://play.example", DASH = "https://dash.example";
 const START = new Date("2026-11-12T12:00:00.000Z");
@@ -38,6 +38,13 @@ const ticketOf = async (override: Record<string, unknown> = {}, session = "admin
   return issued.body.ticket as string;
 };
 const audit = () => db.sql("SELECT actor, action, subject, detail FROM audit_events ORDER BY rowid");
+
+/** The rate limiting binding as production declares it for this route: `LIMIT` requests per key in its window. */
+const LIMIT = 60;
+function budget() {
+  const keys: string[] = [];
+  return { keys, limit: async ({ key }: { key: string }) => { keys.push(key); return { success: keys.filter((used) => used === key).length <= LIMIT }; } };
+}
 
 function beforeNextBatch(competing: () => Promise<unknown>) {
   const original = db.batch.bind(db);
@@ -276,9 +283,10 @@ describe("POST /moderation/consume (realtime server, service binding)", () => {
     expect([limited.status, await limited.json()]).toEqual([429, { error: "too_many_requests" }]);
     const other = await handleApi(bindingRequest(await ticketOf({ room: 5 }), 5), env);
     expect(other.status).toBe(200);
-    // A body without a usable room still has a key, and still answers the single 404.
+    // Through the binding, what is not a ticket somebody issued answers the single 404 and is charged to nobody.
     expect((await consume(ticket, { room: "x" })).body).toEqual({ error: "not_found" });
-    expect(keys).toEqual(["203.0.113.9", "room:3", "room:5", "internal"]);
+    expect((await consume("A".repeat(32))).body).toEqual({ error: "not_found" });
+    expect(keys).toEqual(["203.0.113.9", "room:3", "room:5"]);
     expect(audit().map((row) => row.subject)).toEqual(["room:5"]);
     refuse = "";
     expect((await consume(ticket)).status).toBe(200);
@@ -286,6 +294,67 @@ describe("POST /moderation/consume (realtime server, service binding)", () => {
     // Without the binding (tests, staging) nothing is limited and nothing fails.
     env.MODERATION_LIMITER = undefined;
     expect((await handleApi(bindingRequest("A".repeat(32)), env)).status).toBe(404);
+  });
+
+  it("does not let visitors' made-up tickets use up the budget of a room: a real ticket is still consumed", async () => {
+    const limiter = budget();
+    env.MODERATION_LIMITER = limiter;
+    // Any connection of the room can make it forward a well-formed ticket nobody issued (one per second each).
+    for (let i = 0; i < LIMIT + 5; i++) {
+      const junk = await handleApi(bindingRequest(randomToken(24)), env);
+      expect([i, junk.status, await junk.text()]).toEqual([i, 404, '{"error":"not_found"}']);
+    }
+    expect(limiter.keys).toEqual([]);
+    const real = await handleApi(bindingRequest(await ticketOf()), env);
+    expect([real.status, await real.text()]).toEqual([200, '{"ok":true}']);
+    expect(limiter.keys).toEqual(["room:3"]);
+    expect(audit()).toEqual([{ actor: "admin", action: "presence.remove", subject: "room:3", detail: JSON.stringify({ target: 7 }) }]);
+  });
+
+  it("still limits a flood that names an issued ticket through the binding, room by room", async () => {
+    const limiter = budget();
+    env.MODERATION_LIMITER = limiter;
+    const [ticket, elsewhere] = [await ticketOf(), await ticketOf({ room: 5 })];
+    // The right ticket for the wrong target is never consumed, and every attempt is charged to the room that sent it.
+    for (let i = 0; i < LIMIT; i++) expect([i, (await handleApi(bindingRequest(ticket, 3, 8), env)).status]).toEqual([i, 404]);
+    const limited = await handleApi(bindingRequest(ticket), env);
+    expect([limited.status, await limited.json()]).toEqual([429, { error: "too_many_requests" }]);
+    expect(limiter.keys).toEqual(Array(LIMIT + 1).fill("room:3"));
+    expect(db.sql("SELECT COUNT(*) AS n FROM moderation_tickets WHERE used_at IS NOT NULL")[0].n).toBe(0);
+    expect((await handleApi(bindingRequest(elsewhere, 5), env)).status).toBe(200);
+    expect(audit().map((row) => row.subject)).toEqual(["room:5"]);
+  });
+
+  it("charges a caller that has an address before looking at the ticket, whatever it sent", async () => {
+    const limiter = budget();
+    env.MODERATION_LIMITER = limiter;
+    const address = { "CF-Connecting-IP": "203.0.113.9" };
+    const ticket = await ticketOf();
+    for (let i = 0; i < LIMIT; i++) expect([i, (await consume(i % 2 ? randomToken(24) : "malformed", {}, address)).status]).toEqual([i, 404]);
+    const limited = await consume(ticket, {}, address);
+    expect([limited.status, limited.body]).toEqual([429, { error: "too_many_requests" }]);
+    expect(limiter.keys).toEqual(Array(LIMIT + 1).fill("203.0.113.9"));
+    expect(audit()).toEqual([]);
+    // Another address, and the room itself through the binding, are not held back by that one.
+    expect((await consume(ticket, { target: 8 }, { "CF-Connecting-IP": "203.0.113.10" })).status).toBe(404);
+    expect((await handleApi(bindingRequest(ticket), env)).status).toBe(200);
+  });
+
+  it("answers every miss with the same 404, charged or not", async () => {
+    env.MODERATION_LIMITER = budget();
+    const [ticket, used] = [await ticketOf(), await ticketOf({ target: 9 })];
+    expect((await handleApi(bindingRequest(used, 3, 9), env)).status).toBe(200);
+    const seen = async (request: Request) => {
+      const answer = await handleApi(request, env);
+      return { status: answer.status, headers: [...answer.headers].sort(), body: await answer.text() };
+    };
+    const unknown = await seen(bindingRequest(randomToken(24)));
+    expect(unknown).toEqual({ status: 404, headers: expect.any(Array), body: '{"error":"not_found"}' });
+    const misses = [bindingRequest(ticket, 4), bindingRequest(ticket, 3, 8), bindingRequest(used, 3, 9), bindingRequest("malformed"), bindingRequest(ticket, MAX_ROOMS), bindingRequest(ticket, 3, 0)];
+    for (const miss of misses) expect(await seen(miss)).toEqual(unknown);
+    vi.setSystemTime(START.getTime() + 30_000);
+    expect(await seen(bindingRequest(ticket))).toEqual(unknown);
+    expect(audit()).toHaveLength(1);
   });
 
   it("answers 503 schema_outdated on a database without migration 0010, never 500", async () => {

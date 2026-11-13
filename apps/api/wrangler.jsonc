@@ -18,7 +18,7 @@
   // docs/guides/deploy.md). Without it sign-in e-mails fail closed with 503 "mail_unavailable".
   // Sign-in requests per client IP (the IP is only a rate-limit key, never stored); uploads per account;
   // POST /moderation/consume per caller address (IMPL-0021; a call through the service binding has no address
-  // and is keyed by its room).
+  // and is keyed by its room, charged only for a ticket that was issued).
   "ratelimits": [
     { "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } },
     { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } },
