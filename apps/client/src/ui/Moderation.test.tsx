@@ -4,7 +4,7 @@
  * confirmation step that names what is acted on, and the blocked-account screen with the two things it still
  * does.
  */
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -122,6 +122,7 @@ const bar = (over: Partial<Parameters<typeof ModerationBarView>[0]> = {}) =>
 afterEach(() => {
   vi.doUnmock("../lib/account");
   vi.doUnmock("../lib/moderation");
+  vi.doUnmock("./Panel");
   vi.unstubAllGlobals();
 });
 
@@ -175,6 +176,49 @@ describe("nobody but an administrator gets anything", () => {
     expect(panel()).toContain("Lendo a candidatura desta organização…");
     // A house without a published NGO has nothing to moderate.
     expect(clean(html(<Lot lotId="plaza-04" info={{ id: "plaza-04", state: "available", ngo_id: null, ngo_name: null, ngo_summary: null }} />))).toBe(true);
+  });
+});
+
+describe("focus when the moderation section leaves an open house", () => {
+  it("changes the panel's content key with the section, so the dialog takes the focus the section had", async () => {
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined });
+    vi.stubGlobal("window", new EventTarget());
+    vi.resetModules();
+    const account = await import("../lib/account");
+    const moderation = await import("../lib/moderation");
+    vi.doMock("../lib/account", () => ({ ...account, useAccount: live(account.useAccount) }));
+    vi.doMock("../lib/moderation", () => ({ ...moderation, useModeration: live(moderation.useModeration) }));
+    // The dialog itself needs a browser: here it only shows the key it was given (`Panel` refocuses on its change).
+    vi.doMock("./Panel", () => ({
+      Status: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+      Panel: ({ contentKey, children }: { contentKey?: string; children: ReactNode }) => <div data-content-key={contentKey}>{children}</div>,
+    }));
+    const { Lot } = await import("./Lot");
+    const info = { id: "plaza-03", state: "published" as const, ngo_id: NGO, ngo_name: "Associação Exemplo", ngo_summary: "Apoio escolar.", ngo_logo: null };
+    const key = () => /^<div data-content-key="([^"]*)"/.exec(html(<Lot lotId="plaza-03" info={info} />))?.[1];
+    const section = () => html(<Lot lotId="plaza-03" info={info} />).includes('data-moderation="ngo"');
+
+    account.useAccount.setState({ enabled: true, files: true, withdrawal: true, user: ADMIN });
+    const plain = key();
+    expect(section()).toBe(false);
+    moderation.useModeration.getState().setOn(true);
+    const moderated = key();
+    expect(section()).toBe(true);
+    expect(moderated).not.toBe(plain);
+    // Every way the section leaves while the house is open gives the key of the public panel back.
+    const leaves: Array<[string, () => void]> = [
+      ["the role was taken away", () => account.useAccount.setState({ user: { ...ADMIN, role: "player" } })],
+      ["the account was blocked", () => account.useAccount.setState({ user: { ...ADMIN, blocked: BLOCK } })],
+      ["the session ended", () => account.useAccount.setState({ user: null })],
+      ["the mode was switched off", () => moderation.useModeration.getState().setOn(false)],
+    ];
+    for (const [why, leave] of leaves) {
+      account.useAccount.setState({ user: ADMIN });
+      moderation.useModeration.getState().setOn(true);
+      expect([why, key(), section()]).toEqual([why, moderated, true]);
+      leave();
+      expect([why, key(), section()]).toEqual([why, plain, false]);
+    }
   });
 });
 

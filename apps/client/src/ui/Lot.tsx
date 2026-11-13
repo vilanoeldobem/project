@@ -6,7 +6,7 @@ import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { fetchLogo, type LotInfo } from "../lib/api";
 import { BlobImage } from "./BlobImage";
-import { LotModeration } from "./LotModeration";
+import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
 
 /**
@@ -26,6 +26,7 @@ export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info
   }, [info?.state, info?.ngo_name, lotId]);
   const n = Number(lotId.split("-")[1]);
   const accounts = useAccount((s) => s.enabled);
+  const moderation = useLotModerating();
 
   if (info?.state === "published" && info.ngo_name) {
     return (
@@ -35,7 +36,9 @@ export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info
         // The NGO's public logo (IMPL-0017), when it has one and it loads.
         mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : undefined}
         wide
-        contentKey="published"
+        // The key changes when the moderation section leaves (role lost, mode off, signed out): the focus that
+        // was in it goes back to the dialog.
+        contentKey={moderation ? "published:moderation" : "published"}
       >
         <div className="ngo-hud">
           <section>

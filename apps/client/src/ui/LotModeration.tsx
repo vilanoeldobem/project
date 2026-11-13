@@ -33,11 +33,22 @@ import { Status } from "./Panel";
 /** The application of an NGO in the dashboard (apps/dash): only linked to, in a new tab. */
 export const dashApplicationUrl = (ngoId: string): string => `${SERVICES.dash}/#applications/${ngoId}`;
 
+/**
+ * True while the section below is on the lot panel (an administrator with moderation mode on). The panel follows
+ * it (`contentKey` in `Lot.tsx`): when the role is lost with the house open, the section goes away with whatever
+ * had the focus in it, and the focus goes to the dialog instead of falling to `<body>`.
+ */
+export function useLotModerating(): boolean {
+  const user = useAccount((s) => s.user);
+  const on = useModeration((s) => s.on);
+  return moderating(user, on);
+}
+
 /** The gate: nothing mounts, and nothing is read, unless an administrator has moderation mode on. */
 export function LotModeration({ ngoId, name, onChanged }: { ngoId: string; name: string; onChanged: () => void }) {
   const user = useAccount((s) => s.user);
-  const on = useModeration((s) => s.on);
-  return moderating(user, on) && user ? <LotModerationLive key={ngoId} ngoId={ngoId} name={name} user={user} onChanged={onChanged} /> : null;
+  const shown = useLotModerating();
+  return shown && user ? <LotModerationLive key={ngoId} ngoId={ngoId} name={name} user={user} onChanged={onChanged} /> : null;
 }
 
 function LotModerationLive({ ngoId, name, user, onChanged }: { ngoId: string; name: string; user: Me; onChanged: () => void }) {
