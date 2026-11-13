@@ -714,3 +714,54 @@ while the village expansion was being integrated. Both had taken the same number
   numbers are taken in the order of integration (`docs/reference/versioning.md`).
 - A flag added to the all-schemas matrix needs its own bit; two branches adding "the next bit" collide silently.
 
+
+---
+
+# Task: review findings of the village expansion (issue #41, IMPL-0024) — 2026-11-13
+
+PR #40 was merged with its two reviews unanswered. Nothing is live: not deployed, `RESIDENTIAL_PLOTS_ENABLED`
+"false", migration 0012 applied nowhere. Branch `fix/village-expansion-review`. A first, interrupted attempt
+(`wip/village-expansion-review-fixes`) was read and reused where it held up; every reused piece was re-run.
+
+## Data, API, layout
+
+- [x] A1 Migration 0012 without `owner_id` / `claimed_at` and their index (ownership is undecided, OQ-17)
+- [x] A2 `GET /residential-plots` answers the shared layout: no D1 read with the flag off; never a 500 or a short list
+- [x] A3 Ids are positional: said in the ADR, next to `VILLAGE_PLAN` and in `AGENTS.md`; pinned by tests; padded to the largest count
+- [x] A4 `assertPlan`; variants only assert geometry; the plan in force passes the collider and navigation audit
+- [x] A5 Sightline rules described as what the test checks; "one corner from the tree" dropped
+- [x] A6 Deploy order with accounts on: the API first
+- [x] A7 `/config.residentialPlots` and `/residential-plots.enabled` are the same value on every schema
+- [x] A8 256 parts, walk times, planning costs with their samples, the build time: as measured
+- [x] A9 `lotFront` inside the clearance, symmetric belt of pines, smoke check, a tier with no plots takes no ring
+
+## Client
+
+- [x] B1 Neutral copy on the plot, shop and billboard panels; neighbourhood names; no raw ids
+- [x] B2 See-through avatar from a real occlusion test (`scene/occlusion.ts`); remote visitors not covered (documented)
+- [x] B3 One intention per click (`game/clicks.ts`): no walk left behind a panel, marker at the interaction point
+- [x] B4 A plot is offered standing still; hysteresis (`game/nearby.ts`). Economy street: 83 % of the walk → 0 %
+- [x] B5 "Olhar o céu" rises over the roofs where a building is in its picture
+- [x] B6 A lot the API does not list is "Terreno em preparação" (label, panel, Explore)
+- [x] B7 `scene/sceneColliders.ts` audited by `colliders.test.ts`; `verify.mjs` opens the three panels and asserts the budget
+- [x] B8 Forest and mountains drawn in pieces: tour peak 251 896 → 195 908 triangles; heap figures corrected; search scratch 10.5 → 4.4 MB
+- [x] B9 44 px rows; labels hidden under the HUD; a tap whose ground is paving walks to that spot
+- [x] B10 Controls copy, `viewPlanes` without allocations, `LABEL_RADIUS` comment, rooms carry no world version (docs)
+
+## Review
+
+- Gates and browser checks: see the report of the change (isolated local stack on private ports; GTM stubbed).
+- The merge of `origin/main` (donations webhook fixes, PR #42) carries git's default message, without the
+  session trailers: it was made with `git merge --no-edit` and not rewritten.
+- Not done: the see-through drawing for remote visitors; a measurement on a real phone; GPU memory.
+
+### Lessons
+
+- A scene that takes its colliders from a list built inside a component cannot be audited: build the list in a
+  pure module and audit that module.
+- One mesh that spans the horizon is never culled. Mesh it once, draw it in pieces (`voxelGeometries` with
+  `partOf`): same triangles, each piece with its own bounding sphere.
+- Copy for something undecided says what is there today and that it is undecided. "Not yet" announces it.
+- Before `git commit`, look at `git status --short`: a `cherry-pick -n` leaves its files staged, and they ride
+  along with the next commit (the docs of one commit went into the `perf(shared)` commit that way).
+- `git merge` with `--no-commit` when the message needs trailers.
