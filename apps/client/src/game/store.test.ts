@@ -11,9 +11,9 @@ let storage: Map<string, string>;
 /** A fresh page load in the same browser (the storage is kept). */
 async function load() {
   vi.resetModules();
-  const { useVila, ZOOM_MAX, ZOOM_MIN } = await import("./store");
+  const { useVila, MOVE_HINT_MS, ZOOM_MAX, ZOOM_MIN } = await import("./store");
   const { sim } = await import("./sim");
-  return { useVila, sim, ZOOM_MAX, ZOOM_MIN };
+  return { useVila, sim, MOVE_HINT_MS, ZOOM_MAX, ZOOM_MIN };
 }
 
 beforeEach(() => {
@@ -24,7 +24,10 @@ beforeEach(() => {
     removeItem: (k: string) => void storage.delete(k),
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("arrival", () => {
   it("lands in the village: no panel and no menu is open, and there is no welcome panel to open", async () => {
@@ -63,6 +66,60 @@ describe("the line that says how to walk", () => {
     expect(first.useVila.getState().moveHint).toBe(false);
     expect(storage.size).toBe(0);
     expect((await load()).useVila.getState().moveHint).toBe(true);
+  });
+
+  it("is not shown again to a visitor who walked after it had timed out", async () => {
+    const first = await load();
+    first.useVila.getState().dismissMoveHint(); // 20 s without a walk
+    first.useVila.getState().setTarget({ x: -8, z: 0 }); // the first walk, with the line already gone
+    expect([...storage]).toEqual([["vila.moved.v1", "1"]]);
+    expect((await load()).useVila.getState().moveHint).toBe(false);
+  });
+
+  it("writes the key at the first walk only, not at every click on the ground", async () => {
+    const writes: string[] = [];
+    vi.stubGlobal("localStorage", { getItem: (k: string) => storage.get(k) ?? null, setItem: (k: string, v: string) => (writes.push(k), void storage.set(k, v)) });
+    const { useVila } = await load();
+    for (const x of [-8, -6, -4]) useVila.getState().setTarget({ x, z: 0 });
+    expect(writes).toEqual(["vila.moved.v1"]);
+    const back = await load();
+    back.useVila.getState().setTarget({ x: -8, z: 0 });
+    expect(writes).toEqual(["vila.moved.v1"]);
+  });
+
+  it("goes away 20 s after the scene is on screen, whatever opened and closed in the meantime", async () => {
+    vi.useFakeTimers();
+    const { useVila, MOVE_HINT_MS } = await load();
+    expect(MOVE_HINT_MS).toBe(20_000);
+    vi.advanceTimersByTime(60_000); // the village is still loading: the 20 s have not started
+    expect(useVila.getState()).toMatchObject({ moveHint: true, sceneReady: false });
+    useVila.getState().sceneUp();
+    expect(useVila.getState().sceneReady).toBe(true);
+    // The line leaves the screen and comes back with every panel and with the menu: the 20 s are the page's.
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(3_000);
+      useVila.getState().open({ kind: "indicators" });
+      vi.advanceTimersByTime(1_500);
+      useVila.getState().close();
+      useVila.getState().openMenu();
+      vi.advanceTimersByTime(1_500);
+      useVila.getState().closeMenu();
+    }
+    vi.advanceTimersByTime(MOVE_HINT_MS - 18_000 - 1);
+    expect(useVila.getState().moveHint).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(useVila.getState().moveHint).toBe(false);
+    expect(storage.size).toBe(0); // timing out is not walking: the line comes back on the next visit
+  });
+
+  it("counts the 20 s once: the scene coming up again does not start them over", async () => {
+    vi.useFakeTimers();
+    const { useVila, MOVE_HINT_MS } = await load();
+    useVila.getState().sceneUp();
+    vi.advanceTimersByTime(MOVE_HINT_MS - 1_000);
+    useVila.getState().sceneUp();
+    vi.advanceTimersByTime(1_000);
+    expect(useVila.getState().moveHint).toBe(false);
   });
 
   it("stopping a walk is not a walk", async () => {

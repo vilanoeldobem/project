@@ -113,7 +113,7 @@ export function Player({ lots }: { lots: Collider[] }) {
   // over the village. The scene is ready from here on: the line that says how to walk starts counting.
   useEffect(() => {
     const vila = () => useVila.getState();
-    useVila.setState({ sceneReady: true });
+    vila().sceneUp();
     return attachZoomGestures(canvas, window, {
       idle: () => vila().panel.kind === "none" && vila().menu === null,
       zoomBy: (factor) => vila().zoomBy(factor),

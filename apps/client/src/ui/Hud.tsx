@@ -47,9 +47,6 @@ export const PATHS: ReadonlyArray<{ id: string; icon: string; label: string; pan
 /** One zoom key press: 15% closer or farther. */
 const ZOOM_STEP = 1.15;
 
-/** How long the line that says how to walk stays once the scene is on screen, if the visitor does not walk. */
-export const MOVE_HINT_MS = 20_000;
-
 /**
  * Fixed HUD (IMPL-0022). Top: what is happening now (time, weather, visitors, sky view) and one navigation
  * group (the three paths, then indicators, account, moderation and the menu). Below it: mission bag and
@@ -194,17 +191,12 @@ export function Hud() {
 /**
  * How to walk, for a visitor who has not walked yet in this browser (IMPL-0022): one line, not a dialog. It
  * appears with the scene (not while the village loads), takes no clicks, goes away at the first walk (for good)
- * or `MOVE_HINT_MS` after the scene is on screen, and is never shown again once the visitor has walked.
+ * or `MOVE_HINT_MS` after the scene is on screen (the store counts the time: this component leaves the screen
+ * with every panel), and is never shown again once the visitor has walked.
  */
 function MoveHint() {
   const show = useVila((s) => s.moveHint);
   const ready = useVila((s) => s.sceneReady);
-  const dismiss = useVila((s) => s.dismissMoveHint);
-  useEffect(() => {
-    if (!show || !ready) return;
-    const id = setTimeout(dismiss, MOVE_HINT_MS);
-    return () => clearTimeout(id);
-  }, [show, ready, dismiss]);
   if (!show || !ready) return null;
   return (
     <p className="hud__hint" role="status" data-hint="move">
