@@ -8,6 +8,18 @@ export const CONFIRM_ARM_MS = 600;
 export const confirmAllowed = (gesture: { detail?: number; repeat?: boolean }, shownAt: number, now: number): boolean =>
   !gesture.repeat && (gesture.detail ?? 0) <= 1 && now - shownAt >= CONFIRM_ARM_MS;
 
+/**
+ * A mouse press (`mousedown`) on the confirm button. The button appears under the pointer that opened the
+ * question, so the second click of a double click lands on it: the click is refused (`confirmAllowed`), but the
+ * press would leave the focus on the button, and Enter a moment later would confirm. A press whose click will be
+ * refused gives the button no focus: it stays on `question`.
+ */
+export function guardConfirmPress(press: { detail: number; preventDefault(): void }, shownAt: number, now: number, question: { focus(): void } | null): void {
+  if (confirmAllowed({ detail: press.detail }, shownAt, now)) return;
+  press.preventDefault();
+  question?.focus();
+}
+
 /** A confirmation step as Escape sees it: what its "Cancelar" does, and whether the action is being sent. */
 export interface ConfirmationStep {
   busy: boolean;

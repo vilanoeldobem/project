@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, type ReactNode } from "react";
 
-import { confirmAllowed, registerConfirmation } from "../lib/confirm";
+import { confirmAllowed, guardConfirmPress, registerConfirmation } from "../lib/confirm";
 
 /**
  * When a step closes, the button that had the focus goes with it: focus moves to `ref` (a heading or a section
@@ -18,9 +18,10 @@ export function useFocusReturn(ref: RefObject<HTMLElement | null>, key: string) 
  * The explicit confirmation step of a moderation action (IMPL-0021). `title` is the question and names what is
  * acted on. The step cannot be answered by the gesture that opened it: focus goes to the question, never to
  * the confirm button; the second click of a double click, a key held down and anything in the first instants
- * after it appeared (`shownAt`, see `confirmAllowed`) are ignored. Cancel is always the first button, and Escape
- * is that button (IMPL-0022): it cancels the question and leaves the panel under it open; while the action is
- * being sent ("Cancelar" disabled) Escape does nothing.
+ * after it appeared (`shownAt`, see `confirmAllowed`) are ignored, and a mouse press that will be ignored does
+ * not leave the focus on the confirm button either (`guardConfirmPress`). Cancel is always the first button,
+ * and Escape is that button (IMPL-0022): it cancels the question and leaves the panel under it open; while the
+ * action is being sent ("Cancelar" disabled) Escape does nothing.
  */
 export function Confirm({
   title,
@@ -66,6 +67,8 @@ export function Confirm({
           disabled={busy || blocked}
           // Enter held down repeats `keydown`, and each one would click: only the first press counts.
           onKeyDown={(e) => e.repeat && e.preventDefault()}
+          // A press whose click will be refused does not move the focus here: it stays on the question.
+          onMouseDown={(e) => guardConfirmPress(e, shownAt, Date.now(), ref.current)}
           onClick={(e) => confirmAllowed({ detail: e.detail }, shownAt, Date.now()) && onConfirm()}
         >
           {busy ? busyLabel : confirmLabel}
