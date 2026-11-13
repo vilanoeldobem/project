@@ -39,6 +39,18 @@ const HIDDEN_PAUSE_MS = 120_000;
  */
 export const REMOVED_HOLD_MS = 60_000;
 
+/**
+ * Input before this instant does not open a connection (removal by an administrator). It belongs to the page, not
+ * to one `connectPresence()`: turning "Outros visitantes" off and on starts a new connection attempt, and that
+ * one is held too. Kept in memory only, on purpose: a reload starts over (a courtesy, not a barrier).
+ */
+let removedUntil = 0;
+
+/** Ends the hold after a removal (tests: each one is a fresh page load). */
+export function clearRemovedHold() {
+  removedUntil = 0;
+}
+
 interface Sample {
   t: number;
   x: number;
@@ -220,7 +232,8 @@ export function planAfterClose(code: number, room: number, tries: number): Close
  * connected, a click, tap or key with no pose or look sent in the last `ACTIVE_MS` is reported as ["a"], so
  * someone playing a minigame or reading a panel is not taken for idle. A tab hidden for `HIDDEN_PAUSE_MS`
  * hangs up by itself and waits for input like an idle close. After a removal by an administrator the wait for
- * input starts only when `REMOVED_HOLD_MS` have passed.
+ * input starts only when `REMOVED_HOLD_MS` have passed, also for a connection asked for meanwhile: it starts
+ * paused, in the "removed" state.
  */
 export function connectPresence(): () => void {
   let ws: WebSocket | null = null;
@@ -228,10 +241,8 @@ export function connectPresence(): () => void {
   let tries = 0;
   let selfId: number | null = null;
   let closed = false;
-  /** Waiting for the person's next click, tap or key (idle close, or the tab stayed hidden). */
+  /** Waiting for the person's next click, tap or key (idle close, removal, or the tab stayed hidden). */
   let paused = false;
-  /** Input before this instant does not resume a paused connection (removal by an administrator). */
-  let holdUntil = 0;
   let retry: ReturnType<typeof setTimeout> | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let sendTimer: ReturnType<typeof setInterval> | null = null;
@@ -261,7 +272,7 @@ export function connectPresence(): () => void {
 
   const pause = (status: NetStatus = "idle", holdMs = 0) => {
     paused = true;
-    holdUntil = holdMs ? Date.now() + holdMs : 0;
+    if (holdMs) removedUntil = Date.now() + holdMs;
     if (retry) clearTimeout(retry);
     retry = null;
     useNet.setState({ status });
@@ -271,7 +282,7 @@ export function connectPresence(): () => void {
   const onInput = () => {
     if (closed) return;
     if (paused) {
-      if (Date.now() < holdUntil) return;
+      if (Date.now() < removedUntil) return;
       paused = false;
       tries = 0;
       open();
@@ -359,7 +370,9 @@ export function connectPresence(): () => void {
   window.addEventListener("pointerdown", onInput, true);
   window.addEventListener("keydown", onInput, true);
   document.addEventListener("visibilitychange", onVisibility);
-  open();
+  // Removed a moment ago: this connection starts where the last one stopped, held and saying so.
+  if (Date.now() < removedUntil) pause("removed");
+  else open();
   onVisibility();
   return () => {
     closed = true;

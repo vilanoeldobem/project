@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ACTIVE_MESSAGE, CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, CLOSE_REMOVED, encodeRemove, MAX_ROOMS } from "@vila/shared/net/protocol";
 
 import {
+  clearRemovedHold,
   connectPresence,
   ingestSnapshot,
   onPresenceEvent,
@@ -136,6 +137,7 @@ describe("presence connection (idle timeout, IMPL-0014)", () => {
     vi.stubGlobal("WebSocket", FakeSocket);
     vi.stubGlobal("window", page);
     vi.stubGlobal("document", doc);
+    clearRemovedHold();
     disconnect = connectPresence();
   });
   afterEach(() => {
@@ -251,6 +253,37 @@ describe("presence connection (idle timeout, IMPL-0014)", () => {
     expect(useNet.getState().status).toBe("connecting");
     latest().welcome();
     expect(useNet.getState().status).toBe("online");
+  });
+
+  it("keeps the hold when 'Outros visitantes' is switched off and on: the new connection starts paused, saying why", () => {
+    latest().welcome();
+    latest().end(CLOSE_REMOVED);
+    vi.advanceTimersByTime(10_000);
+    // The "Ambiente" panel: untick and tick "Ver quem está na praça agora" (the effect runs `connectPresence` again).
+    disconnect();
+    expect(useNet.getState().status).toBe("off");
+    disconnect = connectPresence();
+    expect(FakeSocket.all).toHaveLength(1); // no new connection
+    expect(useNet.getState().status).toBe("removed"); // and the notice is back
+    expect(vi.getTimerCount()).toBe(0);
+    input("pointerdown");
+    vi.advanceTimersByTime(REMOVED_HOLD_MS - 10_000 - 1);
+    input("keydown");
+    expect(FakeSocket.all).toHaveLength(1);
+    expect(useNet.getState().status).toBe("removed");
+    // The hold is the one of the removal, not a new one: 60 s after it, the next input reconnects.
+    vi.advanceTimersByTime(1);
+    expect(FakeSocket.all).toHaveLength(1); // time alone never does
+    input("pointerdown");
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(useNet.getState().status).toBe("connecting");
+    latest().welcome();
+    expect(useNet.getState().status).toBe("online");
+    // With no hold left, switching it off and on connects at once, as always.
+    disconnect();
+    disconnect = connectPresence();
+    expect(FakeSocket.all).toHaveLength(3);
+    expect(useNet.getState().status).toBe("connecting");
   });
 
   it("is removed again without looping, and an idle close afterwards has no hold", () => {
