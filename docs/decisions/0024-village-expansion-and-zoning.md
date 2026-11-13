@@ -206,8 +206,11 @@ com a IMPL-0022 (2026-11-13).
 ### 8. Navegação
 
 A grade de 0,25 u foi mantida (as rotas em volta da praça ficam exatamente como eram), agora sobre o disco de
-82,5 u. O que mudou foi o rascunho da busca: custos em 32 bits e o caminho escrito sobre a fila já usada. `planRoute`
-e `stepWalk` não mudaram de contrato; os testes existentes valem com os números novos.
+82,5 u. O que mudou foi o rascunho da busca, alocado só na primeira busca que precisa dele (um destino à vista
+não precisa): 10 bytes por célula (custo em 32 bits, o lugar da célula na lista aberta, um byte para o passo que
+chegou a ela e um para a marca de visita), com a lista aberta e o caminho crescendo com a busca.
+`releaseSearchScratch()` devolve a memória. `planRoute` e `stepWalk` não mudaram de contrato; os testes existentes
+valem com os números novos.
 
 ## Desempenho
 
@@ -239,23 +242,24 @@ Os números desta tabela são os da primeira versão da fase; os de hoje estão 
 |---|---|---|
 | Células da grade / caminháveis | 74 529 / 37 379 | 436 921 / 201 050 |
 | Colisores | 70 | 546 |
-| Construir o campo (mediana de 21) | 1,45 ms | 8,4 ms |
+| Construir o campo (mediana de 31 construções seguidas) | 1,45 ms | 8,1 ms (a mais lenta, 14,9 ms) |
 | Memória do campo (`blocked` + `region`) | 0,4 MB | 2,2 MB |
-| Memória do rascunho da busca | 2,7 MB (24 bytes por célula) | 4,4 MB (10 bytes por célula) mais a lista aberta, que cresce com a busca; a primeira versão desta fase guardava 24 bytes por célula: 10,5 MB |
+| Memória do rascunho da busca | 2,7 MB (24 bytes por célula) | 4,4 MB (10 bytes por célula, mais a lista aberta, que cresce com a busca); a primeira versão desta fase guardava 24 bytes por célula: 10,5 MB |
 
-| Navegação: `planRoute` no mundo novo (mesmas condições; tempo por `performance.now()` em volta de cada chamada, depois de 300 planos de aquecimento) | Pares | Mediana | p99 | Par que mais expande |
+| Navegação: `planRoute` no mundo novo (mesmas condições; tempo por `performance.now()` em volta de cada chamada, última de 3 a 5 passadas sobre a mesma amostra) | Pares | Mediana | p99 | Par que mais expande |
 |---|---|---|---|---|
-| Amostra fixa de lugares: de cada 3.º para cada 5.º de 226 pontos (spawn, frentes dos 112 terrenos, portas e lojistas, placas, frentes dos 12 terrenos de ONG, 80 nós da rede de ruas) | 3 212 | 0,40 ms | 2,8 ms | 51 667 células, 3,9 ms (frente do `economy-03` → frente do `economy-42`, 145 u) |
-| Pares aleatórios de pontos livres no disco inteiro, `mulberry32(2026)` | 18 000 | 0,45 ms | 4,2 ms | 82 895 células, 6,8 ms (183 u) |
-| Os mesmos, `mulberry32(40)` (é a amostra que `navigation.test.ts` confere: menos de 100 000 células) | 3 000 | 0,44 ms | 3,7 ms | 72 464 células, 5,5 ms (158 u) |
+| Amostra fixa de lugares: todos os pares de 18 pontos (spawn, 11 pontos em volta da praça, 4 frentes de terreno residencial em lados opostos, o pátio da lenha e a borda), a que `navigation.test.ts` confere (menos de 60 000 células) | 324 | 0,25 ms | 2,0 ms | 31 124 células, 2,4 ms (147 u) |
+| Pares aleatórios de pontos livres no disco inteiro, `mulberry32(40)`, a que `navigation.test.ts` confere (menos de 100 000 células) | 3 000 | 0,45 ms | 3,7 ms | 72 464 células, 5,7 ms (158 u) |
+| Os mesmos, `mulberry32(2026)` | 18 000 | 0,45 ms | 4,1 ms | 82 895 células, 6,5 ms (183 u) |
 
 Um clique pode cair em qualquer lugar: o pior caso que vale é o dos pares aleatórios (cerca de 83 mil células, 41 %
-das caminháveis; menos de 7 ms nesta máquina, sem contar uma pausa do coletor de lixo, que apareceu em medidas
-isoladas de até 19 ms). A primeira versão deste ADR dava "pior rota 4,84 ms, 40 720 nós": era a pior de uma amostra
-fixa de 816 rotas entre frentes de terreno e a árvore, não o pior caso. Com `main` (raio de 34 u), naquela
-amostra: mediana 0,29 ms e pior 1,77 ms (77 u, 19 708 nós). O rascunho menor não mudou nenhuma rota (mesma ordem
-de expansão; conferido nas 24 212 rotas das três amostras) e não ficou mais lento (a mediana da amostra aleatória
-era 0,51 ms com 24 bytes por célula).
+das caminháveis; 6,5 ms nesta máquina, e a chamada mais lenta da amostra levou 8,0 ms). A primeira versão deste ADR
+dava "pior rota 4,84 ms, 40 720 nós": era a pior de uma amostra fixa de 816 rotas entre frentes de terreno e a
+árvore, não o pior caso. Com `main` (raio de 34 u), naquela amostra: mediana 0,29 ms e pior 1,77 ms (77 u, 19 708
+nós). O rascunho menor não mudou nenhuma rota: a implementação anterior e a nova foram comparadas lado a lado em
+28 000 planos sorteados por semente (pontos livres, pontos quaisquer, inclusive fora do mundo, e pontos colados em
+colisores; dois conjuntos de colisores) e em 300 caminhadas passo a passo, com resultado idêntico (pontos de
+passagem, células expandidas e trajetória), e o tempo total dos planos não aumentou (22,7 s contra 27,7 s).
 
 O que foi feito para caber no orçamento:
 

@@ -59,7 +59,7 @@ Cada versão indica o schema D1 que entrega.
   sobre a praça (15:30, céu limpo) são 116 chamadas e ~211 mil triângulos, dentro do orçamento de 150 e 250 mil
   (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; o rascunho da busca
   ocupa 4,4 MB (10 bytes por célula) e o plano que mais expande, numa amostra de 18 mil pares aleatórios, leva
-  6,8 ms (83 mil células).
+  6,5 ms (83 mil células).
 - Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
 - Verificação: `verify-accounts.mjs` chega à casa publicada por "Explorar ONGs" → "Ir até lá" (antes andava até a
   posição antiga do terreno e, com os arquivos ligados, como roda no CI, não chegava) e confere os 12 terrenos na

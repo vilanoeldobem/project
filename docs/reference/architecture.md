@@ -129,8 +129,9 @@ voxel sólido fica mais de 0,3 u fora de um colisor e nenhum contorno de colisor
   bandeira das quests): ≈ 8 ms com os ≈ 550 colisores da Vila.
 - `planRoute`: resolve o destino (o clique, ou o ponto caminhável mais próximo, do lado de quem chega), vai em linha
   reta se ele está à vista, senão A* na grade e "puxar a corda" para sobrarem poucos trechos retos. Limite: as
-  células caminháveis (≈ 200 000); medido: mediana de 0,5 ms entre frentes de terreno, 4,8 ms na pior rota (166 u).
-  O rascunho da busca usa custos de 32 bits (≈ 10,5 MB, alocado na primeira busca).
+  células caminháveis (≈ 200 000); medido em 18 000 pares aleatórios de pontos livres (IMPL-0024): mediana de
+  0,45 ms, e 6,5 ms no par que mais expande (83 mil células, 183 u).
+  O rascunho da busca guarda 10 bytes por célula (≈ 4,4 MB, alocado na primeira busca que precisa dele).
 - `stepWalk`: segue a rota no passo fixo, sem alocar; replaneja se o avatar parar de progredir.
 - O alvo guardado no estado (`target`) é o destino resolvido: o marcador e o brilho do clique aparecem onde o avatar
   vai parar.
