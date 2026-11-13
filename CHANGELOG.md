@@ -12,32 +12,48 @@ Cada versão indica o schema D1 que entrega.
 ### Added — moderação dentro do jogo para administradores (IMPL-0021; remoção de sala e bloqueio PROPOSTA, desligados)
 
 - Jogo: **modo moderação**, só para conta conectada com papel Administrador. Botão "Moderação" no HUD, desligado a
-  cada carregamento; ligado, a faixa "Modo moderação" fica visível no topo, acima de qualquer painel. Fora do modo
-  nenhuma ação de moderação aparece nem é consultada na API; o modo desliga ao sair, trocar de conta, perder o
-  papel ou ser bloqueado.
+  cada carregamento; ligado, a faixa "Modo moderação" fica visível no topo, acima de qualquer painel, e o HUD desce
+  para a faixa não cobrir a marca nem os botões (em qualquer largura). Fora do modo nenhuma ação de moderação
+  aparece nem é consultada na API; o modo desliga ao sair, trocar de conta, perder o papel, ser bloqueado ou quando
+  a sessão termina em outro lugar.
+- Jogo: perto de uma casa, da árvore ou de um morador, Enter sobre o botão "Moderação" ou sobre um botão do bloco
+  de moderação aciona esse botão em vez de abrir o que está perto. Para os outros botões do HUD nada muda: Enter e
+  E continuam abrindo o que está perto, também com o foco num botão (depois de "Explorar ONGs → Ir até lá" ou de um
+  clique no zoom).
 - Jogo, casa de ONG publicada (no modo moderação): "Remover logo", "Remover foto" da galeria pública, "Retirar ONG
   da Vila" (PROPOSTA, IMPL-0020; com a mensagem obrigatória para a organização) e o link "Abrir no painel". Só
   aparecem as ações que podem funcionar (`/config.files`, `/config.withdrawal`, galeria pública com fotos). Cada
   ação pede uma confirmação que nomeia a organização, envia a revisão lida pela API administrativa, pede de novo
-  em `409 stale_revision` e relê os terrenos ao concluir.
+  em `409 stale_revision` e relê os terrenos ao concluir. Se a leitura administrativa das fotos falha, a seção diz
+  "Não foi possível ler as fotos agora." e oferece ler de novo, em vez de dizer que não há ação disponível. Se a
+  seção sai com a casa aberta (papel perdido, sessão encerrada), o foco volta para o diálogo.
 - Jogo, **PROPOSTA** (só com `/config.moderation.presence`): selecionar outro visitante (clique no avatar ou botão
   do HUD) e "Remover da sala", com confirmação. O cliente pede o bilhete, envia `["m", alvo, bilhete]` e espera a
-  resposta da sala: um pedido por vez, 1100 ms entre mensagens, no máximo 10 por minuto, 5 s sem resposta é falha.
-  Só `ok: true` vira "removido"; o bilhete nunca é exibido nem registrado.
+  resposta da sala; 5 s sem resposta é falha. Só `ok: true` vira "removido"; o bilhete nunca é exibido nem
+  registrado. Trocar a seleção fecha a confirmação aberta, e o resultado de uma remoção enviada antes de o modo ser
+  desligado e religado (ou de a conta mudar) é descartado: a confirmação aberta nunca passa a nomear outro
+  visitante.
+- Jogo, limites da remoção (a sala fecha a conexão de quem os quebra, e conta a mensagem quando ela chega): um
+  pedido por vez; depois de um pedido sem resposta, nada mais é enviado naquela conexão até a resposta chegar (a
+  resposta atrasada nunca é tomada pela resposta da nova tentativa); 1100 ms entre o último momento em que a sala
+  sabidamente ouviu uma mensagem (o envio ou a chegada da resposta) e a próxima; no máximo 9 pedidos em 61 s,
+  contados da saída da mensagem (um a menos que a sala aceita). O pedido de bilhete é abandonado em 5 s, e nada é
+  enviado se o visitante saiu entre o bilhete e o envio; as duas situações são ditas como são.
 - Jogo: quem é removido (fechamento `4003`) lê "Você foi removido da sala por um administrador.", continua
   jogando e só reconecta depois de 60 s, no próximo toque, clique ou tecla (sem laço, sem contar como erro de rede).
+  A espera vale também se "Outros visitantes" for desligado e ligado de novo; recarregar a página a encerra (é uma
+  cortesia, não uma barreira).
 - Jogo, **PROPOSTA**: conta bloqueada (`/me` com `blocked`, ou `403 session_blocked` em qualquer rota) vê "Conta
   bloqueada", a mensagem da administração e a data, e só pode sair ou excluir a conta; a sincronização do progresso
-  e a tela da candidatura param sem erro.
+  e a tela da candidatura param sem erro. O Caderno de Missões diz "Conta bloqueada: o progresso fica só neste
+  navegador." (não "Sem conexão com a Vila").
+- Jogo: sessão que termina com a página aberta (saída em outra aba, expiração, bloqueio que encerra as sessões). Na
+  primeira resposta `401 not_signed_in` o jogo relê `/me`; sem sessão, volta ao estado desconectado com o aviso
+  "Sua sessão terminou. Entre de novo.", o progresso deixa de ficar pendente e o modo moderação desliga. Se `/me`
+  ainda responde a mesma conta, nada muda e a releitura não se repete por 1 minuto.
 - Jogo: o painel da conta mostra o papel pelo rótulo compartilhado ("Padrão" / "Administrador").
 - Confirmações de moderação e a exclusão de conta bloqueada não aceitam duplo clique, tecla mantida pressionada
   nem resposta nos primeiros 600 ms.
-
-### Fixed — Enter sobre um botão do HUD
-
-- Jogo: com o avatar perto de uma casa, da árvore ou de um morador, pressionar Enter sobre um botão do HUD em foco
-  abria o painel do que estava perto em vez de acionar o botão. Enter sobre um botão, link ou campo agora pertence
-  a esse controle; a tecla E e o Enter sem controle em foco continuam abrindo o que está perto.
 
 ### Added — papel de administrador e moderação (API e contrato compartilhado; bloqueio e remoção de sala PROPOSTA, desligados)
 
@@ -77,7 +93,9 @@ Cada versão indica o schema D1 que entrega.
   ação tem um segundo passo que nomeia a conta e diz a consequência; o botão só libera depois de marcada a frase de
   confirmação (clique duplo ou Enter segurado não enviam nada). Recusas mostram a frase da API (`last_admin`,
   `account_blocked`, `admin_only`, …); depois de uma mudança a linha mostra o que a API respondeu e a lista é
-  relida. E-mail e nome continuam fora do painel.
+  relida. Uma resposta 200 sem a linha da conta é tratada como falha ("Algo deu errado. …") e a lista é relida.
+  Depois de uma recusa que faz a lista ser relida, o foco vai para a linha do resultado (não para um botão que
+  some com a releitura). E-mail e nome continuam fora do painel.
 - **PROPOSTA** (política PENDENTE, [OQ-11](docs/decisions/open-questions.md)): "Bloquear conta" só aparece quando
   `/config` traz `moderation.block: true`, pede a "Mensagem para a pessoa (ela vai ler)" (regra compartilhada, 10 a
   1000 caracteres) e diz o efeito (sessões encerradas; a pessoa só lê a mensagem, sai e exclui a conta). Não é
@@ -92,7 +110,10 @@ Cada versão indica o schema D1 que entrega.
   `ngo.logo_remove` e `presence.remove` ("Remoção de visitante autorizada"). "Sistema" mostra `moderation.presence`
   e `moderation.block` como as outras bandeiras.
 - Sessões: conta bloqueada que entra no painel vê só "Conta bloqueada", a mensagem e "Sair"; um administrador
-  rebaixado com o painel aberto cai em "Apenas administradores" na requisição seguinte, sem laço.
+  rebaixado com o painel aberto cai em "Apenas administradores" na requisição seguinte, sem laço. Se a API recusa
+  uma rota administrativa (`admin_only`, `session_blocked`, `not_signed_in`) enquanto `/me` continua respondendo o
+  mesmo administrador, o painel não fica relendo a sessão: mostra o estado de indisponibilidade, que diz o que
+  houve, e só "Tentar de novo" pede outra vez.
 - Conferência local em navegador: `apps/dash/scripts/verify-moderation.mjs`
   ([development §4.7](docs/guides/development.md#47-adicionar-uma-seção-ao-painel-administrativo)).
 
