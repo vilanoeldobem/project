@@ -7,7 +7,7 @@ import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { pressEscape } from "../lib/escape";
-import { boundAction, heldOnControl, hudKeyAction, isTextField } from "../lib/hud-keys";
+import { boundAction, heldOnControl, hudKeyAction, isTextField, KEY_BINDINGS } from "../lib/hud-keys";
 import { moderating, useModeration } from "../lib/moderation";
 import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
@@ -175,7 +175,7 @@ export function Hud() {
       </div>
 
       <div className="hud__bottom">
-        {idle && !nearby && !moderation && <MoveHint />}
+        <MoveHint visible={idle && !nearby && !moderation} />
         {idle && nearby && (
           <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
             {actionLabel(nearby, readActive)} <kbd>E</kbd>
@@ -195,20 +195,39 @@ export function Hud() {
   );
 }
 
+/** The key that opens the game menu, as the key map names it (the "Controles" view lists the same cap). */
+const MENU_KEY = KEY_BINDINGS.find((b) => b.action === "menu")?.caps[0] ?? "Esc";
+const WALK_HINT = "Clique ou toque no chão para andar.";
+
 /**
  * How to walk, for a visitor who has not walked yet in this browser (IMPL-0022): one line, not a dialog. It
  * appears with the scene (not while the village loads), takes no clicks, goes away at the first walk (for good)
- * or `MOVE_HINT_MS` after the scene is on screen (the store counts the time: this component leaves the screen
- * with every panel), and is never shown again once the visitor has walked.
+ * or `MOVE_HINT_MS` after the scene is on screen (the store counts the time), and is never shown again once the
+ * visitor has walked. It also says what helps without a mouse (hidden on touch screens, `styles.css`).
+ *
+ * `visible`: nothing else needs the place of the line (a panel, the menu, the action button, the moderation
+ * block). The line is announced by a live region of its own, which is on the page from the first render, empty,
+ * and holds the sentence for as long as the hint lasts: a region that arrived with its text would not be
+ * announced, and one that lost and regained it with every panel would be announced again.
  */
-function MoveHint() {
-  const show = useVila((s) => s.moveHint);
-  const ready = useVila((s) => s.sceneReady);
-  if (!show || !ready) return null;
+function MoveHint({ visible }: { visible: boolean }) {
+  const hinting = useVila((s) => s.moveHint && s.sceneReady);
+  const explore = PATHS[0].label;
   return (
-    <p className="hud__hint" role="status" data-hint="move">
-      Clique ou toque no chão para andar.
-    </p>
+    <>
+      <p className="sr-only" role="status" data-hint="announce">
+        {hinting ? `${WALK_HINT} Sem mouse: “${explore}” leva até uma casa e a tecla ${MENU_KEY} abre o menu.` : ""}
+      </p>
+      {hinting && visible && (
+        <p className="hud__hint" aria-hidden="true" data-hint="move">
+          {WALK_HINT}
+          <span className="hint__keys">
+            {" "}
+            Sem mouse: “{explore}” leva até uma casa e <kbd>{MENU_KEY}</kbd> abre o menu.
+          </span>
+        </p>
+      )}
+    </>
   );
 }
 

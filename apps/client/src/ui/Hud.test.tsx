@@ -1,8 +1,9 @@
 /**
  * What the HUD draws at arrival and around the game menu (IMPL-0022), server-side, no browser: no dialog in
  * front of the village, the three paths one press away with their names, one "Menu" button, no zoom buttons
- * and no brand, the line that says how to walk only until the first walk, the account chip with a long nickname
- * or a blocked account, and tooltips only on controls that can be icon-only or whose name is cut. What only a browser can measure (sizes, overlap, what a tooltip covers) is
+ * and no brand, the line that says how to walk only until the first walk (announced once, with the keys of the
+ * key map), the account chip with a long nickname or a blocked account, and tooltips only on controls that can
+ * be icon-only or whose name is cut. What only a browser can measure (sizes, overlap, what a tooltip covers) is
  * in the rules of `styles.css` that the last tests read.
  */
 
@@ -12,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Me } from "@vila/shared/accounts/contract";
 
+import { KEY_BINDINGS } from "../lib/hud-keys";
 import css from "../styles.css?raw";
 
 const ADMIN: Me = { id: "a1", name: "Ana Lima", nickname: "ana_admin", city: "Recife", email: "ana@example.com", role: "admin" };
@@ -129,11 +131,49 @@ describe("menu button", () => {
 });
 
 describe("the line that says how to walk", () => {
+  const WALK = "Clique ou toque no chão para andar.";
+  const menuKey = KEY_BINDINGS.find((b) => b.action === "menu")!.caps[0];
+  /** The text inside the live region that announces the line. */
+  const announced = (page: string) => /<p class="sr-only" role="status" data-hint="announce">(.*?)<\/p>/.exec(page)?.[1];
+
   it("is one line of text with no control in it, shown on a first visit once the scene is on screen", async () => {
     const { hud, useVila } = await load();
     expect(hud()).not.toContain("hud__hint"); // still loading: there is no ground to click yet
     useVila.setState({ sceneReady: true });
-    expect(hud()).toContain('<p class="hud__hint" role="status" data-hint="move">Clique ou toque no chão para andar.</p>');
+    const line = /<p class="hud__hint"[^>]*>.*?<\/p>/.exec(hud())?.[0] ?? "";
+    expect(line).toContain(`data-hint="move">${WALK}`);
+    expect(line).not.toMatch(/<button|<a |tabindex/);
+  });
+
+  it("also says what helps without a mouse, with the key of the key map", async () => {
+    const { hud, useVila, PATHS } = await load();
+    useVila.setState({ sceneReady: true });
+    expect(menuKey).toBe("Esc");
+    expect(hud()).toContain(`<span class="hint__keys"> Sem mouse: “${PATHS[0].label}” leva até uma casa e <kbd>${menuKey}</kbd> abre o menu.</span>`);
+  });
+
+  it("is announced once: the live region is on the page before its text and keeps it while panels come and go", async () => {
+    const { hud, useVila, PATHS } = await load();
+    expect(announced(hud())).toBe(""); // mounted empty, while the village loads
+    useVila.setState({ sceneReady: true });
+    const text = `${WALK} Sem mouse: “${PATHS[0].label}” leva até uma casa e a tecla ${menuKey} abre o menu.`;
+    expect(announced(hud())).toBe(text);
+    // The visible line is the same sentence: it is not read a second time.
+    expect(hud()).toContain('<p class="hud__hint" aria-hidden="true" data-hint="move">');
+    // What hides the visible line does not empty the region (text put back would be announced again).
+    useVila.setState({ nearby: { kind: "tree" } });
+    expect(announced(hud())).toBe(text);
+    useVila.getState().open({ kind: "explore" });
+    expect(announced(hud())).toBe(text);
+    useVila.getState().close();
+    useVila.getState().setTarget({ x: -8, z: 0 });
+    expect(announced(hud())).toBe("");
+  });
+
+  it("announces nothing to a visitor who has walked before", async () => {
+    const back = await load({ moved: true });
+    back.useVila.setState({ sceneReady: true });
+    expect(announced(back.hud())).toBe("");
   });
 
   it("goes away at the first walk and is not shown to a visitor who has walked before", async () => {

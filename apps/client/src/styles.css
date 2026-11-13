@@ -146,11 +146,12 @@ kbd {
 .hud__missions:active { transform: translateY(2px); }
 .hud__missions .star { color: var(--gold); font-size: 1.4rem; -webkit-text-stroke: 1px var(--pine); grid-row: span 2; }
 .hud__action { align-self: center; font-size: 1.05rem; white-space: nowrap; }
-/* How to walk, until the first walk: a line, never a dialog. It takes no clicks. */
+/* How to walk, until the first walk: a line, never a dialog. It takes no clicks (nor does the region that announces it). */
 .hud__bottom > .hud__hint {
-  align-self: center; margin: 0; pointer-events: none; padding: 8px 16px; border-radius: 999px; text-align: center;
+  align-self: center; margin: 0; pointer-events: none; padding: 8px 16px; border-radius: 22px; text-align: center;
   background: rgba(23, 61, 53, 0.88); color: var(--cream); border: 2px solid var(--gold); font-weight: 800; font-size: 0.95rem;
 }
+.hud__bottom > .sr-only { pointer-events: none; }
 
 .xp { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-weight: 800; }
 .xp--compact { font-size: 0.75rem; gap: 6px; }
@@ -274,7 +275,8 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   .toast { animation: none; }
 }
 
-@media (pointer: coarse) { .hud__action kbd { display: none; } }
+/* A touch screen has no key to press: the action button and the line of the arrival leave the keys out. */
+@media (pointer: coarse) { .hud__action kbd, .hint__keys { display: none; } }
 
 /* Environment (IMPL-0006): time/weather chip, "Ambiente" panel, dev debug overlay. */
 .env-chip .btn--chip { font-variant-numeric: tabular-nums; }
@@ -358,9 +360,9 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 }
 /* While the flag is up the HUD starts below it, so the flag covers no chip at any width. */
 body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px); }
+/* Both shrink with the middle block of the HUD and scroll inside themselves (`.hud__mid`). */
 .modbar, .hud__notice {
   max-width: min(360px, 100%); padding: 8px 12px; border-radius: var(--radius); min-height: 0; overflow-y: auto; overscroll-behavior: contain;
-/* Both shrink with the middle block of the HUD and scroll inside themselves (`.hud__mid`). */
   background: var(--cream); color: var(--ink); border: 2px solid var(--pine); box-shadow: var(--shadow);
 }
 .modbar { border-color: var(--red); outline: none; display: grid; gap: 6px; justify-items: start; }
