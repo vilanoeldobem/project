@@ -27,8 +27,9 @@ Mundo 3D voxel (DEC-022/025); texto longo em painéis HTML legíveis sobre a cen
 
 ## 5. Celular primeiro
 
-Toque para andar, botões ≥ 44 px, câmera que se afasta em retrato, `dpr` limitado. **No código:** `Ground`
-(`onPointerDown`), `Player` (`zoom`), `styles.css` (`@media (max-width: 640px)`, `pointer: coarse`).
+Toque para andar, pinça para aproximar, botões ≥ 44 px (40 px nos chips do HUD abaixo de 360 px de largura),
+câmera que se afasta em retrato, `dpr` limitado. **No código:** `Ground` (`onPointerDown`), `Player` (`zoom`),
+`lib/zoom-gestures.ts`, `styles.css` (`@media (max-width: 640px)`, `pointer: coarse`).
 
 ## 6. Mínimo de dados, máximo de cuidado
 

@@ -9,6 +9,48 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — chegada direta na Vila e HUD enxuto (IMPL-0022, PROPOSTA do responsável técnico; OQ-16)
+
+- Jogo: **a página abre direto na praça.** Não há mais painel de boas-vindas nem botão "Entrar na Vila": o primeiro
+  clique ou toque no chão já anda. Quem ainda não andou neste navegador vê uma linha, "Clique ou toque no chão
+  para andar.", que não recebe cliques, some no primeiro passo (ou 20 s depois de a cena aparecer) e não volta
+  depois dele (o navegador guarda só `vila.moved.v1 = 1`).
+- Jogo: os **três caminhos** (Explorar ONGs, Jogar, Doação global) ficam no HUD desde a chegada, num único grupo de
+  navegação e sempre com o nome; no celular, numa linha própria (P01, DEC-008). A "Doação global" ganhou botão no
+  HUD; o painel de doação não mudou (botões desabilitados com a nota de sempre, IMPL-0002).
+- Jogo: o HUD passou a ser montado em fluxo (topo, avisos, pé), de 320 px ao desktop: grupos, faixa de moderação,
+  presença, Missões e avisos não se sobrepõem, e o centro da tela fica livre. O aviso passageiro (`toast`) deixou a
+  posição fixa. Estados de passar o mouse, pressionar e "ligado" iguais em HUD e painéis; dica flutuante só onde o
+  controle fica sem nome visível. Chips do HUD com 44 px de altura (40 px abaixo de 360 px de largura).
+- Jogo: **Esc fecha uma camada por toque**: confirmação aberta → cancela a confirmação (antes fechava o painel
+  inteiro); painel aberto → fecha o painel; nada aberto → abre o menu do jogo. Num campo de texto o Esc não abre o
+  menu; tecla mantida pressionada conta uma vez.
+- Jogo: as opções de qualidade, conforto, som e outros visitantes aparecem no painel "Ambiente" e em
+  "Configurações" do menu, pelo mesmo componente.
+- Verificação: os scripts de navegador (`verify.mjs`, `verify-live.mjs`, `verify-collisions.mjs`,
+  `verify-quests.mjs`, `verify-accounts.mjs`) não clicam mais em "Entrar na Vila": conferem a chegada
+  (`scripts/arrive.mjs`: HUD presente, nenhum diálogo aberto, tela de boas-vindas ausente). O `verify.mjs` também
+  confere os três caminhos, o primeiro clique andando, o zoom pela roda e pelas teclas e o menu do jogo. O
+  `verify-live.mjs` falha contra uma produção que ainda tenha a tela de boas-vindas: rode-o depois de publicar.
+
+### Added — menu do jogo (IMPL-0022, PROPOSTA)
+
+- Jogo: **menu do jogo**, pelo Esc (sem nada aberto) ou pelo botão "☰ Menu" do HUD: Continuar, Configurações,
+  Controles (teclas, mouse e toque, gerados das mesmas tabelas que os tratadores usam), Ajuda (o que é a Vila, onde
+  estão ONGs, missões e conta, link para o site) e Sair da Vila (vai para o site público depois de uma confirmação).
+  É um diálogo pequeno que deixa a Vila à vista, prende o foco, devolve o foco ao fechar e **não pausa nada**: o
+  avatar, os outros visitantes, a presença e o ambiente continuam.
+- Jogo: `endpoints.ts` conhece a origem do site público (`site`), usada só como link.
+
+### Removed — botões de zoom e marca na tela de jogo (IMPL-0022, PROPOSTA)
+
+- Jogo: os botões "＋" e "－" saíram do HUD. O zoom continua pela roda do mouse, pela pinça de dois dedos e pelas
+  teclas `+`, `=` e `-` (listados em "Controles").
+- Jogo: a marca provisória saiu do HUD (era o botão que reabria as boas-vindas). Ela aparece no título da página,
+  na tela de carregamento e no site público.
+- Jogo: o painel de boas-vindas (`ui/Welcome.tsx`); a promessa da Vila e o aviso de versão em desenvolvimento
+  estão em "Ajuda".
+
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 
 - A mensagem da retirada de uma ONG segue a mesma regra da mensagem de bloqueio: caracteres que ninguém vê (largura

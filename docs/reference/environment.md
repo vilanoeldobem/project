@@ -107,6 +107,10 @@ Retorno da jogabilidade (IMPL-0007): pegadas a cada passo na neve (não na pedra
 ao andar na neve fofa, brilho dourado ao achar presente; com som ligado, passos com timbre por superfície, carrilhão
 do presente e vinheta de missão concluída. "Neve e brilhos" desligado também desliga essas partículas. Interiores: não há prédios com interior; não se aplica.
 
+As opções deste aparelho (qualidade, conforto, som, outros visitantes) aparecem em dois lugares, pelo mesmo
+componente (`EnvironmentSettings`): no painel "Ambiente" e em "Configurações", no menu do jogo
+([IMPL-0022](../decisions/0022-immersive-entry-and-game-menu.md)).
+
 Vista **"Olhar o céu"** (botão 🌌 no HUD, PROPOSTA): a câmera desce e olha para o céu; andar ou tocar o chão volta à
 vista normal. A câmera de jogo segue OQ-05.
 

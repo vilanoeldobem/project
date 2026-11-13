@@ -40,5 +40,6 @@
 | [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) | Concorrência e confirmação da persistência de progresso | Proposta — implementada, bandeiras inalteradas |
 | [IMPL-0020](0020-ngo-publication-withdrawal.md) | Retirada administrativa da publicação de ONG: registro aditivo, leituras públicas pelo terreno | Proposta — implementada, desligada em produção e homologação (`NGO_WITHDRAWAL_ENABLED`); política PENDENTE (OQ-14), missões na OQ-09 |
 | [IMPL-0021](0021-administrator-role-and-moderation.md) | Papel de administrador e moderação: dois papéis, login próprio do painel, papéis geridos pelo painel, exceção de moderação dentro do jogo, bloqueio de conta e remoção de visitante de uma sala | Aceita (2026-11-12) para papéis, login do painel, gestão de papéis e exceção no jogo; Proposta — implementada, desligada em produção e homologação para o bloqueio de conta (`ACCOUNT_BLOCK_ENABLED`; política PENDENTE, OQ-11) e a remoção de visitante (`PRESENCE_MODERATION_ENABLED`) |
+| [IMPL-0022](0022-immersive-entry-and-game-menu.md) | Chegada sem tela de boas-vindas, HUD sem botões de zoom e sem a marca, menu do jogo no Esc | Proposta — implementada, a validar (PROPOSTA do responsável técnico; ratificação na OQ-16) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

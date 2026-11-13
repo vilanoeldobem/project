@@ -30,7 +30,7 @@ Caminhos relativos a `apps/client/src/`, salvo indicação.
 
 | Tela | Código | Status |
 |---|---|---|
-| P01 | `scene/Props.tsx` (árvore), `ui/Welcome.tsx`, `ui/Donation.tsx` | Parcial |
+| P01 | `scene/Props.tsx` (árvore), `ui/Hud.tsx` (`PATHS`: os três caminhos no HUD desde a chegada, sem tela de boas-vindas; PROPOSTA, IMPL-0022), `ui/Donation.tsx` | Parcial |
 | P02 | `ui/Indicators.tsx`, `apps/api/src/api.ts` | Parcial |
 | P03/P04 | `scene/Props.tsx` (Lots), `ui/Lot.tsx` ("Candidatar minha ONG" em terreno disponível), `ui/Explore.tsx` | Parcial |
 | P09 | `ui/MemoryGame.tsx` | Parcial |

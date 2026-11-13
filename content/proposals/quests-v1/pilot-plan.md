@@ -361,7 +361,7 @@ pnpm --filter @vila/client dev:worker                     # :8799
    Prova: os dois presentes viram `explore-gifts:gift-bench`/`explore-gifts:gift-palm`, o toast traz `Novo visual` com o
    `Gorro de tricô` desbloqueado, e a conta nova não herda progresso após logout (mensagens de erro do script em zero).
 2. **Cadeia completa com a flag** em `http://localhost:8799/?quests=1`:
-   - `Entrar na Vila` → `window.__vila.walkTo(-2.5, 27)` → botão `💬 Falar com Baltazar` → `Aceitar missão`; conferir
+   - (a página abre direto na praça, IMPL-0022) `window.__vila.walkTo(-2.5, 27)` → botão `💬 Falar com Baltazar` → `Aceitar missão`; conferir
      `harness-bells` em andamento e o marcador `… Baltazar`.
    - `walkTo(-10, -12.4)` e `walkTo(12.2, 9.5)` → bolsa mostra `Sino do arreio 2/2` e os dois sinos somem da cena;
      `window.__vila.progress().counters["harness-bells"] === 2` e `xp === 0`.
