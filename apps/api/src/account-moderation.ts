@@ -31,7 +31,7 @@ import { BLOCK_MESSAGE_ERROR, cleanBlockMessage } from "@vila/shared/accounts/mo
 
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { assertAccount, requireAdmin } from "./session";
+import { assertAccount, assertStillAdmin, requireAdmin, STILL_ADMIN as ACTOR } from "./session";
 import type { Env } from "./api";
 
 interface SummaryRow {
@@ -51,17 +51,8 @@ export const summaryView = (u: SummaryRow) => ({ ...u, verified: Boolean(u.verif
 const summary = (db: D1Database, id: string) => db.prepare(`SELECT ${SUMMARY_COLUMNS} FROM users WHERE id = ?`).bind(id).first<SummaryRow>();
 const answer = (u: SummaryRow) => json({ user: summaryView(u) }, { headers: NO_STORE });
 
-/** The actor is still an administrator (and not blocked) when the batch commits. Binds: the actor's id. */
-const ACTOR = "EXISTS (SELECT 1 FROM users a WHERE a.id = ? AND a.role = 'admin' AND a.blocked = 0)";
 /** This request's change is the one that went through. Binds: the target's id, the token. */
 const MINE = "EXISTS (SELECT 1 FROM users WHERE id = ? AND moderation_token = ?)";
-
-/** The actor lost the role (or the account) between the session check and the batch. */
-async function assertStillAdmin(db: D1Database, actorId: string): Promise<void> {
-  const actor = await db.prepare("SELECT role, blocked FROM users WHERE id = ?").bind(actorId).first<{ role: string; blocked: number }>();
-  if (!actor) throw new HttpError(401, "not_signed_in");
-  if (actor.role !== "admin" || actor.blocked) throw new HttpError(403, "admin_only");
-}
 
 /** The block in force on an account: the message the person reads, and when it was recorded. */
 export async function activeBlock(db: D1Database, userId: string): Promise<{ message: string; at: string } | null> {
