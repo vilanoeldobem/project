@@ -322,6 +322,63 @@ describe("removing a visitor from the room (PROPOSTA)", () => {
     disconnect();
   });
 
+  it("tells a visitor who left before the message was sent, and a ticket the API did not answer in time", async () => {
+    const { page, socket, removals, disconnect } = await room();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const original = fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (new URL(url).pathname === "/admin/moderation/ticket") {
+          await Promise.race([held, new Promise((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))))]);
+        }
+        return original(url, init);
+      })
+    );
+    page.mode().setOn(true);
+    page.mode().select(9);
+    page.mode().ask();
+    const first = page.mode().confirm();
+    await flush();
+    socket.say('["l",9]');
+    release();
+    await first;
+    expect(page.mode()).toMatchObject({ selected: null, sending: false, notice: { ok: false, text: "O visitante nº 9 já saiu da sala: nenhum pedido de remoção foi enviado." } });
+    expect(removals()).toEqual([]);
+    expect(page.removalText(9, { ok: false, reason: "ticket_timeout" })).toBe("Não foi possível remover agora. A Vila não respondeu a tempo; nada foi enviado à sala.");
+    expect(page.removalText(9, { ok: false, reason: "waiting" })).toBe("Não foi possível remover agora. A sala ainda não respondeu ao pedido anterior; espere a resposta antes de tentar de novo.");
+    expect(page.removalText(9, { ok: false, reason: "limit" })).toBe("Não foi possível remover agora. Você chegou ao limite de remoções por minuto; espere um pouco.");
+    disconnect();
+  });
+
+  it("gives up a ticket request that hangs: the request is aborted and the controls come back", async () => {
+    const { page, removals, disconnect } = await room();
+    const signals: AbortSignal[] = [];
+    const original = fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (new URL(url).pathname !== "/admin/moderation/ticket") return original(url, init);
+        requests.push("POST /admin/moderation/ticket");
+        signals.push(init!.signal!);
+        return new Promise((_, reject) => init!.signal!.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+      })
+    );
+    page.mode().setOn(true);
+    page.mode().select(9);
+    page.mode().ask();
+    const done = page.mode().confirm();
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(page.mode().sending).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    await done;
+    expect(signals.map((signal) => signal.aborted)).toEqual([true]);
+    expect(page.mode()).toMatchObject({ selected: 9, sending: false, notice: { ok: false, text: "Não foi possível remover agora. A Vila não respondeu a tempo; nada foi enviado à sala." } });
+    expect(removals()).toEqual([]);
+    disconnect();
+  });
+
   it("drops the selection when the visitor leaves or the connection ends", async () => {
     const { page, socket, disconnect } = await room();
     page.mode().setOn(true);

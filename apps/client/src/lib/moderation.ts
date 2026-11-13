@@ -71,9 +71,15 @@ export function removalText(target: number, result: RemovalResult): string {
     case "busy":
       return "Aguarde a resposta da remoção anterior.";
     case "limit":
-      return `${FAILED} O limite é de 10 remoções por minuto; espere um pouco.`;
+      return `${FAILED} Você chegou ao limite de remoções por minuto; espere um pouco.`;
     case "offline":
       return `${FAILED} Você não está conectado a uma sala.`;
+    case "waiting":
+      return `${FAILED} A sala ainda não respondeu ao pedido anterior; espere a resposta antes de tentar de novo.`;
+    case "left":
+      return `O visitante nº ${target} já saiu da sala: nenhum pedido de remoção foi enviado.`;
+    case "ticket_timeout":
+      return `${FAILED} A Vila não respondeu a tempo; nada foi enviado à sala.`;
     case "closed":
       return `${FAILED} A conexão com a sala caiu antes da resposta.`;
     case "refused":

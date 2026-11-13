@@ -24,11 +24,11 @@ import { SERVICES } from "./services";
 export type { Application, Me };
 export { ApiError };
 
-/** One request to the API. Throws `ApiError` when there is no answer or the answer is an error. */
-async function request(method: string, path: string, headers: Record<string, string>, body?: BodyInit): Promise<Response> {
+/** One request to the API. Throws `ApiError` when there is no answer (also when `signal` gave it up) or the answer is an error. */
+async function request(method: string, path: string, headers: Record<string, string>, body?: BodyInit, signal?: AbortSignal): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`${SERVICES.api}${path}`, { method, credentials: "include", headers, body });
+    res = await fetch(`${SERVICES.api}${path}`, { method, credentials: "include", headers, body, signal });
   } catch {
     throw new ApiError(0, "network");
   }
@@ -41,12 +41,13 @@ async function request(method: string, path: string, headers: Record<string, str
 }
 
 /** A JSON call. `headers` are added to the request (a write without a JSON body names its account there). */
-async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+async function call<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}, signal?: AbortSignal): Promise<T> {
   const res = await request(
     method,
     path,
     { Accept: "application/json", ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
-    body === undefined ? undefined : JSON.stringify(body)
+    body === undefined ? undefined : JSON.stringify(body),
+    signal
   );
   if (res.status === 204) return null as T;
   return (await res.json().catch(() => ({}))) as T;
@@ -101,8 +102,12 @@ export const api = {
   /** `message` is what the organisation reads, word for word (IMPL-0020, PROPOSTA). */
   adminWithdraw: (ngoId: string, revision: number, message: string) =>
     call<{ application: Application }>("POST", `/admin/ngos/${ngoId}/withdraw`, { accountId: accountId(), revision, reason: message }),
-  /** A single-use ticket to remove the connection `target` from `room` (PROPOSTA). Never stored, shown or logged. */
-  moderationTicket: (room: number, target: number) => call<ModerationTicket>("POST", "/admin/moderation/ticket", { accountId: accountId(), room, target }),
+  /**
+   * A single-use ticket to remove the connection `target` from `room` (PROPOSTA). Never stored, shown or logged.
+   * `signal` gives the request up (the removal flow does not wait for ever, `net/removal.ts`).
+   */
+  moderationTicket: (room: number, target: number, signal?: AbortSignal) =>
+    call<ModerationTicket>("POST", "/admin/moderation/ticket", { accountId: accountId(), room, target }, {}, signal),
 };
 
 interface AccountState {
