@@ -115,6 +115,22 @@ export type UserActionResult =
    */
   | { ok: false; message: string; field: string; stale: boolean };
 
+/** What the screen says when the API answered 200 without the row: the action may or may not have been done. */
+export const NO_ROW_TEXT = `${errorText(null)} A lista foi lida de novo: confira como a conta ficou.`;
+
+/** The API answered without the row of the account that was asked about. */
+class NoRow extends Error {}
+
+/**
+ * The row in a successful answer. An answer without the row of `id` says nothing about what was done: it is a
+ * failure, and it never reaches the list on screen.
+ */
+function rowOf(answer: { user?: UserSummary } | null | undefined, id: string): UserSummary {
+  const row = answer?.user;
+  if (!row || typeof row !== "object" || row.id !== id) throw new NoRow();
+  return row;
+}
+
 /**
  * Sends one action about the account in `user`, in the name of the signed-in administrator `accountId`. A block
  * message that does not fit the shared rule is refused here, without a request (the API applies the same rule).
@@ -131,16 +147,18 @@ export async function sendUserAction(
     if (action === "block") {
       const text = cleanBlockMessage(message);
       if (!text) return { ok: false, message: "", field: BLOCK_MESSAGE_ERROR, stale: false };
-      const { user: now } = await api.adminBlock(user.id, accountId, text);
+      const now = rowOf(await api.adminBlock(user.id, accountId, text), user.id);
       return { ok: true, user: now, done: `Conta de ${who} bloqueada. As sessões dela foram encerradas.` };
     }
     if (action === "unblock") {
-      const { user: now } = await api.adminUnblock(user.id, accountId);
+      const now = rowOf(await api.adminUnblock(user.id, accountId), user.id);
       return { ok: true, user: now, done: `Conta de ${who} desbloqueada.` };
     }
-    const { user: now } = await api.adminSetRole(user.id, accountId, action === "promote" ? "admin" : "player");
+    const now = rowOf(await api.adminSetRole(user.id, accountId, action === "promote" ? "admin" : "player"), user.id);
     return { ok: true, user: now, done: `Papel alterado: ${who} agora é ${roleLabel(now.role)}.` };
   } catch (error) {
+    // The request was accepted but the answer does not say what the account is now: read the list again.
+    if (error instanceof NoRow) return { ok: false, message: NO_ROW_TEXT, field: "", stale: true };
     const { code = "", fields = {} } = error as { code?: string; fields?: Record<string, string> };
     return { ok: false, message: userRefusalText(error), field: fields.message ?? "", stale: STALE.has(code) };
   }

@@ -20,6 +20,7 @@ import {
   BLOCK_MESSAGE_LABEL,
   BLOCKED_ROLE_NOTE,
   confirmationOf,
+  NO_ROW_TEXT,
   offerFor,
   OWN_BLOCK_NOTE,
   OWN_ROLE_NOTE,
@@ -716,6 +717,29 @@ describe("roles and account block (IMPL-0021)", () => {
     const { fetcher } = fakeFetch({ [path(PLAYER, "block")]: [400, { error: "message_required", fields }] });
     expect(await sendUserAction(createApi(BASE, fetcher), "block", PLAYER, SELF.id, MESSAGE)).toEqual({ ok: false, message: "Confira os campos destacados.", field: BLOCK_MESSAGE_ERROR, stale: false });
     expect(await sendUserAction(createApi(BASE, fakeFetch({}).fetcher), "unblock", BLOCKED, SELF.id)).toEqual({ ok: false, message: "Sem conexão com a Vila. Tente de novo em instantes.", field: "", stale: false });
+  });
+
+  it("treats a 200 without the row of that account as a failure: nothing reaches the list, which is read again", async () => {
+    expect(NO_ROW_TEXT).toBe("Algo deu errado. A lista foi lida de novo: confira como a conta ficou.");
+    const failed = { ok: false, message: NO_ROW_TEXT, field: "", stale: true };
+    const bodies: unknown[] = [{}, { user: null }, { ok: true }, { user: "bia" }, { user: {} }, { user: { ...OTHER_ADMIN } }, null, []];
+    for (const body of bodies) {
+      const { fetcher, sent } = fakeFetch({
+        [path(PLAYER, "role")]: [200, body],
+        [path(PLAYER, "block")]: [200, body],
+        [path(BLOCKED, "unblock")]: [200, body],
+      });
+      const api = createApi(BASE, fetcher);
+      const label = JSON.stringify(body);
+      expect([label, await sendUserAction(api, "promote", PLAYER, SELF.id)]).toEqual([label, failed]);
+      expect([label, await sendUserAction(api, "demote", PLAYER, SELF.id)]).toEqual([label, failed]);
+      expect([label, await sendUserAction(api, "block", PLAYER, SELF.id, MESSAGE)]).toEqual([label, failed]);
+      expect([label, await sendUserAction(api, "unblock", BLOCKED, SELF.id)]).toEqual([label, failed]);
+      expect(sent).toHaveLength(4); // each one was sent once: nothing is resent
+    }
+    // A 204 (no body at all) is no row either.
+    const { fetcher } = fakeFetch({ [path(PLAYER, "role")]: [204, null] });
+    expect(await sendUserAction(createApi(BASE, fetcher), "promote", PLAYER, SELF.id)).toEqual(failed);
   });
 
   it("refreshes the list: the changed row at once, then every page on screen read again from the API", async () => {
