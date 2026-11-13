@@ -644,8 +644,9 @@ Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here 
 - [x] Docs: ADR 0023, OQ-17..19 (numbered OQ-16..18 before the merge with main, where OQ-16 is the entry/menu ratification), architecture, storage, api, deploy, content, quests, changelog, AGENTS.md
 - [x] Follow-up after the HUD rework merges: fold `place` into `Hud.tsx` (`actionLabel` / `activate`) and delete
       `ui/VillageAction.tsx` (done at the merge with main: the three places are kinds of `Nearby`)
-- [ ] Not run here: `verify-quests.mjs`, `verify-accounts.mjs`, `apps/client/scripts/verify.mjs` (they need the
-      stack on the default ports); frame time on a phone
+- [x] `verify-quests.mjs`, `verify-accounts.mjs`, `apps/client/scripts/verify.mjs`: run at the integration with
+      main (next section)
+- [ ] Not measured: frame time on a phone
 
 ### Review
 
@@ -660,3 +661,33 @@ Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here 
   modules differently from components.
 - Three `wrangler dev` processes cannot share one `--persist-to` directory (SQLITE_BUSY): one directory per Worker.
 - zustand selectors read the initial state under `renderToStaticMarkup`: keep a pure view component to test.
+
+## Integration of the village expansion with main (IMPL-0022 + IMPL-0023) — 2026-11-13
+
+Branch `feat/village-expansion`, merged with `origin/main` (21658a1: no welcome modal, trimmed HUD, Esc menu).
+
+- [x] Merge, both features kept. Conflicts: `App.tsx`, `scene/Player.tsx`, `architecture.md` (the village plan is
+      §2.4 now; §2.3 is the arrival and the HUD), `decisions/README.md`, `open-questions.md`, `CHANGELOG.md`
+- [x] Open questions renumbered: OQ-16 stays the entry/menu ratification; the expansion's are OQ-17 (players and
+      plots), OQ-18 (billboards), OQ-19 (final lot plan)
+- [x] One contextual action: plot, shop and billboard are kinds of `Nearby`, handled by `actionLabel` / `activate`
+      in `ui/Hud.tsx`; `ui/VillageAction.tsx`, `Place` and `setPlace` are gone
+- [x] "Explorar ONGs" with 12 lots; a lot the API does not list says "Ainda não recebe candidaturas"
+- [x] Render cost of the zoomed-out view inside the budget: blocks whose shadow is not seen stay out of the
+      shadow pass (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`); windows and lanterns of the rows in two
+      meshes. 152 calls / 274 086 triangles → 116 / 210 944 (numbers and method in ADR 0023)
+- [x] Browser checks on the merged tree, against Workers on other ports (8787 was in use): `verify.mjs`,
+      `verify-collisions.mjs`, `verify-quests.mjs`, `verify-accounts.mjs`, `smoke-api.sh`,
+      `verify-media-local.mjs --progress --withdrawal` and `--browser`
+- [x] `verify-accounts.mjs` step 5b reached the lot by old coordinates: it goes through "Explorar ONGs" now
+- [ ] Not run: `verify-live.mjs` (deployed game only), the dashboard's own scripts, anything on a phone
+
+### Lessons
+
+- The fixed origins of a local build (`localhost:8787/8788/8797/8799`) can be pointed at other ports without a
+  rebuild: Chrome `--host-rules="MAP localhost:8787 127.0.0.1:18787, …"` (a rule may name a port).
+- `verify-accounts.mjs` with a rerouted API: name it `localhost`. With `127.0.0.1` the session cookie is lost.
+- three.js culls a mesh, shadow pass included, with one sphere: a long merged block is drawn into the shadow
+  map from far away. Measure the shadow pass apart from the main pass before merging geometry further.
+- `renderer.info` counts both passes; a per-mesh count from the scene graph says which pass a triangle is in.
+

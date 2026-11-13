@@ -132,6 +132,13 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short. A billboard's notice is also
   on its panel as flat text.
+- One contextual action (IMPL-0022, IMPL-0023): whatever the avatar can use nearby is a kind of `Nearby`
+  (`game/store.ts`), labelled and opened by `actionLabel` / `activate` in `ui/Hud.tsx`, the game's only reader of the
+  key map (`lib/hud-keys.ts`). Never add a second action button or key listener; a new panel is the shared `Panel`.
+- Render budget (IMPL-0023): 150 draw calls and 250 000 triangles per frame, shadow pass included. A large baked
+  block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
+  `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
+  `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.
 - `GET /residential-plots` is an always-on public route over a table production does not have yet (0011): it
   answers the shared layout, every plot "unavailable", wherever the table is missing, and never who holds a plot.
 - Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.

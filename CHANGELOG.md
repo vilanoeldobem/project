@@ -54,6 +54,9 @@ Cada versão indica o schema D1 que entrega.
   (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; a pior rota medida
   leva 4,8 ms para planejar.
 - Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
+- Verificação: `verify-accounts.mjs` chega à casa publicada por "Explorar ONGs" → "Ir até lá" (antes andava até a
+  posição antiga do terreno e, com os arquivos ligados, como roda no CI, não chegava) e confere os 12 terrenos na
+  lista; as coordenadas de `verify-collisions.mjs` e `verify-quests.mjs` são as do plano novo.
 
 ### Changed — chegada direta na Vila e HUD enxuto (IMPL-0022, PROPOSTA do responsável técnico; OQ-16)
 
