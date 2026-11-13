@@ -6,6 +6,8 @@
  * Error messages are user-facing pt-BR copy.
  */
 
+import { validateExternalDonationUrl, type NgoPaymentMethod } from "../donations/contract";
+
 export interface Registration {
   name: string;
   nickname: string;
@@ -81,6 +83,12 @@ export interface NgoApplication {
   description: string;
   tags: NgoTag[];
   projects: NgoProject[];
+  /**
+   * How the organisation wants to receive donations (IMPL-0023, PROPOSTA). Absent means "abacatepay": older
+   * applications and clients keep working. `donationUrl` is required (and validated) only for "external_link".
+   */
+  paymentMethod?: NgoPaymentMethod;
+  donationUrl?: string;
   // 4. Revisão e envio
   lotId: string;
 }
@@ -130,8 +138,13 @@ export function validateApplication(
     description: clean(raw.description, 2000),
     tags: [...new Set(tags)].slice(0, 4),
     projects,
+    paymentMethod: raw.paymentMethod === "external_link" ? "external_link" : "abacatepay",
+    donationUrl: "",
     lotId: clean(raw.lotId, 40),
   };
+  // The link is only kept for the mode that uses it; "abacatepay" clears it, so no stale URL is stored.
+  const link = validateExternalDonationUrl(raw.donationUrl);
+  if (value.paymentMethod === "external_link" && link.url) value.donationUrl = link.url;
   const errors: Partial<Record<keyof NgoApplication, string>> = {};
   if (value.name.length < 3 || value.name.length > 120) errors.name = "Digite o nome da organização (3 a 120 caracteres).";
   if (!isValidCnpj(value.cnpj)) errors.cnpj = "CNPJ inválido. Confira os 14 números.";
@@ -144,6 +157,9 @@ export function validateApplication(
   if (value.summary.length < 20 || value.summary.length > 280) errors.summary = "Escreva um resumo de 20 a 280 caracteres.";
   if (value.description.length < 50 || value.description.length > 2000) errors.description = "Descreva a organização (50 a 2000 caracteres).";
   if (value.tags.length === 0) errors.tags = "Escolha de 1 a 4 áreas de atuação.";
+  if (value.paymentMethod === "external_link" && !link.url) {
+    errors.donationUrl = "Informe um link HTTPS público válido da organização (ex.: https://ong.org.br/doar).";
+  }
   if (value.projects.some((p) => p.title.length < 3 || p.title.length > 80 || p.description.length > 400))
     errors.projects = "Cada projeto precisa de um título (3 a 80 caracteres) e descrição de até 400.";
   if (!/^plaza-\d{2}$/.test(value.lotId)) errors.lotId = "Escolha um terreno disponível.";
@@ -162,5 +178,7 @@ export const APPLICATION_STEP: Record<keyof NgoApplication, 1 | 2 | 3 | 4> = {
   description: 3,
   tags: 3,
   projects: 3,
+  paymentMethod: 2,
+  donationUrl: 2,
   lotId: 4,
 };

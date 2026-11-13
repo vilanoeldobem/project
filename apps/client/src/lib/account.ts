@@ -67,8 +67,16 @@ export interface AdminPhoto {
 }
 
 export const api = {
-  /** `withdrawal` and `moderation` are missing in the answer of an API older than IMPL-0020 / IMPL-0021. */
-  config: () => call<{ accounts: boolean; quests?: boolean; files?: boolean; withdrawal?: boolean; moderation?: Partial<ModerationConfig> }>("GET", "/config"),
+  /** `withdrawal`, `moderation` and `donations` are missing in the answer of an API older than IMPL-0020 / IMPL-0021 / IMPL-0023. */
+  config: () =>
+    call<{
+      accounts: boolean;
+      quests?: boolean;
+      files?: boolean;
+      withdrawal?: boolean;
+      moderation?: Partial<ModerationConfig>;
+      donations?: boolean;
+    }>("GET", "/config"),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -122,6 +130,8 @@ interface AccountState {
   withdrawal: boolean;
   /** Removing a visitor from a room turned on by the API (`/config.moderation.presence`, IMPL-0021, PROPOSTA). */
   presenceModeration: boolean;
+  /** Donations turned on by the API (`/config`, IMPL-0023, PROPOSTA); the donation panels stay disabled when false. */
+  donations: boolean;
   user: Me | null;
   ready: boolean;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
@@ -134,6 +144,7 @@ export const useAccount = create<AccountState>((set) => ({
   files: false,
   withdrawal: false,
   presenceModeration: false,
+  donations: false,
   user: null,
   ready: false,
   sync: "saved",
@@ -382,13 +393,15 @@ function takeLoginToken(): string | null {
  */
 export async function initAccount() {
   try {
-    const { accounts, quests, files, withdrawal, moderation } = await api.config();
+    const { accounts, quests, files, withdrawal, moderation, donations } = await api.config();
     setServerQuests(quests === true);
     useAccount.setState({
       enabled: accounts,
       files: accounts && files === true,
       withdrawal: accounts && withdrawal === true,
       presenceModeration: accounts && moderation?.presence === true,
+      // Donations work for visitors too, so this flag is independent of the accounts flag.
+      donations: donations === true,
     });
     if (!accounts) return;
     const token = takeLoginToken();

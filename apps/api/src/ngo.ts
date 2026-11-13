@@ -15,6 +15,7 @@
 import { validateApplication, type NgoApplication } from "@vila/shared/accounts/validate";
 
 import { newId } from "./crypto";
+import { readNgoPayment } from "./donations";
 import { noFilesTable } from "./files";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
@@ -99,7 +100,8 @@ export async function applicationSnapshot(env: Env, value: string, byOwner = fal
 export async function getApplication(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const { row, files } = await applicationSnapshot(env, user.id, true);
-  return json({ application: row ? applicationView(row) : null, files }, { headers: NO_STORE });
+  const payment = row ? await readNgoPayment(env, row.id) : null;
+  return json({ application: row ? { ...applicationView(row), ...(payment ? { ngoPayment: payment } : {}) } : null, files }, { headers: NO_STORE });
 }
 
 export async function submitApplication(request: Request, env: Env, today = new Date()): Promise<Response> {
@@ -176,6 +178,20 @@ export async function submitApplication(request: Request, env: Env, today = new 
       "INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ? AND status = 'submitted')"
     ).bind(newId(), user.id, current ? "ngo.resubmit" : "ngo.submit", `ngo:${ngoId}`, JSON.stringify({ lot: value.lotId, revision }), ngoId, revision)
   );
+  // IMPL-0023 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
+  // nothing from migration 0011 is touched, so the application flow still works on the schema production has.
+  if (env.DONATIONS_ENABLED === "true") {
+    const method = value.paymentMethod ?? "abacatepay";
+    const url = method === "external_link" ? value.donationUrl ?? "" : "";
+    statements.push(
+      db.prepare("INSERT OR IGNORE INTO ngo_payment_configs (ngo_id, payment_method, donation_url) SELECT id, ?, ? FROM ngos WHERE id = ? AND revision = ?").bind(method, url, ngoId, revision),
+      // A changed mode or link needs the administration's confirmation again.
+      db.prepare(`UPDATE ngo_payment_configs SET payment_method = ?, donation_url = ?,
+        link_validated = CASE WHEN payment_method = ? AND donation_url = ? THEN link_validated ELSE 0 END, updated_at = ?
+        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ?)`)
+        .bind(method, url, method, url, now, ngoId, ngoId, revision)
+    );
+  }
   let written = 0;
   try {
     written = (await db.batch(statements))[2].meta.changes;

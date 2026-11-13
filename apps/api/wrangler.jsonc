@@ -53,6 +53,9 @@
     // recorded decision lets a player hold land (DEC-028 reserves plots for NGOs). Needs ACCOUNTS_ENABLED and
     // migration 0011; there is no claim route yet, so today it only changes what GET /residential-plots answers.
     "RESIDENTIAL_PLOTS_ENABLED": "false",
+    // Donations and the AbacatePay reconciliation (PROPOSTA, IMPL-0023). Off until the partner contract and the
+    // payment rules exist (PEN-004, PEN-006, PEN-026). Needs ACCOUNTS_ENABLED and migration 0011.
+    "DONATIONS_ENABLED": "false",
     "MAIL_FROM": "acesso@vilanoeldobem.com.br",
     // Exact page origins that may read the API from a browser (local dev overrides it in package.json "dev").
     "ALLOWED_ORIGINS": "https://play.vilanoeldobem.com.br,https://www.vilanoeldobem.com.br,https://dash.vilanoeldobem.com.br",
@@ -87,6 +90,7 @@
         "ACCOUNT_BLOCK_ENABLED": "false",
         "PRESENCE_MODERATION_ENABLED": "false",
         "RESIDENTIAL_PLOTS_ENABLED": "false",
+        "DONATIONS_ENABLED": "false",
         "MAIL_FROM": "",
         "ALLOWED_ORIGINS": "",
         "ACCOUNT_ORIGINS": "",

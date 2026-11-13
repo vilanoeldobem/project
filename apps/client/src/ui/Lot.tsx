@@ -1,17 +1,25 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
+import { errorText } from "@vila/shared/accounts/errors";
+import { formatBrl } from "@vila/shared/donations/contract";
 import { questState } from "@vila/shared/game/quests";
 import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import { fetchLogo, type LotInfo } from "../lib/api";
+import { fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type LotInfo, type NgoDonationInfo } from "../lib/api";
 import { BlobImage } from "./BlobImage";
 import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
+import { PixDonation } from "./PixDonation";
 
 /**
  * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
  * moderation actions of the house (IMPL-0021, `LotModeration`); `onChanged` reads the lots again after one.
+ *
+ * Donations (IMPL-0023; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
+ * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
+ * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
+ *
  * `unlisted`: the API answered its lots and this one is not among them (a database before migration 0011, which
  * adds the lots of the expanded village, IMPL-0023): the lot is drawn, but it cannot take an application yet.
  */
@@ -28,6 +36,39 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   }, [info?.state, info?.ngo_name, lotId]);
   const n = Number(lotId.split("-")[1]);
   const accounts = useAccount((s) => s.enabled);
+  const donations = useAccount((s) => s.donations);
+  const ngoId = info?.state === "published" ? (info.ngo_id ?? null) : null;
+  /** `undefined` while loading, `null` when the read failed. */
+  const [donationInfo, setDonationInfo] = useState<NgoDonationInfo | null | undefined>(undefined);
+  const [donationError, setDonationError] = useState("");
+  const [opening, setOpening] = useState(false);
+  useEffect(() => {
+    // Another house reuses this component: never show the previous NGO's name, split or stats while loading.
+    setDonationInfo(undefined);
+    setDonationError("");
+    if (!donations || !ngoId) return;
+    let live = true;
+    fetchNgoDonationInfo(ngoId).then((result) => live && setDonationInfo(result));
+    return () => {
+      live = false;
+    };
+  }, [donations, ngoId]);
+
+  /** The payment happens on the NGO's own page; the Vila only logs that it sent the visitor there. */
+  const openExternal = async () => {
+    if (!ngoId) return;
+    setOpening(true);
+    setDonationError("");
+    try {
+      const result = await recordDonationRedirect(ngoId);
+      if (result?.url) window.open(result.url, "_blank", "noopener,noreferrer");
+      else setDonationError("O link desta ONG não está disponível agora.");
+    } catch (e) {
+      setDonationError(errorText(e));
+    } finally {
+      setOpening(false);
+    }
+  };
   const moderation = useLotModerating();
 
   if (info?.state === "published" && info.ngo_name) {
@@ -46,10 +87,60 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
           <section>
             <p>{info.ngo_summary}</p>
             <p className="note">Destinatário: esta ONG</p>
-            <button className="btn btn--primary" disabled>
-              Doar para esta ONG
-            </button>
-            <p className="note">Pagamento ainda não habilitado (PEN-006).</p>
+            {donations && ngoId ? (
+              donationInfo === undefined ? (
+                <p className="note">Carregando as doações desta ONG…</p>
+              ) : donationInfo === null ? (
+                <>
+                  <button className="btn btn--primary" disabled>
+                    Doar para esta ONG
+                  </button>
+                  <p className="note">Não foi possível carregar o recebimento desta ONG agora. Tente reabrir a casa.</p>
+                </>
+              ) : !donationInfo.enabled ? (
+                <>
+                  <button className="btn btn--primary" disabled>
+                    Doar para esta ONG
+                  </button>
+                  <p className="note">O recebimento de doações desta casa ainda não foi configurado pela administração.</p>
+                </>
+              ) : donationInfo.method === "external_link" ? (
+                <>
+                  <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
+                  <button className="btn btn--primary" disabled={opening} onClick={() => void openExternal()}>
+                    {opening ? "Abrindo…" : "Abrir página de pagamento da ONG"}
+                  </button>
+                  <p className="note">
+                    O pagamento ocorre no meio próprio da ONG. Redirecionamentos não geram crédito automático de doação nem de Título sem
+                    comprovação.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
+                  <PixDonation
+                    targetKind="ngo"
+                    ngoId={ngoId}
+                    recipientName={donationInfo.name}
+                    ngoPercentBps={donationInfo.ngoPercentBps}
+                    fixedFeeCents={donationInfo.fixedFeeCents}
+                    minAmountCents={donationInfo.minAmountCents}
+                  />
+                </>
+              )
+            ) : (
+              <>
+                <button className="btn btn--primary" disabled>
+                  Doar para esta ONG
+                </button>
+                <p className="note">Pagamento ainda não habilitado (PEN-006).</p>
+              </>
+            )}
+            {donationError && (
+              <p className="form__error" role="alert">
+                {donationError}
+              </p>
+            )}
           </section>
           <section>
             <button className="btn" onClick={() => open({ kind: "memory" })}>
@@ -95,5 +186,14 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
         </>
       )}
     </Panel>
+  );
+}
+
+/** Paid donations of a house, as the public donation route reports them: no donor data, no invented numbers. */
+function DonationStats({ donations, cents }: { donations: number; cents: number }) {
+  return (
+    <p className="note" data-donation-stats>
+      {donations === 0 ? "Nenhuma doação confirmada ainda." : `${donations} ${donations === 1 ? "doação confirmada" : "doações confirmadas"} · ${formatBrl(cents)}.`}
+    </p>
   );
 }

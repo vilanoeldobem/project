@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 
@@ -233,7 +233,7 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 Use a configuração separada `apps/api/wrangler.reconciliation-local.jsonc`, sem `account_id`, rotas ou IDs de
 produção. Ela usa D1/R2 sintéticos `ngo-media-review-local` com `remote:false`; nunca executar deploy com ela.
-A numeração atual termina em 0010 (`0010_account_blocks.sql`, IMPL-0021). A base anterior do simulador (em que
+A numeração atual termina em 0011 (`0011_donations_abacatepay.sql`, IMPL-0023). A base anterior do simulador (em que
 a atual 0007 se chamava 0010) deve permanecer intacta: esta receita
 cria um espaço local novo, sem renomear migrations já aplicadas naquela base.
 

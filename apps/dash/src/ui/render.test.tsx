@@ -624,3 +624,43 @@ describe("files of an application (IMPL-0017)", () => {
     expect(list).not.toMatch(/aaaaaaaa-0000|ngo\.file_/);
   });
 });
+
+describe("donations in the dashboard (IMPL-0023, PROPOSTA)", () => {
+  it("shows the management area only with the flag on and an admin account on screen", () => {
+    const on = html(<Pending donationsOn accountId={ADMIN.id} />);
+    expect(on).toContain("Doações e AbacatePay (PROPOSTA)");
+    expect(on).not.toContain("A Vila não processa nenhuma doação hoje");
+    // Accounts off: the same honest note as before, and no management form.
+    for (const page of [html(<Pending donationsOn={false} accountId={ADMIN.id} />), html(<Pending donationsOn accountId={ADMIN.id} locked />), html(<Pending donationsOn />)]) {
+      expect(page).toContain("A Vila não processa nenhuma doação hoje");
+      expect(page).not.toContain("data-action=\"global-donation\"");
+    }
+  });
+
+  it("explains the payment configuration inside the review, with the split preview of the R$ 2,00 minimum", () => {
+    const page = html(
+      <Review id={DETAIL.application.id} d={DETAIL} filesOn donationsOn accountId={ADMIN.id} onDetail={() => {}} />
+    );
+    expect(page).toContain('data-action="payment-config"');
+    expect(page).toContain("Recebimento de doações (PROPOSTA)");
+    expect(page).toContain("AbacatePay (subconta Pix pelo CNPJ)");
+    expect(page).toContain("Link próprio de pagamento (HTTPS)");
+    expect(page).toContain("Em uma doação de R$ 2,00: parcela da ONG R$ 1,10 · parcela da Vila R$ 0,90.");
+    expect(page).toContain("Salvar configuração de pagamento");
+    // Flag off: the review is exactly what it was before.
+    expect(review({})).not.toContain('data-action="payment-config"');
+    // A withdrawn NGO cannot configure how it receives donations.
+    expect(
+      html(
+        <Review
+          id={DETAIL.application.id}
+          d={{ ...DETAIL, application: { ...DETAIL.application, status: "withdrawn" } }}
+          filesOn
+          donationsOn
+          accountId={ADMIN.id}
+          onDetail={() => {}}
+        />
+      )
+    ).not.toContain('data-action="payment-config"');
+  });
+});

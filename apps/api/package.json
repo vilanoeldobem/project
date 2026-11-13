@@ -6,7 +6,7 @@
   "type": "module",
   "description": "Vila Noel do Bem — public HTTP API Worker (api.vilanoeldobem.com.br) with D1",
   "scripts": {
-    "dev": "wrangler dev --port 8787 --inspector-port 9230 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799,http://localhost:5175,http://localhost:8797 --var ACCOUNT_ORIGINS:http://localhost:5173,http://localhost:8799,http://localhost:5175,http://localhost:8797 --var GAME_ORIGIN:http://localhost:8799 --var DASH_ORIGIN:http://localhost:8797 --var ACCOUNTS_ENABLED:true --var QUESTS_V1_ENABLED:true --var NGO_FILES_ENABLED:true --var ACCOUNT_BLOCK_ENABLED:true --var PRESENCE_MODERATION_ENABLED:true --var ENVIRONMENT:development",
+    "dev": "wrangler dev --port 8787 --inspector-port 9230 --var ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8799,http://localhost:5175,http://localhost:8797 --var ACCOUNT_ORIGINS:http://localhost:5173,http://localhost:8799,http://localhost:5175,http://localhost:8797 --var GAME_ORIGIN:http://localhost:8799 --var DASH_ORIGIN:http://localhost:8797 --var ACCOUNTS_ENABLED:true --var QUESTS_V1_ENABLED:true --var NGO_FILES_ENABLED:true --var ACCOUNT_BLOCK_ENABLED:true --var PRESENCE_MODERATION_ENABLED:true --var DONATIONS_ENABLED:true --var ENVIRONMENT:development",
     "build": "tsc --noEmit -p . && wrangler deploy --dry-run --outdir dist",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",

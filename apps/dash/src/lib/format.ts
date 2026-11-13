@@ -21,6 +21,9 @@ export const ACTION_LABEL: Record<string, string> = {
   "user.unblock": "Bloqueio de conta desfeito",
   // The API records that a removal was authorised (the ticket was accepted), not that a connection was closed.
   "presence.remove": "Remoção de visitante autorizada",
+  "donation.settings_update": "Configuração da doação global atualizada",
+  "ngo.payment_config": "Recebimento de doações configurado",
+  "donation.external_proof": "Doação externa comprovada registrada",
 };
 
 const FILE_KIND_LABEL = new Map([
@@ -70,6 +73,7 @@ export const FLAG_LABEL: Record<string, string> = {
   "moderation.presence": "Remoção de visitante de uma sala do jogo (PROPOSTA)",
   "moderation.block": "Bloqueio de conta (PROPOSTA)",
   residentialPlots: "Posse de terrenos residenciais (PROPOSTA)",
+  donations: "Doações e conciliação com a AbacatePay (PROPOSTA)",
 };
 
 /**
