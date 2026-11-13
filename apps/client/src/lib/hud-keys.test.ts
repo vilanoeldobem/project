@@ -1,7 +1,8 @@
 /**
  * Keys on the HUD (no panel open): E and Enter open what is near, whatever HUD button has the focus, except
- * Enter on a moderation control. The DOM is a few fake elements with the one method the rule uses (`closest`),
- * checked against the markup the real components render.
+ * Enter on a moderation control; + = and - zoom; Escape is the menu key, with its order of precedence
+ * (IMPL-0022). The DOM is a few fake elements with the one method the rule uses (`closest`), checked against
+ * the markup the real components render.
  */
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -10,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { Me } from "@vila/shared/accounts/contract";
 
 import { ModerationBarView, ModerationChipView } from "../ui/Moderation";
-import { hudKeyAction, type KeyTarget, onModerationControl } from "./hud-keys";
+import { boundAction, escapeAction, type EscapeLayers, hudKeyAction, isTextField, KEY_BINDINGS, type KeyTarget, onModerationControl } from "./hud-keys";
 
 interface FakeElement extends KeyTarget {
   tag: string;
@@ -42,7 +43,7 @@ const hud = element("div");
 const nav = element("nav", [], hud);
 const explore = element("button", ["aria-label"], nav); // "Explorar ONGs"
 const exploreLabel = element("span", [], explore);
-const zoomOut = element("button", ["aria-label"], element("div", ["role"], hud)); // "Afastar"
+const menuButton = element("button", ["aria-label", "data-menu"], element("div", ["role"], nav)); // "Menu"
 const moderationSwitch = element("button", ["aria-pressed", "data-moderation"], nav);
 const bar = element("section", ["data-moderation", "tabindex"], hud);
 const confirmStep = element("div", ["data-confirm", "tabindex"], bar);
@@ -57,8 +58,8 @@ describe("keys on the HUD", () => {
     expect(hudKeyAction("Enter", exploreLabel, true)).toBe("activate");
   });
 
-  it("opens what is near with Enter after a mouse click on a zoom button left the focus there", () => {
-    expect(hudKeyAction("Enter", zoomOut, true)).toBe("activate");
+  it("opens what is near with Enter after closing the menu left the focus on its button", () => {
+    expect(hudKeyAction("Enter", menuButton, true)).toBe("activate");
   });
 
   it("leaves Enter to a moderation control: the switch and every button of the moderation block", () => {
@@ -69,7 +70,7 @@ describe("keys on the HUD", () => {
   });
 
   it("treats nothing else as a moderation control: the scene, another HUD button, the focused block itself", () => {
-    for (const other of [null, canvas, explore, zoomOut, bar, confirmStep]) expect(onModerationControl(other)).toBe(false);
+    for (const other of [null, canvas, explore, menuButton, bar, confirmStep]) expect(onModerationControl(other)).toBe(false);
     // The block and its question take the focus without being buttons: Enter there is the game's, as on the scene.
     expect(hudKeyAction("Enter", bar, true)).toBe("activate");
     expect(hudKeyAction("Enter", canvas, true)).toBe("activate");
@@ -86,6 +87,20 @@ describe("keys on the HUD", () => {
     for (const nearby of [true, false]) {
       expect([hudKeyAction("+", null, nearby), hudKeyAction("=", explore, nearby), hudKeyAction("-", moderationSwitch, nearby)]).toEqual(["zoom-in", "zoom-in", "zoom-out"]);
     }
+  });
+
+  it("follows the key map: every listed key does what the map says, and nothing else is bound", () => {
+    expect(KEY_BINDINGS.map((b) => b.action)).toEqual(["activate", "zoom-in", "zoom-out", "menu"]);
+    for (const binding of KEY_BINDINGS) {
+      expect(binding.caps.length > 0 && binding.does.length > 0).toBe(true);
+      for (const key of binding.keys) {
+        expect(boundAction(key)).toBe(binding.action);
+        expect(hudKeyAction(key, canvas, true)).toBe(binding.action);
+      }
+    }
+    for (const key of ["a", "w", "ArrowUp", " ", "Tab", "m", "M"]) expect(boundAction(key)).toBeNull();
+    // Escape is the menu key whether or not something is near; what it closes first is `escapeAction`.
+    expect(hudKeyAction("Escape", null, false)).toBe("menu");
   });
 
   it("matches the markup: the switch is a marked button, the block is marked and its controls are buttons inside it", () => {
@@ -118,5 +133,45 @@ describe("keys on the HUD", () => {
     // Every control of the block is a button (no link, no field): the rule covers them all.
     expect(block.match(/<button/g)).toHaveLength(3);
     expect(block).not.toMatch(/<a |<input|<select|<textarea/);
+  });
+});
+
+describe("Escape: one press, one layer", () => {
+  const NOTHING: EscapeLayers = { confirmation: false, panel: false, menu: null, typing: false };
+
+  it("cancels an open confirmation before anything else", () => {
+    expect(escapeAction({ ...NOTHING, confirmation: true })).toBe("cancel-confirmation");
+    expect(escapeAction({ ...NOTHING, confirmation: true, panel: true })).toBe("cancel-confirmation");
+    expect(escapeAction({ ...NOTHING, confirmation: true, menu: "leave" })).toBe("cancel-confirmation");
+    expect(escapeAction({ ...NOTHING, confirmation: true, panel: true, typing: true })).toBe("cancel-confirmation");
+  });
+
+  it("closes an open panel before touching the menu, also from a text field of the panel", () => {
+    expect(escapeAction({ ...NOTHING, panel: true })).toBe("close-panel");
+    expect(escapeAction({ ...NOTHING, panel: true, typing: true })).toBe("close-panel");
+  });
+
+  it("toggles the menu when nothing else is open; from one of its views it goes back to the list first", () => {
+    expect(escapeAction(NOTHING)).toBe("open-menu");
+    expect(escapeAction({ ...NOTHING, menu: "root" })).toBe("close-menu");
+    for (const view of ["settings", "controls", "help", "leave"]) expect(escapeAction({ ...NOTHING, menu: view })).toBe("menu-back");
+  });
+
+  it("never opens the menu while the person types in a text field", () => {
+    expect(escapeAction({ ...NOTHING, typing: true })).toBeNull();
+  });
+
+  it("counts a key held down once, and leaves Escape to an input method that is composing", () => {
+    for (const layers of [NOTHING, { ...NOTHING, panel: true }, { ...NOTHING, menu: "root" }, { ...NOTHING, confirmation: true }]) {
+      expect(escapeAction({ ...layers, repeat: true })).toBeNull();
+      expect(escapeAction({ ...layers, composing: true })).toBeNull();
+    }
+  });
+
+  it("knows a text field from a control that takes no text", () => {
+    for (const field of [{ tagName: "INPUT" }, { tagName: "INPUT", type: "email" }, { tagName: "input", type: "search" }, { tagName: "TEXTAREA" }, { tagName: "SELECT" }, { tagName: "DIV", isContentEditable: true }])
+      expect(isTextField(field)).toBe(true);
+    for (const other of [null, { tagName: "BUTTON" }, { tagName: "CANVAS" }, { tagName: "BODY" }, { tagName: "INPUT", type: "checkbox" }, { tagName: "INPUT", type: "radio" }, { tagName: "INPUT", type: "file" }, { tagName: "DIV", isContentEditable: false }])
+      expect(isTextField(other)).toBe(false);
   });
 });
