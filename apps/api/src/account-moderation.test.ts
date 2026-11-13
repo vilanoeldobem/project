@@ -362,6 +362,20 @@ describe("account block (PROPOSTA, IMPL-0021)", () => {
     expect(db.sql("SELECT COUNT(*) AS n FROM sessions WHERE user_id = 'ana'")[0].n).toBe(1);
   });
 
+  it("refuses a message made of characters nobody can see, and stores the message without them", async () => {
+    for (const message of ["\u200b".repeat(10), "\u202e".repeat(10), `\u2060\ufeff\u00ad\u200d curta \u200c\u061c\u2066\u2069`, "\u0007".repeat(12)]) {
+      const refused = await block("ana", "admin", message);
+      expect([JSON.stringify(message), refused.status, refused.body.error, refused.body.fields]).toEqual([JSON.stringify(message), 400, "message_required", { message: expect.stringMatching(/mensagem para a pessoa/) }]);
+    }
+    expect(user("ana").blocked).toBe(0);
+    expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
+    expect(audit()).toEqual([]);
+    // A direction override would show the reason backwards: the person reads the text without it.
+    expect((await block("ana", "admin", `\u202e${MESSAGE}\u200b`)).status).toBe(200);
+    expect(db.sql("SELECT message FROM account_blocks")).toEqual([{ message: MESSAGE }]);
+    expect((await signIn("ana@example.test")).body.user.blocked.message).toBe(MESSAGE);
+  });
+
   it.each([10, 1000])("accepts a message of %i Unicode characters, consistently with the database constraint", async (count) => {
     const message = "🎄".repeat(count);
     expect((await block("ana", "admin", message)).status).toBe(200);
