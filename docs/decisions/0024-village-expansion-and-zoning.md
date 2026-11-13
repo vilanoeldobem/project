@@ -36,10 +36,10 @@ registrou o que vale para esta e para as próximas fases:
 - **Economia: desbloqueio jogando.** Nada é comprado com dinheiro e não existe moeda no jogo (DEC-042, IMPL-0002).
   O "preço" de uma faixa é um **requisito** configurável (por exemplo um nível mínimo), nunca um valor.
 - **Comércio:** lojas de Natal como construções de verdade na área central, cada uma com ponto de interação e lugar
-  para um lojista. Nesta fase o painel só diz o que a loja vai oferecer e que ainda não abriu.
+  para um lojista. Nesta fase o painel só diz o nome, o tema e que a loja ainda não abriu.
 - **Placas:** molduras de sinalização nas lojas, cada uma com id próprio. Nesta fase mostram só avisos da própria
-  Vila; alugá-las é proposta posterior e desligada (patrocínio é PEN-008; publicidade que alcança crianças pede
-  cuidado extra).
+  Vila; qualquer outro uso é proposta posterior, não decidida e sem código (patrocínio é PEN-008; publicidade que
+  alcança crianças pede cuidado extra).
 - **Sem veículos:** tudo a pé.
 - **Fora desta fase** (não construir nem deixar esboço): NPCs e animais que andam, diálogo por IA, chat, voz,
   inventário, API de posse de terreno, lareiras e a quest da lenha, catálogos de loja. O mundo fica pronto para
@@ -117,6 +117,12 @@ Cada terreno (de ONG ou residencial) tem id único, zona ou faixa, posição, or
 
 ### 2. Faixas reconhecíveis pelo ambiente, não por selo
 
+`premium`, `standard` e `economy` são **ids internos** (código, ids de terreno, coluna `tier`): lidos como classes de
+preço, nunca aparecem na tela. Para quem joga, cada faixa é um bairro (`TierPlan.label`, PROPOSTA): **Bairro do
+Centro**, **Bairro do Meio** e **Bairro da Floresta**. Painéis mostram um rótulo amigável (`plotLabel`: "Terreno
+12 · Bairro da Floresta") em vez do id; o id fica em atributos `data-` para testes e scripts. A tabela abaixo usa os
+ids internos.
+
 | | Premium | Padrão | Econômico |
 |---|---|---|---|
 | Rua | pedra (como a praça) | neve batida | neve pisada |
@@ -154,8 +160,20 @@ prova isso e a frase foi retirada. Os pinheiros altos ficam só no cinturão atr
 
 Cada faixa tem um `requirement` em `VILLAGE_PLAN.tiers` (PROPOSTA, [OQ-17](open-questions.md)): hoje um nível mínimo
 (premium 5, padrão 3, econômico 2). Os níveis vêm só de missões e quests (DEC-042); o nível 3 em diante depende das
-quests, que estão desligadas em produção. Não há valor em reais, moeda, coluna de preço nem botão de compra em
+quests, que estão desligadas em produção (`attainableLevel` em `shared/game/progress.ts`: nível 2 só com as quatro
+missões, nível 6 com o catálogo de quests). Não há valor em reais, moeda, coluna de preço nem botão de compra em
 nenhum lugar: o teste da migração e o dos painéis conferem isso.
+
+**O que o painel do terreno diz** (`ui/Village.tsx`, conferido em `ui/Village.test.tsx`):
+
+- com `/config.residentialPlots` falso (produção, homologação e o padrão local): o terreno e o bairro e uma frase
+  neutra, "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi
+  decidida.", mais a nota de que a casa é cenário. **Nada que apresente a proposta como algo que vem aí:** sem "em
+  breve", sem "será liberado", sem linha de requisito e sem "você está no nível N". A primeira versão mostrava
+  tudo isso com a bandeira desligada, pedindo níveis (3 e 5) que ninguém alcança em produção;
+- com a bandeira ligada: aparecem o requisito em estudo e a situação, e o painel diz "Com as missões abertas hoje
+  ainda não dá para chegar a esse nível." quando o nível pedido está acima do alcançável naquela configuração, e
+  "Ainda não é possível pedir um terreno." (não existe rota de posse).
 
 ### 5. Dados e API
 
@@ -182,13 +200,15 @@ nenhum lugar: o teste da migração e o dos painéis conferem isso.
 
 Quatro lojas na fachada da praça, uma a cada dois lados: construção gerada por semente (sem texto nem marca no
 modelo), ponto de interação na porta e um ponto nomeado para o lojista (`ShopDef.keeper`, nada desenhado ainda). O
-painel diz o nome, o que a loja vai oferecer e que ainda não abriu. Nomes e ofertas são da própria Vila e são
-PROPOSTA (`SHOP_COPY`).
+painel diz o nome, o tema ("Tema: enfeites de Natal.") e "Esta loja ainda não abriu. Se e como ela vai funcionar
+ainda não foi decidido. Nada é vendido na Vila.": nada que prometa venda, catálogo ou data. Nomes e temas são da
+própria Vila e são PROPOSTA (`SHOP_COPY`).
 
 Cada loja tem uma moldura de placa no telhado, sempre virada para a câmera. O texto vem de `VILLAGE_NOTICES`:
 avisos fixos da Vila, em pt-BR, escritos no repositório. Nenhum conteúdo de terceiros, nenhuma marca. Inspecionar a
-placa mostra o aviso em texto, o id e que o espaço ainda não está disponível para aluguel
-([OQ-18](open-questions.md)).
+placa mostra o aviso em texto, onde ela fica e uma frase só: "As placas mostram avisos da própria Vila." Nenhuma
+palavra sobre aluguel, nem para negar: se as placas podem um dia mostrar outra coisa é pergunta aberta
+([OQ-18](open-questions.md)), e dizer "ainda não" seria anunciar.
 
 ### 7. Interação
 
@@ -380,8 +400,9 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
     decorativo saiu de onde passa uma avenida;
   - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6
     mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
-  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha e o painel
-    diz que ainda não recebem candidaturas.
+  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha como
+    "Terreno em preparação" (rótulo 3D, título do painel e lista "Explorar ONGs"), sem convite para candidatura, e
+    a visita a eles não conta para a missão de visitar um terreno.
 - **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições, e os ids são posicionais (§1): a
   migração 0012, depois de aplicada em produção, não se edita, e um plano novo é uma migração nova que move ou
   renomeia as linhas de `lots` e `residential_plots` e tudo o que guarda um id de terreno. Mudar um número da

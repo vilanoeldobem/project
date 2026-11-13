@@ -86,13 +86,19 @@ export const PLACE_INTERACT_DISTANCE = 3.2;
 // renames those rows; `village.test.ts` pins the ids to their places and says so when it fails.
 // ---------------------------------------------------------------------------------------------------------
 
-/** Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-17). */
+/**
+ * Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-17). These
+ * three words are internal ids (code, ids of plots, the `tier` column): the UI never shows them, because they
+ * read as price classes and nothing here has a price. On screen a tier is a neighbourhood (`TierPlan.label`).
+ */
 export type PlotTier = "premium" | "standard" | "economy";
 export const PLOT_TIERS: readonly PlotTier[] = ["premium", "standard", "economy"];
 
 /**
  * What holding a plot of a tier would ask of a player (PROPOSTA, OQ-17): unlocked by playing, never bought.
- * There is no price, currency or purchase anywhere in the village (DEC-042, IMPL-0002).
+ * There is no price, currency or purchase anywhere in the village (DEC-042, IMPL-0002). Whether players may
+ * hold a plot at all is undecided, so the UI shows a requirement only while the flag is on (it is off), and
+ * says so when no open mission reaches the level asked (`attainableLevel`, `progress.ts`).
  */
 export type TierRequirement = { kind: "level"; level: number };
 
@@ -110,7 +116,7 @@ export interface HousePlan {
 }
 
 export interface TierPlan {
-  /** pt-BR name shown on the plot panel. */
+  /** pt-BR name of the tier's neighbourhood, as the UI shows it: a place, with no word that reads as a price class. */
   label: string;
   requirement: TierRequirement;
   /** Plots on each half of a side (two half rows per side, one on each side of the lane). 0 = no ring, no street. */
@@ -162,7 +168,7 @@ export const VILLAGE_PLAN: VillagePlan = {
   edge: 2.5,
   tiers: {
     premium: {
-      label: "Premium",
+      label: "Bairro do Centro",
       requirement: { kind: "level", level: 5 },
       perHalf: 1,
       width: 12,
@@ -170,7 +176,7 @@ export const VILLAGE_PLAN: VillagePlan = {
       house: { halfWidth: 3, halfDepth: 3, porch: 1, eaves: true, offset: -1 },
     },
     standard: {
-      label: "Padrão",
+      label: "Bairro do Meio",
       requirement: { kind: "level", level: 3 },
       perHalf: 2,
       width: 9.5,
@@ -178,7 +184,7 @@ export const VILLAGE_PLAN: VillagePlan = {
       house: { halfWidth: 3, halfDepth: 2, porch: 0.5, eaves: true, offset: -1 },
     },
     economy: {
-      label: "Econômico",
+      label: "Bairro da Floresta",
       requirement: { kind: "level", level: 2 },
       perHalf: 4,
       width: 6,
@@ -525,6 +531,8 @@ export const BILLBOARDS: BillboardDef[] = VILLAGE.billboards;
 /** Residential plots (PROPOSTA). Mirrors the `residential_plots` rows (migration 0012); a test keeps them in sync. */
 export const RESIDENTIAL_PLOTS: ResidentialPlot[] = VILLAGE.plots;
 export const RESIDENTIAL_ROWS: RowDef[] = VILLAGE.rows;
+/** A plot as the UI names it (pt-BR): its number in its neighbourhood, never the raw id. "Terreno 12 · Bairro da Floresta". */
+export const plotLabel = (plot: ResidentialPlot): string => `Terreno ${plot.slot} · ${VILLAGE_PLAN.tiers[plot.tier].label}`;
 export const PATH_GRAPH: PathGraph = VILLAGE.graph;
 
 /**
@@ -537,21 +545,23 @@ export const LOT_FRONT = 5.3;
 export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + LOT_FRONT * Math.sin(lot.facing)), z: round2(lot.z + LOT_FRONT * Math.cos(lot.facing)) });
 
 /**
- * What each shop will offer (PROPOSTA, no catalogue yet): shown on the shop's panel next to "ainda não abriu".
- * Nothing is sold for money: whatever a shop hands out will be unlocked by playing (DEC-042, IMPL-0002).
- * Names are the village's own; no real shop, brand or partner.
+ * Name and theme of each shop (PROPOSTA): shown on the shop's panel next to "ainda não abriu". A theme says
+ * what the building looks like it is about, not what a visitor will get: whether and how a shop works is not
+ * decided, there is no catalogue, and nothing is sold (DEC-042, IMPL-0002). Names are the village's own; no
+ * real shop, brand or partner.
  */
-export const SHOP_COPY: ReadonlyArray<{ name: string; offer: string }> = [
-  { name: "Ateliê de Enfeites", offer: "enfeites de Natal para decorar a casa e a árvore" },
-  { name: "Oficina de Brinquedos", offer: "brinquedos e lembranças feitos na Vila" },
-  { name: "Alfaiataria de Inverno", offer: "gorros, cachecóis e suéteres para o seu visual" },
-  { name: "Empório da Lareira", offer: "lenha, lanternas e o que mais aquece uma casa" },
+export const SHOP_COPY: ReadonlyArray<{ name: string; theme: string }> = [
+  { name: "Ateliê de Enfeites", theme: "enfeites de Natal" },
+  { name: "Oficina de Brinquedos", theme: "brinquedos e lembranças" },
+  { name: "Alfaiataria de Inverno", theme: "gorros, cachecóis e suéteres" },
+  { name: "Empório da Lareira", theme: "lenha e lanternas" },
 ];
 export const shopCopy = (shopId: string) => SHOP_COPY[SHOPS.findIndex((s) => s.id === shopId) % SHOP_COPY.length] ?? SHOP_COPY[0];
 
 /**
  * Seasonal notices of the village shown on the billboards (PROPOSTA): fixed text from this repository, no
- * third-party content and no brand. Renting a frame is a later, undecided proposal (PEN-008, OQ-18).
+ * third-party content and no brand. Whether a frame may ever show anything else is undecided (PEN-008, OQ-18),
+ * and the UI does not mention it.
  */
 export const VILLAGE_NOTICES: readonly string[] = [
   "Boas festas! A Vila deseja um Natal de paz.",

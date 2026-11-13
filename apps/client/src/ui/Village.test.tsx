@@ -1,44 +1,98 @@
 /**
  * What a visitor reads on the panels of the expanded village (IMPL-0024, PROPOSTA; server-side render, no
- * browser): every panel says what is there and that it is not open, and none offers anything to buy, to claim
- * or to rent. They are ordinary panels (veil, Escape, the walk held). The action that opens them is the HUD's
- * one contextual action (`Hud.test.tsx`).
+ * browser): each panel says what is there in neutral words. None presents an undecided proposal as something
+ * that is coming, and none offers anything to buy, to claim or to rent. They are ordinary panels (veil, Escape,
+ * the walk held). The action that opens them is the HUD's one contextual action (`Hud.test.tsx`).
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { attainableLevel } from "@vila/shared/game/progress";
+import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, plotLabel, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
 
 import { sim, walkRoute } from "../game/sim";
 import { useVila } from "../game/store";
 import { pressEscape } from "../lib/escape";
 import { useAccount } from "../lib/account";
 import type { LotInfo } from "../lib/api";
+import { isUnlisted, lotLabel, UNLISTED_LABEL } from "../lib/lots";
 import { Donation } from "./Donation";
 import { Explore } from "./Explore";
 import { Lot } from "./Lot";
-import { BillboardPanel, PlotPanel, ShopPanel } from "./Village";
+import { BillboardPanel, PlotPanel, PlotPanelView, ShopPanel } from "./Village";
 
 /** Words that would turn a placeholder into a sale: none may appear on these panels. */
-const MONEY = /R\$|\bcomprar?\b|\bcompre\b|\bpreço\b|\bmoedas?\b|\bpagar\b|\bpagamento\b|\balugue\b|\bcarrinho\b/i;
+const MONEY = /R\$|\bcomprar?\b|\bcompre\b|\bpreço\b|\bmoedas?\b|\bpagar\b|\bpagamento\b|\balug\w+\b|\bcarrinho\b/i;
+/** Words that would present an undecided proposal as something that is coming. */
+const PROMISE = /em breve|será liberad|vai ser liberad|quando abrir|você vai|logo mais|aguarde/i;
+/** Internal ids and tier names: the panels show friendly pt-BR labels instead. */
+const RAW = /premium|standard|economy|padrão|econômic|shop-\d|billboard-\d|<code>/i;
 /** Every button of a rendered panel except the one that closes it. */
 const buttons = (html: string) => (html.match(/<button[^>]*>/g) ?? []).filter((b) => !b.includes('aria-label="Fechar"'));
+/** What a visitor reads: the markup without tags and attributes (ids for tests live in `data-` attributes). */
+const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
 afterEach(() => useVila.setState({ panel: { kind: "none" }, menu: null, nearby: null }));
 
 describe("residential plot panel", () => {
-  it.each(PLOT_TIERS)("says the id, the tier, what the tier requires and that ownership is not open (%s)", (tier) => {
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier)!;
+  const NEUTRAL = "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi decidida.";
+
+  it.each(PLOT_TIERS)("says the plot, its neighbourhood and one neutral statement while ownership is off (%s)", (tier) => {
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier && p.slot === 12)!;
     const html = renderToStaticMarkup(<PlotPanel plotId={plot.id} />);
-    expect(html).toContain("A posse de terrenos ainda não está aberta.");
-    expect(html).toContain(`<code>${plot.id}</code>`);
-    expect(html).toContain(VILLAGE_PLAN.tiers[tier].label);
-    expect(html).toContain(`Chegar ao nível ${VILLAGE_PLAN.tiers[tier].requirement.level} jogando`);
-    expect(html).toContain("proposta em estudo");
-    expect(html).toContain("A casa neste terreno é cenário");
-    expect(MONEY.test(html)).toBe(false);
-    expect(buttons(html)).toEqual([]);
+    const read = text(html);
+    expect(read).toContain(NEUTRAL);
+    expect(read).toContain(`Terreno 12 · ${VILLAGE_PLAN.tiers[tier].label}`);
     expect(html).toContain('role="dialog"');
+    // The id is there for tests and tools, not for the visitor.
+    expect(html).toContain(`data-plot-id="${plot.id}"`);
+    expect(RAW.test(read)).toBe(false);
+    // Nothing that is not decided: no "soon", no requirement, no level.
+    expect(PROMISE.test(read)).toBe(false);
+    expect(/requisito|nível|missões|situação/i.test(read)).toBe(false);
+    expect(MONEY.test(read)).toBe(false);
+    expect(buttons(html)).toEqual([]);
+  });
+
+  it("names the three neighbourhoods apart, with words that carry no price", () => {
+    const names = PLOT_TIERS.map((tier) => VILLAGE_PLAN.tiers[tier].label);
+    expect(new Set(names).size).toBe(3);
+    for (const name of names) {
+      expect(name).toMatch(/^Bairro d[aeo] /);
+      expect(/premium|padrão|econ|luxo|nobre|popular|básic|vip|ouro|prata|bronze/i.test(name)).toBe(false);
+    }
+    expect(plotLabel(RESIDENTIAL_PLOTS[0])).toBe(`Terreno 1 · ${names[0]}`);
+  });
+
+  it("is the same neutral panel when the API cannot be read or answers every plot unavailable", () => {
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-07")!;
+    const off = renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="unavailable" level={1} quests={false} />);
+    expect(off).toBe(renderToStaticMarkup(<PlotPanel plotId="economy-07" />));
+    // A state alone opens nothing: the requirement and the state appear only with the flag on.
+    expect(renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="available" level={4} quests />)).toBe(off);
+  });
+
+  it.each(PLOT_TIERS)("shows the requirement only with the flag on, and says when no open mission reaches it (%s)", (tier) => {
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier)!;
+    const level = VILLAGE_PLAN.tiers[tier].requirement.level;
+    for (const quests of [false, true]) {
+      const read = text(renderToStaticMarkup(<PlotPanelView plot={plot} enabled state="available" level={1} quests={quests} />));
+      expect(read).toContain(`Chegar ao nível ${level} jogando.`);
+      expect(read).toContain("proposta em estudo");
+      const reachable = level <= attainableLevel(quests);
+      expect(read.includes("Com as missões abertas hoje ainda não dá para chegar a esse nível."), `${tier}, quests ${quests}`).toBe(!reachable);
+      // Still nothing to claim, nothing promised and nothing sold.
+      expect(read).toContain("Ainda não é possível pedir um terreno.");
+      expect(PROMISE.test(read)).toBe(false);
+      expect(MONEY.test(read)).toBe(false);
+      expect(RAW.test(read)).toBe(false);
+    }
+  });
+
+  it("asks of every tier a level the missions can reach: with the quests on, all three; with them off, the outer one", () => {
+    const levels = PLOT_TIERS.map((tier) => VILLAGE_PLAN.tiers[tier].requirement.level);
+    for (const level of levels) expect(level).toBeLessThanOrEqual(attainableLevel(true));
+    expect(levels.map((level) => level <= attainableLevel(false))).toEqual([false, false, true]);
   });
 
   it("draws nothing for an id that is not a plot", () => {
@@ -47,31 +101,40 @@ describe("residential plot panel", () => {
 });
 
 describe("shop panel", () => {
-  it.each(SHOPS.map((s) => s.id))("says what %s will offer and that it has not opened", (id) => {
+  it.each(SHOPS.map((s) => s.id))("says the name and the theme of %s and that it has not opened, with no promise of sales", (id) => {
     const html = renderToStaticMarkup(<ShopPanel shopId={id} />);
+    const read = text(html);
     const copy = SHOP_COPY[SHOPS.findIndex((s) => s.id === id)];
-    expect(html).toContain(copy.name);
-    expect(html).toContain(copy.offer);
-    expect(html).toContain("Esta loja ainda não abriu.");
-    expect(html).toContain("Nada será vendido por dinheiro");
-    expect(html).toContain(`<code>${id}</code>`);
-    expect(MONEY.test(html.replace("Nada será vendido por dinheiro", ""))).toBe(false);
+    expect(read).toContain(copy.name);
+    expect(read).toContain(`Tema: ${copy.theme}.`);
+    expect(read).toContain("Esta loja ainda não abriu.");
+    expect(read).toContain("Se e como ela vai funcionar ainda não foi decidido.");
+    expect(read).toContain("Nada é vendido na Vila.");
+    expect(html).toContain(`data-shop-id="${id}"`);
+    expect(RAW.test(read)).toBe(false);
+    expect(PROMISE.test(read)).toBe(false);
+    expect(MONEY.test(read)).toBe(false);
     expect(buttons(html)).toEqual([]);
   });
 
-  it("gives every shop its own name and offer, none of them a brand", () => {
+  it("gives every shop its own name and theme, none of them a brand or a promise", () => {
     expect(new Set(SHOPS.map((s) => SHOP_COPY[SHOPS.indexOf(s)].name)).size).toBe(SHOPS.length);
+    for (const copy of SHOP_COPY) expect(/para (o seu|a sua|você|decorar)|seu visual|sua casa/i.test(copy.theme)).toBe(false);
     expect(renderToStaticMarkup(<ShopPanel shopId="shop-99" />)).toBe("");
   });
 });
 
 describe("billboard panel", () => {
-  it.each(BILLBOARDS.map((b) => b.id))("shows the notice of %s as text, its id, and that the space is not for rent", (id) => {
+  it.each(BILLBOARDS.map((b) => b.id))("shows the notice of %s as text and says the signs carry the village's own notices, nothing else", (id) => {
     const html = renderToStaticMarkup(<BillboardPanel billboardId={id} />);
-    expect(html).toContain(billboardNotice(id));
-    expect(html).toContain(`<code>${id}</code>`);
-    expect(html).toContain("ainda não está disponível para aluguel");
-    expect(html).toContain("avisos da própria Vila");
+    const read = text(html);
+    expect(read).toContain(billboardNotice(id));
+    expect(read).toContain("As placas mostram avisos da própria Vila.");
+    expect(html).toContain(`data-billboard-id="${id}"`);
+    // No renting, and no "not yet" that would announce it.
+    expect(/ainda não|por enquanto|disponível/i.test(read)).toBe(false);
+    expect(MONEY.test(read)).toBe(false);
+    expect(RAW.test(read)).toBe(false);
     expect(buttons(html)).toEqual([]);
   });
 
@@ -114,11 +177,27 @@ describe("the three panels behave like every other panel", () => {
 });
 
 describe("lot the API does not list yet", () => {
-  it("offers no application on a lot older databases do not have (before migration 0012)", () => {
+  const eight = Object.fromEntries(LOTS.slice(0, 8).map((l) => [l.id, { id: l.id, state: "available", ngo_name: null, ngo_summary: null } as LotInfo]));
+
+  it("says it is being prepared, with no invitation to apply, on a lot older databases do not have (before migration 0012)", () => {
     const html = renderToStaticMarkup(<Lot lotId="plaza-12" unlisted />);
-    expect(html).toContain("Este terreno ainda não recebe candidaturas.");
-    expect(html).not.toContain("Candidatar minha ONG");
-    expect(html).not.toContain("Conheça o cadastro");
+    const read = text(html);
+    expect(html).toContain(`aria-label="${UNLISTED_LABEL}"`);
+    expect(read).toContain("Terreno 12");
+    expect(read).toContain("Este terreno ainda não recebe candidaturas.");
+    for (const invitation of ["Sua ONG pode estar aqui", "Terreno disponível para", "Critérios para participar", "Candidatar minha ONG", "Conheça o cadastro", "abre em breve"]) expect(read, invitation).not.toContain(invitation);
+    expect(buttons(html)).toEqual([]);
+    // A lot the API lists keeps the invitation.
+    expect(text(renderToStaticMarkup(<Lot lotId="plaza-01" info={eight["plaza-01"]} />))).toContain("Sua ONG pode estar aqui");
+  });
+
+  it("labels it the same way in 3D: never as available", () => {
+    expect(UNLISTED_LABEL).toBe("Terreno em preparação");
+    expect(LOTS.map((l) => lotLabel(eight, l.id))).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill(UNLISTED_LABEL)]);
+    expect(lotLabel({ ...eight, "plaza-03": { ...eight["plaza-03"], state: "published", ngo_name: "Associação Exemplo" } }, "plaza-03")).toBe("Associação Exemplo");
+    // Before the API answers (or when it cannot be read) nothing is known to be unlisted.
+    expect(isUnlisted({}, "plaza-12")).toBe(false);
+    expect(lotLabel({}, "plaza-12")).toBe("Terreno disponível");
   });
 });
 
@@ -174,6 +253,6 @@ describe("Explorar ONGs with the 12 lots of the frontage", () => {
 
   it("does not call a lot available when the API does not list it (a database before migration 0012)", () => {
     const eight = Object.fromEntries(LOTS.slice(0, 8).map((l) => [l.id, info(l.id, "available")]));
-    expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill("Ainda não recebe candidaturas")]);
+    expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill(UNLISTED_LABEL)]);
   });
 });

@@ -19,13 +19,21 @@ Cada versão indica o schema D1 que entrega.
   não dá para desenhar. Os ids de terreno são posicionais: depois da migration 0012 aplicada, mudar o plano exige
   uma migration nova.
 - **Terrenos residenciais visíveis, posse desligada.** Chegar perto de um terreno e usar a ação (E, Enter ou toque)
-  mostra o id, a faixa, o que a faixa exige e "A posse de terrenos ainda não está aberta.". O que a faixa exige é
-  um requisito (um nível, alcançado jogando), nunca um preço: não há moeda, valor nem botão de compra. Nenhuma
-  decisão de produto permite que um jogador tenha um terreno (DEC-028): fica como pergunta aberta (OQ-17), atrás de
-  `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação.
-- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o que ela vai oferecer e
-  que ainda não abriu. Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
-  aviso em texto, o id e que o espaço não está disponível para aluguel (OQ-18).
+  mostra o terreno e o bairro ("Terreno 12 · Bairro da Floresta") e uma frase neutra: "Os terrenos residenciais não
+  têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi decidida." Sem "em breve", sem requisito
+  e sem nível: nenhuma decisão de produto permite que um jogador tenha um terreno (DEC-028), e isso fica como
+  pergunta aberta (OQ-17), atrás de `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação. As faixas
+  aparecem na tela como bairros ("Bairro do Centro", "Bairro do Meio", "Bairro da Floresta"), nomes sem sentido de
+  preço; `premium`, `standard` e `economy` são ids internos. O requisito de uma faixa (um nível alcançado jogando,
+  nunca um preço: não há moeda, valor nem botão de compra) só aparece com a bandeira ligada, e o painel diz quando
+  as missões abertas não chegam a esse nível.
+- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o nome, o tema e que
+  ela ainda não abriu, sem prometer venda nem abertura ("Se e como ela vai funcionar ainda não foi decidido. Nada é
+  vendido na Vila."). Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
+  aviso em texto e "As placas mostram avisos da própria Vila." (OQ-18).
+- **Terreno de ONG que a API ainda não lista** (banco antes da migration 0012: produção tem 8 dos 12): o rótulo 3D,
+  o painel e a lista "Explorar ONGs" dizem "Terreno em preparação", sem convite para candidatura, e a visita a ele
+  não conta como missão.
 - **Um botão de ação para tudo o que está perto.** Terreno residencial, porta de loja e placa usam o botão de ação
   contextual do HUD e as mesmas regras de casa, terreno de ONG, árvore e morador (IMPL-0022): E abre com qualquer
   foco, Enter só com o foco fora de um controle, tecla mantida pressionada abre uma vez, o botão some com um painel

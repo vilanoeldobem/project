@@ -9,6 +9,7 @@ import { QUESTS, questState } from "@vila/shared/game/quests";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
+import { lotLabel } from "../lib/lots";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
 import { villager } from "./gen/characters";
@@ -119,7 +120,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]}>
             {/* Twelve lots now: a label is mounted only near the avatar, like the villagers' (see `Label`). */}
-            <Label y={pub ? 7.5 : 5} text={pub ? String(info[lot.id]?.ngo_name) : "Terreno disponível"} x={lot.x} z={lot.z} />
+            <Label y={pub ? 7.5 : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} />
           </group>
         );
       })}

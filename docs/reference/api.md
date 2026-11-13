@@ -161,7 +161,8 @@ São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`
 migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
 ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
 jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
-a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
+a rota não lista (banco antes da 0012) aparece no jogo como "Terreno em preparação" (rótulo 3D, painel e lista
+"Explorar ONGs"), sem aceitar candidatura; o jogo não envia a visita a ele como progresso.
 
 `ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 

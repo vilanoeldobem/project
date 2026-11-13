@@ -217,7 +217,7 @@ uma migration nova. Decisão, números e o que fica para depois em
 | 8 avenidas (a 22,5° + 45°·k) e 8 travessas (no meio de cada lado) | da praça à borda | `PATH_GRAPH` (80 nós, 120 arestas) |
 | Fachada da praça: 12 terrenos de ONG e 4 lojas | 26 a 34 u do centro, ao longo de cada lado | `LOTS`, `SHOPS` |
 | Placas (uma por loja, no telhado) | sobre as lojas | `BILLBOARDS`, `VILLAGE_NOTICES` |
-| Anéis residenciais: 16 premium, 32 padrão, 64 econômico | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS` |
+| Anéis residenciais: 16 `premium`, 32 `standard`, 64 `economy` (ids internos; na tela, "Bairro do Centro", "Bairro do Meio" e "Bairro da Floresta") | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS`, `plotLabel()` |
 | O que distingue as faixas | junto a cada casa | `RESIDENTIAL_DRESSING` (peças), `groundAt()` (calçamento), `STREET_LAMPS` |
 | Pátio da lenha, lugar do lojista, lugar da lareira | ponta da travessa norte; ao lado de cada porta; dentro de cada casa | `WOOD_YARD`, `ShopDef.keeper`, `ResidentialPlot.hearth` |
 
@@ -232,7 +232,11 @@ uma migration nova. Decisão, números e o que fica para depois em
   as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
   mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
   ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
-  em espera) e não têm botão além de fechar.
+  em espera) e não têm botão além de fechar. O texto deles é neutro (IMPL-0024 §4 e §6): o terreno e o bairro e
+  "não têm dono… proposta em estudo e ainda não foi decidida"; a loja "ainda não abriu"; a placa "mostra avisos da
+  própria Vila". Nenhum diz "em breve", requisito, venda ou aluguel enquanto `/config.residentialPlots` é falso, e
+  nenhum mostra id cru (os ids ficam em atributos `data-`). Um terreno de ONG que a API não lista é "Terreno em
+  preparação" no rótulo 3D, no painel e na lista (`lib/lots.ts`).
 - **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
   ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
 - **Regra de vista** (`SIGHTLINE`, `sightlines()`): (1) toda avenida é um corredor livre de coisa alta (chalé,

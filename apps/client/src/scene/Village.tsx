@@ -39,7 +39,7 @@ const nearest = <T extends { x: number; z: number }>(list: readonly T[], x: numb
 
 /**
  * Christmas shops on the square's frontage (IMPL-0024, PROPOSTA): real buildings with a door to walk up to.
- * None is open: the panel says what the shop will offer and that it has not opened (no catalogue, no
+ * None is open: the panel says the shop's name and theme and that it has not opened (no catalogue, no
  * purchase). All four shops and their billboard frames are one geometry per material role.
  */
 export function Shops() {

@@ -10,6 +10,7 @@ import seed from "../../../../migrations/0012_village_expansion.sql?raw";
 
 import { AVATAR_RADIUS, clearance, type Collider, distanceTo, footprint } from "./collision";
 import { createBody, MOTION, STEP } from "./motion";
+import { attainableLevel } from "./progress";
 import { createNavField, createRoute, isOpen, lineClear, planRoute, stepWalk } from "./navigation";
 import {
   assertPlan,
@@ -299,6 +300,13 @@ describe("village plan in force (IMPL-0024, PROPOSTA)", () => {
     const [premium, standard, economy] = PLOT_TIERS.map((t) => VILLAGE_PLAN.tiers[t].requirement.level);
     expect(premium).toBeGreaterThan(standard);
     expect(standard).toBeGreaterThan(economy);
+    // Every level asked can be reached by playing, with nothing bought: all three with the quest catalog on,
+    // only the outer tier with the four missions that are open in production today (the plot panel says so).
+    expect([attainableLevel(false), attainableLevel(true)]).toEqual([2, 6]);
+    expect(premium).toBeLessThanOrEqual(attainableLevel(true));
+    expect([premium, standard, economy].map((level) => level <= attainableLevel(false))).toEqual([false, false, true]);
+    // The names the UI shows are places, not classes.
+    expect(PLOT_TIERS.map((t) => VILLAGE_PLAN.tiers[t].label)).toEqual(["Bairro do Centro", "Bairro do Meio", "Bairro da Floresta"]);
   });
 
   it("matches the seed of migration 0012: the moved lots, the new lots and every residential plot", () => {
