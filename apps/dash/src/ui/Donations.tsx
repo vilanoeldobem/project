@@ -1,5 +1,5 @@
 /**
- * Donations in the backoffice (IMPL-0021; PROPOSTA, only when `/config` says `donations`). Flat HTML, every
+ * Donations in the backoffice (IMPL-0022; PROPOSTA, only when `/config` says `donations`). Flat HTML, every
  * mutation named with the admin account on screen. Three jobs: configure the global donation (partner institution
  * and split), confirm how one NGO receives donations, and record a donation that an NGO received on its own page
  * after an admin checked the proof. The last one counts in the public indicators but grants no Título.

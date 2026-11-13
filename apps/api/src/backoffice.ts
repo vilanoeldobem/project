@@ -3,14 +3,16 @@
  * (`requireAdmin`), never cached (the router adds `no-store` to every account route).
  *
  *   GET /admin/audit?before=<ISO>&limit=<1..100> → {events: [{at, action, subject, detail, actor}], next}
- *   GET /admin/users?before=<ISO>&limit=<1..100> → {users: [{id, nickname, role, city, createdAt, verified}], next}
+ *   GET /admin/users?before=<ISO>&limit=<1..100> → {users: [{id, nickname, role, city, createdAt, verified, blocked}], next}
  *
  * Newest first. `next` is the `before` of the following page, or null on the last one.
  *
  * Data minimisation (LGPD; minors are a likely audience): the users list carries no e-mail and no name — only
- * the nickname is public, and the dashboard holds the minimum. `actor` is a nickname, never an id or an e-mail.
+ * the nickname is public, and the dashboard holds the minimum; `blocked` says a block is in force, never its
+ * message (IMPL-0021). `actor` is a nickname, never an id or an e-mail.
  * Reading these lists writes no `audit_events` row: only mutations are audited (DEC-037, AGENTS.md).
  */
+import { SUMMARY_COLUMNS, summaryView } from "./account-moderation";
 import { HttpError, json, NO_STORE } from "./http";
 import { requireAdmin } from "./session";
 import type { Env } from "./api";
@@ -80,15 +82,6 @@ export async function listAudit(request: Request, env: Env): Promise<Response> {
   return json({ events: results, next: await nextCursor(db, "audit_events", "at", results.at(-1)?.at) }, { headers: NO_STORE });
 }
 
-interface UserRow {
-  id: string;
-  nickname: string;
-  role: string;
-  city: string;
-  createdAt: string;
-  verified: number;
-}
-
 export async function listUsers(request: Request, env: Env): Promise<Response> {
   await requireAdmin(request, env);
   const { before, limit } = pageParams(request);
@@ -96,13 +89,12 @@ export async function listUsers(request: Request, env: Env): Promise<Response> {
   // The column list is the whole point: no `email`, no `name` (see the header).
   const { results } = await db
     .prepare(
-      `SELECT id, nickname, role, city, created_at AS createdAt, verified_at IS NOT NULL AS verified
+      `SELECT ${SUMMARY_COLUMNS}
          FROM users
         WHERE ${pageWhere("users", "created_at")}
         ORDER BY created_at DESC, id DESC`
     )
     .bind(before, before, limit)
-    .all<UserRow>();
-  const users = results.map((u) => ({ ...u, verified: Boolean(u.verified) }));
-  return json({ users, next: await nextCursor(db, "users", "created_at", results.at(-1)?.createdAt) }, { headers: NO_STORE });
+    .all<Parameters<typeof summaryView>[0]>();
+  return json({ users: results.map(summaryView), next: await nextCursor(db, "users", "created_at", results.at(-1)?.createdAt) }, { headers: NO_STORE });
 }

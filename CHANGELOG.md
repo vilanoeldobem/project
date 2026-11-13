@@ -11,7 +11,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added — doações Pix e conciliação com a AbacatePay (PROPOSTA, desligada)
 
-- **PROPOSTA** ([IMPL-0021](docs/decisions/0021-donations-abacatepay.md)), atrás da bandeira `DONATIONS_ENABLED`
+- **PROPOSTA** ([IMPL-0022](docs/decisions/0022-donations-abacatepay.md)), atrás da bandeira `DONATIONS_ENABLED`
   (`"false"` em produção e homologação; `"true"` no script local `dev`). Contrato da parceira, provedor e regra do
   Título seguem PENDENTES (PEN-004, PEN-006, PEN-026). Nenhuma migration remota foi aplicada e nenhuma bandeira
   foi ligada.
@@ -36,14 +36,179 @@ Cada versão indica o schema D1 que entrega.
   global, conferência do recebimento por ONG dentro da candidatura e registro de comprovante externo.
 - Candidatura de ONG ganha o modo de recebimento pedido (AbacatePay ou link próprio HTTPS), guardado só quando a
   bandeira está ligada. `GET /ngo/application` e a análise trazem `ngoPayment`.
-- Migration `0010_donations_abacatepay.sql` (schema D1 v10): `donation_settings`, `ngo_payment_configs`,
+- Migration `0011_donations_abacatepay.sql` (schema D1 v11): `donation_settings`, `ngo_payment_configs`,
   `donations`, `donation_redirects` e `abacatepay_webhook_events`, aditiva e sem tocar tabelas existentes.
   Rotas de doação num banco atrás do código respondem `503 schema_outdated`. `/lots`, `/indicators`, `/ngos/:id`
-  e logo seguem funcionando nos schemas v3 a v10 com a bandeira desligada. `/indicators` reporta
+  e logo seguem funcionando nos schemas v3 a v11 com a bandeira desligada. `/indicators` reporta
   `confirmed_donations` e `confirmed_amount` (em centavos) só com a bandeira ligada.
 - Sandbox: sem subcontas habilitadas na conta de teste, a configuração usa `dev_sacc_<cnpj>` fora de produção e a
   cobrança sai sem `splits`, mantendo o split completo no D1. Em produção a recusa vira
   `409 subaccounts_unavailable` e o admin pode informar um `sacc_…` existente.
+
+### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
+
+- A mensagem da retirada de uma ONG segue a mesma regra da mensagem de bloqueio: caracteres que ninguém vê (largura
+  zero, inversão de direção) não contam nem são guardados; um texto só com eles é recusado (`400 reason_required`).
+- API: um administrador volta a conseguir **remover o logo publicado de uma ONG cujo responsável excluiu a conta**
+  (respondia `500` e o logo continuava público). A pendência de limpeza do objeto fica em nome do administrador
+  quando não há mais quem enviou o arquivo.
+- API: a remoção de logo confere no próprio batch que quem pede **ainda é administrador**, como as rotas de papel e
+  de bloqueio (`403 admin_only`; antes, um administrador rebaixado durante o pedido ainda concluía a remoção).
+- API, **PROPOSTA** (remoção de visitante): pelo binding de serviço, `POST /moderation/consume` só cobra o limite da
+  sala de um bilhete **que foi emitido**; um bilhete inventado recebe o mesmo `404` sem gastar o limite. Antes,
+  visitantes anônimos podiam esgotar o limite da sala e fazer o bilhete verdadeiro ser recusado com `429`. Quem
+  chama pelo domínio público continua cobrado antes, por endereço.
+- API: num banco sem a migration 0010, `POST /auth/verify` e `POST /auth/link` respondem `503 schema_outdated`
+  **sem gravar nada** (antes, a confirmação gastava o link e gravava uma sessão inutilizável antes de responder
+  `503`, e o pedido de link enviava um link que não podia ser usado).
+- API, **PROPOSTA** (bloqueio de conta): a correção de dados (`POST /me`), a remoção de um arquivo ou de uma foto
+  pelo responsável e a criação do contador de progresso passam a conferir o bloqueio no próprio comando: o que
+  estava a caminho quando o bloqueio foi gravado responde `403 session_blocked` e não muda nada.
+- Contrato compartilhado, **PROPOSTA** (bloqueio de conta): a mensagem para a pessoa precisa de 10 caracteres que
+  ela consiga ver. Caracteres de formatação e de controle (largura zero, inversão de direção do texto…) são
+  removidos antes da contagem e não são guardados; quebra de linha e tabulação ficam.
+- Documentação: o guia de deploy aponta a parte do servidor de tempo real da remoção de visitante (§4.4; o servidor
+  não tem homologação) e corrige a resposta de uma API antiga a `POST /moderation/consume` (`405`, não `404`); a
+  IMPL-0021 registra que a decisão de candidatura, a retirada e a decisão de foto ainda não conferem quem pede na
+  gravação.
+
+### Added — moderação dentro do jogo para administradores (IMPL-0021; remoção de sala e bloqueio PROPOSTA, desligados)
+
+- Jogo: **modo moderação**, só para conta conectada com papel Administrador. Botão "Moderação" no HUD, desligado a
+  cada carregamento; ligado, a faixa "Modo moderação" fica visível no topo, acima de qualquer painel, e o HUD desce
+  para a faixa não cobrir a marca nem os botões (em qualquer largura). Fora do modo nenhuma ação de moderação
+  aparece nem é consultada na API; o modo desliga ao sair, trocar de conta, perder o papel, ser bloqueado ou quando
+  a sessão termina em outro lugar.
+- Jogo: perto de uma casa, da árvore ou de um morador, Enter sobre o botão "Moderação" ou sobre um botão do bloco
+  de moderação aciona esse botão em vez de abrir o que está perto. Para os outros botões do HUD nada muda: Enter e
+  E continuam abrindo o que está perto, também com o foco num botão (depois de "Explorar ONGs → Ir até lá" ou de um
+  clique no zoom).
+- Jogo, casa de ONG publicada (no modo moderação): "Remover logo", "Remover foto" da galeria pública, "Retirar ONG
+  da Vila" (PROPOSTA, IMPL-0020; com a mensagem obrigatória para a organização) e o link "Abrir no painel". Só
+  aparecem as ações que podem funcionar (`/config.files`, `/config.withdrawal`, galeria pública com fotos). Cada
+  ação pede uma confirmação que nomeia a organização, envia a revisão lida pela API administrativa, pede de novo
+  em `409 stale_revision` e relê os terrenos ao concluir. Se a leitura administrativa das fotos falha, a seção diz
+  "Não foi possível ler as fotos agora." e oferece ler de novo, em vez de dizer que não há ação disponível. Se a
+  seção sai com a casa aberta (papel perdido, sessão encerrada), o foco volta para o diálogo.
+- Jogo, **PROPOSTA** (só com `/config.moderation.presence`): selecionar outro visitante (clique no avatar ou botão
+  do HUD) e "Remover da sala", com confirmação. O cliente pede o bilhete, envia `["m", alvo, bilhete]` e espera a
+  resposta da sala; 5 s sem resposta é falha. Só `ok: true` vira "removido"; o bilhete nunca é exibido nem
+  registrado. Trocar a seleção fecha a confirmação aberta, e o resultado de uma remoção enviada antes de o modo ser
+  desligado e religado (ou de a conta mudar) é descartado: a confirmação aberta nunca passa a nomear outro
+  visitante.
+- Jogo, limites da remoção (a sala fecha a conexão de quem os quebra, e conta a mensagem quando ela chega): um
+  pedido por vez; depois de um pedido sem resposta, nada mais é enviado naquela conexão até a resposta chegar (a
+  resposta atrasada nunca é tomada pela resposta da nova tentativa); 1100 ms entre o último momento em que a sala
+  sabidamente ouviu uma mensagem (o envio ou a chegada da resposta) e a próxima; no máximo 9 pedidos em 61 s,
+  contados da saída da mensagem (um a menos que a sala aceita). O pedido de bilhete é abandonado em 5 s, e nada é
+  enviado se o visitante saiu entre o bilhete e o envio; as duas situações são ditas como são.
+- Jogo: quem é removido (fechamento `4003`) lê "Você foi removido da sala por um administrador.", continua
+  jogando e só reconecta depois de 60 s, no próximo toque, clique ou tecla (sem laço, sem contar como erro de rede).
+  A espera vale também se "Outros visitantes" for desligado e ligado de novo; recarregar a página a encerra (é uma
+  cortesia, não uma barreira).
+- Jogo, **PROPOSTA**: conta bloqueada (`/me` com `blocked`, ou `403 session_blocked` em qualquer rota) vê "Conta
+  bloqueada", a mensagem da administração e a data, e só pode sair ou excluir a conta; a sincronização do progresso
+  e a tela da candidatura param sem erro. O Caderno de Missões diz "Conta bloqueada: o progresso fica só neste
+  navegador." (não "Sem conexão com a Vila").
+- Jogo: sessão que termina com a página aberta (saída em outra aba, expiração, bloqueio que encerra as sessões). Na
+  primeira resposta `401 not_signed_in` o jogo relê `/me`; sem sessão, volta ao estado desconectado com o aviso
+  "Sua sessão terminou. Entre de novo.", o progresso deixa de ficar pendente e o modo moderação desliga. Se `/me`
+  ainda responde a mesma conta, nada muda e a releitura não se repete por 1 minuto.
+- Jogo: o painel da conta mostra o papel pelo rótulo compartilhado ("Padrão" / "Administrador").
+- Confirmações de moderação e a exclusão de conta bloqueada não aceitam duplo clique, tecla mantida pressionada
+  nem resposta nos primeiros 600 ms.
+
+### Added — papel de administrador e moderação (API e contrato compartilhado; bloqueio e remoção de sala PROPOSTA, desligados)
+
+- [IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md): dois papéis, Padrão (`player`) e
+  Administrador (`admin`); o painel mantém o login próprio; os papéis passam a ser concedidos e retirados pelo
+  painel; o jogo pode mostrar *ações* de moderação a um administrador conectado (listas, filas de análise e
+  auditoria ficam no painel). **Schema D1 v10** (`0010_account_blocks.sql`, aditiva, não aplicada no remoto). Esta
+  entrega é a API e o contrato compartilhado; as telas do painel e do jogo e a parte do servidor de tempo real são
+  entregas separadas.
+- API: `POST /admin/users/:id/role {accountId, role}` (auditoria `user.role_change`). Ninguém muda o próprio papel,
+  conta bloqueada não é promovida, e de dois administradores que se rebaixam ao mesmo tempo exatamente um vence
+  (`409 last_admin`). `GET /admin/users` passa a trazer `blocked`. Sem bandeira própria.
+- API: `POST /admin/ngos/:id/logo/remove {accountId, revision}`: um administrador remove o logo de uma ONG em
+  qualquer estado, com as guardas da remoção feita pelo responsável (auditoria `ngo.logo_remove`). Exige o bucket.
+- **PROPOSTA**, atrás de `ACCOUNT_BLOCK_ENABLED` (`"false"` em produção e homologação; política PENDENTE,
+  [OQ-11](docs/decisions/open-questions.md)): `POST /admin/users/:id/block {accountId, message}` e
+  `POST /admin/users/:id/unblock {accountId}` (auditoria `user.block` / `user.unblock`, sem o texto). `message` é a
+  **mensagem para a pessoa bloqueada**: ela a lê como foi escrita em `GET /me` (`user.blocked`). O bloqueio encerra
+  as sessões; o link de acesso responde como para qualquer e-mail e abre uma sessão restrita (ler o motivo, sair,
+  excluir a conta); todo o resto responde `403 session_blocked`. Candidatura, progresso e envios em andamento são
+  recusados no SQL. A bandeira controla só novos bloqueios; desfazer um bloqueio funciona com ela desligada.
+- **PROPOSTA**, atrás de `PRESENCE_MODERATION_ENABLED` (`"false"` em produção e homologação): bilhete de uso único
+  para remover um visitante de uma sala (`POST /admin/moderation/ticket`; 32 caracteres, 30 segundos, 10 por
+  administrador por minuto) e `POST /moderation/consume`, chamada pelo servidor de tempo real por binding de
+  serviço (sem sessão, sem CORS, limite próprio; auditoria `presence.remove`, que registra a remoção autorizada). A
+  presença continua anônima; é uma cortesia, não um banimento.
+- `GET /config` informa `moderation: {presence, block}`.
+- Contrato compartilhado (`packages/shared/src/accounts`): `ROLE_LABEL` ("Padrão", "Administrador"), `Me.blocked`,
+  `UserSummary.blocked`, `ModerationConfig`, `ModerationTicket`, regras da mensagem e do bilhete
+  (`moderation.ts`, com `MODERATION_TICKET_TTL_MS`) e frases em pt-BR para os novos erros.
+
+### Added — painel: papéis, bloqueio de conta (PROPOSTA) e remoção de logo (IMPL-0021)
+
+- Seção "Usuários": papel com os rótulos compartilhados ("Padrão" / "Administrador"; o rótulo local "Jogador"
+  saiu), coluna "Situação" ("Bloqueada") e as ações "Tornar administrador" / "Tornar padrão"
+  (`POST /admin/users/:id/role`). Nada é oferecido na própria linha ("Você não pode mudar o próprio papel."). Cada
+  ação tem um segundo passo que nomeia a conta e diz a consequência; o botão só libera depois de marcada a frase de
+  confirmação (clique duplo ou Enter segurado não enviam nada). Recusas mostram a frase da API (`last_admin`,
+  `account_blocked`, `admin_only`, …); depois de uma mudança a linha mostra o que a API respondeu e a lista é
+  relida. Uma resposta 200 sem a linha da conta é tratada como falha ("Algo deu errado. …") e a lista é relida.
+  Depois de uma recusa que faz a lista ser relida, o foco vai para a linha do resultado (não para um botão que
+  some com a releitura). E-mail e nome continuam fora do painel.
+- **PROPOSTA** (política PENDENTE, [OQ-11](docs/decisions/open-questions.md)): "Bloquear conta" só aparece quando
+  `/config` traz `moderation.block: true`, pede a "Mensagem para a pessoa (ela vai ler)" (regra compartilhada, 10 a
+  1000 caracteres) e diz o efeito (sessões encerradas; a pessoa só lê a mensagem, sai e exclui a conta). Não é
+  oferecido na própria linha nem na de um administrador ("Remova o papel de administrador antes…"). "Desbloquear"
+  aparece sempre que a conta está bloqueada, também com a bandeira desligada. A seção traz o aviso de PROPOSTA.
+- Link `dash.*/#applications/<id>` (o que o jogo monta) abre a candidatura; seguido sem sessão, a pessoa cai nessa
+  candidatura depois de entrar (o id fica 20 minutos no `localStorage` do navegador e é usado uma vez). Id
+  malformado ou desconhecido mostra "Candidatura não encontrada."; só um id bem formado entra no caminho de uma
+  requisição.
+- Detalhe da candidatura: "Remover logo" (`POST /admin/ngos/:id/logo/remove`), com confirmação, a revisão em tela e
+  releitura em `stale_revision`. Auditoria com rótulos para `user.role_change`, `user.block`, `user.unblock`,
+  `ngo.logo_remove` e `presence.remove` ("Remoção de visitante autorizada"). "Sistema" mostra `moderation.presence`
+  e `moderation.block` como as outras bandeiras.
+- Sessões: conta bloqueada que entra no painel vê só "Conta bloqueada", a mensagem e "Sair"; um administrador
+  rebaixado com o painel aberto cai em "Apenas administradores" na requisição seguinte, sem laço. Se a API recusa
+  uma rota administrativa (`admin_only`, `session_blocked`, `not_signed_in`) enquanto `/me` continua respondendo o
+  mesmo administrador, o painel não fica relendo a sessão: mostra o estado de indisponibilidade, que diz o que
+  houve, e só "Tentar de novo" pede outra vez.
+- Conferência local em navegador: `apps/dash/scripts/verify-moderation.mjs`
+  ([development §4.7](docs/guides/development.md#47-adicionar-uma-seção-ao-painel-administrativo)).
+
+### Fixed — painel em telas estreitas
+
+- A legenda das tabelas do painel ("Contas", "Eventos de auditoria", …) aparecia com uma letra por linha abaixo de
+  640 px; agora ocupa a largura da tela.
+
+### Changed — a conferência de sessão exige a migration 0010
+
+- Toda rota que lê a sessão passa a ler `users.blocked`: num banco sem a 0010, com as contas ligadas, elas
+  respondem `503 schema_outdated` (antes, sessão, progresso e exclusão de conta funcionavam num banco na v9). Com as
+  contas ligadas, a migration vem antes da API ([deploy §10](docs/guides/deploy.md#10-administrador-e-moderação-impl-0021)).
+  As rotas públicas respondem igual nos schemas v3 a v10, com qualquer combinação de bandeiras.
+- Um cadastro não confirmado deixa de expirar em 24 horas enquanto estiver bloqueado.
+
+### Added — remoção de visitante da sala por administrador: servidor de tempo real e protocolo (PROPOSTA, desligada)
+
+- **PROPOSTA** ([IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md)), atrás da bandeira
+  `PRESENCE_MODERATION_ENABLED` do servidor (`"false"` em produção; ligada só no script `dev`). Parte do servidor e do
+  protocolo; a API e o jogo vêm em mudanças separadas.
+- Protocolo de presença (`packages/shared/src/net/protocol.ts`): pedido `["m", alvo, tíquete]` (id de conexão e
+  tíquete de 32 caracteres `[A-Za-z0-9_-]`, só na forma exata de `encodeRemove`), resposta `["m", alvo, 0|1]` para
+  quem pediu e código de fechamento `4003` (`CLOSE_REMOVED`).
+- Servidor (`apps/server`): a sala consulta a API pelo service binding `API` (`POST /moderation/consume`, limite de
+  3 s) e só fecha o alvo com `4003` diante de `200 {"ok":true}`; em qualquer outro caso responde `0` e não fecha
+  ninguém. Limites por conexão: um pedido por segundo e 10 por minuto, depois `1008`. A sala não guarda nem registra
+  o tíquete, a resposta ou quem pediu, e não grava no storage.
+- Diferença em relação ao contrato: a sala só atende pedidos depois de 35 s em memória, para que um tíquete emitido
+  antes de um reinício não alcance outra conexão que recebeu o mesmo id.
+- `apps/server/wrangler.jsonc` ganha o binding `services` para `vilanoeldobem-api`: publicar a API antes do servidor
+  ([deploy.md §4.4](docs/guides/deploy.md#44-service-binding-do-servidor-para-a-api-proposta-impl-0021)).
 
 ### Added — apelido `client.*` para o jogo
 

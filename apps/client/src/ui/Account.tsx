@@ -1,15 +1,21 @@
 /**
  * Account (P13; OQ-02 visitor free, account optional; OQ-03 magic link). Exactly four fields (DEC-038);
  * only the nickname is public. Copy is pt-BR; layout and wording beyond the wireframe are PROPOSTA.
+ *
+ * A blocked account (IMPL-0021, PROPOSTA; policy pending, OQ-11) sees that it is blocked, the message the
+ * administration wrote and its date, and only what its restricted session still does: sign out and delete the
+ * account.
  */
 import { useState, type ReactNode } from "react";
 
+import { type Me, ROLE_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import { validateRegistration, type Registration } from "@vila/shared/accounts/validate";
 
 import { useVila, type Panel as PanelState } from "../game/store";
 import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/account";
 import { SERVICES } from "../lib/services";
+import { Confirm } from "./Confirm";
 import { Panel } from "./Panel";
 import { MyTitleCard } from "./Title";
 
@@ -34,15 +40,97 @@ export function AccountChip() {
   const open = useVila((s) => s.open);
   if (!enabled) return null;
   return (
-    <button className="btn btn--chip" onClick={() => open({ kind: "account" })} aria-label={user ? `Sua conta: ${user.nickname}` : "Entrar ou criar conta"}>
-      👤 <span>{user ? `@${user.nickname}` : "Entrar"}</span>
+    <button
+      className="btn btn--chip"
+      onClick={() => open({ kind: "account" })}
+      aria-label={user ? `Sua conta: ${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar ou criar conta"}
+    >
+      👤 <span>{user ? `@${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar"}</span>
     </button>
   );
 }
 
 export function Account({ then }: { then?: PanelState }) {
   const user = useAccount((s) => s.user);
-  return user ? <SignedIn then={then} /> : <SignedOut />;
+  if (!user) return <SignedOut />;
+  return user.blocked ? <BlockedAccount user={user} /> : <SignedIn then={then} />;
+}
+
+/** "12 de novembro de 2026 às 10:00", São Paulo time; empty when the API sent no date. */
+export function blockDate(at: string): string {
+  const date = new Date(at);
+  return at && !Number.isNaN(date.getTime()) ? date.toLocaleString("pt-BR", { dateStyle: "long", timeStyle: "short", timeZone: "America/Sao_Paulo" }) : "";
+}
+
+/**
+ * The whole account panel of a blocked account: the message from the administration as it was written, its
+ * date, and the two things the restricted session still does. Nothing else is offered, because the API refuses
+ * everything else (`403 session_blocked`). Exported for the render test.
+ */
+export function BlockedAccount({ user }: { user: Me }) {
+  const close = useVila((s) => s.close);
+  /** When the confirmation of the deletion appeared (null = not asked). */
+  const [askedAt, setAskedAt] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const block = user.blocked ?? { message: "", at: "" };
+  const when = blockDate(block.at);
+  const remove = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await deleteAccount();
+      useVila.getState().notify("Sua conta foi excluída. Seu progresso continua só neste navegador.");
+      close();
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Panel kicker="Conta" title="Conta bloqueada" contentKey={askedAt === null ? "blocked" : "confirm"}>
+      <p className="lead" data-state="blocked">
+        A conta @{user.nickname} está bloqueada pela administração da Vila.
+      </p>
+      <div className="callout">
+        <strong>Mensagem da administração{when ? ` · ${when}` : ""}</strong>
+        <p data-field="block-message">{block.message || "A administração não deixou uma mensagem."}</p>
+      </div>
+      <p>
+        Você continua podendo explorar a Vila e jogar como visitante: o progresso fica só neste navegador. Enquanto a conta estiver bloqueada, ela não salva
+        progresso nem envia ou altera candidatura de ONG.
+      </p>
+      <p className="note">O que você ainda pode fazer com esta conta: sair ou excluí-la.</p>
+      {askedAt === null ? (
+        <div className="actions">
+          <button className="btn" onClick={() => void signOut().then(close)}>
+            Sair
+          </button>
+          <button className="btn" onClick={() => setAskedAt(Date.now())}>
+            {user.deletionPending ? "Concluir a exclusão da conta" : "Excluir minha conta"}
+          </button>
+        </div>
+      ) : (
+        <Confirm
+          title={`Excluir a conta @${user.nickname}?`}
+          confirmLabel="Confirmar exclusão"
+          busyLabel="Excluindo…"
+          busy={busy}
+          shownAt={askedAt}
+          onConfirm={() => void remove()}
+          onCancel={() => setAskedAt(null)}
+        >
+          <p>Excluir apaga seu nome, nickname, cidade, e-mail, o progresso salvo na conta e o registro deste bloqueio. Não dá para desfazer.</p>
+        </Confirm>
+      )}
+      {error && (
+        <p className="form__error" role="alert">
+          {error}
+        </p>
+      )}
+    </Panel>
+  );
 }
 
 function SignedOut() {
@@ -208,6 +296,8 @@ function SignedIn({ then }: { then?: PanelState }) {
         <dd>{user.city}</dd>
         <dt>E-mail</dt>
         <dd>{user.email}</dd>
+        <dt>Papel</dt>
+        <dd>{ROLE_LABEL[user.role] ?? ROLE_LABEL.player}</dd>
       </dl>
       <p className="note">Só o seu nickname aparece para outras pessoas. Seu progresso de missões fica salvo nesta conta.</p>
       <MyTitleCard />

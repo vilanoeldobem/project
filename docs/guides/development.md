@@ -1,6 +1,6 @@
 # Guia de desenvolvimento
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v9 ·
+> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v11 ·
 > **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `AGENTS.md`, `CONTRIBUTING.md`, `apps/`, `packages/shared/`
 
@@ -170,6 +170,17 @@ inspector (9230 na API, 9231 no servidor): encerre o processo antigo ou rode o c
    `lib/theme.ts`.
 4. Rota nova de admin: `requireAdmin`, `no-store`, sem e-mail nem nome na resposta; mutação grava `audit_events`.
 5. Rode `node apps/dash/scripts/verify.mjs` e acrescente a seção nova à lista `SECTIONS` do script.
+6. Ação que muda algo para outra pessoa (papel, bloqueio, remoção de arquivo): segundo passo com `<Confirmation>`
+   (`ui/common.tsx`), que nomeia o alvo, diz a consequência e só libera o botão depois da frase marcada; a regra
+   e o texto ficam em `lib/` (testáveis sem navegador) e toda requisição leva `accountId`.
+
+Papéis, bloqueio, remoção de logo e o link `#applications/<id>` têm uma conferência própria em navegador
+(IMPL-0021), só com simuladores locais e dados sintéticos: `apps/dash/scripts/verify-moderation.mjs`. Ela cria as
+contas da execução pela API, entra pelo link de acesso de verdade e confere as confirmações (teclado, clique duplo,
+Enter segurado), a conta bloqueada, o administrador rebaixado com o painel aberto e os rótulos da auditoria. O
+cabeçalho do script traz os comandos: um Worker local da API com banco novo, `ACCOUNT_BLOCK_ENABLED:true` e a origem
+do painel, e o painel servido pelo seu Worker em outra porta. Use portas e um `--persist-to` que não sejam os de um
+ambiente de desenvolvimento já em uso (e `WRANGLER_REGISTRY_PATH` próprio, se houver outro `wrangler dev` na máquina).
 
 ## 5. Regras não negociáveis (resumo de AGENTS.md)
 
@@ -220,7 +231,8 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 
 Use a configuração separada `apps/api/wrangler.reconciliation-local.jsonc`, sem `account_id`, rotas ou IDs de
 produção. Ela usa D1/R2 sintéticos `ngo-media-review-local` com `remote:false`; nunca executar deploy com ela.
-A numeração atual termina em 0009. A base anterior do simulador (0010) deve permanecer intacta: esta receita
+A numeração atual termina em 0011 (`0011_donations_abacatepay.sql`, IMPL-0022). A base anterior do simulador (em que
+a atual 0007 se chamava 0010) deve permanecer intacta: esta receita
 cria um espaço local novo, sem renomear migrations já aplicadas naquela base.
 
 Em `apps/api`, num diretório de persistência novo:

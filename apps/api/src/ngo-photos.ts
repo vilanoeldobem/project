@@ -110,8 +110,9 @@ export async function uploadPhoto(request: Request, env: Env): Promise<Response>
         WHERE p.id=? AND p.status='pending' AND p.upload_pending=1 AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN}`
     ).bind(id,user.id).first()));
     const [changed] = await env.DB!.batch([
+      // The commit also refuses an owner who was blocked while the bytes were arriving (IMPL-0021).
       env.DB!.prepare(`UPDATE ngo_photos SET upload_pending=0,decision_token=? WHERE id=? AND status='pending' AND upload_pending=1
-        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})`)
+        AND EXISTS (SELECT 1 FROM ngos n JOIN users u ON u.id=n.applicant_id WHERE n.id=ngo_photos.ngo_id AND u.id=? AND u.files_deleting=0 AND u.blocked=0 AND n.status IN ${UPLOAD_STATES} AND ${NOT_WITHDRAWN})`)
         .bind(token, id, user.id),
       env.DB!.prepare(`INSERT INTO audit_events(id,actor,action,subject,detail) SELECT ?,?,'ngo.photo.upload',?,? WHERE ${TOKEN}`)
         .bind(newId(), user.id, `ngo:${ngoId}`, JSON.stringify({photoId:id,revision:1}), id, token),
@@ -186,14 +187,19 @@ async function removePhoto(env: Env, row: Photo, actor: string, owner: boolean):
   if (row.status !== "removed") {
     const token = newId();
     const [changed] = await env.DB!.batch([
+      // The owner's own removal is also refused for an owner who was blocked after the session check (IMPL-0021).
       env.DB!.prepare(`UPDATE ngo_photos SET status='removed',caption='',revision=revision+1,decision_token=?,cleanup_pending=1,updated_at=?
         WHERE id=? AND revision=? AND status=? AND EXISTS (SELECT 1 FROM ngos n WHERE n.id=ngo_photos.ngo_id
-          AND (?=0 OR n.applicant_id=?) AND NOT EXISTS(SELECT 1 FROM users u WHERE u.id=n.applicant_id AND u.files_deleting=1))`)
+          AND (?=0 OR (n.applicant_id=? AND NOT EXISTS(SELECT 1 FROM users u WHERE u.id=n.applicant_id AND u.blocked=1)))
+          AND NOT EXISTS(SELECT 1 FROM users u WHERE u.id=n.applicant_id AND u.files_deleting=1))`)
         .bind(token,new Date().toISOString(),row.id,row.revision,row.status,owner?1:0,actor),
       env.DB!.prepare(`INSERT INTO audit_events(id,actor,action,subject,detail) SELECT ?,?,'ngo.photo.remove',?,? WHERE ${TOKEN}`)
         .bind(newId(),actor,`ngo:${row.ngo_id}`,JSON.stringify({photoId:row.id,from:row.status,to:"removed",revision:row.revision+1}),row.id,token),
     ]);
-    if (!changed.meta.changes) throw new HttpError(409,"stale_revision");
+    if (!changed.meta.changes) {
+      if (owner && await env.DB!.prepare("SELECT 1 AS x FROM users WHERE id=? AND blocked=1").bind(actor).first()) throw new HttpError(403,"session_blocked");
+      throw new HttpError(409,"stale_revision");
+    }
     row = {...row,status:"removed",caption:"",revision:row.revision+1,cleanup_pending:1};
   }
   try { await cleanupPhoto(env,row); }

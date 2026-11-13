@@ -84,7 +84,7 @@ export interface NgoApplication {
   tags: NgoTag[];
   projects: NgoProject[];
   /**
-   * How the organisation wants to receive donations (IMPL-0021, PROPOSTA). Absent means "abacatepay": older
+   * How the organisation wants to receive donations (IMPL-0022, PROPOSTA). Absent means "abacatepay": older
    * applications and clients keep working. `donationUrl` is required (and validated) only for "external_link".
    */
   paymentMethod?: NgoPaymentMethod;

@@ -7,6 +7,7 @@
  *   GET    /ngo/application/files/:id                  → the bytes (the applicant's own)
  *   DELETE /ngo/application/files/:id                  → {revision}
  *   GET    /admin/applications/:id/files/:fileId       → the bytes (admin; reading a document is audited)
+ *   POST   /admin/ngos/:id/logo/remove {accountId, revision} → {application} (admin; IMPL-0021)
  *   GET    /ngos/:id/logo                              → the logo of a published NGO (public)
  *
  * The bucket is private: no public bucket URL, every byte goes through this Worker. D1 (`ngo_files`) says who
@@ -19,6 +20,7 @@
  * can be added, but the applicant may remove their own files; the public logo route requires the published lot,
  * so a withdrawn NGO has no public logo. Admins read whatever files exist whenever the bucket is
  * bound, even with the feature switched off: what could be published must always be visible to who decides.
+ * For the same reason an admin can remove a logo, in any status, whenever the bucket is bound (IMPL-0021).
  *
  * D1 records upload/cleanup intents before touching R2. Conditional writes prevent a cancelled upload from
  * recreating erased bytes; owner/admin recovery retries abandoned intents without exposing private objects.
@@ -26,10 +28,10 @@
 import { checkFile, type ApplicationFile, type FileKind, FILE_RULES, fileErrorText, filesEditable, filesRemovable, isFileKind, isFileType } from "@vila/shared/accounts/files";
 
 import { newId } from "./crypto";
-import { HttpError, json, NO_STORE, readBytes } from "./http";
-import { myApplication } from "./ngo";
+import { HttpError, json, NO_STORE, readBytes, readJson } from "./http";
+import { APPLICATION_QUERY, applicationView, myApplication, type NgoRow } from "./ngo";
 import { putReserved } from "./media-storage";
-import { requireAdmin, requireUser, type User } from "./session";
+import { assertAccount, assertStillAdmin, requireAdmin, requireUser, STILL_ADMIN, type User } from "./session";
 import type { Env } from "./api";
 
 interface FileRow {
@@ -188,10 +190,11 @@ export async function uploadFile(request: Request, env: Env, url: URL): Promise<
     .bind(id, app.id, user.id, now, app.id, user.id, app.revision, app.status).run();
   if (!staged.meta.changes) throw new HttpError(409, "application_changed");
   const statements = [
-    // Claim the exact application snapshot before replacing anything. Only this operation's token may write.
+    // Claim the exact application snapshot before replacing anything. Only this operation's token may write, and
+    // not for an applicant who was blocked while the bytes were arriving (IMPL-0021).
     db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
       WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
-        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND (u.files_deleting = 1 OR u.blocked = 1))
         AND EXISTS (SELECT 1 FROM media_upload_intents WHERE id=? AND cleanup_pending=0)
         AND (? = 'logo' OR (SELECT COUNT(*) FROM ngo_files WHERE ngo_id = ? AND kind = ?) < ?)`)
       .bind(now, token, app.id, user.id, app.revision, app.status, id, kind, app.id, kind, rule.maxCount),
@@ -245,9 +248,10 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
 
   const now = new Date().toISOString(), token = newId();
   const [removed] = await db.batch([
+    // Not for an applicant who was blocked after the session check (IMPL-0021): a blocked account only erases itself.
     db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
       WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
-        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND (u.files_deleting = 1 OR u.blocked = 1))
         AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ?)`)
       .bind(now, token, app.id, user.id, app.revision, app.status, fileId, app.id),
     db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
@@ -256,10 +260,72 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_remove', ?, ? WHERE ${MINE}`)
       .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind: row.kind, file: fileId, revision: app.revision + 1 }), app.id, token),
   ]);
-  if (!removed.meta.changes) throw new HttpError(409, "application_changed");
+  if (!removed.meta.changes) {
+    if (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()) throw new HttpError(403, "session_blocked");
+    throw new HttpError(409, "application_changed");
+  }
   try { await cleanupIntent(env, { id: fileId, ngo_id: app.id }); }
   catch { throw new HttpError(503, "file_cleanup_pending"); }
   return json({ revision: app.revision + 1 }, { headers: NO_STORE });
+}
+
+/**
+ * An administrator removes the logo of an NGO, in any status (IMPL-0021): a published logo is public, so the
+ * administration must be able to take it down. Same guards as the applicant's own removal: the revision on screen,
+ * one batch claimed by this operation's token, the revision bumped (an open review goes stale), the row gone
+ * before the object. Needs the bucket, not the upload flag; the audit row carries ids only. The claim also
+ * requires that the actor is still an administrator when the batch commits, as the role and block routes do.
+ *
+ * The applicant may be gone: a published NGO keeps its logo when the account is erased, with `ngo_files.uploaded_by`
+ * set to NULL. The cleanup intent, which needs an owner, is then recorded under the administrator who removes it.
+ */
+export async function removeLogoAdmin(request: Request, env: Env, ngoId: string): Promise<Response> {
+  const admin = await requireAdmin(request, env);
+  const body = await readJson(request);
+  assertAccount(body, admin);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ngoId)) throw new HttpError(404, "not_found");
+  if (!Number.isSafeInteger(body.revision) || (body.revision as number) < 1) throw new HttpError(400, "revision_required");
+  if (!env.FILES) throw new HttpError(503, "files_unavailable");
+  const db = env.DB!;
+  const READ = `SELECT n.*, w.reason AS withdrawal_reason, w.withdrawn_at, COALESCE(u.files_deleting,0) AS files_deleting,
+      (SELECT id FROM ngo_files WHERE ngo_id = n.id AND kind = 'logo') AS logo_id
+    FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id LEFT JOIN users u ON u.id = n.applicant_id WHERE n.id = ?`;
+  type Row = NgoRow & { files_deleting: number; logo_id: string | null };
+  const row = await db.prepare(READ).bind(ngoId).first<Row>();
+  if (!row || !row.logo_id) throw new HttpError(404, "not_found");
+  // Nobody acts as the administration on their own organisation (conflict of interest).
+  if (row.applicant_id === admin.id) throw new HttpError(403, "self_review");
+  // The erasure of the applicant's account is deciding which files stay: wait until it finishes.
+  if (row.files_deleting) throw new HttpError(409, "account_deleting");
+  if (row.revision !== body.revision) throw new HttpError(409, "stale_revision");
+
+  const fileId = row.logo_id, now = new Date().toISOString(), token = newId();
+  const [removed] = await db.batch([
+    db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
+      WHERE id = ? AND revision = ?
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ? AND kind = 'logo')
+        AND ${STILL_ADMIN}`)
+      .bind(now, token, ngoId, row.revision, fileId, ngoId, admin.id),
+    db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
+      SELECT id,ngo_id,COALESCE(uploaded_by, ?),1 FROM ngo_files WHERE id=? AND ngo_id=? AND ${MINE}`).bind(admin.id, fileId, ngoId, ngoId, token),
+    db.prepare(`DELETE FROM ngo_files WHERE id = ? AND ngo_id = ? AND ${MINE}`).bind(fileId, ngoId, ngoId, token),
+    db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.logo_remove', ?, ? WHERE ${MINE}`)
+      .bind(newId(), admin.id, `ngo:${ngoId}`, JSON.stringify({ file: fileId, revision: row.revision + 1 }), ngoId, token),
+  ]);
+  if (!removed.meta.changes) {
+    // The actor was demoted, blocked or erased between the session check and the batch: nothing else is said.
+    await assertStillAdmin(db, admin.id);
+    // Lost a race: say what won (an account erasure, another removal or replacement, or a change of revision).
+    const latest = await db.prepare(READ).bind(ngoId).first<Row>();
+    if (latest?.files_deleting) throw new HttpError(409, "account_deleting");
+    throw new HttpError(409, "stale_revision");
+  }
+  // The row is gone and the intent is durable: a failed delete is retried by the admin recovery route.
+  try { await cleanupIntent(env, { id: fileId, ngo_id: ngoId }); }
+  catch { throw new HttpError(503, "file_cleanup_pending"); }
+  const after = await db.prepare(`${APPLICATION_QUERY} WHERE n.id = ?`).bind(ngoId).first<NgoRow>();
+  return json({ application: applicationView(after!) }, { headers: NO_STORE });
 }
 
 /**

@@ -4,8 +4,23 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   /** Seconds without real activity before the room closes a connection (IMPL-0014); see `idleTimeoutMs`. */
   IDLE_TIMEOUT_SECONDS?: string;
+  /**
+   * "true" lets a room act on ["m", target, ticket] (PROPOSTA, IMPL-0021): remove a visitor at an
+   * administrator's request. Off in production; with it off every request is answered 0 and the API is never
+   * called. Needs the `API` binding and the same flag on the API.
+   */
+  PRESENCE_MODERATION_ENABLED?: string;
+  /**
+   * Service binding to the API Worker (`vilanoeldobem-api`), the only way a room reaches it: it is used to
+   * consume a moderation ticket and for nothing else. Without it every request is answered 0 (fail closed).
+   */
+  API?: Fetcher;
   ENVIRONMENT?: string;
 }
+
+/** Only the exact text "true" turns presence moderation on (same convention as the API's flags). */
+export const presenceModerationEnabled = (env: Pick<Env, "PRESENCE_MODERATION_ENABLED">): boolean =>
+  env.PRESENCE_MODERATION_ENABLED === "true";
 
 /** Default idle limit: 5 minutes (IMPL-0014). */
 export const DEFAULT_IDLE_TIMEOUT_SECONDS = 300;

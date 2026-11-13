@@ -14,7 +14,7 @@ import {
 
 const SPLIT = { ngoPercentBps: DEFAULT_NGO_PERCENT_BPS, fixedFeeCents: DEFAULT_FIXED_FEE_CENTS };
 
-describe("donation split (IMPL-0021, PROPOSTA)", () => {
+describe("donation split (IMPL-0022, PROPOSTA)", () => {
   it("splits the R$ 2,00 minimum exactly as the provider needs", () => {
     expect(computeDonationSplit(200, SPLIT)).toEqual({
       amountCents: 200,

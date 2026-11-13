@@ -1,5 +1,6 @@
-/** Sending an admin decision about the version of an application that is on screen (DEC-037). */
+/** Sending an admin decision, a withdrawal or a logo removal about the version of an application that is on screen (DEC-037). */
 import type { ApplicationDetail, ApplicationStatus, EligibilityChecks, ReviewAction } from "@vila/shared/accounts/contract";
+import { errorText } from "@vila/shared/accounts/errors";
 
 import type { Api } from "./api";
 
@@ -50,6 +51,37 @@ export async function sendWithdrawal(
     return { ok: true, status: application.status, detail: await api.adminGet(id).catch(() => ({ ...d, application })) };
   } catch (error) {
     const stale = WITHDRAWAL_STALE.includes((error as { code?: string }).code ?? "");
+    return { ok: false, error, stale, detail: stale ? await api.adminGet(id).catch(() => d) : d };
+  }
+}
+
+/** Refusals of a logo removal that mean the screen is out of date: read the application again. */
+const LOGO_STALE = ["stale_revision", "account_deleting", "not_found", "file_cleanup_pending"];
+
+/** Sentences for the refusals of a logo removal that the shared list has no sentence for, or words for another screen. */
+const LOGO_TEXT: Record<string, string> = {
+  not_found: "Este logo não existe mais: pode ter sido removido ou trocado. Confira os arquivos atuais.",
+  self_review: "Você é a pessoa responsável por esta organização. Outra pessoa da administração precisa remover o logo.",
+  files_unavailable: "O armazenamento dos arquivos está indisponível agora. O logo não foi removido; tente de novo mais tarde.",
+  file_cleanup_pending: "O logo já saiu da candidatura e não é mais exibido. A limpeza do arquivo no armazenamento ainda não terminou.",
+};
+
+/** The sentence shown for a refused logo removal: the API's own sentence for its code unless this screen has a closer one. */
+export const logoRefusalText = (error: unknown): string => LOGO_TEXT[(error as { code?: string }).code ?? ""] ?? errorText(error);
+
+/**
+ * Removing the logo of the NGO on screen, in any status (IMPL-0021): a published logo is public, so the
+ * administration can take it down. Same contract as `sendDecision`: the revision on screen is sent, and a refusal
+ * that means the application changed comes back with the current version. The removal bumps the revision.
+ */
+export async function sendLogoRemoval(api: Pick<Api, "adminRemoveLogo" | "adminGet">, id: string, d: ApplicationDetail, accountId: string): Promise<DecisionResult> {
+  try {
+    const { application } = await api.adminRemoveLogo(id, accountId, d.application.revision);
+    // The logo is gone: show that even if re-reading the files and the history fails.
+    const without = { ...d, application, files: (d.files ?? []).filter((f) => f.kind !== "logo") };
+    return { ok: true, status: application.status, detail: await api.adminGet(id).catch(() => without) };
+  } catch (error) {
+    const stale = LOGO_STALE.includes((error as { code?: string }).code ?? "");
     return { ok: false, error, stale, detail: stale ? await api.adminGet(id).catch(() => d) : d };
   }
 }

@@ -1,4 +1,4 @@
-# IMPL-0021: Doações Pix e conciliação com a AbacatePay (global e por ONG)
+# IMPL-0022: Doações Pix e conciliação com a AbacatePay (global e por ONG)
 
 **Status:** Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); depende de PEN-004,
 PEN-006 e PEN-026
@@ -9,7 +9,7 @@ PEN-004, PEN-006, PEN-026; IMPL-0002, IMPL-0009, IMPL-0011, IMPL-0015, IMPL-0017
 P15; API pública v2 da AbacatePay (`/v2/sub-accounts/create`, `/v2/transparents/*`).
 **Código:** `packages/shared/src/donations/contract.ts`, `apps/api/src/{donations,abacatepay}.ts`,
 `apps/api/src/api.ts`, `apps/dash/src/ui/Donations.tsx`, `apps/client/src/ui/{Donation,Lot,PixDonation,Title}.tsx`,
-`migrations/0010_donations_abacatepay.sql`.
+`migrations/0011_donations_abacatepay.sql`.
 
 ## Contexto
 
@@ -59,9 +59,9 @@ máximo, o Vila registra o redirecionamento.
    sem `splits`; o split completo continua no D1 e a simulação de pagamento exercita o fluxo inteiro. Em produção a
    mesma recusa responde `409 subaccounts_unavailable` e o admin pode informar um `sacc_…` existente. A simulação
    (`POST /donations/:id/simulate`) só existe fora de produção e em cobrança `dev_mode`.
-8. **Migration aditiva e compatibilidade.** `0010_donations_abacatepay.sql` cria cinco tabelas e não altera
+8. **Migration aditiva e compatibilidade.** `0011_donations_abacatepay.sql` cria cinco tabelas e não altera
    nenhuma existente. Com a bandeira ligada e o banco atrás do código, as rotas de doação respondem
-   `503 schema_outdated`; com a bandeira desligada as rotas públicas respondem nos schemas v3 a v10 (teste cobre
+   `503 schema_outdated`; com a bandeira desligada as rotas públicas respondem nos schemas v3 a v11 (teste cobre
    todas as combinações de bandeiras e bucket).
 9. **Privacidade e produto.** `/donations/config` e `/ngos/:id/donation-info` nunca expõem CNPJ, subconta ou a URL
    do link próprio. Nenhuma chave, segredo, CNPJ ou dado do pagador é registrado em log. As faixas do Título são
@@ -89,7 +89,7 @@ máximo, o Vila registra o redirecionamento.
 - Verificação: `pnpm typecheck && pnpm test && pnpm build`; `apps/api/src/donations.test.ts` cobre configuração,
   split mínimo, webhook válido/repetido/adulterado, estorno, disputa, link externo, comprovante, sandbox e schema
   v9; `packages/shared/src/donations/contract.test.ts` cobre split, link e faixas do Título. O teste de rotas
-  públicas (`public-ngo.test.ts`) passa a cobrir o schema v10.
+  públicas (`public-ngo.test.ts`) passa a cobrir o schema v11.
 
 ## Relacionados
 

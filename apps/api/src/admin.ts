@@ -1,6 +1,6 @@
 /**
- * Admin review of NGO applications (DEC-037, DEC-028; IMPL-0011). Only accounts with role `admin` (set by
- * hand in D1, see docs/guides/deploy.md) reach these routes. Every decision writes `audit_events` with the
+ * Admin review of NGO applications (DEC-037, DEC-028; IMPL-0011). Only accounts with role `admin` (the first
+ * one set by hand in D1, see docs/guides/deploy.md; the others from the dashboard, IMPL-0021) reach these routes. Every decision writes `audit_events` with the
  * admin's id (never an e-mail) and no personal data; the message to the applicant lives on the application.
  *
  *   GET  /admin/applications?status=…        → {applications}

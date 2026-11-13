@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MOTION } from "@vila/shared/game/motion";
-import { ACTIVE_MESSAGE, encodePose, ROOM_CAPACITY } from "@vila/shared/net/protocol";
+import { ACTIVE_MESSAGE, encodePose, encodeRemove, REMOVE_MAX_PER_MINUTE, REMOVE_MIN_INTERVAL_MS, ROOM_CAPACITY } from "@vila/shared/net/protocol";
 import { DEFAULT_IDLE_TIMEOUT_SECONDS, type Env, idleTimeoutMs } from "./env";
 import { handle } from "./handler";
 import { RoomState } from "./room";
@@ -43,7 +43,7 @@ describe("RoomState", () => {
   it("rate-limits a flooding connection and flags abuse", () => {
     const r = new RoomState();
     const id = r.join(0)!;
-    let ok = 0, last = "";
+    let ok = 0, last: unknown = "";
     for (let i = 0; i < 400; i++) {
       last = r.accept(id, pose(0, 9), 0);
       if (last === "ok") ok++;
@@ -113,6 +113,107 @@ describe("idle bookkeeping (IMPL-0014)", () => {
     expect(r.activeAt(8)).toBe(100_000);
     expect(r.reapIdle(100_000, LIMIT)).toEqual([7]);
     expect(r.activeAt(7)).toBeUndefined();
+  });
+});
+
+describe("removal requests (PROPOSTA, IMPL-0021)", () => {
+  const TICKET = "Ab3_-zZ09Ab3_-zZ09Ab3_-zZ09Ab3_-";
+  const remove = (target: number, ticket = TICKET) => encodeRemove(target, ticket)!;
+  const SECOND = 1000;
+
+  it("hands a well-formed request back with whether the target is another member of this room", () => {
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    expect(r.accept(a, remove(b), 0)).toEqual({ target: b, ticket: TICKET, valid: true });
+    expect(r.accept(a, remove(a), 1 * SECOND)).toEqual({ target: a, ticket: TICKET, valid: false }); // itself
+    expect(r.accept(a, remove(99), 2 * SECOND)).toEqual({ target: 99, ticket: TICKET, valid: false }); // nobody
+    r.leave(b);
+    expect(r.accept(a, remove(b), 3 * SECOND)).toEqual({ target: b, ticket: TICKET, valid: false }); // already left
+    expect(r.has(a)).toBe(true);
+    expect(r.has(b)).toBe(false);
+  });
+
+  it("is not activity and changes nothing the others see", () => {
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    r.flush(0);
+    r.accept(a, remove(b), 5 * SECOND);
+    expect(r.activeAt(a)).toBe(0);
+    expect(r.activeAt(b)).toBe(0);
+    expect(r.flush(5 * SECOND)).toEqual([]);
+    expect(r.flushLooks()).toEqual([]);
+    expect(r.reapIdle(60 * SECOND + 1, 60 * SECOND).sort()).toEqual([a, b].sort());
+  });
+
+  it("allows one request per second: a second one sooner is abuse", () => {
+    expect(REMOVE_MIN_INTERVAL_MS).toBe(SECOND);
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!, c = r.join(0)!;
+    expect(r.accept(a, remove(b), 10 * SECOND)).toMatchObject({ valid: true });
+    expect(r.accept(a, remove(b), 11 * SECOND)).toMatchObject({ valid: true }); // exactly one second later
+    expect(r.accept(a, remove(c), 12 * SECOND - 1)).toBe("abuse"); // another target does not reset the clock
+    // The limit is per connection: somebody else is not affected.
+    expect(r.accept(b, remove(c), 12 * SECOND - 1)).toMatchObject({ valid: true });
+  });
+
+  it("counts a request that names nobody or the sender exactly like any other", () => {
+    const r = new RoomState();
+    const a = r.join(0)!;
+    expect(r.accept(a, remove(a), 0)).toMatchObject({ valid: false });
+    expect(r.accept(a, remove(99), 999)).toBe("abuse");
+  });
+
+  it("allows ten requests per minute: the eleventh is abuse, and the window slides", () => {
+    expect(REMOVE_MAX_PER_MINUTE).toBe(10);
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    for (let i = 0; i < 10; i++) expect(r.accept(a, remove(b), i * 2 * SECOND)).toMatchObject({ valid: true }); // 0 s … 18 s
+    expect(r.accept(a, remove(b), 59 * SECOND)).toBe("abuse"); // eleventh inside 60 s of the first
+
+    const s = new RoomState();
+    const c = s.join(0)!, d = s.join(0)!;
+    for (let i = 0; i < 10; i++) s.accept(c, remove(d), i * 2 * SECOND);
+    expect(s.accept(c, remove(d), 60 * SECOND)).toMatchObject({ valid: true }); // the first one is a minute old
+    expect(s.accept(c, remove(d), 61 * SECOND)).toBe("abuse"); // the second (at 2 s) still counts
+    // Kept per connection: only the times of the last minute's requests, nothing about tickets or targets.
+    for (let i = 0; i < 40; i++) expect(s.accept(d, remove(c), 1000 * SECOND + i * 7 * SECOND)).toMatchObject({ valid: true });
+  });
+
+  it("treats a malformed request as junk like any other malformed message, and it uses up no request", () => {
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    const junk = [`["m",${b},"${TICKET.slice(1)}"]`, `["m",${b},"${TICKET}",1]`, `["m",1.5,"${TICKET}"]`, `["m",0,"${TICKET}"]`, `["m",${b}]`, `["m", ${b}, "${TICKET}"]`];
+    let now = 0;
+    for (const raw of junk) expect(r.accept(a, raw, (now += 10))).toBe("dropped");
+    // None of them counted towards the one-per-second limit…
+    expect(r.accept(a, remove(b), (now += 10))).toMatchObject({ valid: true });
+    // …but they count as dropped messages: past the tolerance the connection is closed as abusive.
+    let last: unknown;
+    for (let i = 0; i < 200; i++) last = r.accept(a, junk[i % junk.length], (now += 100));
+    expect(last).toBe("abuse");
+  });
+
+  it("is dropped, not passed on, when the connection has no message allowance left", () => {
+    const r = new RoomState();
+    const a = r.join(0)!, b = r.join(0)!;
+    for (let i = 0; i < 40; i++) r.accept(a, pose(i / 100, 9), 0); // burst spent
+    expect(r.accept(a, remove(b), 0)).toBe("dropped");
+    expect(r.accept(a, remove(b), SECOND)).toMatchObject({ valid: true }); // and it used up no request
+  });
+
+  it("never hands an id out twice while the room stays in memory, but a restarted room counts again", () => {
+    const r = new RoomState();
+    const first = [r.join(0)!, r.join(0)!, r.join(0)!];
+    r.leave(first[2]);
+    r.leave(first[0]);
+    const later = [r.join(0)!, r.join(0)!];
+    expect(new Set([...first, ...later]).size).toBe(5);
+    // What a wake-up does: the survivors keep their ids and the next newcomer gets the lowest free one above
+    // them, which may be an id that meant somebody else before (hence REMOVAL_WARMUP_MS in moderation.ts).
+    const woken = new RoomState();
+    woken.join(0, first[1]);
+    expect(woken.join(0)).toBe(first[2]);
+    expect(new RoomState().join(0)).toBe(first[0]);
   });
 });
 

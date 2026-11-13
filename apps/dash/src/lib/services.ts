@@ -2,16 +2,14 @@ import type { ApiError } from "@vila/shared/accounts/errors";
 
 import { createApi } from "./api";
 import { endpoints } from "./endpoints";
+import { sessionChangedBy } from "./session";
 
 /** Endpoints of the running build (see endpoints.ts). */
 export const SERVICES = endpoints(import.meta.env.MODE);
 
-/** Error codes that mean "who you are changed": signed out, no longer an admin, or accounts turned off. */
-const SESSION_CODES = new Set(["not_signed_in", "admin_only", "accounts_disabled"]);
-
 let sessionChanged: () => void = () => {};
 
-/** The app registers here to re-read the session when a call is refused for one of `SESSION_CODES`. */
+/** The app registers here to re-read the session when a call is refused because who is signed in changed (session.ts). */
 export function onSessionChanged(listener: () => void): () => void {
   sessionChanged = listener;
   return () => {
@@ -21,5 +19,5 @@ export function onSessionChanged(listener: () => void): () => void {
 
 /** The API of the running build. */
 export const api = createApi(SERVICES.api, (input, init) => fetch(input, init), (e: ApiError) => {
-  if (SESSION_CODES.has(e.code)) sessionChanged();
+  if (sessionChangedBy(e.code)) sessionChanged();
 });

@@ -20,6 +20,8 @@
  * One batch, guarded by this operation's token: only the winning request releases lots and writes the audit row.
  * The audit detail carries ids and the revision, never the message.
  */
+import { stripUnseen } from "@vila/shared/accounts/moderation";
+
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { APPLICATION_QUERY, applicationView, type NgoRow } from "./ngo";
@@ -32,10 +34,13 @@ export async function withdrawNgo(request: Request, env: Env, id: string): Promi
   const body = await readJson(request); assertAccount(body, admin);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new HttpError(404, "not_found");
   if (!Number.isSafeInteger(body.revision) || (body.revision as number) < 1) throw new HttpError(400, "revision_required");
-  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
-  // Match SQLite length(): Unicode code points; embedded NUL would truncate its count.
+  // Same rule as the block message (IMPL-0021): zero-width characters and direction overrides are neither counted
+  // nor kept, so the organisation never reads an empty or reordered "reason". An embedded NUL is refused.
+  const raw = typeof body.reason === "string" ? body.reason : "";
+  const reason = stripUnseen(raw).trim();
+  // Match SQLite length(): Unicode code points.
   const reasonLength = Array.from(reason).length;
-  if (reason.includes("\0") || reasonLength < 10 || reasonLength > 1000)
+  if (raw.includes("\0") || reasonLength < 10 || reasonLength > 1000)
     throw new HttpError(400, "reason_required", { reason: "Escreva a mensagem para a organização (10 a 1000 caracteres). Ela lê este texto." });
   const db = env.DB!;
   const READ = `SELECT n.*, w.reason AS withdrawal_reason, w.withdrawn_at, COALESCE(u.files_deleting,0) AS files_deleting

@@ -27,6 +27,24 @@ function useFrameSample(ms: number) {
 /** Shown (and read aloud) while the presence connection is paused for inactivity (IMPL-0014). */
 const IDLE_NOTICE = "Outros visitantes em pausa por inatividade. A conexão volta no seu próximo toque, clique ou tecla.";
 
+/**
+ * Shown (and read aloud) after an administrator removed this visitor from the room (PROPOSTA, IMPL-0021): what
+ * happened, that the game goes on, and when the other visitors come back. No blame, no call to action.
+ */
+export const REMOVED_NOTICE = "Você foi removido da sala por um administrador.";
+const REMOVED_DETAIL = "Você pode continuar jogando. Os outros visitantes voltam a aparecer depois de 1 minuto, no seu próximo toque, clique ou tecla.";
+
+/** HUD notice while the presence connection is held after a removal (it leaves when the connection resumes). */
+export function RemovedNotice() {
+  const removed = useNet((s) => s.status === "removed");
+  if (!removed) return null;
+  return (
+    <div className="hud__notice" role="status" data-state="removed">
+      <strong>{REMOVED_NOTICE}</strong> {REMOVED_DETAIL}
+    </div>
+  );
+}
+
 /** HUD chip: São Paulo time + shared weather; opens the "Ambiente" panel. Also the sky-view toggle. */
 export function EnvironmentChip() {
   const f = useFrameSample(1000);
@@ -58,6 +76,11 @@ export function EnvironmentChip() {
           👥 em pausa
         </span>
       )}
+      {net.status === "removed" && (
+        <span className="btn btn--chip env-chip__people" aria-hidden="true">
+          👥 em pausa
+        </span>
+      )}
       <button
         className="btn btn--chip"
         aria-pressed={skyView}
@@ -85,6 +108,7 @@ const NET_NOTE: Record<NetStatus, string> = {
   full: "Todas as praças estão cheias agora; tentamos de novo em instantes.",
   offline: "Sem conexão com a Vila; tentando de novo.",
   idle: "Em pausa por inatividade; a conexão volta no seu próximo toque, clique ou tecla.",
+  removed: `${REMOVED_NOTICE} A conexão volta depois de 1 minuto, no seu próximo toque, clique ou tecla.`,
 };
 
 const QUALITY_NAME = { low: "Baixa", medium: "Média", high: "Alta", ultra: "Ultra" } as const;

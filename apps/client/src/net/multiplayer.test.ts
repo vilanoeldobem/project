@@ -1,8 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ACTIVE_MESSAGE, CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, MAX_ROOMS } from "@vila/shared/net/protocol";
+import { ACTIVE_MESSAGE, CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, CLOSE_REMOVED, encodeRemove, MAX_ROOMS } from "@vila/shared/net/protocol";
 
-import { connectPresence, ingestSnapshot, planAfterClose, remotes, resetRemotes, sampleRemotes, useNet } from "./multiplayer";
+import {
+  clearRemovedHold,
+  connectPresence,
+  ingestSnapshot,
+  onPresenceEvent,
+  planAfterClose,
+  type PresenceEvent,
+  presenceLink,
+  remotes,
+  REMOVED_HOLD_MS,
+  resetRemotes,
+  sampleRemotes,
+  useNet,
+} from "./multiplayer";
 
 describe("snapshot interpolation", () => {
   beforeEach(resetRemotes);
@@ -47,9 +60,15 @@ describe("reconnect policy (planAfterClose)", () => {
     expect(planAfterClose(CLOSE_IDLE, 3, 4)).toEqual({ status: "idle", delayMs: null, room: 3, tries: 0 });
   });
 
-  it("is the only close that waits for input", () => {
-    for (const code of [1000, 1001, 1005, 1006, 1011, 1012, CLOSE_ABUSE, CLOSE_FULL, 4000, 4003])
+  it("waits for input, with no timer, only after an idle close or a removal", () => {
+    for (const code of [1000, 1001, 1005, 1006, 1011, 1012, CLOSE_ABUSE, CLOSE_FULL, 4000, 4004])
       expect(planAfterClose(code, 0, 0).delayMs).not.toBeNull();
+  });
+
+  it("holds for 60 s after a removal by an administrator, and is never a network error", () => {
+    expect(planAfterClose(CLOSE_REMOVED, 3, 4)).toEqual({ status: "removed", delayMs: null, holdMs: 60_000, room: 3, tries: 0 });
+    expect(REMOVED_HOLD_MS).toBe(60_000);
+    expect(planAfterClose(CLOSE_IDLE, 3, 4).holdMs).toBeUndefined();
   });
 
   it("retries a dropped connection in the same room with exponential backoff, 1 s to 30 s", () => {
@@ -118,6 +137,7 @@ describe("presence connection (idle timeout, IMPL-0014)", () => {
     vi.stubGlobal("WebSocket", FakeSocket);
     vi.stubGlobal("window", page);
     vi.stubGlobal("document", doc);
+    clearRemovedHold();
     disconnect = connectPresence();
   });
   afterEach(() => {
@@ -211,6 +231,104 @@ describe("presence connection (idle timeout, IMPL-0014)", () => {
     expect(latest().closedWith).toBeNull();
     expect(FakeSocket.all).toHaveLength(1);
     expect(useNet.getState().status).toBe("online");
+  });
+
+  it("after a removal by an administrator, holds for 60 s whatever the input, then reconnects on the next input", () => {
+    latest().welcome();
+    latest().end(CLOSE_REMOVED);
+    expect(useNet.getState().status).toBe("removed");
+    expect(vi.getTimerCount()).toBe(0); // no retry, no ping, no pose loop: it cannot loop
+    input("pointerdown");
+    input("keydown");
+    vi.advanceTimersByTime(MINUTE - 1);
+    input("pointerdown");
+    expect(FakeSocket.all).toHaveLength(1);
+    expect(useNet.getState().status).toBe("removed");
+    // Time alone never reconnects, however long.
+    vi.advanceTimersByTime(30 * MINUTE);
+    expect(FakeSocket.all).toHaveLength(1);
+    input("keydown");
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(latest().url).toMatch(/\/room\?i=0$/); // same room, and not counted as a failed attempt
+    expect(useNet.getState().status).toBe("connecting");
+    latest().welcome();
+    expect(useNet.getState().status).toBe("online");
+  });
+
+  it("keeps the hold when 'Outros visitantes' is switched off and on: the new connection starts paused, saying why", () => {
+    latest().welcome();
+    latest().end(CLOSE_REMOVED);
+    vi.advanceTimersByTime(10_000);
+    // The "Ambiente" panel: untick and tick "Ver quem está na praça agora" (the effect runs `connectPresence` again).
+    disconnect();
+    expect(useNet.getState().status).toBe("off");
+    disconnect = connectPresence();
+    expect(FakeSocket.all).toHaveLength(1); // no new connection
+    expect(useNet.getState().status).toBe("removed"); // and the notice is back
+    expect(vi.getTimerCount()).toBe(0);
+    input("pointerdown");
+    vi.advanceTimersByTime(REMOVED_HOLD_MS - 10_000 - 1);
+    input("keydown");
+    expect(FakeSocket.all).toHaveLength(1);
+    expect(useNet.getState().status).toBe("removed");
+    // The hold is the one of the removal, not a new one: 60 s after it, the next input reconnects.
+    vi.advanceTimersByTime(1);
+    expect(FakeSocket.all).toHaveLength(1); // time alone never does
+    input("pointerdown");
+    expect(FakeSocket.all).toHaveLength(2);
+    expect(useNet.getState().status).toBe("connecting");
+    latest().welcome();
+    expect(useNet.getState().status).toBe("online");
+    // With no hold left, switching it off and on connects at once, as always.
+    disconnect();
+    disconnect = connectPresence();
+    expect(FakeSocket.all).toHaveLength(3);
+    expect(useNet.getState().status).toBe("connecting");
+  });
+
+  it("is removed again without looping, and an idle close afterwards has no hold", () => {
+    latest().welcome();
+    latest().end(CLOSE_REMOVED);
+    vi.advanceTimersByTime(MINUTE);
+    input("pointerdown");
+    latest().welcome();
+    latest().end(CLOSE_REMOVED);
+    input("pointerdown");
+    expect(FakeSocket.all).toHaveLength(2);
+    vi.advanceTimersByTime(MINUTE);
+    input("pointerdown");
+    latest().welcome();
+    latest().end(CLOSE_IDLE);
+    expect(useNet.getState().status).toBe("idle");
+    input("pointerdown"); // at once: the hold belongs to the removal only
+    expect(FakeSocket.all).toHaveLength(4);
+  });
+
+  it("gives the moderation flow the welcomed connection, its answers and its end", () => {
+    const heard: PresenceEvent[] = [];
+    const stop = onPresenceEvent((e) => heard.push(e));
+    expect(presenceLink()).toBeNull(); // not welcomed yet
+    latest().welcome();
+    const link = presenceLink()!;
+    expect(link).toMatchObject({ room: 0, selfId: 7 });
+    const request = encodeRemove(9, "A".repeat(32))!;
+    expect(link.send(request)).toBe(true);
+    expect(latest().sent).toContain(request);
+    latest().onmessage?.({ data: '["l",9]' });
+    latest().onmessage?.({ data: '["m",9,1]' });
+    latest().onmessage?.({ data: '["m",9,2]' }); // junk: no event
+    expect(heard).toEqual([{ type: "left", id: 9 }, { type: "removal", target: 9, ok: true }]);
+    // A removal request is not activity: the next input still reports ["a"] after 20 s.
+    vi.advanceTimersByTime(21_000);
+    const before = latest().sent.filter((m) => m === ACTIVE_MESSAGE).length;
+    expect(link.send(request)).toBe(true);
+    input("keydown");
+    expect(latest().sent.filter((m) => m === ACTIVE_MESSAGE)).toHaveLength(before + 1);
+    latest().end(1006);
+    expect(heard.at(-1)).toEqual({ type: "closed" });
+    expect(presenceLink()).toBeNull();
+    expect(link.send(request)).toBe(false); // the old link never writes to a later socket
+    stop();
   });
 
   it("stops everything when the person turns other visitors off", () => {

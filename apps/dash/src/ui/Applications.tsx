@@ -8,8 +8,14 @@
  *
  * Withdrawal (IMPL-0020, PROPOSTA): a published NGO can be taken out of the village only when the API says
  * `withdrawal` in `/config`. The text the admin writes is the message the organisation reads, and is labelled so.
+ *
+ * Logo removal (IMPL-0021): an administrator can remove the logo of an NGO in any status (a published logo is
+ * public), after a confirmation, for the revision on screen.
+ *
+ * `#applications/<id>` (the link the game builds) opens one application here. An address that names an
+ * application that does not exist, or not with a well-formed id, shows "Candidatura não encontrada."
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { APPLICATION_STATUSES, type ApplicationDetail, type ApplicationStatus, type ApplicationSummary, lotNumber, type ReviewAction, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
@@ -18,13 +24,14 @@ import { NGO_TAGS, type NgoTag } from "@vila/shared/accounts/validate";
 
 import { downloadDocument } from "../lib/files";
 import { actionText, dateTime, FILE_TYPE_LABEL, fileSize } from "../lib/format";
-import { sendDecision, sendWithdrawal } from "../lib/review";
+import { logoRefusalText, sendDecision, sendLogoRemoval, sendWithdrawal } from "../lib/review";
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
-import { AccountsOff, Field, Notice, PageHead, Status } from "./common";
+import { AccountsOff, Confirmation, Field, Notice, PageHead, Status } from "./common";
 import { NgoPaymentConfig } from "./Donations";
 
-export function Applications({ id, locked, accountId }: { id?: string; locked: boolean; accountId?: string }) {
+/** `unknown`: the address names one application, but not with a well-formed id (lib/router.ts). */
+export function Applications({ id, unknown = false, locked, accountId }: { id?: string; unknown?: boolean; locked: boolean; accountId?: string }) {
   // Lives here (not in the list) so the chosen filter survives opening an application and coming back.
   const [filter, setFilter] = useState<ApplicationStatus | "">("");
   if (locked)
@@ -34,7 +41,28 @@ export function Applications({ id, locked, accountId }: { id?: string; locked: b
         <AccountsOff what="não há candidaturas para analisar" />
       </>
     );
+  // Nothing of a malformed address is sent to the API: the answer is already known.
+  if (unknown)
+    return (
+      <article className="detail">
+        <p className="kicker">Análise administrativa · apenas administradores</p>
+        <PageHead title="Candidatura não encontrada" />
+        <NotFound />
+      </article>
+    );
   return id ? <ReviewDetail key={id} id={id} accountId={accountId} /> : <ApplicationList filter={filter} onFilter={setFilter} />;
+}
+
+/** The state of an address that leads to no application: said plainly, with the way back to the list. */
+function NotFound() {
+  return (
+    <>
+      <Notice state="not-found" title="Candidatura não encontrada." tone="warn">
+        <p>O endereço não corresponde a nenhuma candidatura desta instalação: ele pode estar incompleto, ou a candidatura não existe mais.</p>
+      </Notice>
+      <BackToList />
+    </>
+  );
 }
 
 function ApplicationList({ filter, onFilter }: { filter: ApplicationStatus | ""; onFilter: (s: ApplicationStatus | "") => void }) {
@@ -108,9 +136,11 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
   const [filesOn, setFilesOn] = useState(false);
   /** `GET /config` says whether a published NGO can be withdrawn (IMPL-0020, PROPOSTA); absent = off. */
   const [withdrawalOn, setWithdrawalOn] = useState(false);
-  /** `GET /config` says whether donations are on (IMPL-0021, PROPOSTA); absent = off. */
+  /** `GET /config` says whether donations are on (IMPL-0022, PROPOSTA); absent = off. */
   const [donationsOn, setDonationsOn] = useState(false);
   const [error, setError] = useState("");
+  /** The API knows no application with this id (a link to one that never existed here, or was erased). */
+  const [missing, setMissing] = useState(false);
   useEffect(
     () =>
       // A failed `/config` only means the flags are unknown (treated as off): the application itself still opens.
@@ -121,7 +151,7 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
           setDonationsOn(config.donations === true);
           setD(detail);
         },
-        (e) => setError(errorText(e))
+        (e) => ((e as { code?: string }).code === "not_found" ? setMissing(true) : setError(errorText(e)))
       ),
     [id]
   );
@@ -129,9 +159,13 @@ function ReviewDetail({ id, accountId }: { id: string; accountId?: string }) {
   return (
     <article className="detail">
       <p className="kicker">Análise administrativa · apenas administradores</p>
-      <PageHead title={d ? d.application.name : error ? "Candidatura indisponível" : "Carregando…"} />
+      <PageHead title={d ? d.application.name : missing ? "Candidatura não encontrada" : error ? "Candidatura indisponível" : "Carregando…"} />
       {d ? (
         <Review id={id} d={d} filesOn={filesOn} withdrawalOn={withdrawalOn} donationsOn={donationsOn} accountId={accountId} onDetail={setD} />
+      ) : missing ? (
+        <div aria-live="polite">
+          <NotFound />
+        </div>
       ) : (
         <>
           {error && (
@@ -164,7 +198,7 @@ export function Review({
   d: ApplicationDetail;
   filesOn: boolean;
   withdrawalOn?: boolean;
-  /** Donations are on in this API (IMPL-0021, PROPOSTA) and the review shows the payment configuration. */
+  /** Donations are on in this API (IMPL-0022, PROPOSTA) and the review shows the payment configuration. */
   donationsOn?: boolean;
   accountId?: string;
   onDetail: (d: ApplicationDetail) => void;
@@ -258,8 +292,8 @@ export function Review({
         )}
       </dl>
       {/* An API older than IMPL-0017 sends no `files`. */}
-      <Files applicationId={id} files={d.files ?? []} enabled={filesOn} />
-      {/* IMPL-0021 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
+      <Files applicationId={id} d={d} enabled={filesOn} accountId={accountId} onDetail={onDetail} />
+      {/* IMPL-0022 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
       {donationsOn && a.status !== "withdrawn" && (
         <NgoPaymentConfig
           key={`${a.id}:${a.ngoPayment?.updatedAt ?? "new"}`}
@@ -405,10 +439,51 @@ const fileFacts = (file: ApplicationFile): string =>
 /**
  * Logo and supporting documents of the application (IMPL-0017). Which documents an NGO must send is PENDENTE
  * (PEN-019), so they are only numbered: there is no file name (it may carry personal data) and no expected list.
+ *
+ * An administrator can remove the logo, in any status (IMPL-0021): `accountId` is who is signed in (without it
+ * the removal is not offered) and `onDetail` receives the application as it is afterwards.
  */
-function Files({ applicationId, files, enabled }: { applicationId: string; files: ApplicationFile[]; enabled: boolean }) {
+function Files({ applicationId, d, enabled, accountId, onDetail }: { applicationId: string; d: ApplicationDetail; enabled: boolean; accountId?: string; onDetail: (d: ApplicationDetail) => void }) {
+  // An API older than IMPL-0017 sends no `files`.
+  const files = d.files ?? [];
   const logo = files.find((f) => f.kind === "logo");
   const documents = files.filter((f) => f.kind === "document");
+  const deleting = d.applicant?.deletionPending === true;
+  /** The logo removal: its confirmation is open, the request is out, and what it answered. */
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const [outcome, setOutcome] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const sending = useRef(false);
+  /** When the confirmation closes, the focus goes back to the button that opened it, or to the result if the logo is gone. */
+  const trigger = useRef<HTMLButtonElement>(null);
+  const result = useRef<HTMLParagraphElement>(null);
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (wasConfirming.current && !confirming) (trigger.current ?? result.current)?.focus();
+    wasConfirming.current = confirming;
+  }, [confirming]);
+  const removeLogo = async () => {
+    if (!accountId || sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    setRefusal("");
+    const sent = await sendLogoRemoval(api, applicationId, d, accountId);
+    sending.current = false;
+    setBusy(false);
+    if (sent.ok) {
+      onDetail(sent.detail);
+      setConfirming(false);
+      setOutcome({ tone: "ok", text: `Logo removido. A candidatura passou para a versão ${sent.detail.application.revision}.` });
+    } else if (sent.stale) {
+      // The application changed while this screen was open: show the current version and its files.
+      onDetail(sent.detail);
+      setConfirming(false);
+      setOutcome({ tone: "error", text: logoRefusalText(sent.error) });
+    } else {
+      setRefusal(logoRefusalText(sent.error));
+    }
+  };
   return (
     <>
       <h2>Arquivos</h2>
@@ -428,6 +503,28 @@ function Files({ applicationId, files, enabled }: { applicationId: string; files
         <>
           <h3>Logo</h3>
           {logo ? <LogoPreview key={logo.id} applicationId={applicationId} file={logo} /> : <p className="muted">Nenhum logo enviado.</p>}
+          {logo && accountId && !confirming && (
+            <p>
+              <button
+                type="button"
+                ref={trigger}
+                className="btn btn--small"
+                data-action="remove-logo"
+                disabled={deleting}
+                title={deleting ? "Exclusão da conta pendente" : ""}
+                onClick={() => {
+                  setRefusal("");
+                  setOutcome(null);
+                  setConfirming(true);
+                }}
+              >
+                Remover logo
+              </button>
+            </p>
+          )}
+          {logo && accountId && confirming && (
+            <LogoRemovalConfirmation name={d.application.name} revision={d.application.revision} busy={busy} error={refusal} onConfirm={() => void removeLogo()} onCancel={() => setConfirming(false)} />
+          )}
           <h3>Documentos</h3>
           {documents.length === 0 ? (
             <p className="muted">Nenhum documento enviado.</p>
@@ -443,7 +540,50 @@ function Files({ applicationId, files, enabled }: { applicationId: string; files
           )}
         </>
       )}
+      <div aria-live="polite" data-result="remove-logo">
+        {outcome && (
+          <p className={outcome.tone === "ok" ? "ok" : "error"} role={outcome.tone === "ok" ? "status" : "alert"} tabIndex={-1} ref={result}>
+            {outcome.text}
+          </p>
+        )}
+      </div>
     </>
+  );
+}
+
+/** The second step of a logo removal: which organisation, what happens to the file, and that it cannot be undone here. */
+export function LogoRemovalConfirmation({
+  name,
+  revision,
+  busy = false,
+  error = "",
+  onConfirm,
+  onCancel,
+}: {
+  name: string;
+  /** The version on screen: the one the removal is sent for. */
+  revision: number;
+  busy?: boolean;
+  error?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Confirmation
+      kind="remove-logo"
+      title={`Remover o logo de ${name}?`}
+      understood="Entendo que o logo será apagado e que o painel não tem como desfazer"
+      confirm="Remover logo"
+      busy={busy}
+      error={error}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    >
+      <p>
+        O arquivo é apagado e deixa de aparecer aqui e, se a organização está publicada, na casa dela na Vila. O painel não tem como desfazer. A
+        candidatura passa para uma nova versão (hoje: versão {revision}) e a remoção fica registrada na auditoria.
+      </p>
+    </Confirmation>
   );
 }
 

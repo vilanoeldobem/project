@@ -1,5 +1,5 @@
 /**
- * Pix donation flow shared by the global panel and an NGO's house (IMPL-0021; PROPOSTA, only mounted when the API
+ * Pix donation flow shared by the global panel and an NGO's house (IMPL-0022; PROPOSTA, only mounted when the API
  * says `donations`). The recipient and both parts of the split are shown before any payment; the QR Code comes
  * from AbacatePay. A sandbox charge (`devMode`) offers the provider's simulation button, never in production.
  *

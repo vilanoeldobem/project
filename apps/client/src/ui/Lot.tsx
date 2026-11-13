@@ -8,17 +8,19 @@ import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type LotInfo, type NgoDonationInfo } from "../lib/api";
 import { BlobImage } from "./BlobImage";
+import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
 import { PixDonation } from "./PixDonation";
 
 /**
- * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029).
+ * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
+ * moderation actions of the house (IMPL-0021, `LotModeration`); `onChanged` reads the lots again after one.
  *
- * Donations (IMPL-0021; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
+ * Donations (IMPL-0022; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
  * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
  */
-export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
+export function Lot({ lotId, info, onChanged = () => {} }: { lotId: string; info?: LotInfo; onChanged?: () => void }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
   useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
@@ -38,10 +40,10 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
   const [donationError, setDonationError] = useState("");
   const [opening, setOpening] = useState(false);
   useEffect(() => {
-    if (!donations || !ngoId) {
-      setDonationInfo(undefined);
-      return;
-    }
+    // Another house reuses this component: never show the previous NGO's name, split or stats while loading.
+    setDonationInfo(undefined);
+    setDonationError("");
+    if (!donations || !ngoId) return;
     let live = true;
     fetchNgoDonationInfo(ngoId).then((result) => live && setDonationInfo(result));
     return () => {
@@ -64,6 +66,7 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
       setOpening(false);
     }
   };
+  const moderation = useLotModerating();
 
   if (info?.state === "published" && info.ngo_name) {
     return (
@@ -73,6 +76,9 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
         // The NGO's public logo (IMPL-0017), when it has one and it loads.
         mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : undefined}
         wide
+        // The key changes when the moderation section leaves (role lost, mode off, signed out): the focus that
+        // was in it goes back to the dialog.
+        contentKey={moderation ? "published:moderation" : "published"}
       >
         <div className="ngo-hud">
           <section>
@@ -139,13 +145,15 @@ export function Lot({ lotId, info }: { lotId: string; info?: LotInfo }) {
             </button>
           </section>
         </div>
+        {info.ngo_id && <LotModeration ngoId={info.ngo_id} name={info.ngo_name} onChanged={onChanged} />}
       </Panel>
     );
   }
 
   const inReview = info && info.state !== "available";
   return (
-    <Panel kicker={`Terreno ${n}`} title={inReview ? "Candidatura em análise" : "Sua ONG pode estar aqui"}>
+    // The key sends the focus back to the dialog when a withdrawal (IMPL-0021) takes the house off this panel.
+    <Panel kicker={`Terreno ${n}`} title={inReview ? "Candidatura em análise" : "Sua ONG pode estar aqui"} contentKey={info?.state ?? "unknown"}>
       {inReview ? (
         <p>
           Casa ainda não publicada. <Status>Em análise</Status>

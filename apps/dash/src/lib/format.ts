@@ -1,5 +1,5 @@
 /** Small pure helpers for what the dashboard prints (pt-BR). */
-import type { ApplicationSummary } from "@vila/shared/accounts/contract";
+import { type ApplicationSummary, ROLE_LABEL } from "@vila/shared/accounts/contract";
 
 /** Audit actions the API writes today (docs/reference/storage.md); unknown ones are shown by their code. */
 export const ACTION_LABEL: Record<string, string> = {
@@ -13,7 +13,14 @@ export const ACTION_LABEL: Record<string, string> = {
   "ngo.file_add": "Arquivo enviado",
   "ngo.file_remove": "Arquivo removido",
   "ngo.file_read": "Documento baixado pela administração",
+  "ngo.logo_remove": "Logo removido pela administração",
   "user.delete": "Conta excluída pela própria pessoa",
+  // Roles and moderation (IMPL-0021).
+  "user.role_change": "Papel alterado",
+  "user.block": "Conta bloqueada pela administração",
+  "user.unblock": "Bloqueio de conta desfeito",
+  // The API records that a removal was authorised (the ticket was accepted), not that a connection was closed.
+  "presence.remove": "Remoção de visitante autorizada",
   "donation.settings_update": "Configuração da doação global atualizada",
   "ngo.payment_config": "Recebimento de doações configurado",
   "donation.external_proof": "Doação externa comprovada registrada",
@@ -24,15 +31,25 @@ const FILE_KIND_LABEL = new Map([
   ["document", "documento"],
 ]);
 
+/** The two roles as people read them (the shared labels); a role this build does not know is shown by its code. */
+const ROLE_NAMES = new Map<string, string>(Object.entries(ROLE_LABEL));
+export const roleLabel = (role: string): string => ROLE_NAMES.get(role) ?? role;
+
 /**
  * How an audit row reads. A file sent or removed (IMPL-0017) also says which kind of file it was, taken from the
- * detail `{kind, file, revision?}`; the file id there is not a name and is never printed as one.
+ * detail `{kind, file, revision?}`; the file id there is not a name and is never printed as one. A role change
+ * (IMPL-0021) says which way it went, from the detail `{from, to}`. Nothing else of a detail is printed.
  */
 export function actionText(action: string, detail: string | null): string {
   const label = ACTION_LABEL[action] ?? action;
-  if (action !== "ngo.file_add" && action !== "ngo.file_remove") return label;
+  if (action !== "ngo.file_add" && action !== "ngo.file_remove" && action !== "user.role_change") return label;
   try {
-    const kind = FILE_KIND_LABEL.get((JSON.parse(detail ?? "") as { kind?: unknown } | null)?.kind as string);
+    const parsed = JSON.parse(detail ?? "") as { kind?: unknown; from?: unknown; to?: unknown } | null;
+    if (action === "user.role_change") {
+      const from = ROLE_NAMES.get(parsed?.from as string), to = ROLE_NAMES.get(parsed?.to as string);
+      return from && to ? `${label} (${from} → ${to})` : label;
+    }
+    const kind = FILE_KIND_LABEL.get(parsed?.kind as string);
     return kind ? `${label} (${kind})` : label;
   } catch {
     return label;
@@ -47,16 +64,26 @@ export const LOT_STATE_LABEL: Record<string, string> = {
   published: "Casa publicada",
 };
 
-export const ROLE_LABEL: Record<string, string> = { player: "Jogador", admin: "Administrador" };
-
 /** Feature flags of `GET /config`; a flag the dashboard does not know yet is shown by its key. */
 export const FLAG_LABEL: Record<string, string> = {
   accounts: "Contas, XP no servidor, candidaturas e análise",
   quests: "Missões narrativas quests-v1 (PROPOSTA)",
   files: "Logo e documentos nas candidaturas (PROPOSTA)",
   withdrawal: "Retirada de ONG publicada (PROPOSTA)",
+  "moderation.presence": "Remoção de visitante de uma sala do jogo (PROPOSTA)",
+  "moderation.block": "Bloqueio de conta (PROPOSTA)",
   donations: "Doações e conciliação com a AbacatePay (PROPOSTA)",
 };
+
+/**
+ * The flags of `GET /config`, one row each. A group of flags (`moderation: {presence, block}`, IMPL-0021) becomes
+ * one row per flag, keyed `group.flag`; everything else is kept as the API sent it.
+ */
+export function flagRows(config: Record<string, unknown>): Array<[key: string, value: unknown]> {
+  return Object.entries(config).flatMap(([key, value]): Array<[string, unknown]> =>
+    value !== null && typeof value === "object" && !Array.isArray(value) ? Object.entries(value).map(([inner, v]): [string, unknown] => [`${key}.${inner}`, v]) : [[key, value]]
+  );
+}
 
 /** File formats the API accepts (IMPL-0017); an unknown one is shown by its media type. */
 export const FILE_TYPE_LABEL: Record<string, string> = { "image/png": "PNG", "image/jpeg": "JPEG", "application/pdf": "PDF" };

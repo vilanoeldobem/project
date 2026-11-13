@@ -1,5 +1,5 @@
 /**
- * Donations end to end on the real migrations (IMPL-0021, PROPOSTA): admin configuration, Pix charges with the
+ * Donations end to end on the real migrations (IMPL-0022, PROPOSTA): admin configuration, Pix charges with the
  * provider split, signed webhook reconciliation, Título credit exactly once, refund reversal, external links and
  * proofs, sandbox fallback and the schema guard. The provider is a stub: no test reaches AbacatePay.
  */
@@ -500,7 +500,7 @@ describe("the application keeps the requested payment mode", () => {
   it("touches no donation table while the flag is off", async () => {
     env.DONATIONS_ENABLED = "false";
     await db.prepare("UPDATE lots SET state='available' WHERE id='plaza-02'").run();
-    const legacy = createD1({ upTo: 9 });
+    const legacy = createD1({ upTo: 10 });
     env.DB = legacy;
     for (const statement of [
       "INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES('owner','owner','owner','owner','Recife','owner@example.test','player','2026-01-01')",
@@ -515,9 +515,9 @@ describe("the application keeps the requested payment mode", () => {
 });
 
 describe("schema behind the code", () => {
-  it("answers 503 schema_outdated on the donation routes and keeps the public routes working (v9)", async () => {
+  it("answers 503 schema_outdated on the donation routes and keeps the public routes working (v10)", async () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-    db = createD1({ upTo: 9 });
+    db = createD1({ upTo: 10 });
     env.DB = db;
     await seed();
     for (const path of ["/donations/config", `/ngos/${NGO}/donation-info`])

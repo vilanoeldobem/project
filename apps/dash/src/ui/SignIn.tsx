@@ -1,13 +1,17 @@
 /**
  * Sign-in (IMPL-0015): the game's magic link (OQ-03), asked from the dashboard so the link opens the dashboard.
- * No account is created here: accounts are created in the game and the admin role is granted by hand in D1
- * (DEC-037). The answer is the same for any e-mail (no account enumeration).
+ * No account is created here: accounts are created in the game, and the administrator role is granted by another
+ * administrator in the accounts section (IMPL-0021; the first one by the documented database command, DEC-037).
+ * The answer is the same for any e-mail (no account enumeration).
+ *
+ * Also the full-page states of a session that does not open the dashboard: not an administrator, or blocked.
  */
 import { useState } from "react";
 
 import { errorText } from "@vila/shared/accounts/errors";
 import type { Me } from "@vila/shared/accounts/contract";
 
+import { dateTime } from "../lib/format";
 import { api } from "../lib/services";
 import { Field } from "./common";
 
@@ -83,17 +87,59 @@ export function SignIn({ notice }: { notice?: string }) {
           {busy ? "Enviando…" : "Enviar link de acesso"}
         </button>
       </form>
-      <p className="muted">Aqui não se cria conta: a conta é criada no jogo e o papel de administrador é concedido pela equipe técnica.</p>
+      <p className="muted">Aqui não se cria conta: a conta é criada no jogo e o papel de administrador é concedido por quem já administra a Vila.</p>
     </Frame>
   );
 }
 
-/** Signed in without the admin role: this message, a way out, and nothing else (no menu, no data). */
-export function NotAdmin({ user, onSignOut }: { user: Me; onSignOut: () => void }) {
+/**
+ * Signed in without the admin role: this message, a way out, and nothing else (no menu, no data). `demoted` says
+ * the same account was an administrator a moment ago (the role was taken while the dashboard was open).
+ */
+export function NotAdmin({ user, demoted = false, onSignOut }: { user: Me; demoted?: boolean; onSignOut: () => void }) {
   return (
     <Frame title="Apenas administradores">
       <p className="lead">Esta área é só para a administração da Vila.</p>
-      <p className="muted">Você entrou como @{user.nickname}, que não tem o papel de administrador.</p>
+      {demoted ? (
+        <p role="alert" data-state="demoted">
+          O papel de administrador de @{user.nickname} foi retirado enquanto o painel estava aberto. Se foi um engano, fale com outra pessoa da administração.
+        </p>
+      ) : (
+        <p className="muted">Você entrou como @{user.nickname}, que não tem o papel de administrador.</p>
+      )}
+      <button className="btn" onClick={onSignOut}>
+        Sair
+      </button>
+    </Frame>
+  );
+}
+
+/**
+ * A blocked account (IMPL-0021, PROPOSTA): that it is blocked, the message the administration wrote to the
+ * person, as written, and a way out. Nothing else: no menu, no data, whatever the role. The API refuses every
+ * other request of this session (`403 session_blocked`).
+ */
+export function Blocked({ user, onSignOut }: { user: Me; onSignOut: () => void }) {
+  const block = user.blocked;
+  return (
+    <Frame title="Conta bloqueada">
+      <p className="lead" data-state="blocked">
+        A conta @{user.nickname} foi bloqueada pela administração da Vila e não abre este painel.
+      </p>
+      {block?.message ? (
+        <>
+          <p>
+            <strong>Mensagem da administração</strong>
+            {block.at ? ` (${dateTime(block.at)})` : ""}:
+          </p>
+          <p className="message" data-field="block-message">
+            {block.message}
+          </p>
+        </>
+      ) : (
+        <p className="muted">Não foi possível ler a mensagem do bloqueio agora. Saia e entre de novo para ver.</p>
+      )}
+      <p className="muted">Você ainda pode sair e, pelo jogo, excluir a sua conta.</p>
       <button className="btn" onClick={onSignOut}>
         Sair
       </button>

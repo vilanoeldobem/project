@@ -11,7 +11,7 @@ import { Panel, Status } from "./Panel";
 /**
  * Global donation (P01; DEC-010..013, DEC-026). The recipient is shown before any payment.
  * With no contracted partner (PEN-004) no button may pretend to complete a donation (IMPL-0002). With the
- * donations flag on and the partner configured (IMPL-0021, PROPOSTA), the panel offers a Pix through AbacatePay,
+ * donations flag on and the partner configured (IMPL-0022, PROPOSTA), the panel offers a Pix through AbacatePay,
  * always naming the single partner institution; it is never split among the Vila's NGOs.
  * The reading quest (PROPOSTA quests-v1) advances only through the explicit "Entendi" button:
  * opening the panel, scrolling or dwell time never records anything.

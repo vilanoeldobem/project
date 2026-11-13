@@ -31,11 +31,20 @@ const ERROR_TEXT: Record<string, string> = {
   application_locked: "Os arquivos não podem ser alterados agora: a candidatura está em análise ou a organização já foi publicada.",
   application_changed: "A candidatura mudou enquanto o arquivo era enviado. Atualize a página e tente de novo.",
   application_withdrawn: "Esta organização foi retirada da Vila pela administração. Não é possível enviar arquivos, reenviar a candidatura nem registrar novas decisões.",
-  donations_disabled: "As doações ainda não estão habilitadas neste ambiente.",
+  // Roles and moderation (IMPL-0021).
+  admin_only: "Esta ação é só para administradores. Seu papel pode ter mudado; atualize a página.",
+  self_role: "Você não pode mudar o seu próprio papel. Peça a outro administrador.",
+  last_admin: "Esta pessoa é a única administradora. A Vila precisa de pelo menos um administrador.",
+  session_blocked: "Esta conta está bloqueada pela administração. Você ainda pode ler o motivo, sair e excluir a conta.",
+  account_blocked: "Esta conta está bloqueada. Desbloqueie a conta antes de torná-la administradora.",
+  self_block: "Você não pode bloquear a sua própria conta.",
+  admin_account: "Esta conta é de um administrador. Mude o papel para Padrão antes de bloquear.",
+  bad_transition: "A situação mudou enquanto esta tela estava aberta. Atualize a página e confira antes de tentar de novo.",
+  // Donations (IMPL-0022, PROPOSTA).
   payment_provider_unavailable: "O provedor de pagamento está indisponível no momento. Tente novamente em instantes.",
   ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
   global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",
-  invalid_donation_amount: "O valor mínimo para doação via Pix é R$ 2,00.",
+  invalid_donation_amount: "O valor da doação precisa ser um número inteiro entre R$ 2,00 e R$ 50.000,00.",
   subaccounts_unavailable: "A AbacatePay ainda não habilitou subcontas nesta conta. Peça a ativação ao suporte e informe o ID da subconta no painel.",
 };
 

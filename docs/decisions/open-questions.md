@@ -14,11 +14,50 @@ Perguntas que o código não decide. Cada uma tem a escolha conservadora usada a
 | OQ-04 | Rota de entrega: A (integral) ou B (núcleo)? | A / B | Implementar B primeiro | ROADMAP | doc 23, M01 |
 | OQ-05 | Ângulo, zoom e controles finais da câmera; orçamento de desempenho em celular | — | Diagonal de cima, deslocamento (0,24,21) com zoom do jogador 0,55–1,6×; andar só por clique/toque; vista opcional "Olhar o céu" (IMPL-0006) | G12 | doc 17, G12 |
 | OQ-09 | Uma missão aceita pode ser abandonada? Como apresentar uma divergência entre a quest de visitante e a quest já ativa da conta? Hoje não há transição de abandono. `newest-house-visit` pede a visita a uma casa publicada: se a única ONG publicada sair da Vila depois do `accept`, a missão não termina e, como só há uma missão ativa por vez, nenhuma outra pode ser aceita | permitir abandonar (volta a "disponível") / concluir ou liberar a missão automaticamente quando o objetivo deixa de existir / manter como está | Sem transição de abandono nem fila automática de quests; ao entrar, carregar o estado autoritativo da conta e omitir eventos incompatíveis. A missão só é oferecida enquanto existe uma casa publicada; `quests-v1` desligada em produção (IMPL-0013) | Ligar `quests-v1` em produção (PEN-025) | revisões dos PRs #19/#30; [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md); [IMPL-0013](0013-quests-v1-runtime.md) |
-| OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | — | Sem ação de sanção (só o aviso "pendente de definição"); mutações gravam `audit_events`, e a leitura de comprovantes já é auditada conforme IMPL-0017; demais consultas e menu seguem PROPOSTA | seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0015](0015-dash-backoffice-app.md), [IMPL-0017](0017-ngo-files-r2.md), DEC-037 |
+| OQ-11 | Painel administrativo: quais sanções existem e quem as aplica (DEC-037)? O bloqueio de conta (PROPOSTA, [IMPL-0021](0021-administrator-role-and-moderation.md)) é uma delas? Com que duração, recurso e aviso? Consultas de admin (auditoria, lista de contas) também devem ser auditadas? As seções do painel são as certas? | ratificar o mecanismo de bloqueio / mudar quem bloqueia, prazo, recurso, aviso ou retenção / não ter bloqueio | Sem sanção em produção: **`ACCOUNT_BLOCK_ENABLED = "false"`** em produção e homologação, nenhum bloqueio acontece. O código, se ligado, faz o que está descrito abaixo; nada disso é decisão de produto. Mutações gravam `audit_events`, e a leitura de comprovantes já é auditada conforme IMPL-0017; demais consultas e menu seguem PROPOSTA | ligar o bloqueio de conta em homologação ou produção; seção "Usuários" do painel; ligar as contas com o painel no ar | [IMPL-0021](0021-administrator-role-and-moderation.md), [IMPL-0015](0015-dash-backoffice-app.md), [IMPL-0017](0017-ngo-files-r2.md), DEC-037 |
 | OQ-12 | Arquivos das candidaturas de ONG: quais documentos a organização deve enviar (PEN-019)? Por quanto tempo ficam guardados depois da decisão (aprovação ou rejeição)? Quem, além dos admins, pode lê-los? | lista fechada de documentos / só opcionais; prazo fixo depois da decisão / até a exclusão da conta | Nenhum documento obrigatório nem nomeado; até 5 opcionais; ficam até a pessoa remover (fora de análise/publicação) ou excluir a conta; só quem enviou e admins leem, com leitura administrativa auditada e disponível com bucket ligado mesmo se o envio estiver desligado; envio desligado em produção (`NGO_FILES_ENABLED`) | ligar o envio de arquivos; revisão LGPD / ECA Digital | [IMPL-0017](0017-ngo-files-r2.md), PEN-019 |
 | OQ-13 | Medição com Google: desde 2026-11-12 a tag do Google (GTM) tenta enviar dados também para `analytics.google.com`, `www.google.com`, `stats.g.doubleclick.net` e `google.com.br/ads/ga-audiences` (Google Signals / públicos de anúncios). A CSP do jogo bloqueia esses destinos: cada bloqueio é um erro de console, parte da medição se perde e `verify.mjs` / `verify-live.mjs` falham. O que fazer? | desligar o Google Signals e os recursos de publicidade na propriedade do Google Analytics / liberar esses hosts na CSP | **Não liberar**: menores são público provável (ECA Digital, LGPD) e esses destinos servem a publicidade. Desligar Google Signals e personalização de anúncios no Google Analytics; a CSP fica como está | medição confiável; `verify.mjs` e `verify-live.mjs` voltarem a passar | conferência em produção de 2026-11-12; [deploy §5](../guides/deploy.md#5-site-público-e-domínios) |
 | OQ-14 | Retirada de ONG publicada (PROPOSTA, [IMPL-0020](0020-ngo-publication-withdrawal.md)): o que a retirada significa para a conta do responsável e para o CNPJ? Pode ser desfeita? A organização pode voltar? O terreno é liberado para outra ONG? O que é guardado, por quanto tempo, e o que é dito à organização? | ratificar o comportamento atual / permitir nova candidatura depois da retirada (da mesma conta, do mesmo CNPJ, ou de ambos) / criar restauração por admin / definir prazo e descarte dos dados | **Bandeira desligada** (`NGO_WITHDRAWAL_ENABLED = "false"` em produção e homologação): nenhuma retirada acontece. O código, se ligado, faz o que está descrito abaixo; nada disso é decisão de produto | ligar a retirada em homologação ou produção | [IMPL-0020](0020-ngo-publication-withdrawal.md), DEC-028/037, PEN-019; revisão do PR #33 |
 | OQ-15 | Galeria institucional conciliada: ratificar quantidade, tamanho, PNG/JPEG, dimensões, direitos de imagem, consentimentos, retenção e procedimento para órfãos? Como tratar fotos depois da exclusão da conta? | Ratificar a proposta ou ajustar antes de receber arquivos reais; definir retenção por estado editorial | Galeria com revisão individual, no bucket privado `FILES`, separada de logo/comprovantes; PNG/JPEG tratados pelo parser compartilhado; `NGO_PHOTOS_ENABLED` desligada. Sem WebP nesta versão. Exclusão da conta remove toda a galeria, inclusive fotos aprovadas; leitura pública exige terreno publicado. Texto/versionamento da declaração e conferência de direitos de imagem aguardam decisão operacional | Ativar galeria e receber fotos reais; integração visual posterior | [IMPL-0018](0018-ngo-files-reconciliation.md), DEC-028/037, PEN-019 |
+
+**OQ-11, o que só o dono do produto responde sobre o bloqueio de conta.** O bloqueio é PROPOSTA e fica desligado
+(**`ACCOUNT_BLOCK_ENABLED = "false"` até a resposta**). O código entrega só o mecanismo
+([IMPL-0021](0021-administrator-role-and-moderation.md)). Se fosse ligado hoje, faria o seguinte; cada item precisa
+ser ratificado ou mudado, e nenhum foi decidido pelo código:
+
+1. **Quem pode bloquear.** Qualquer administrador bloqueia e desbloqueia qualquer conta de papel Padrão, sozinho,
+   sem segunda aprovação; um administrador não é bloqueado (é preciso rebaixá-lo antes). Não há papel de
+   moderador. É esse o conjunto de pessoas que pode aplicar uma sanção? Com que critérios escritos? Precisa de uma
+   segunda pessoa?
+2. **Duração.** O bloqueio não tem prazo: vale até um administrador desfazê-lo. Deve haver bloqueio por tempo
+   determinado, prazo máximo ou revisão periódica?
+3. **Recurso.** Não existe caminho de contestação dentro da Vila: a pessoa bloqueada só lê a mensagem, sai e
+   exclui a conta. Como ela contesta, para quem, e em quanto tempo recebe resposta?
+4. **Aviso.** A pessoa não é avisada por e-mail. Ela é desconectada e só descobre ao entrar de novo pelo link,
+   quando lê a mensagem que o administrador escreveu (10 a 1000 caracteres, mostrada como foi escrita; não há
+   anotação interna separada nem texto padrão). Esse é o canal certo? É preciso um aviso por e-mail, um texto
+   padrão, um registro interno do motivo?
+5. **Conta de menor de idade.** Menores são público provável (ECA Digital, LGPD) e a Vila não guarda idade nem
+   responsável. O que o responsável por um menor bloqueado pode fazer: ler o motivo, contestar, pedir os dados,
+   pedir a exclusão? Por qual canal, e como se confirma que é o responsável? A mensagem a um menor precisa de
+   cuidado ou revisão antes de ser enviada?
+6. **O que a pessoa bloqueada ainda pode fazer.** Hoje: ler os próprios dados e o motivo (`GET /me`), sair e
+   excluir a conta. Não pode corrigir os dados cadastrais, ver o próprio progresso, ver ou remover a própria
+   candidatura, arquivos e fotos (a exclusão da conta os remove). Esse conjunto é o certo, considerando os
+   direitos de acesso e de correção?
+7. **O bloqueio é da conta, não da pessoa.** Excluir a conta apaga também o registro do bloqueio e **nada guarda
+   o e-mail**: ele pode ser cadastrado de novo, e outro e-mail sempre pode criar outra conta. Isso é aceitável? Se
+   o bloqueio deve sobreviver à exclusão, é preciso guardar o e-mail (ou um hash) de quem foi bloqueado: com que
+   base legal e por quanto tempo?
+8. **Retenção.** O registro do bloqueio (com a mensagem) fica enquanto a conta existir, mesmo depois de desfeito;
+   a auditoria (ids, sem o texto) fica sem prazo; um cadastro bloqueado que nunca confirmou o link deixa de
+   expirar em 24 horas. Por quanto tempo cada item deve ficar?
+9. **ONG da conta bloqueada.** O bloqueio não muda a candidatura nem a ONG: uma ONG publicada continua
+   publicada, e a administração ainda decide uma candidatura em aberto. Bloquear o responsável deve ter algum
+   efeito sobre a organização (ver OQ-14)?
+10. **Remoção de visitante de uma sala** (PROPOSTA, `PRESENCE_MODERATION_ENABLED` desligada): é uma cortesia sobre
+    uma conexão anônima, sem conta, e o visitante pode voltar. Ela conta como sanção? Quem pode usá-la, e com que
+    critério?
 
 **OQ-15, o que só o dono do produto responde (revisão do PR #35).** O código da galeria é PROPOSTA e não decide
 nenhum destes pontos; **`NGO_PHOTOS_ENABLED` fica `"false"` até a resposta**:

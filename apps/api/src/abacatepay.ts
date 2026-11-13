@@ -1,5 +1,5 @@
 /**
- * AbacatePay v2 client (IMPL-0021; PROPOSTA, dark behind DONATIONS_ENABLED). Web Crypto and `fetch` only: no
+ * AbacatePay v2 client (IMPL-0022; PROPOSTA, dark behind DONATIONS_ENABLED). Web Crypto and `fetch` only: no
  * dependency, nothing to audit beyond this file.
  *
  *   POST /sub-accounts/create  → the NGO's (or the primary institution's) `sacc_…` sub-account
@@ -77,7 +77,7 @@ const providerUnavailable = (error: unknown): never => {
 };
 
 /**
- * The sandbox account used during IMPL-0021 answers `Insufficient permissions` to `/sub-accounts/create` until
+ * The sandbox account used during IMPL-0022 answers `Insufficient permissions` to `/sub-accounts/create` until
  * AbacatePay enables subcontas on it; the same refusal reaches production as `subaccounts_unavailable`.
  */
 const subAccountsUnavailable = (error: unknown): boolean =>

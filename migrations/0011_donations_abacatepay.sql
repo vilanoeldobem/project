@@ -1,4 +1,4 @@
--- 0010_donations_abacatepay: donations and payment reconciliation with AbacatePay v2 (IMPL-0021).
+-- 0011_donations_abacatepay: donations and payment reconciliation with AbacatePay v2 (IMPL-0022).
 -- PROPOSTA: dark behind DONATIONS_ENABLED ("false" in production and staging) until the partner contract and the
 -- payment rules exist (PEN-004, PEN-006; Título: PEN-026). Additive only: no table is rebuilt and no existing
 -- column changes, so the public routes that require migration 0003 keep working untouched.

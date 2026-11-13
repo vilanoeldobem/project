@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 
 import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
@@ -11,6 +11,7 @@ import { Hud } from "./ui/Hud";
 import { Indicators } from "./ui/Indicators";
 import { Lot } from "./ui/Lot";
 import { MemoryGame } from "./ui/MemoryGame";
+import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { NpcDialog } from "./ui/NpcDialog";
@@ -22,10 +23,11 @@ export function App() {
   const panel = useVila((s) => s.panel);
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
+  /** Reads the lots (again after a moderation action changed what the village shows, IMPL-0021). */
+  const loadLots = useCallback(() => void fetchLots().then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l])))), []);
+
   useEffect(() => void initAccount(), []);
-  useEffect(() => {
-    fetchLots().then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l]))));
-  }, []);
+  useEffect(loadLots, [loadLots]);
 
   return (
     <>
@@ -35,9 +37,10 @@ export function App() {
         </Suspense>
       </main>
       <Hud />
+      <ModerationFlag />
       {panel.kind === "welcome" && <Welcome />}
       {panel.kind === "donation" && <Donation />}
-      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} />}
+      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} onChanged={loadLots} />}
       {panel.kind === "explore" && <Explore lots={lots} />}
       {panel.kind === "memory" && <MemoryGame />}
       {panel.kind === "missions" && <Missions lots={lots} />}
