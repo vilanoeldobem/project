@@ -248,9 +248,10 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
 
   const now = new Date().toISOString(), token = newId();
   const [removed] = await db.batch([
+    // Not for an applicant who was blocked after the session check (IMPL-0021): a blocked account only erases itself.
     db.prepare(`UPDATE ngos SET revision = revision + 1, updated_at = ?, file_write_token = ?
       WHERE id = ? AND applicant_id = ? AND revision = ? AND status = ?
-        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND u.files_deleting = 1)
+        AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND (u.files_deleting = 1 OR u.blocked = 1))
         AND EXISTS (SELECT 1 FROM ngo_files WHERE id = ? AND ngo_id = ?)`)
       .bind(now, token, app.id, user.id, app.revision, app.status, fileId, app.id),
     db.prepare(`INSERT INTO media_upload_intents(id,ngo_id,uploaded_by,cleanup_pending)
@@ -259,7 +260,10 @@ export async function deleteFile(request: Request, env: Env, fileId: string): Pr
     db.prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, 'ngo.file_remove', ?, ? WHERE ${MINE}`)
       .bind(newId(), user.id, `ngo:${app.id}`, JSON.stringify({ kind: row.kind, file: fileId, revision: app.revision + 1 }), app.id, token),
   ]);
-  if (!removed.meta.changes) throw new HttpError(409, "application_changed");
+  if (!removed.meta.changes) {
+    if (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()) throw new HttpError(403, "session_blocked");
+    throw new HttpError(409, "application_changed");
+  }
   try { await cleanupIntent(env, { id: fileId, ngo_id: app.id }); }
   catch { throw new HttpError(503, "file_cleanup_pending"); }
   return json({ revision: app.revision + 1 }, { headers: NO_STORE });

@@ -58,6 +58,19 @@ function beforeNextBatch(competing: () => Promise<unknown>) {
     return original(statements);
   }) as typeof db.batch;
 }
+/** Same, for a write that is one statement outside a batch: runs `competing` right before the first statement whose SQL matches. */
+function beforeStatement(sql: RegExp, competing: () => Promise<unknown>) {
+  const original = db.prepare.bind(db);
+  db.prepare = ((query: string) => {
+    const statement = original(query);
+    if (!sql.test(query)) return statement;
+    db.prepare = original;
+    return { ...statement, bind: (...values: unknown[]) => {
+      const bound = statement.bind(...values);
+      return { ...bound, run: async () => { await competing(); return bound.run(); } };
+    } };
+  }) as typeof db.prepare;
+}
 /** Same, for the conditional write of an upload's bytes: the reservation and the "still active" check already happened. */
 function beforeNextBytesPut(competing: () => Promise<unknown>) {
   const original = bucket.put.bind(bucket);
@@ -550,6 +563,58 @@ describe("block racing other writes", () => {
     const late = await call("POST", "/progress/events", { accountId: "ana", events: EVENTS }, "ana", GAME);
     expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
     expect(db.sql("SELECT * FROM progress_events")).toEqual([]);
+  });
+
+  it("refuses in SQL a correction of name, nickname or city that was being sent when the block was recorded", async () => {
+    const before = db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'");
+    // The block commits after this request's session check and nickname check, right before its only write.
+    beforeStatement(/^UPDATE users SET name/, () => block("ana"));
+    const late = await call("POST", "/me", { name: "Another Name", nickname: "ana_again", city: "Natal" }, "ana", GAME);
+    expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(late.headers.get("Cache-Control")).toBe("no-store");
+    expect(db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'")).toEqual(before);
+    expect(user("ana").blocked).toBe(1);
+    // Without a block the same correction goes through, and nobody else's account is touched by it.
+    const corrected = await call("POST", "/me", { name: "Another Name", nickname: "bia_again", city: "Natal" }, "bia", GAME);
+    expect([corrected.status, corrected.body.user]).toEqual([200, expect.objectContaining({ id: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" })]);
+    expect(db.sql("SELECT nickname_key FROM users WHERE id = 'bia'")).toEqual([{ nickname_key: "bia_again" }]);
+  });
+
+  it("refuses in SQL the first progress of an account that was blocked before its write counter was created", async () => {
+    beforeStatement(/INTO progress_writes/, () => block("ana"));
+    const late = await call("POST", "/progress/events", { accountId: "ana", events: EVENTS }, "ana", GAME);
+    expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(db.sql("SELECT * FROM progress_writes")).toEqual([]);
+    expect(db.sql("SELECT * FROM progress_events")).toEqual([]);
+  });
+
+  it("refuses in SQL the removal of a file or of a gallery photo that was being sent when the block was recorded", async () => {
+    const created = await call("POST", "/ngo/application", { accountId: "ana", ...APPLICATION }, "ana", GAME);
+    const ngoId = created.body.application.id as string;
+    const media = { "X-Vila-Account": "ana", "Content-Type": "image/png", "X-Vila-Caption": "" };
+    const logo = await request("POST", "/ngo/application/files?kind=logo", "ana", GAME, media, png() as BodyInit);
+    const photo = await request("POST", `/ngo/photos?ngoId=${ngoId}&position=0`, "ana", GAME, media, png() as BodyInit);
+    expect([logo.status, photo.status]).toEqual([201, 201]);
+    const stored = () => [db.sql("SELECT id FROM ngo_files"), db.sql("SELECT id, status, cleanup_pending FROM ngo_photos"), db.sql("SELECT revision FROM ngos"), bucket.keys()];
+    const before = stored();
+    expect(before[3]).toHaveLength(2);
+
+    beforeNextBatch(() => block("ana"));
+    const file = await request("DELETE", `/ngo/application/files/${logo.body.file.id}`, "ana", GAME, { "X-Vila-Account": "ana" });
+    expect([file.status, file.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(stored()).toEqual(before);
+
+    // The same for the gallery, with the session the block ended put back.
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex("ana"), "ana", "2099-01-01").run();
+    await db.prepare("UPDATE users SET blocked = 0 WHERE id = 'ana'").run();
+    beforeNextBatch(() => db.prepare("UPDATE users SET blocked = 1 WHERE id = 'ana'").run());
+    const removal = await request("DELETE", `/ngo/photos/${photo.body.photo.id}`, "ana", GAME, { "X-Vila-Account": "ana" });
+    expect([removal.status, removal.body]).toEqual([403, { error: "session_blocked" }]);
+    expect(stored()).toEqual(before);
+    expect(audit().map((row) => row.action)).toEqual(["ngo.submit", "ngo.file_add", "ngo.photo.upload", "user.block"]);
+    // An administrator still removes the photo of a blocked applicant.
+    const byAdmin = await call("POST", `/admin/ngo-photos/${photo.body.photo.id}/decision`, { accountId: "admin", action: "remove", revision: 1 }, "admin");
+    expect([byAdmin.status, byAdmin.body.photo.status]).toEqual([200, "removed"]);
   });
 
   it("discards a logo and a gallery photo that were being uploaded when the block was recorded", async () => {

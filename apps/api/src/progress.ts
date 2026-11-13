@@ -49,7 +49,7 @@ const MAX_WRITE_ATTEMPTS = 3;
 
 type StoredEvent = { mission_id: string; event_id: string };
 type Event = { missionId: string; eventId: string };
-type SnapshotRow = { revision: number; blocked: number; mission_id: string | null; event_id: string | null; created_at: string | null };
+type SnapshotRow = { revision: number | null; blocked: number; mission_id: string | null; event_id: string | null; created_at: string | null };
 
 /** The account's events in the order they were stored, which is the order they are replayed in. */
 async function storedEvents(env: Env, userId: string): Promise<StoredEvent[]> {
@@ -74,11 +74,12 @@ export async function getProgress(request: Request, env: Env): Promise<Response>
 async function snapshot(db: D1Database, userId: string) {
   const { results } = await db.prepare(
     `SELECT w.revision, u.blocked, e.mission_id, e.event_id, e.created_at
-       FROM progress_writes w JOIN users u ON u.id = w.user_id LEFT JOIN progress_events e ON e.user_id = w.user_id
-      WHERE w.user_id = ? ORDER BY e.created_at, e.rowid`
+       FROM users u LEFT JOIN progress_writes w ON w.user_id = u.id LEFT JOIN progress_events e ON e.user_id = u.id
+      WHERE u.id = ? ORDER BY e.created_at, e.rowid`
   ).bind(userId).all<SnapshotRow>();
   if (!results.length) throw new HttpError(401, "not_signed_in");
-  // Blocked after the session check (IMPL-0021): the claim below refuses in SQL, and the retry stops here.
+  // Blocked after the session check (IMPL-0021): the claim below refuses in SQL, and the retry stops here. The
+  // account may then have no write counter at all: it is not created for a blocked account either.
   if (results[0].blocked) throw new HttpError(403, "session_blocked");
   return {
     revision: results[0].revision,
@@ -99,7 +100,7 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
   if (valid.length !== events.length) throw new HttpError(400, "bad_events");
   const db = env.DB!;
   const questsOn = env.QUESTS_V1_ENABLED === "true";
-  await db.prepare("INSERT OR IGNORE INTO progress_writes(user_id) SELECT id FROM users WHERE id = ?").bind(user.id).run();
+  await db.prepare("INSERT OR IGNORE INTO progress_writes(user_id) SELECT id FROM users WHERE id = ? AND blocked = 0").bind(user.id).run();
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
     // Let a competing writer finish before reading a fresh snapshot; never spin on one stale claim.
     if (attempt) await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));

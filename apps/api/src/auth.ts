@@ -169,10 +169,13 @@ export async function updateMe(request: Request, env: Env): Promise<Response> {
   const db = env.DB!;
   const taken = await db.prepare("SELECT 1 AS x FROM users WHERE nickname_key = ? AND id != ?").bind(value.nickname.toLowerCase(), user.id).first();
   if (taken) throw new HttpError(409, "nickname_taken", { nickname: "Esse nickname já está em uso. Escolha outro." });
-  await db
-    .prepare("UPDATE users SET name = ?, nickname = ?, nickname_key = ?, city = ? WHERE id = ?")
+  // Not for an account that was blocked after the session check (IMPL-0021): the correction is refused in SQL.
+  const corrected = await db
+    .prepare("UPDATE users SET name = ?, nickname = ?, nickname_key = ?, city = ? WHERE id = ? AND blocked = 0")
     .bind(value.name, value.nickname, value.nickname.toLowerCase(), value.city, user.id)
     .run();
+  if (!corrected.meta.changes && (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()))
+    throw new HttpError(403, "session_blocked");
   return json({ user: meView({ ...user, name: value.name, nickname: value.nickname, city: value.city }) }, { headers: NO_STORE });
 }
 
