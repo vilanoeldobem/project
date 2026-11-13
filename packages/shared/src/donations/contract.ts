@@ -35,6 +35,28 @@ export interface DonationSplitBreakdown extends SplitConfig {
   vilaShareCents: number;
 }
 
+/** One donation exactly as the API returns it; shared by the game, the dashboard and the admin history. */
+export interface DonationView {
+  id: string;
+  targetKind: DonationTargetKind;
+  ngoId: string | null;
+  recipientName: string;
+  amountCents: number;
+  ngoShareCents: number;
+  vilaShareCents: number;
+  ngoPercentBps: number;
+  fixedFeeCents: number;
+  status: DonationStatus;
+  brCode: string | null;
+  brCodeBase64: string | null;
+  receiptUrl: string | null;
+  expiresAt: string | null;
+  devMode: boolean;
+  titleCredited: boolean;
+  paidAt: string | null;
+  createdAt: string;
+}
+
 export interface TitleProgress {
   /** Sum of the paid, title-credited donations of the account, in cents. */
   eligibleCents: number;
@@ -58,6 +80,21 @@ export function formatBrl(cents: number): string {
   const abs = Math.abs(Math.trunc(cents));
   const reais = Math.floor(abs / 100).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${cents < 0 ? "-" : ""}R$ ${reais},${String(abs % 100).padStart(2, "0")}`;
+}
+
+/** "95,5" / "95.5" → 95.5; null for anything that is not digits with one optional decimal part. */
+export function parseDecimal(text: string): number | null {
+  const normalized = text.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d+)?$/.test(normalized)) return null;
+  const value = Number(normalized);
+  return Number.isFinite(value) ? value : null;
+}
+
+/** "2,00" → 200; null when the text is not a money amount with at most two decimals. */
+export function parseBrlToCents(text: string): number | null {
+  const normalized = text.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+  return Math.round(Number(normalized) * 100);
 }
 
 /** pt-BR field messages; empty when the configuration is usable. */
@@ -99,6 +136,8 @@ function forbiddenHost(hostname: string): boolean {
   if (host.startsWith("[") || host.includes(":")) return true; // IPv6 literal
   if (IPV4.test(host)) return true;
   if (!host.includes(".")) return true; // localhost, intranet names
+  // A numeric last label covers shorthand/hex/octal IPv4 (127.1, 0x7f.0.0.1) and numeric TLDs.
+  if (/^\d+$/.test(host.slice(host.lastIndexOf(".") + 1))) return true;
   return ["localhost", "local", "internal", "home.arpa", "lan"].some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
 }
 

@@ -8,6 +8,8 @@ import {
   formatBrl,
   MAX_DONATION_CENTS,
   MIN_DONATION_CENTS,
+  parseBrlToCents,
+  parseDecimal,
   validateExternalDonationUrl,
   validateSplitConfig,
 } from "./contract";
@@ -72,6 +74,9 @@ describe("external donation link", () => {
       "https://user:secret@ong.org.br/doar",
       "https://localhost/doar",
       "https://127.0.0.1/doar",
+      "https://127.1/doar",
+      "https://0x7f.0.0.1/doar",
+      "https://0177.0.0.1/doar",
       "https://10.0.0.8/doar",
       "https://192.168.0.2/doar",
       "https://[::1]/doar",
@@ -121,5 +126,16 @@ describe("money text", () => {
       [-200, "-R$ 2,00"],
     ] as const)
       expect([cents, formatBrl(cents)]).toEqual([cents, text]);
+  });
+
+  it("parses the amounts people type with a comma or a dot", () => {
+    expect(parseDecimal("95,5")).toBe(95.5);
+    expect(parseDecimal("95.5")).toBe(95.5);
+    expect(parseDecimal(" 80 ")).toBe(80);
+    expect(parseDecimal("abc")).toBeNull();
+    expect(parseDecimal("")).toBeNull();
+    expect([parseBrlToCents("2,00"), parseBrlToCents("2.00"), parseBrlToCents("0,80")]).toEqual([200, 200, 80]);
+    expect(parseBrlToCents("2,001")).toBeNull();
+    expect(parseBrlToCents("2,00abc")).toBeNull();
   });
 });

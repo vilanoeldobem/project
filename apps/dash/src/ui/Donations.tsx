@@ -8,9 +8,9 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
-import type { NgoPayment } from "@vila/shared/accounts/contract";
+import { STATUS_LABEL, type ApplicationStatus, type NgoPayment } from "@vila/shared/accounts/contract";
 import { ApiError, errorText } from "@vila/shared/accounts/errors";
-import { computeDonationSplit, formatBrl, validateExternalDonationUrl } from "@vila/shared/donations/contract";
+import { computeDonationSplit, formatBrl, parseBrlToCents, parseDecimal, validateExternalDonationUrl } from "@vila/shared/donations/contract";
 
 import type { DonationOverview, DonationRow, NgoPaymentRow } from "../lib/api";
 import { dateTime } from "../lib/format";
@@ -29,10 +29,11 @@ const TARGET_TEXT: Record<string, string> = { global: "Doação global", ngo: "O
 
 /** Cents preview of the R$ 2,00 minimum, or the pt-BR reason the numbers do not close. */
 function previewOf(percent: string, fee: string): { ngo: string; vila: string } | { error: string } {
-  const bps = Math.round(Number(percent) * 100);
-  const fixedFeeCents = Math.round(Number(fee));
+  const parsedPercent = parseDecimal(percent);
+  const parsedFee = parseDecimal(fee);
+  if (parsedPercent === null || parsedFee === null) return { error: "Confira a porcentagem e a taxa fixa." };
   try {
-    const split = computeDonationSplit(200, { ngoPercentBps: bps, fixedFeeCents });
+    const split = computeDonationSplit(200, { ngoPercentBps: Math.round(parsedPercent * 100), fixedFeeCents: Math.round(parsedFee) });
     return { ngo: formatBrl(split.ngoShareCents), vila: formatBrl(split.vilaShareCents) };
   } catch (error) {
     return { error: error instanceof RangeError ? error.message : "Confira a porcentagem e a taxa fixa." };
@@ -98,8 +99,8 @@ function GlobalSettings({ settings, accountId, onSaved }: { settings: DonationOv
         accountId,
         primaryNgoName: name,
         primaryNgoCnpj: cnpj,
-        ngoPercentBps: Math.round(Number(percent) * 100),
-        fixedFeeCents: Math.round(Number(fee)),
+        ngoPercentBps: Math.round((parseDecimal(percent) ?? 0) * 100),
+        fixedFeeCents: Math.round(parseDecimal(fee) ?? 0),
         ...(subAccountId.trim() ? { subAccountId: subAccountId.trim() } : {}),
       });
       setMessage("Configuração da doação global salva.");
@@ -178,7 +179,7 @@ function NgoPaymentList({ rows }: { rows: NgoPaymentRow[] }) {
               key: r.id,
               cells: [
                 <a href={`#/applications/${r.id}`}>{r.name}</a>,
-                <Status code={r.status}>{r.status === "published" ? "Publicada" : r.status}</Status>,
+                <Status code={r.status}>{r.status === "published" ? "Publicada" : STATUS_LABEL[r.status as ApplicationStatus] ?? r.status}</Status>,
                 r.payment_method === "external_link"
                   ? r.link_validated
                     ? "Link próprio conferido"
@@ -214,7 +215,7 @@ function ExternalProof({ rows, accountId, onSaved }: { rows: NgoPaymentRow[]; ac
       await api.registerExternalProof({
         accountId,
         ngoId: ngoId || published[0]?.id || "",
-        amountCents: Math.round(Number(amount) * 100),
+        amountCents: parseBrlToCents(amount) ?? 0,
         proofReference: reference,
         ...(note.trim() ? { note: note.trim() } : {}),
       });
@@ -352,8 +353,8 @@ export function NgoPaymentConfig({
         accountId,
         paymentMethod: method,
         ...(method === "external_link" ? { donationUrl: url, linkValidated: validated } : {}),
-        ngoPercentBps: Math.round(Number(percent) * 100),
-        fixedFeeCents: Math.round(Number(fee)),
+        ngoPercentBps: Math.round((parseDecimal(percent) ?? 0) * 100),
+        fixedFeeCents: Math.round(parseDecimal(fee) ?? 0),
         ...(method === "abacatepay" && subAccountId.trim() ? { subAccountId: subAccountId.trim() } : {}),
       });
       setMessage("Configuração de pagamento salva.");

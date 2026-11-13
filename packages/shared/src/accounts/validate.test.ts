@@ -90,5 +90,4 @@ describe("NGO application (P12; DEC-015)", () => {
     // Both fields belong to step 2, so the wizard jumps there on an error.
     expect([APPLICATION_STEP.paymentMethod, APPLICATION_STEP.donationUrl]).toEqual([2, 2]);
   });
-
 });

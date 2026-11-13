@@ -1,6 +1,6 @@
 /** Client for the HTTP API Worker (docs/reference/api.md). Public reads resolve to `null`; writes throw `ApiError`. */
 import { ApiError } from "@vila/shared/accounts/errors";
-import type { DonationStatus, DonationTargetKind, NgoPaymentMethod, TitleProgress } from "@vila/shared/donations/contract";
+import type { DonationTargetKind, DonationView, NgoPaymentMethod, TitleProgress } from "@vila/shared/donations/contract";
 
 import { SERVICES } from "./services";
 
@@ -107,24 +107,7 @@ export interface DonationConfig {
   };
 }
 
-export interface Donation {
-  id: string;
-  targetKind: DonationTargetKind;
-  ngoId: string | null;
-  recipientName: string;
-  amountCents: number;
-  ngoShareCents: number;
-  vilaShareCents: number;
-  ngoPercentBps: number;
-  fixedFeeCents: number;
-  status: DonationStatus;
-  brCode: string | null;
-  brCodeBase64: string | null;
-  receiptUrl: string | null;
-  expiresAt: string | null;
-  devMode: boolean;
-  titleCredited: boolean;
-}
+export type Donation = DonationView;
 
 export interface NgoDonationInfo {
   ngoId: string;

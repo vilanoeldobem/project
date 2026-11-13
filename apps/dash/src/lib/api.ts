@@ -16,6 +16,7 @@ import type {
   UserSummary,
 } from "@vila/shared/accounts/contract";
 import { ApiError } from "@vila/shared/accounts/errors";
+import type { DonationView, NgoPaymentMethod } from "@vila/shared/donations/contract";
 
 import { isId } from "./ids";
 
@@ -62,7 +63,7 @@ export interface NgoPaymentRow {
   name: string;
   status: string;
   lotId: string | null;
-  payment_method: "abacatepay" | "external_link" | null;
+  payment_method: NgoPaymentMethod | null;
   donation_url: string | null;
   sub_account_id: string | null;
   link_validated: number | null;
@@ -70,20 +71,11 @@ export interface NgoPaymentRow {
   fixed_fee_cents: number | null;
 }
 
-/** A donation as the admin routes return it (`amountCents` etc. are already integers in cents). */
-export interface DonationRow {
-  id: string;
-  targetKind: "global" | "ngo";
-  ngoId: string | null;
-  recipientName: string;
-  amountCents: number;
-  ngoShareCents: number;
-  vilaShareCents: number;
-  status: string;
-  titleCredited: boolean;
-  paidAt: string | null;
-  createdAt: string;
-}
+/** A donation as the admin routes return it; the API's view, narrowed to what the dashboard renders. */
+export type DonationRow = Pick<
+  DonationView,
+  "id" | "targetKind" | "ngoId" | "recipientName" | "amountCents" | "ngoShareCents" | "vilaShareCents" | "status" | "titleCredited" | "paidAt" | "createdAt"
+>;
 
 export interface DonationRedirect {
   id: string;

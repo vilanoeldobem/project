@@ -9,7 +9,7 @@
 import { useState } from "react";
 
 import { errorText } from "@vila/shared/accounts/errors";
-import { computeDonationSplit, formatBrl, type DonationTargetKind } from "@vila/shared/donations/contract";
+import { computeDonationSplit, formatBrl, parseBrlToCents, type DonationTargetKind } from "@vila/shared/donations/contract";
 
 import { useAccount } from "../lib/account";
 import { createPixDonation, fetchDonationStatus, simulatePixDonation, type Donation } from "../lib/api";
@@ -47,7 +47,7 @@ export function PixDonation({
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const amountCents = custom.trim() ? Math.round(Number(custom.replace(",", ".")) * 100) : preset;
+  const amountCents = custom.trim() ? (parseBrlToCents(custom) ?? Number.NaN) : preset;
   const split = (() => {
     try {
       return computeDonationSplit(amountCents, { ngoPercentBps, fixedFeeCents });

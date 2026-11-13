@@ -157,7 +157,7 @@ export function validateApplication(
   if (value.summary.length < 20 || value.summary.length > 280) errors.summary = "Escreva um resumo de 20 a 280 caracteres.";
   if (value.description.length < 50 || value.description.length > 2000) errors.description = "Descreva a organização (50 a 2000 caracteres).";
   if (value.tags.length === 0) errors.tags = "Escolha de 1 a 4 áreas de atuação.";
-  if (value.paymentMethod === "external_link" && !validateExternalDonationUrl(value.donationUrl).url) {
+  if (value.paymentMethod === "external_link" && !link.url) {
     errors.donationUrl = "Informe um link HTTPS público válido da organização (ex.: https://ong.org.br/doar).";
   }
   if (value.projects.some((p) => p.title.length < 3 || p.title.length > 80 || p.description.length > 400))

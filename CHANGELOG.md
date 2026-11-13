@@ -59,6 +59,10 @@ Cada versão indica o schema D1 que entrega.
   não chega; o modo de recebimento guardado é mantido ao reenviar uma candidatura.
 - Uma resposta `2xx` sem JSON não é mais tratada como sucesso; a falha aparece na tela. Quando a leitura da doação
   global falha, o painel diz que não conseguiu carregar, em vez de dizer que a parceira não foi configurada.
+- O link próprio da ONG recusa hosts numéricos que se passavam por nomes públicos (`127.1`, `0x7f.0.0.1`,
+  `0177.0.0.1`); a lista de recebimento por ONG mostra o estado em português.
+- Os formulários do painel e o valor personalizado do Pix aceitam vírgula decimal (`2,00`, `95,5`); o parse é o
+  mesmo nos três lugares. A mensagem de valor inválido passa a citar o intervalo aceito.
 
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 

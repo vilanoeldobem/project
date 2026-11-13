@@ -38,6 +38,8 @@ import {
   MAX_DONATION_CENTS,
   MIN_DONATION_CENTS,
   type DonationStatus,
+  type DonationTargetKind,
+  type DonationView,
   type NgoPaymentMethod,
   type SplitConfig,
   validateExternalDonationUrl,
@@ -89,7 +91,7 @@ interface PaymentRow {
 
 interface DonationRow {
   id: string;
-  target_kind: string;
+  target_kind: DonationTargetKind;
   ngo_id: string | null;
   recipient_name: string;
   user_id: string | null;
@@ -102,7 +104,7 @@ interface DonationRow {
   platform_fee_cents: number | null;
   ngo_percent_bps: number;
   fixed_fee_cents: number;
-  status: string;
+  status: DonationStatus;
   br_code: string | null;
   br_code_base64: string | null;
   receipt_url: string | null;
@@ -136,7 +138,7 @@ const splitOf = (row: { ngo_percent_bps?: number | null; fixed_fee_cents?: numbe
   fixedFeeCents: row?.fixed_fee_cents ?? DEFAULT_FIXED_FEE_CENTS,
 });
 
-const donationView = (row: DonationRow) => ({
+const donationView = (row: DonationRow): DonationView => ({
   id: row.id,
   targetKind: row.target_kind,
   ngoId: row.ngo_id,
