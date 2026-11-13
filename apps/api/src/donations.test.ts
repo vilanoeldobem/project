@@ -460,6 +460,15 @@ describe("webhook reconciliation", () => {
     expect(count("abacatepay_webhook_events")).toBe(2);
   });
 
+  it("keeps a refund that arrives before the payment confirmation", async () => {
+    // The provider retries a failed delivery later: the refund can be the first event the Vila receives.
+    expect(await (await webhook(event("log_refund", "transparent.refunded", chargeId, "REFUNDED"))).json()).toEqual({ ok: true, applied: true });
+    expect(await (await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: false });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+    const indicators = ((await (await call("GET", "/indicators", undefined, null, null)).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators;
+    expect([indicators.find((i) => i.key === "confirmed_donations")?.value, indicators.find((i) => i.key === "confirmed_amount")?.value]).toEqual([0, 0]);
+  });
+
   it("refunds a disputed charge, and nothing that arrives after the refund reopens it", async () => {
     await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
     await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"));

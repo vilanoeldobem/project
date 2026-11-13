@@ -187,10 +187,11 @@ Valores são inteiros em **centavos**.
 `SET NULL`, e em `ngo_payment_configs`/`donation_redirects` usa `ON DELETE CASCADE`.
 
 A confirmação de pagamento (webhook, `?refresh=1` ou simulação de sandbox) atualiza a linha sob a transição de
-status permitida; `title_credited` vira 1 só em `paid` de uma conta, e 0 em estorno ou disputa perdida. A soma do
-Título e os indicadores públicos são lidos de `donations` (sem contador paralelo), então repetir o webhook não
-duplica crédito. Nenhuma rota pública lê estas tabelas com a bandeira desligada; com ela ligada e o banco sem a
-0011, as rotas respondem `503 schema_outdated`.
+status permitida; `title_credited` vira 1 só em `paid` de uma conta, e 0 em estorno ou disputa perdida. `refunded`
+é final e vale a partir de qualquer outro status: se o estorno chega antes da confirmação do pagamento, a
+confirmação atrasada não muda a linha. A soma do Título e os indicadores públicos são lidos de `donations` (sem
+contador paralelo), então repetir o webhook não duplica crédito. Nenhuma rota pública lê estas tabelas com a
+bandeira desligada; com ela ligada e o banco sem a 0011, as rotas respondem `503 schema_outdated`.
 
 ### lots
 

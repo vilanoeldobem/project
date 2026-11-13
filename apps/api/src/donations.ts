@@ -250,10 +250,14 @@ function chargeStatus(raw: string): DonationStatus {
   }
 }
 
-/** From which states each new status may be applied; a stale or out-of-order event changes nothing. */
+/**
+ * From which states each new status may be applied; a stale or out-of-order event changes nothing. A refund is
+ * final and applies from every other state: when it is delivered before the payment confirmation (the provider
+ * retries a failed delivery later), the late confirmation must not count a refunded donation as paid.
+ */
 const TRANSITIONS: Record<Exclude<DonationStatus, "pending">, DonationStatus[]> = {
   paid: ["pending", "expired", "cancelled", "under_dispute"],
-  refunded: ["paid", "under_dispute"],
+  refunded: ["pending", "expired", "cancelled", "paid", "under_dispute"],
   under_dispute: ["paid"],
   expired: ["pending"],
   cancelled: ["pending"],

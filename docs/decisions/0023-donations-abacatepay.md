@@ -45,9 +45,10 @@ máximo, o Vila registra o redirecionamento.
    pelo status atual. No webhook, a atualização só vale enquanto o id do evento (`log_…`) ainda não está em
    `abacatepay_webhook_events`, e o id é gravado em seguida na mesma transação (`db.batch`): a decisão não usa
    horário nem valor gerado pelo pedido, então uma repetição, mesmo no mesmo milissegundo ou simultânea, responde
-   `duplicate` e não altera nada. O Título e os indicadores são **somados de `donations`** (`status = 'paid'` e
-   `title_credited = 1`), então repetir o webhook não duplica crédito; estorno/disputa perdida zeram o crédito.
-   Doação não concede XP (DEC-042).
+   `duplicate` e não altera nada. Estorno é final e vale a partir de qualquer status: se chega antes da
+   confirmação do pagamento, a confirmação atrasada não reabre a doação. O Título e os indicadores são **somados
+   de `donations`** (`status = 'paid'` e `title_credited = 1`), então repetir o webhook não duplica crédito;
+   estorno/disputa perdida zeram o crédito. Doação não concede XP (DEC-042).
 5. **Webhook autenticado nos dois sentidos.** Exige o segredo configurado no painel da AbacatePay
    (`X-Webhook-Secret` ou `?webhookSecret=`, comparado em tempo constante com `ABACATEPAY_WEBHOOK_SECRET`) e a
    assinatura `X-Webhook-Signature` = base64(HMAC-SHA256(corpo bruto, chave pública da AbacatePay)). O corpo é lido

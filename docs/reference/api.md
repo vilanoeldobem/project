@@ -798,6 +798,8 @@ Regras:
   da doação só vale enquanto o id ainda não foi gravado, e a gravação vem em seguida na mesma transação; nenhum
   horário entra na decisão, e o mesmo evento entregue duas vezes ao mesmo tempo é aplicado uma vez. Um evento novo
   responde `{ok: true, applied}`, com `applied: false` quando o status atual da doação não admite a mudança.
+  Estorno (`transparent.refunded`, `transparent.lost`) é final e vale a partir de qualquer status anterior, mesmo
+  quando chega antes de `transparent.completed`; nenhum evento posterior reabre uma doação estornada.
 - **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
   configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
   gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um
