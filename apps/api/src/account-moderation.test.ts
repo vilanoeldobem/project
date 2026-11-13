@@ -289,6 +289,7 @@ describe("account block (PROPOSTA, IMPL-0021)", () => {
     expect(blocked).toEqual({ status: 202, body: { ok: true }, headers: expect.any(Array) });
     expect(await link("bia@example.test")).toEqual(blocked);
     expect(await link("nobody@example.test")).toEqual(blocked);
+    expect(await link("not an e-mail")).toEqual(blocked);
     const register = (nickname: string, email: string) => seen(call("POST", "/auth/register", { name: "Nova Pessoa", nickname, city: "Natal", email }, "", GAME));
     expect(await register("nova_1", "ana@example.test")).toEqual(await register("nova_2", "bia@example.test"));
     expect(await register("nova_3", "new@example.test")).toEqual(blocked);
@@ -597,6 +598,9 @@ describe("migration 0010", () => {
     env = { ...env, DB: db, ACCOUNT_BLOCK_ENABLED: flag, PRESENCE_MODERATION_ENABLED: flag, NGO_WITHDRAWAL_ENABLED: flag };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id) VALUES(?, 'Exemplo', '11222333000181', 'published', 'ana', 'plaza-01')").bind(UUID).run();
     await db.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = 'plaza-01'").bind(UUID).run();
+    // A sign-in link that was issued before the code was deployed over the older database.
+    const linkToken = "t".repeat(43);
+    await db.prepare("INSERT INTO login_tokens(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex(linkToken), "ana", "2099-01-01").run();
     const tables = ["users", "sessions", "ngos", "lots", "audit_events", "progress_events", "login_tokens"];
     const before = tables.map((table) => db.sql(`SELECT * FROM ${table}`));
     const outdated: Array<[string, string, unknown?, string?]> = [
@@ -607,6 +611,9 @@ describe("migration 0010", () => {
       ["GET", "/progress", undefined, "ana"], ["POST", "/progress/events", { accountId: "ana", events: EVENTS }, "ana"],
       ["GET", "/ngo/application", undefined, "ana"], ["POST", "/ngo/application", { accountId: "bia", ...APPLICATION }, "bia"],
       ["POST", "/auth/register", { name: "Nova Pessoa", nickname: "nova", city: "Natal", email: "nova@example.test" }, ""],
+      // The link is not claimed and no session is opened; no link is sent that could not be used, whoever asks.
+      ["POST", "/auth/verify", { token: linkToken }, ""], ["POST", "/auth/verify", { token: "u".repeat(43) }, ""], ["POST", "/auth/verify", { token: linkToken }, "bia"],
+      ["POST", "/auth/link", { email: "ana@example.test" }, ""], ["POST", "/auth/link", { email: "nobody@example.test" }, ""], ["POST", "/auth/link", { email: "not an e-mail" }, ""],
       ...(flag === "true" ? [
         ["POST", "/admin/users/ana/block", { accountId: "admin", message: MESSAGE }], ["POST", "/admin/moderation/ticket", { accountId: "admin", room: 0, target: 1 }],
       ] as Array<[string, string, unknown]> : []),
@@ -619,6 +626,7 @@ describe("migration 0010", () => {
     if (flag === "false") for (const [path, body] of [["/admin/users/ana/block", { accountId: "admin", message: MESSAGE }], ["/admin/moderation/ticket", { accountId: "admin", room: 0, target: 1 }]] as const)
       expect([path, (await call("POST", path, body)).body]).toEqual([path, { error: "not_found" }]);
     expect(tables.map((table) => db.sql(`SELECT * FROM ${table}`))).toEqual(before);
+    expect(db.sql("SELECT used_at FROM login_tokens")).toEqual([{ used_at: null }]);
     // What needs no session still answers: a signed-out visitor, signing out, and every public read.
     expect((await call("GET", "/me", undefined, "", GAME)).body).toEqual({ user: null });
     expect((await call("POST", "/auth/logout", {}, "", GAME)).status).toBe(204);

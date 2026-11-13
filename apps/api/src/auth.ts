@@ -22,6 +22,10 @@
  * restricted session: `GET /me` (with `blocked: {message, at}`), `POST /auth/logout` and `DELETE /me` work, every
  * other signed-in route answers 403 session_blocked. Erasure is never taken away by a block; it removes the block
  * ledger with the account, and nothing keeps the e-mail afterwards.
+ *
+ * A session cannot be used on a database without migration 0010 (`users.blocked`), so none is opened there: the
+ * three sign-in routes read that column before they write anything and answer 503 schema_outdated (api.ts), for
+ * every e-mail and every token. No link is sent, no link is claimed, no session row is written.
  */
 import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/validate";
 
@@ -102,7 +106,9 @@ export async function register(request: Request, env: Env, origin: string): Prom
 
 export async function requestLink(request: Request, env: Env, origin: string): Promise<Response> {
   const email = normaliseEmail((await readJson(request)).email);
-  const user = email ? await env.DB!.prepare("SELECT id, email, nickname FROM users WHERE email = ?").bind(email).first<User>() : null;
+  // Always read, and always through `blocked` (never used here: a blocked e-mail is answered like any other): on a
+  // database without migration 0010 the link could not be used, so nothing is sent and every e-mail gets the 503.
+  const user = await env.DB!.prepare("SELECT id, email, nickname, blocked FROM users WHERE email = ?").bind(email).first<User>();
   if (!user) return accepted();
   try {
     return accepted(await issueLink(env, user, origin, fromDash(env, origin)));
@@ -118,11 +124,13 @@ export async function verify(request: Request, env: Env): Promise<Response> {
   const db = env.DB!;
   const hash = await sha256Hex(token);
   const now = new Date().toISOString();
-  // Single use: only the request that flips used_at wins.
+  // Whose link it is, read through `users.blocked` before anything is written: a database without migration 0010
+  // answers 503 schema_outdated here, with the link unclaimed and no session opened that nothing could use.
+  const row = await db.prepare("SELECT t.user_id, u.blocked FROM login_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?").bind(hash).first<{ user_id: string }>();
+  if (!row) throw new HttpError(400, "invalid_token");
+  // Single use: only the request that flips used_at wins (a link used, expired or erased with its account loses).
   const claimed = await db.prepare("UPDATE login_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?").bind(now, hash, now).run();
   if (!claimed.meta.changes) throw new HttpError(400, "invalid_token");
-  const row = await db.prepare("SELECT user_id FROM login_tokens WHERE token_hash = ?").bind(hash).first<{ user_id: string }>();
-  if (!row) throw new HttpError(400, "invalid_token"); // account deleted meanwhile
   const session = randomToken();
   // A session this browser already had (maybe another account's) ends here: one browser, one account.
   const previous = readSessionToken(request);
