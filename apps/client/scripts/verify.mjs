@@ -2,11 +2,17 @@
  * verify.mjs — opens the village in a real Chrome (playwright-core + system Chrome), walks the
  * basic flow and saves screenshots to verify-output/. Fails on any console or page error.
  *
+ * Arrival (IMPL-0022): the visitor lands in the village with no dialog, the first click walks, the zoom is the
+ * wheel and the + / - keys (there are no zoom buttons), Escape closes a panel and, with none open, toggles the
+ * game menu, which is also behind the "Menu" button of the HUD.
+ *
  * Usage: node scripts/verify.mjs [url]   (default http://localhost:8787, e.g. `pnpm dev:worker`)
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 
 import { chromium } from "playwright-core";
+
+import { arrive } from "./arrive.mjs";
 
 const url = process.argv[2] ?? "http://localhost:8787";
 const out = new URL("../verify-output/", import.meta.url).pathname;
@@ -22,20 +28,39 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${out}${name}-1-welcome.png` });
-  await page.getByRole("button", { name: "Entrar na Vila" }).click();
-  // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar. Not straight ahead:
-  // in portrait the tree fills that spot, and a click on the tree opens the donation panel (hiding the zoom HUD).
+  await arrive(page, errors, name);
+  // The three paths are on the HUD from the first second, by name (P01), and nothing covers the village.
+  for (const path of ["Explorar ONGs", "Jogar", "Doação global"]) {
+    if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`${name}: path "${path}" is not on the HUD at arrival`);
+  }
+  if (await page.getByRole("button", { name: /Aproximar|Afastar/ }).count()) errors.push(`${name}: zoom buttons on the HUD`);
+  if (await page.locator(".wordmark").count()) errors.push(`${name}: the wordmark is on the gameplay screen`);
+  if ((await page.evaluate(() => document.documentElement.scrollWidth)) > viewport.width) errors.push(`${name}: the page scrolls sideways`);
+  await page.screenshot({ path: `${out}${name}-1-chegada.png` });
+  // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar, with nothing to close
+  // first. Not straight ahead: in portrait the tree fills that spot, and a click on the tree opens the donation panel.
+  const start = await page.evaluate(() => window.__vila.pose());
   await page.mouse.click(viewport.width * 0.3, viewport.height * 0.47);
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${out}${name}-2a-clique.png` });
+  await page
+    .waitForFunction((from) => Math.hypot(window.__vila.pose().x - from.x, window.__vila.pose().z - from.z) > 0.3, start, { timeout: 15000 })
+    .catch(() => errors.push(`${name}: the first click on the ground did not walk`));
   await page.waitForTimeout(800);
-  // Zoom: wheel in, then the HUD buttons back out.
+  // Zoom: wheel in, then the "-" key back out (no zoom buttons: wheel, pinch and keys).
+  const zoom = () => page.evaluate(() => Number(localStorage.getItem("vila.zoom.v1") ?? 1));
   await page.mouse.move(viewport.width / 2, viewport.height / 2);
   await page.mouse.wheel(0, -400);
   await page.waitForTimeout(700);
+  const zoomedIn = await zoom();
+  if (!(zoomedIn < 1)) errors.push(`${name}: the wheel did not zoom in (zoom ${zoomedIn})`);
   await page.screenshot({ path: `${out}${name}-2b-zoom.png` });
-  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Afastar" }).click();
+  for (let i = 0; i < 4; i++) await page.keyboard.press("-");
+  const zoomedOut = await zoom();
+  if (!(zoomedOut > zoomedIn)) errors.push(`${name}: the "-" key did not zoom out (zoom ${zoomedIn} → ${zoomedOut})`);
+  await page.keyboard.press("+");
+  if (!((await zoom()) < zoomedOut)) errors.push(`${name}: the "+" key did not zoom in`);
+  await page.keyboard.press("-");
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${out}${name}-2-praca.png` });
   await page.getByRole("button", { name: /Indicadores/ }).click();
@@ -50,6 +75,25 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${out}${name}-5-ambiente.png` });
   await page.keyboard.press("Escape");
+  // Escape closed the panel and nothing else: the same press must not open the menu.
+  if (await page.getByRole("dialog").count()) errors.push(`${name}: Escape did not leave the village clear after closing a panel`);
+  // Game menu: Escape with nothing open, and the "Menu" button of the HUD.
+  const menu = page.getByRole("dialog", { name: "Menu", exact: true });
+  await page.keyboard.press("Escape");
+  if (!(await menu.isVisible())) errors.push(`${name}: Escape did not open the game menu`);
+  const entries = (await menu.getByRole("button").allInnerTexts()).join(" | ");
+  if (entries !== "× | Continuar | Configurações | Controles | Ajuda | Sair da Vila") errors.push(`${name}: menu entries are "${entries}"`);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${out}${name}-6-menu.png` });
+  await page.keyboard.press("Escape");
+  if (await page.getByRole("dialog").count()) errors.push(`${name}: the second Escape did not close the game menu`);
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await menu.getByRole("button", { name: "Controles", exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${out}${name}-7-controles.png` });
+  await page.keyboard.press("Escape"); // back to the list
+  await menu.getByRole("button", { name: "Continuar", exact: true }).click();
+  if (await page.getByRole("dialog").count()) errors.push(`${name}: "Continuar" did not close the game menu`);
   await page.close();
 }
 
@@ -69,7 +113,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
-  await page.getByRole("button", { name: "Entrar na Vila" }).click();
+  await arrive(page, errors, name);
   if (sky) await page.getByRole("button", { name: "Olhar o céu" }).click();
   // Software GL runs at a few fps; the camera eases per frame, so the sky view needs longer to settle.
   await page.waitForTimeout(sky ? 14000 : 1500);
@@ -85,7 +129,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
   page.on("console", (m) => m.type() === "error" && errors.push(`gifts: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
-  await page.getByRole("button", { name: "Entrar na Vila" }).click();
+  await arrive(page, errors, "gifts");
   for (const [id, x, z] of [["gift-bench", -10, 6], ["gift-palm", 9.5, -9.5]]) {
     await page.evaluate(([x, z]) => window.__vila.walkTo(x, z), [x, z]);
     await page
@@ -122,8 +166,7 @@ for (const [name, time, weather, sky, quality] of scenes) {
     p.on("console", (m) => m.type() === "error" && errors.push(`${n}: ${m.text()}`));
     await p.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low" })));
     await p.goto(url, { waitUntil: "load" });
-    // Two software-GL pages starve Playwright's "stable element" check; dispatch the click directly.
-    await p.getByRole("button", { name: "Entrar na Vila" }).dispatchEvent("click");
+    await arrive(p, errors, n);
   }
   await b.waitForFunction(() => window.__vila.extra.remotes().length >= 1, null, { timeout: 30000 }).catch(() => errors.push("mp: B never saw A"));
   await a.evaluate(() => window.__vila.walkTo(-8, 0));

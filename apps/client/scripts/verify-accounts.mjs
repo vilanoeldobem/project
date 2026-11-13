@@ -44,6 +44,8 @@ import { crc32, deflateSync } from "node:zlib";
 
 import { chromium } from "playwright-core";
 
+import { arrive } from "./arrive.mjs";
+
 const [url = "http://localhost:8799", apiUrl = "http://localhost:8787", dashUrl = "http://localhost:8797"] = process.argv.slice(2);
 if (![url, apiUrl, dashUrl].every((u) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(u))) {
   console.error("local only (creates accounts and grants admin)");
@@ -245,7 +247,7 @@ function watch(page, name) {
   });
 }
 
-/** Opens the game (low quality, no multiplayer) and enters the Vila. `ctx`: reuse a browser context (its cookies). */
+/** Opens the game (low quality, no multiplayer): the visitor lands in the Vila. `ctx`: reuse a browser context (its cookies). */
 async function newPage(name, ctx) {
   ctx ??= await newContext();
   const page = await ctx.newPage();
@@ -258,7 +260,7 @@ async function newPage(name, ctx) {
     }
   });
   await page.goto(url, { waitUntil: "load" });
-  await page.getByRole("button", { name: "Entrar na Vila" }).dispatchEvent("click");
+  await arrive(page, errors, name);
   return page;
 }
 
@@ -497,7 +499,7 @@ await reviewStatus("changes_requested");
 
 // 3. Applicant (game) sees the note and resubmits.
 await a.goto(url, { waitUntil: "load" });
-await click(a.getByRole("button", { name: "Entrar na Vila" }));
+await arrive(a, errors, "applicant (back in the game)");
 await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await click(a.getByRole("button", { name: "Minha candidatura de ONG" }));
 if (!(await visible(a.getByText("Envie o relatório de recursos de 2025")))) errors.push("applicant: review note not shown");
@@ -536,7 +538,7 @@ try {
   }
   if (!(await b.getByRole("button", { name: "Rejeitar", exact: true }).isEnabled())) errors.push("admin: pending erasure prevents rejecting the application");
   await a.reload({ waitUntil: "load" });
-  await click(a.getByRole("button", { name: "Entrar na Vila" }));
+  await arrive(a, errors, "applicant (pending erasure)");
   await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
   await a.locator('[data-state="deletion-pending"]').waitFor({ timeout: API_WAIT });
   if (!(await a.getByRole("button", { name: "Tentar concluir exclusão", exact: true }).isEnabled())) errors.push("applicant: deletion retry unavailable");
