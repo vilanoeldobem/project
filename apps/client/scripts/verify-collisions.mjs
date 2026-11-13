@@ -65,7 +65,7 @@ const BLOCKED = [
   { name: "snowman", from: [6, 9], click: [9.5, 4], at: [9.5, 4], range: [1.3, 1.9] },
   { name: "sleigh", from: [-2.2, 16], click: [-2.2, 20.2], at: [-2.2, 20.2], range: [1.7, 2.3] },
   // The expanded village (IMPL-0023): a shop's wall, the firewood between two cottages, the log pile.
-  { name: "shop", from: [5, 22], click: [5, 30.5], at: [5, 30.5], range: [3.95, 4.55] },
+  { name: "shop", from: [5, 24], click: [5, 30.5], at: [5, 30.5], range: [3.95, 4.55] },
   { name: "firewood", from: [66.5, -19.5], click: [72.5, -19.5], at: [72.5, -19.5], range: [2.95, 3.55] },
   { name: "log-pile", from: [3.5, -77], click: [3.5, -80], at: [3.5, -80], range: [1.2, 1.8] },
   { name: "outside-the-world", from: [18, 18], click: [200, 200], at: [0, 0], range: [82.1, 82.51] },
