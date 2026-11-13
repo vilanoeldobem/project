@@ -70,11 +70,10 @@ export function Hud() {
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
   const bag = quests ? activeInventory(progress) : [];
   const zoomBy = useVila((s) => s.zoomBy);
+  const user = useAccount((s) => s.user);
+  const moderationOn = useModeration((s) => s.on);
   /** The moderation block is on screen (`ModerationBar`): the line that says how to walk gives it the room. */
-  const moderation = moderating(
-    useAccount((s) => s.user),
-    useModeration((s) => s.on)
-  );
+  const moderation = moderating(user, moderationOn);
 
   const activate = (n: NonNullable<Nearby>) => {
     switch (n.kind) {
