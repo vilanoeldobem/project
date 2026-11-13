@@ -535,14 +535,14 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 4. **Migration 0011**, quando autorizada (`pnpm --filter @vila/api db:migrate:remote`; num banco na v3 ela leva
    junto as 0004–0010). É aditiva: muda só as colunas `x` e `z` de 8 linhas de `lots`, insere 4 linhas e cria
    `residential_plots` com 112. **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
-   do plano são os definitivos ([OQ-18](../decisions/open-questions.md)): depois de aplicada, a migration não se
+   do plano são os definitivos ([OQ-19](../decisions/open-questions.md)): depois de aplicada, a migration não se
    edita, e um plano novo pede outra migration.
 
 ### 11.2 A bandeira — desligada (PROPOSTA)
 
 | Bandeira | Onde | Produção e homologação | Script local `dev` | Depende de |
 |---|---|---|---|---|
-| `RESIDENTIAL_PLOTS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | desligada | resposta do dono do produto à [OQ-16](../decisions/open-questions.md); contas ligadas; migration 0011; **a rota de posse, que ainda não existe** |
+| `RESIDENTIAL_PLOTS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | desligada | resposta do dono do produto à [OQ-17](../decisions/open-questions.md); contas ligadas; migration 0011; **a rota de posse, que ainda não existe** |
 
 Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable`: ninguém consegue ter
 um terreno, e o jogo continua dizendo que a posse não está aberta. Não ligar.

@@ -15,7 +15,7 @@ const residences = new Map<string, GenModel>();
 
 /**
  * The chalet drawn on a residential plot: seeded by the plot id, with the footprint of its tier. Decor: nobody
- * holds a plot yet (ownership is off, OQ-16). Generated once per plot (the scene and the colliders share it).
+ * holds a plot yet (ownership is off, OQ-17). Generated once per plot (the scene and the colliders share it).
  */
 export function residence(plot: Pick<ResidentialPlot, "id" | "tier">): GenModel {
   let model = residences.get(plot.id);

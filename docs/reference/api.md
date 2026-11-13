@@ -119,7 +119,7 @@ remoção de logo por administrador não têm bandeira própria (valem com as co
 
 `residentialPlots` é `true` só com as contas ligadas **e** `RESIDENTIAL_PLOTS_ENABLED = "true"`. A posse de
 terrenos residenciais é **PROPOSTA** ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md),
-[OQ-16](../decisions/open-questions.md)): desligada em produção, em staging e no script local `dev`. Não existe
+[OQ-17](../decisions/open-questions.md)): desligada em produção, em staging e no script local `dev`. Não existe
 rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde.
 
 ### GET /indicators

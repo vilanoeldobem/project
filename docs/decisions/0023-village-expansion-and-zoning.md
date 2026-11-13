@@ -2,8 +2,8 @@
 
 **Status:** Proposta — fase 1 implementada (layout, dados, cena, interação). A posse de terrenos residenciais fica
 **desligada em produção e homologação** (`RESIDENTIAL_PLOTS_ENABLED = "false"`; política PENDENTE,
-[OQ-16](open-questions.md)). Lojas e placas são marcadores honestos: nada é vendido, reservado ou alugado. O plano
-final de terrenos continua **PENDENTE** (PEN-017/PEN-023, [OQ-18](open-questions.md))
+[OQ-17](open-questions.md)). Lojas e placas são marcadores honestos: nada é vendido, reservado ou alugado. O plano
+final de terrenos continua **PENDENTE** (PEN-017/PEN-023, [OQ-19](open-questions.md))
 **Data:** 2026-11-13
 **Fontes:** decisões do responsável técnico em 2026-11-12 (modelo de layout, dois tipos de terreno, economia por
 desbloqueio, lojas e placas como marcadores, sem veículos, fases seguintes);
@@ -111,7 +111,7 @@ cercas-vivas são finos ou baixos e não contam. Os pinheiros altos ficam só no
 
 ### 4. Requisitos, nunca preços
 
-Cada faixa tem um `requirement` em `VILLAGE_PLAN.tiers` (PROPOSTA, [OQ-16](open-questions.md)): hoje um nível mínimo
+Cada faixa tem um `requirement` em `VILLAGE_PLAN.tiers` (PROPOSTA, [OQ-17](open-questions.md)): hoje um nível mínimo
 (premium 5, padrão 3, econômico 2). Os níveis vêm só de missões e quests (DEC-042); o nível 3 em diante depende das
 quests, que estão desligadas em produção. Não há valor em reais, moeda, coluna de preço nem botão de compra em
 nenhum lugar: o teste da migração e o dos painéis conferem isso.
@@ -140,7 +140,7 @@ PROPOSTA (`SHOP_COPY`).
 Cada loja tem uma moldura de placa no telhado, sempre virada para a câmera. O texto vem de `VILLAGE_NOTICES`:
 avisos fixos da Vila, em pt-BR, escritos no repositório. Nenhum conteúdo de terceiros, nenhuma marca. Inspecionar a
 placa mostra o aviso em texto, o id e que o espaço ainda não está disponível para aluguel
-([OQ-17](open-questions.md)).
+([OQ-18](open-questions.md)).
 
 ### 7. Interação
 
@@ -227,7 +227,7 @@ O que foi feito para caber no orçamento:
     diz que ainda não recebem candidaturas.
 - **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0011, depois de aplicada
   em produção, não se edita: um plano novo é uma migração nova. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
-  posse só muda o estado respondido para `"available"`; não ligar antes da resposta à OQ-16.
+  posse só muda o estado respondido para `"available"`; não ligar antes da resposta à OQ-17.
 
 ## Pronto para as próximas fases
 
@@ -250,4 +250,4 @@ O que foi feito para caber no orçamento:
   ao novo `WORLD_RADIUS`, que vem do pacote compartilhado.
 - Referência: [architecture.md §2.2 e §10](../reference/architecture.md), [storage.md](../reference/storage.md),
   [api.md](../reference/api.md), [deploy.md](../guides/deploy.md).
-- Perguntas ao dono do produto: [OQ-16, OQ-17, OQ-18](open-questions.md).
+- Perguntas ao dono do produto: [OQ-17, OQ-18, OQ-19](open-questions.md).

@@ -176,7 +176,7 @@ para a fachada da praça sem tocar em `state` nem em `ngo_id`).
 Terrenos residenciais ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Estrutura do mundo, como
 `lots`: as 112 linhas vêm da migração e espelham `RESIDENTIAL_PLOTS` em `packages/shared/src/game/world.ts`
 (testes conferem linha a linha, no texto da migração e no banco migrado). **A posse está desligada**
-(`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-16](../decisions/open-questions.md)): nada grava `owner_id` nem
+(`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-17](../decisions/open-questions.md)): nada grava `owner_id` nem
 `claimed_at`.
 
 | Coluna | Tipo | Notas |

@@ -65,12 +65,12 @@ export const PLACE_INTERACT_DISTANCE = 3.2;
 // streets, the world radius, the seed checked by the tests and the scene all follow.
 // ---------------------------------------------------------------------------------------------------------
 
-/** Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-16). */
+/** Residential tiers, nearest the square first. Ownership is off (`RESIDENTIAL_PLOTS_ENABLED`, OQ-17). */
 export type PlotTier = "premium" | "standard" | "economy";
 export const PLOT_TIERS: readonly PlotTier[] = ["premium", "standard", "economy"];
 
 /**
- * What holding a plot of a tier would ask of a player (PROPOSTA, OQ-16): unlocked by playing, never bought.
+ * What holding a plot of a tier would ask of a player (PROPOSTA, OQ-17): unlocked by playing, never bought.
  * There is no price, currency or purchase anywhere in the village (DEC-042, IMPL-0002).
  */
 export type TierRequirement = { kind: "level"; level: number };
@@ -123,7 +123,7 @@ export interface VillagePlan {
 }
 
 /**
- * The plan in force (PROPOSTA). Requirements are placeholders for the product owner to set (OQ-16): levels
+ * The plan in force (PROPOSTA). Requirements are placeholders for the product owner to set (OQ-17): levels
  * come only from missions and quests (DEC-042), and level 3 and above need the quests, which are off in
  * production today.
  */
@@ -188,7 +188,7 @@ export interface ShopDef {
   keeper: { x: number; z: number; rot: number };
 }
 
-/** A signage frame on a shop (PROPOSTA): shows a notice of the village; not for rent (PEN-008, OQ-17). */
+/** A signage frame on a shop (PROPOSTA): shows a notice of the village; not for rent (PEN-008, OQ-18). */
 export interface BillboardDef {
   id: string;
   shopId: string;
@@ -200,7 +200,7 @@ export interface BillboardDef {
   point: { x: number; z: number };
 }
 
-/** A residential plot (PROPOSTA, OQ-16). Mirrors a `residential_plots` row (migration 0011). */
+/** A residential plot (PROPOSTA, OQ-17). Mirrors a `residential_plots` row (migration 0011). */
 export interface ResidentialPlot {
   id: string;
   tier: PlotTier;
@@ -467,7 +467,7 @@ export const shopCopy = (shopId: string) => SHOP_COPY[SHOPS.findIndex((s) => s.i
 
 /**
  * Seasonal notices of the village shown on the billboards (PROPOSTA): fixed text from this repository, no
- * third-party content and no brand. Renting a frame is a later, undecided proposal (PEN-008, OQ-17).
+ * third-party content and no brand. Renting a frame is a later, undecided proposal (PEN-008, OQ-18).
  */
 export const VILLAGE_NOTICES: readonly string[] = [
   "Boas festas! A Vila deseja um Natal de paz.",

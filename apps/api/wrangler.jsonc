@@ -49,7 +49,7 @@
     // Removing a visitor from a room of the realtime server (PROPOSTA, IMPL-0021). Needs ACCOUNTS_ENABLED,
     // migration 0010 and the realtime server deployed with the same flag and its service binding to this Worker.
     "PRESENCE_MODERATION_ENABLED": "false",
-    // Ownership of residential plots (PROPOSTA, IMPL-0023). Off until the product owner answers OQ-16: no
+    // Ownership of residential plots (PROPOSTA, IMPL-0023). Off until the product owner answers OQ-17: no
     // recorded decision lets a player hold land (DEC-028 reserves plots for NGOs). Needs ACCOUNTS_ENABLED and
     // migration 0011; there is no claim route yet, so today it only changes what GET /residential-plots answers.
     "RESIDENTIAL_PLOTS_ENABLED": "false",

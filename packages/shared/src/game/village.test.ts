@@ -208,7 +208,7 @@ describe("village plan in force (IMPL-0023, PROPOSTA)", () => {
     expect([length("plaza"), length("avenue"), length("street"), length("lane")]).toEqual([92, 532, 1041, 424]);
   });
 
-  it("asks a requirement of each tier, never a price (PROPOSTA, OQ-16)", () => {
+  it("asks a requirement of each tier, never a price (PROPOSTA, OQ-17)", () => {
     for (const tier of PLOT_TIERS) {
       const t = VILLAGE_PLAN.tiers[tier];
       expect(t.requirement.kind).toBe("level");

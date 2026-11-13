@@ -66,7 +66,7 @@ export interface Env {
    */
   PRESENCE_MODERATION_ENABLED?: string;
   /**
-   * "true" would open the ownership of residential plots (PROPOSTA; IMPL-0023, OQ-16). Needs ACCOUNTS_ENABLED
+   * "true" would open the ownership of residential plots (PROPOSTA; IMPL-0023, OQ-17). Needs ACCOUNTS_ENABLED
    * and migration 0011. Off in production and staging: no recorded product decision lets a player hold land
    * (DEC-028 reserves plots for NGOs). Today it only changes what `GET /residential-plots` answers: there is
    * no claim route yet.

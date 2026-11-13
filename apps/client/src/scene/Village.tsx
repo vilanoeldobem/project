@@ -105,7 +105,7 @@ function drawNotices(canvas: HTMLCanvasElement) {
 /**
  * The notices on the billboard frames (IMPL-0023, PROPOSTA): fixed text of the village from the shared world,
  * read in the world. One quad per frame, all in one draw call and one small texture. The same text is on the
- * billboard's panel as flat HTML, for whoever cannot read it here. Not for rent (PEN-008, OQ-17).
+ * billboard's panel as flat HTML, for whoever cannot read it here. Not for rent (PEN-008, OQ-18).
  */
 export function Billboards() {
   const { geometry, material, texture, canvas } = useMemo(() => {

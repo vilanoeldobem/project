@@ -3,7 +3,7 @@
 --
 -- 1. `lots` keeps its meaning (plots reserved for approved NGOs, DEC-028): the eight existing lots move to the
 --    square's new frontage, keeping their ids, state and NGO, and 4 more are added, all available.
--- 2. `residential_plots` is new: the three residential tiers (PROPOSTA, OQ-16). Ownership is switched off
+-- 2. `residential_plots` is new: the three residential tiers (PROPOSTA, OQ-17). Ownership is switched off
 --    (RESIDENTIAL_PLOTS_ENABLED = "false"): `owner_id` and `claimed_at` exist so that a later phase needs no
 --    rebuild, and nothing writes them yet. A tier has no price: what it requires lives in the code
 --    (VILLAGE_PLAN), never in a currency column.

@@ -86,11 +86,11 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Village expansion ([IMPL-0023](docs/decisions/0023-village-expansion-and-zoning.md)) is **PROPOSTA**. Plots
   around the square stay reserved for approved NGOs (DEC-028). Residential plots are drawn, but **ownership is
   off**: `RESIDENTIAL_PLOTS_ENABLED` is "false" in production and staging, no recorded product decision lets a
-  player hold land, and what a tier should require is the product owner's to answer (OQ-16). Never flip the flag
+  player hold land, and what a tier should require is the product owner's to answer (OQ-17). Never flip the flag
   without explicit approval. A tier asks a *requirement* (a level reached by playing, `VILLAGE_PLAN`), never a
   price: no R$ value, no in-game currency, no "comprar" button (DEC-042, IMPL-0002). Shops say what they will
   offer and that they are not open; billboards show only the village's own notices from the repository, never
-  third-party content or a brand, and are not for rent (PEN-008, OQ-17). No vehicles: everything is on foot.
+  third-party content or a brand, and are not for rent (PEN-008, OQ-18). No vehicles: everything is on foot.
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
