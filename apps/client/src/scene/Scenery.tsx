@@ -22,7 +22,7 @@ import {
 import { linear, U } from "./environment/materials";
 import { bird, cat, dog, NIGHT_ONLY, owl, rabbit } from "./gen/animals";
 import { villager } from "./gen/characters";
-import { fence, lantern, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
+import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
 import { MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
 
@@ -43,7 +43,8 @@ export function Pines() {
     // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
     PINES.forEach((p, i) => out.push(...place(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i)));
     const rnd = mulberry32(0xf0e57);
-    for (let i = 0; i < 90; i++) {
+    // The forest ring grew with the village (IMPL-0023): the same density of trees around a longer edge.
+    for (let i = 0; i < 150; i++) {
       const a = rnd() * Math.PI * 2;
       const r = FOREST_INNER + rnd() * (FOREST_OUTER - FOREST_INNER);
       out.push(...place(rnd() < 0.6 ? tall : small, Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r), i));
@@ -260,6 +261,7 @@ const PROP_GEN = {
   mailbox,
   signpost,
   sled,
+  "log-pile": logPile,
 } as const;
 
 /**

@@ -25,19 +25,27 @@ import {
   pineIsTall,
   PINES,
   PLACED_PROPS,
+  plotColliders,
   QUEST_OBSTACLES,
   REINDEER,
+  RESIDENTIAL_DRESSING,
+  RESIDENTIAL_PLOTS,
+  SHOP_SOLID,
+  SHOPS,
   SLEIGH,
   SNOWMEN,
+  STREET_LAMPS,
   WORLD_RADIUS,
 } from "@vila/shared/game/world";
 
 import { bird, cat, dog, owl, rabbit } from "./gen/animals";
 import { villager } from "./gen/characters";
 import { house } from "./gen/houses";
-import { fence, lantern, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
+import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
 import { donationPanel } from "./gen/quest-items";
+import { shop } from "./gen/shops";
 import { bench, lamp, lotMarker, pine, reindeer, sleigh, snowman, tree, type Voxel } from "./models";
+import { billboardFrame, chimneyOf, dressingModel, residence } from "./village";
 
 /** A voxel whose underside is below this height is at the avatar's legs, body or face: it must block. */
 const MUST_BLOCK = 2;
@@ -60,14 +68,14 @@ interface Drawn {
   rot?: number;
 }
 
-const PROP = { "market-stall": marketStall, "panettone-stand": panettoneStand, lantern, fence, mailbox, signpost, sled } as const;
+const PROP = { "market-stall": marketStall, "panettone-stand": panettoneStand, lantern, fence, mailbox, signpost, sled, "log-pile": logPile } as const;
 const CRITTER = { villager, dog, cat, bird, rabbit, owl } as const;
 
 /** Everything solid in the scene (gifts, quest items and the pond are walkable on purpose). */
 const SCENERY: Drawn[] = [
   { name: "tree", voxels: tree(), size: 1, x: 0, z: 0 },
   ...PINES.map((p, i) => ({ name: `pine-${i}`, voxels: pine(pineIsTall(i)), size: 1, ...pineAt(p) })).filter((p) => Math.hypot(p.x, p.z) < WORLD_RADIUS + 1),
-  ...LAMPS.map(([x, z], i) => ({ name: `lamp-${i}`, voxels: lamp(), size: 0.5, x, z })),
+  ...[...LAMPS, ...STREET_LAMPS].map(([x, z], i) => ({ name: `lamp-${i}`, voxels: lamp(), size: 0.5, x, z })),
   ...BENCHES.map((b, i) => ({ name: `bench-${i}`, voxels: bench(), size: 0.5, ...b })),
   ...SNOWMEN.map(([x, z, rot], i) => ({ name: `snowman-${i}`, voxels: snowman(), size: 0.4, x, z, rot })),
   { name: "sleigh", voxels: sleigh(), size: 0.5, ...SLEIGH },
@@ -80,7 +88,16 @@ const SCENERY: Drawn[] = [
     const m = CRITTER[c.kind](c.seed);
     return { name: c.seed, voxels: m.voxels, size: m.size, x: c.x, z: c.z, y: c.y, rot: c.rot };
   }),
+  // The expanded village (IMPL-0023): shops with their billboard frame, and the dressing of the residential rows.
+  ...SHOPS.flatMap((s) => [
+    { name: s.id, voxels: shop(s.id).voxels, size: 1, x: s.x, z: s.z, rot: s.facing },
+    { name: `${s.id}-frame`, voxels: billboardFrame(), size: 1, x: s.x, z: s.z },
+  ]),
+  ...RESIDENTIAL_DRESSING.map((part, i) => ({ name: `${part.kind}-${i}`, voxels: dressingModel(part.kind, part.length, part.thick), size: 0.5, x: part.x, z: part.z, rot: part.rot })),
 ];
+/** The chalets of the residential plots, each with the footprint of its own generated model. */
+const HOMES = RESIDENTIAL_PLOTS.map((plot) => ({ plot, model: residence(plot) }));
+const HOME_SCENERY: Drawn[] = HOMES.map(({ plot, model }) => ({ name: `home-${plot.id}`, voxels: model.voxels, size: model.size, x: plot.house.x, z: plot.house.z, rot: plot.facing }));
 const QUEST_SCENERY: Drawn[] = [
   ...NPCS.map((n) => {
     const m = villager(n.seed);
@@ -161,6 +178,43 @@ describe("collider audit (IMPL-0016)", () => {
   it("matches the static scenery, with quests off and available lots", () => {
     const colliders = [...OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))];
     expect(audit([...SCENERY, ...MARKERS], colliders)).toEqual({ walkThrough: [], invisible: [] });
+    // The audit covers the expanded village: 4 shops, 24 street lamps and the 272 dressing parts are in it.
+    expect(SCENERY.filter((d) => /^shop-\d+$/.test(d.name))).toHaveLength(SHOPS.length);
+    expect(SCENERY.length).toBeGreaterThan(RESIDENTIAL_DRESSING.length + STREET_LAMPS.length + 40);
+  });
+
+  it("matches the chalet of every residential plot, alone and among its neighbours", () => {
+    for (const { plot, model } of HOMES) expect(model.solid, plot.id).toBeDefined();
+    const colliders = HOMES.flatMap(({ plot, model }) => plotColliders(plot, model.solid!));
+    expect(audit(HOME_SCENERY, colliders)).toEqual({ walkThrough: [], invisible: [] });
+    // With the dressing in between: the fillers close the gap between two chalets, nothing sticks out of either.
+    const all = audit([...SCENERY, ...MARKERS, ...HOME_SCENERY], [...OBSTACLES, ...colliders, ...LOTS.flatMap((l) => lotColliders(l, null))]);
+    expect(all).toEqual({ walkThrough: [], invisible: [] });
+  });
+
+  it("keeps every residential chalet inside the envelope of its tier, low, with its chimney over its own walls", () => {
+    for (const { plot, model } of HOMES) {
+      const envelope = plotColliders(plot);
+      for (const c of plotColliders(plot, model.solid!)) {
+        const ux = c.ux ?? 1, uz = c.uz ?? 0, hx = c.hx ?? 0, hz = c.hz ?? 0;
+        for (const [a, b] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+          const x = c.x + a * hx * ux - b * hz * uz, z = c.z + a * hx * uz + b * hz * ux;
+          expect(Math.min(...envelope.map((e) => distanceTo(e, x, z))), plot.id).toBeLessThan(0.02);
+        }
+      }
+      // One floor and no A-frame: a row never hides the street behind it from the camera.
+      expect(Math.max(...model.voxels.map((v) => v[1])), `${plot.id} height`).toBeLessThanOrEqual(9);
+      // The chimney (where smoke will rise once a fireplace is lit) stands over the chalet's own walls, by its fireplace.
+      const [cx, cy, cz] = chimneyOf(model, { x: plot.house.x, z: plot.house.z, rot: plot.facing });
+      expect(distanceTo(envelope[0], cx, cz), `${plot.id} chimney`).toBeLessThan(0);
+      expect(Math.hypot(cx - plot.hearth.x, cz - plot.hearth.z), `${plot.id} chimney by the fireplace`).toBeLessThan(3);
+      expect(cy, `${plot.id} chimney top`).toBeGreaterThan(4);
+    }
+  });
+
+  it("gives every shop the footprint the shared world blocks, and keeps its sign above every head", () => {
+    for (const s of SHOPS) expect(shop(s.id).solid).toEqual(SHOP_SOLID.map((r) => [...r]));
+    expect(Math.min(...billboardFrame().map((v) => v[1]))).toBeGreaterThanOrEqual(6);
   });
 
   it("matches the quest NPCs and the donation lectern while quests are on", () => {

@@ -276,7 +276,7 @@ export interface VillageLayout {
 /** How far into its street a plot's `front` point is, from the plot's edge. */
 export const PLOT_FRONT_STEP = 0.75;
 /** Height of the middle of a billboard frame: on the roof of a shop, above every head. */
-export const SHOP_SIGN_HEIGHT = 7.5;
+export const SHOP_SIGN_HEIGHT = 8;
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
@@ -633,7 +633,7 @@ export const PLACED_PROPS: PropPlacement[] = [
     }).flat(),
   },
   // The wood yard: logs stacked by the forest (the stack runs along local x).
-  { kind: "log-pile", seed: "wood-yard", solid: [-1.5, 1.5, -0.75, 0.75, 0.25], at: [WOOD_YARD] },
+  { kind: "log-pile", seed: "wood-yard", solid: [-1.75, 1.75, -0.75, 0.75, 0.25], at: [WOOD_YARD] },
 ];
 
 export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
