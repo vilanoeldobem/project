@@ -11,7 +11,6 @@ import { handleApi, type Env } from "./api";
 
 const ORIGIN = "https://play.example";
 const NGO_ID = "a0000000-0000-4000-8000-000000000001";
-const USER_ID = "b0000000-0000-4000-8000-000000000001";
 let db: ReturnType<typeof createD1>;
 let env: Env;
 
@@ -35,15 +34,17 @@ describe("migration 0012 against the shared layout", () => {
     expect(rows).toHaveLength(12);
   });
 
-  it("seeds exactly the residential plots of the layout, held by nobody", () => {
+  it("seeds exactly the residential plots of the layout", () => {
     const rows = db.sql(`SELECT id, tier, slot, x, z, facing FROM residential_plots ORDER BY CASE tier WHEN 'premium' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END, slot`);
     expect(rows).toEqual(layout);
     expect(PLOT_TIERS.map((t) => rows.filter((r) => r.tier === t).length)).toEqual([16, 32, 64]);
-    expect(db.sql("SELECT COUNT(*) AS n FROM residential_plots WHERE owner_id IS NOT NULL OR claimed_at IS NOT NULL")).toEqual([{ n: 0 }]);
   });
 
-  it("has no price: the table holds a position and who holds the plot, nothing else", () => {
-    expect(db.sql("PRAGMA table_info(residential_plots)").map((c) => c.name)).toEqual(["id", "tier", "slot", "x", "z", "facing", "owner_id", "claimed_at"]);
+  it("has no price and no ownership schema: the table holds an id, a tier and a position, nothing else (OQ-17)", () => {
+    // Who may hold a plot is undecided: the ownership columns come with the migration that brings a claim route.
+    expect(db.sql("PRAGMA table_info(residential_plots)").map((c) => c.name)).toEqual(["id", "tier", "slot", "x", "z", "facing"]);
+    expect(db.sql("PRAGMA foreign_key_list(residential_plots)")).toEqual([]);
+    expect(db.sql("SELECT name FROM sqlite_master WHERE tbl_name = 'residential_plots' AND type = 'index' AND sql IS NOT NULL")).toEqual([]);
   });
 
   it("moves the lots that existed and keeps their state and their NGO", async () => {
@@ -110,11 +111,19 @@ describe("a house on one of the four new lots and the donations of IMPL-0023", (
 });
 
 describe("GET /residential-plots", () => {
+  const unavailable = layout.map((p) => ({ ...p, state: "unavailable" }));
+  const config = async () => ((await (await get("/config")).json()) as { residentialPlots: boolean }).residentialPlots;
+  /** A database that fails every read, counting them. */
+  const broken = (message: string) => {
+    const db = { reads: 0, prepare: () => ({ all: async () => { db.reads++; throw new Error(message); } }) };
+    return db;
+  };
+
   it("answers every plot as unavailable while ownership is off, and never caches", async () => {
     const res = await get("/residential-plots");
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(await res.json()).toEqual({ enabled: false, plots: layout.map((p) => ({ ...p, state: "unavailable" })) });
+    expect(await res.json()).toEqual({ enabled: false, plots: unavailable });
   });
 
   it.each([["accounts off", "false", "true"], ["the flag off", "true", "false"]])("stays off with %s", async (_, accounts, flag) => {
@@ -123,27 +132,55 @@ describe("GET /residential-plots", () => {
     const body = await plots();
     expect(body.enabled).toBe(false);
     expect(new Set(body.plots.map((p) => p.state))).toEqual(new Set(["unavailable"]));
-    expect(((await (await get("/config")).json()) as { residentialPlots: boolean }).residentialPlots).toBe(false);
+    expect(await config()).toBe(false);
   });
 
-  it("never says who holds a plot, with the flag off or on", async () => {
-    await db.prepare("INSERT INTO users (id, name, nickname, nickname_key, city, email) VALUES (?, 'Ana Lima', 'ana_lima', 'ana_lima', 'Recife', 'ana@example.org')").bind(USER_ID).run();
-    await db.prepare("UPDATE residential_plots SET owner_id = ?, claimed_at = '2026-11-12T10:00:00.000Z' WHERE id = 'economy-07'").bind(USER_ID).run();
+  it("does not read the database to answer a constant: off, the answer is the shared layout", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    for (const [accounts, flag] of [["false", "false"], ["false", "true"], ["true", "false"]]) {
+      const db = broken("D1_ERROR: disk I/O error");
+      env = { ...env, DB: db as unknown as D1Database, ACCOUNTS_ENABLED: accounts, RESIDENTIAL_PLOTS_ENABLED: flag };
+      const res = await get("/residential-plots");
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ enabled: false, plots: unavailable });
+      expect(db.reads).toBe(0);
+    }
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
+  it("says a plot is available only with the flag on, and never who holds one: there is no holder to say", async () => {
     for (const on of [false, true]) {
       env.ACCOUNTS_ENABLED = env.RESIDENTIAL_PLOTS_ENABLED = on ? "true" : "false";
       const res = await get("/residential-plots");
       const text = await res.text();
-      for (const secret of [USER_ID, "ana_lima", "Ana Lima", "ana@example.org", "owner", "claimed", "2026-11-12"]) expect(text, secret).not.toContain(secret);
+      for (const word of ["owner", "claimed", "held", "user"]) expect(text, word).not.toContain(word);
       const body = JSON.parse(text) as Body;
       expect(body.enabled).toBe(on);
-      expect(body.plots.find((p) => p.id === "economy-07")?.state).toBe(on ? "occupied" : "unavailable");
-      expect(body.plots.find((p) => p.id === "economy-08")?.state).toBe(on ? "available" : "unavailable");
+      expect(body.plots.map(({ state, ...plot }) => plot)).toEqual(layout);
+      expect(new Set(body.plots.map((p) => p.state))).toEqual(new Set([on ? "available" : "unavailable"]));
       expect(Object.keys(body.plots[0]).sort()).toEqual(["facing", "id", "slot", "state", "tier", "x", "z"]);
-      expect(((await (await get("/config")).json()) as { residentialPlots: boolean }).residentialPlots).toBe(on);
+      expect(await config()).toBe(on);
     }
-    // Deleting the account frees the plot instead of blocking the deletion.
-    await db.prepare("DELETE FROM users WHERE id = ?").bind(USER_ID).run();
-    expect(db.sql("SELECT owner_id FROM residential_plots WHERE id = 'economy-07'")).toEqual([{ owner_id: null }]);
+  });
+
+  it("answers every plot of the layout when rows are missing or unknown: the table only adds state", async () => {
+    env.ACCOUNTS_ENABLED = env.RESIDENTIAL_PLOTS_ENABLED = "true";
+    db.sql("DELETE FROM residential_plots WHERE tier = 'economy'");
+    // A row the layout does not know (a plan that changed after the seed) and one whose position drifted.
+    db.sql("INSERT INTO residential_plots (id, tier, slot, x, z, facing) VALUES ('economy-99', 'economy', 99, 1, 2, 0)");
+    db.sql("UPDATE residential_plots SET x = 0, z = 0, slot = 77 WHERE id = 'premium-01'");
+    const body = await plots();
+    expect(body.plots.map(({ state, ...plot }) => plot)).toEqual(layout);
+    expect(body.plots.filter((p) => p.state === "available").map((p) => p.id)).toEqual(RESIDENTIAL_PLOTS.filter((p) => p.tier !== "economy").map((p) => p.id));
+    expect(new Set(body.plots.filter((p) => p.tier === "economy").map((p) => p.state))).toEqual(new Set(["unavailable"]));
+    // Off, the same database answers the whole layout too (it is not read at all).
+    env.RESIDENTIAL_PLOTS_ENABLED = "false";
+    expect(await plots()).toEqual({ enabled: false, plots: unavailable });
+    // An empty table: nothing to hold, the whole layout still answered.
+    env.RESIDENTIAL_PLOTS_ENABLED = "true";
+    db.sql("DELETE FROM residential_plots");
+    expect(await plots()).toEqual({ enabled: true, plots: unavailable });
   });
 
   it.each([3, 4, 5, 6, 7, 8, 9, 10, 11])("answers the shared layout, all unavailable, on schema v%i without the table (both flags on)", async (upTo) => {
@@ -152,7 +189,7 @@ describe("GET /residential-plots", () => {
     env.ACCOUNTS_ENABLED = env.RESIDENTIAL_PLOTS_ENABLED = "true";
     const res = await get("/residential-plots");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ enabled: false, plots: layout.map((p) => ({ ...p, state: "unavailable" })) });
+    expect(await res.json()).toEqual({ enabled: true, plots: unavailable });
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });
@@ -160,16 +197,38 @@ describe("GET /residential-plots", () => {
   it("answers the shared layout without a database", async () => {
     env.DB = undefined;
     env.ACCOUNTS_ENABLED = env.RESIDENTIAL_PLOTS_ENABLED = "true";
-    expect(await plots()).toEqual({ enabled: false, plots: layout.map((p) => ({ ...p, state: "unavailable" })) });
+    expect(await plots()).toEqual({ enabled: true, plots: unavailable });
   });
 
-  it("does not hide another database error behind the fallback", async () => {
+  it.each(["D1_ERROR: disk I/O error", "D1_ERROR: Network connection lost.", "D1_ERROR: no such column: facing: SQLITE_ERROR", "D1_ERROR: no such table: residential_plots_old: SQLITE_ERROR"])(
+    "answers the layout, every plot unavailable, when the database fails with the flags on (%s)",
+    async (message) => {
+      const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+      const db = broken(message);
+      env = { ...env, DB: db as unknown as D1Database, ACCOUNTS_ENABLED: "true", RESIDENTIAL_PLOTS_ENABLED: "true" };
+      const res = await get("/residential-plots");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("Cache-Control")).toBe("no-store");
+      expect(await res.json()).toEqual({ enabled: true, plots: unavailable });
+      expect(db.reads).toBe(1);
+      // Logged by name only, never the message (it may quote SQL or data).
+      expect(errors.mock.calls).toEqual([["residential_plots_read_failed", "Error"]]);
+      errors.mockRestore();
+    }
+  );
+
+  it.each([["v3", 3], ["v11", 11], ["v12", 12], ["no database", null]] as const)("`/config.residentialPlots` and `enabled` agree on %s, whatever the flags", async (_, upTo) => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    env.DB = { prepare: () => ({ all: async () => { throw new Error("D1_ERROR: disk I/O error"); } }) } as unknown as D1Database;
-    const res = await get("/residential-plots");
-    expect(res.status).toBe(500);
-    expect(await res.json()).toEqual({ error: "internal" });
-    expect(errors).toHaveBeenCalledWith("api_error", "/residential-plots", "Error");
+    for (const accounts of ["false", "true"])
+      for (const flag of ["false", "true"]) {
+        env = { ...env, DB: upTo === null ? undefined : createD1({ upTo }), ACCOUNTS_ENABLED: accounts, RESIDENTIAL_PLOTS_ENABLED: flag };
+        const on = accounts === "true" && flag === "true";
+        const body = await plots();
+        expect([body.enabled, await config()], `accounts ${accounts}, flag ${flag}`).toEqual([on, on]);
+        // Whether a given plot can be held is its own state: only with the flags on and its row in the table.
+        expect(new Set(body.plots.map((p) => p.state))).toEqual(new Set([on && upTo === 12 ? "available" : "unavailable"]));
+      }
+    expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });
 

@@ -28,7 +28,7 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 | `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0023](../decisions/0023-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
-| `0012_village_expansion.sql` | expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
+| `0012_village_expansion.sql` | expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais (id, faixa e posição; sem colunas de posse); aditiva, só requer `lots` |
 
 Esta versão contém 0001–0012, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
@@ -209,9 +209,11 @@ para a fachada da praça sem tocar em `state` nem em `ngo_id`).
 
 Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). Estrutura do mundo, como
 `lots`: as 112 linhas vêm da migração e espelham `RESIDENTIAL_PLOTS` em `packages/shared/src/game/world.ts`
-(testes conferem linha a linha, no texto da migração e no banco migrado). **A posse está desligada**
-(`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-17](../decisions/open-questions.md)): nada grava `owner_id` nem
-`claimed_at`.
+(testes conferem linha a linha, no texto da migração e no banco migrado). **A posse está desligada e não tem
+esquema** (`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-17](../decisions/open-questions.md)): a tabela guarda só a
+estrutura do mundo. Quem pode ter um terreno, quantos por conta e o que acontece quando a conta é excluída não
+estão decididos; as colunas de posse entram com a migration que trouxer a rota de posse (o SQLite acrescenta
+coluna anulável com `ALTER TABLE`, sem recriar a tabela).
 
 | Coluna | Tipo | Notas |
 |---|---|---|
@@ -220,12 +222,10 @@ Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zonin
 | `slot` | INTEGER | posição dentro da faixa; único com `tier` |
 | `x`, `z` | REAL | centro do terreno |
 | `facing` | REAL | rotação (rad) para a rua em frente |
-| `owner_id` | TEXT FK → users, `ON DELETE SET NULL` | sempre `NULL` nesta versão; nunca sai pela API |
-| `claimed_at` | TEXT | sempre `NULL` nesta versão |
 
-Não há coluna de preço: o que uma faixa exige é um requisito no código (`VILLAGE_PLAN`), nunca um valor. Dado
-pessoal: nenhum enquanto `owner_id` for nulo; se a posse for ligada, `owner_id` liga um terreno a uma conta e a
-exclusão da conta o libera.
+Não há coluna de preço nem de dono: o que uma faixa exigiria é um requisito no código (`VILLAGE_PLAN`), nunca um
+valor. Dado pessoal: nenhum. As posições que valem são as do layout compartilhado: `GET /residential-plots` lê
+desta tabela só os ids (e só com a bandeira ligada), para dizer quais terrenos existem no banco.
 
 ### users (v4)
 

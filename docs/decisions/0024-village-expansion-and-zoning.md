@@ -125,16 +125,22 @@ nenhum lugar: o teste da migração e o dos painéis conferem isso.
 
 - **Migração 0012** (aditiva; chamava-se 0011 até a integração com as doações, cuja migration ficou com esse
   número; nunca tinha sido aplicada em lugar nenhum): move os 8 terrenos que existiam (mesmos ids, mesmo estado, mesma ONG), acrescenta 4
-  na tabela `lots`, que continua sendo só de terrenos de ONG, e cria `residential_plots` (id, faixa, posição,
-  orientação, `owner_id` e `claimed_at` nulos, que nada grava ainda). Sem coluna de preço.
+  na tabela `lots`, que continua sendo só de terrenos de ONG, e cria `residential_plots` (id, faixa, posição e
+  orientação). Sem coluna de preço e **sem colunas de posse**: quem pode ter um terreno, quantos por conta e o que
+  acontece com ele quando a conta é excluída não estão decididos (OQ-17), e uma migration aplicada não se edita.
+  A primeira versão criava `owner_id`, `claimed_at` e um índice "para não precisar recriar a tabela depois"; o
+  argumento não vale (o SQLite acrescenta coluna anulável com `ALTER TABLE`) e as colunas já nasciam
+  inconsistentes (excluir a conta limpava `owner_id` e deixava `claimed_at`; uma conta podia ter vários
+  terrenos). Elas entram com a migration que trouxer a rota de posse.
 - **`GET /lots`** não muda de forma nem de comportamento: 8 linhas num banco antes da 0012, 12 depois.
-- **`GET /residential-plots`** (pública, sempre ligada): id, faixa, posição e estado de cada terreno, **nunca quem
-  é o dono**. Com a bandeira desligada, todo terreno responde `"unavailable"`. Num banco sem a tabela (produção
-  está na migração 0003) ou sem banco, responde o layout das constantes compartilhadas, tudo `"unavailable"`, nunca
-  um 500.
+- **`GET /residential-plots`** (pública, sempre ligada): id, faixa, posição e estado de cada terreno. A lista é
+  sempre o layout das constantes compartilhadas (os 112 terrenos); a tabela só acrescenta estado. Com a bandeira
+  desligada todo terreno responde `"unavailable"` e **o banco não é lido**. Com ela ligada, responde
+  `"available"` o terreno cuja linha existe na tabela; tabela ausente (produção está na migração 0003), linha
+  ausente ou erro de banco respondem `"unavailable"`, nunca um 500 nem uma lista menor.
 - **`RESIDENTIAL_PLOTS_ENABLED`** (`"false"` em produção e homologação) aparece em `/config` como
-  `residentialPlots` e só vale com as contas ligadas. Hoje só muda o que a leitura responde: **não existe rota de
-  posse**.
+  `residentialPlots` e só vale com as contas ligadas; o campo `enabled` da rota é o mesmo valor, em qualquer
+  esquema. Hoje só muda o que a leitura responde: **não existe rota de posse**.
 
 ### 6. Lojas e placas
 
@@ -334,7 +340,7 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
 | Lenhador e quest da lenha | `WOOD_YARD` (ponta da travessa norte, junto à floresta), com uma pilha de lenha |
 | Lareiras | `ResidentialPlot.hearth` (dentro das paredes de cada casa) e `chimneyOf()` (topo da chaminé do modelo; a fumaça de `Smoke` já aceita essas origens) |
 | NPCs e animais que andam, entregas, minimapa | `PATH_GRAPH`: 80 nós (avenidas, travessas e esquinas com as três ruas) e 120 arestas com tipo, largura e comprimento, todas em chão livre |
-| Posse de terreno | `residential_plots.owner_id` / `claimed_at`, a bandeira, o estado na leitura pública |
+| Posse de terreno | a bandeira e o estado na leitura pública. O esquema de posse **não** existe: entra com a migration da rota de posse, depois da resposta à OQ-17 |
 | Catálogo de loja, aluguel de placa | ids estáveis (`shop-NN`, `billboard-NN`) e os painéis |
 
 ## Relacionados

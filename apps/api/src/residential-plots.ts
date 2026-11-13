@@ -5,19 +5,26 @@
  *
  * Ownership is switched off (`RESIDENTIAL_PLOTS_ENABLED`, "false" in production and staging): no recorded
  * product decision lets a player hold land (DEC-028 reserves plots for NGOs), so every plot answers
- * "unavailable" and nothing in this API writes `owner_id`. There is no claim route and no price: what a tier
- * requires is a level, kept in the shared plan (`VILLAGE_PLAN`), never an amount.
+ * "unavailable". There is no claim route, no ownership column and no price: what a tier would require is a
+ * level, kept in the shared plan (`VILLAGE_PLAN`), never an amount.
  *
- * Always-on public route: it must answer on every schema the code may meet. Production's database is at
- * migration 0003 and `residential_plots` comes with 0012, so a missing table (or no database at all) answers
- * the layout from the shared constants, every plot "unavailable", never a 500. Who holds a plot is never part
- * of the answer, on any schema or flag.
+ * The shared layout is the source of the plots and their positions: the answer always lists every plot of
+ * `RESIDENTIAL_PLOTS`, in its order, and the `residential_plots` table (migration 0012) only adds state. So:
+ *
+ * - with the flag off (or accounts off, or no database) the answer is a constant and D1 is not read at all;
+ * - with the flag on, a plot is "available" when its row is in the table; a missing row, a missing table
+ *   (production's database is at migration 0003) or any D1 error leaves it "unavailable", never a 500 and
+ *   never a shorter list. Rows the layout does not know are ignored.
+ *
+ * `enabled` is the flag (with accounts on), the very value `/config.residentialPlots` reports: whether a given
+ * plot can be held is its own `state`.
  */
-import { PLOT_TIERS, type PlotTier, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
+import { RESIDENTIAL_PLOTS, type PlotTier } from "@vila/shared/game/world";
 
 import type { Env } from "./api";
 import { json, NO_STORE } from "./http";
 
+/** "occupied" is reserved for the phase that brings ownership: nothing answers it today. */
 export type PlotState = "unavailable" | "available" | "occupied";
 
 export interface PlotRow {
@@ -30,38 +37,29 @@ export interface PlotRow {
   state: PlotState;
 }
 
-/** "true" only with accounts on: holding a plot needs an account. */
+/** "true" only with accounts on: holding a plot needs an account. Shared by `/config` and this route. */
 export const residentialPlotsEnabled = (env: Env): boolean => env.ACCOUNTS_ENABLED === "true" && env.RESIDENTIAL_PLOTS_ENABLED === "true";
 
-/** The layout the game draws, with nothing to hold: what an older database (or none) answers. */
-const fromLayout = (): PlotRow[] => RESIDENTIAL_PLOTS.map(({ id, tier, slot, x, z, facing }) => ({ id, tier, slot, x, z, facing, state: "unavailable" }));
+/** The layout the game draws: every plot "available" only when `listed` has its id. */
+const fromLayout = (listed: ReadonlySet<string> | null): PlotRow[] =>
+  RESIDENTIAL_PLOTS.map(({ id, tier, slot, x, z, facing }) => ({ id, tier, slot, x, z, facing, state: listed?.has(id) ? "available" : "unavailable" }));
 
 const noPlotsTable = (e: unknown): boolean => e instanceof Error && /no such table: residential_plots\b/i.test(e.message);
 
-async function fromDatabase(db: D1Database, enabled: boolean): Promise<PlotRow[]> {
-  // `owner_id` never leaves the database: only whether the plot is held.
-  const { results } = await db
-    .prepare(
-      `SELECT id, tier, slot, x, z, facing, owner_id IS NOT NULL AS held
-         FROM residential_plots
-        ORDER BY CASE tier ${PLOT_TIERS.map((t, i) => `WHEN '${t}' THEN ${i}`).join(" ")} END, slot`
-    )
-    .all<Omit<PlotRow, "state"> & { held: number }>();
-  return results.map(({ held, ...plot }) => ({ ...plot, state: !enabled ? "unavailable" : held ? "occupied" : "available" }));
+/** Ids of the plots the table knows, or null when it cannot say (older schema, D1 error): nothing to hold then. */
+async function listedPlots(db: D1Database): Promise<Set<string> | null> {
+  try {
+    const { results } = await db.prepare("SELECT id FROM residential_plots").all<{ id: string }>();
+    return new Set(results.map((row) => row.id));
+  } catch (e) {
+    // An older schema is expected (production is at 0003). Anything else is logged by name, never the message.
+    if (!noPlotsTable(e)) console.error("residential_plots_read_failed", e instanceof Error ? e.name : "unknown");
+    return null;
+  }
 }
 
 export async function residentialPlots(env: Env): Promise<Response> {
   const enabled = residentialPlotsEnabled(env);
-  let plots: PlotRow[];
-  if (!env.DB) plots = fromLayout();
-  else {
-    try {
-      plots = await fromDatabase(env.DB, enabled);
-    } catch (e) {
-      if (!noPlotsTable(e)) throw e;
-      plots = fromLayout();
-    }
-  }
-  // Without the table there is nothing to hold, whatever the flag says.
-  return json({ enabled: enabled && plots.some((p) => p.state !== "unavailable"), plots }, { headers: NO_STORE });
+  const listed = enabled && env.DB ? await listedPlots(env.DB) : null;
+  return json({ enabled, plots: fromLayout(listed) }, { headers: NO_STORE });
 }

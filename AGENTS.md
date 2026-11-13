@@ -139,8 +139,11 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
   `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
   `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.
-- `GET /residential-plots` is an always-on public route over a table production does not have yet (0012): it
-  answers the shared layout, every plot "unavailable", wherever the table is missing, and never who holds a plot.
+- `GET /residential-plots` is an always-on public route: the shared layout is its source (every plot, always), the
+  `residential_plots` table (0012, not in production yet) only adds state and is read only with the flag on. A
+  missing table, a missing row or a D1 error answers "unavailable", never a 500 or a shorter list. `enabled` is the
+  same value as `/config.residentialPlots`. The table has no ownership columns: they come with the migration that
+  brings a claim route (OQ-17), never before.
 - Never log request bodies, e-mails, tokens, CNPJ documents, file names, object keys or any personal data.
 
 ## Forbidden without explicit human authorisation

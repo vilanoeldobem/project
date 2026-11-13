@@ -31,9 +31,12 @@ Cada versão indica o schema D1 que entrega.
   com portão e lanternas, cerca de ripas, lanterna numa estaca), o que fica entre vizinhos (jardim com arbustos,
   cerca-viva, lenha empilhada), tamanho da casa e postes de rua.
 - API: `GET /residential-plots` (pública; estado de cada terreno, nunca o dono) e `residentialPlots` em
-  `GET /config`. Num banco sem a tabela nova a rota responde o layout com tudo "indisponível".
+  `GET /config` (o mesmo valor do `enabled` da rota). A resposta é sempre o layout inteiro: com a bandeira
+  desligada o banco nem é lido; ligada, tabela ausente, linha ausente ou erro de banco respondem "indisponível",
+  nunca `500`.
 - Migration `0012_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
-  `residential_plots` (colunas de posse vazias, sem coluna de preço).
+  `residential_plots` (id, faixa e posição; sem coluna de preço e **sem colunas de posse**, que só entram com a
+  migration que trouxer a rota de posse, [OQ-17](docs/decisions/open-questions.md)).
 - Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
   da lareira em cada casa.
 

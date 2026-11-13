@@ -533,8 +533,9 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
    terrenos residenciais falha em silêncio (a API antiga responde `404`; o painel segue dizendo que a posse não
    está aberta).
 2. **A API desta versão também não depende da 0012.** `GET /lots` continua lendo o que o banco tem e
-   `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, enquanto a tabela não existir. As
-   rotas públicas respondem igual nos schemas v3 a v12.
+   `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, sem ler o banco enquanto a
+   bandeira estiver desligada (e, com ela ligada, enquanto a tabela não existir). As rotas públicas respondem igual
+   nos schemas v3 a v12.
 3. **O servidor de tempo real (`apps/server`) deve ser publicado junto com o jogo.** Ele limita a pose ao raio do
    mundo, que vem do pacote compartilhado: com o servidor antigo (34 u), quem anda além disso aparece para os
    outros preso na borda antiga.
@@ -542,7 +543,8 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
    junto as 0004–0011, inclusive as tabelas de doação da 0011, que ficam vazias e sem uso com `DONATIONS_ENABLED`
    desligada). É aditiva e não toca nas tabelas da 0011: muda só as colunas `x` e `z` de 8 linhas de `lots`,
    insere 4 linhas e cria
-   `residential_plots` com 112. **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
+   `residential_plots` com 112 (id, faixa e posição; **sem colunas de posse**: elas entram com a migration da rota
+   de posse, se a OQ-17 for aprovada). **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
    do plano são os definitivos ([OQ-19](../decisions/open-questions.md)): depois de aplicada, a migration não se
    edita, e um plano novo pede outra migration.
 
@@ -552,8 +554,10 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 |---|---|---|---|---|
 | `RESIDENTIAL_PLOTS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | desligada | resposta do dono do produto à [OQ-17](../decisions/open-questions.md); contas ligadas; migration 0012; **a rota de posse, que ainda não existe** |
 
-Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable`: ninguém consegue ter
-um terreno, e o jogo continua dizendo que a posse não está aberta. Não ligar.
+Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable` (para os terrenos cuja
+linha existe na tabela) e `residentialPlots: true` em `/config`: ninguém consegue ter um terreno, porque não há
+rota nem esquema de posse. No jogo, o painel do terreno passaria a mostrar o requisito proposto da faixa. Não
+ligar.
 
 ### 11.3 Reverter
 
