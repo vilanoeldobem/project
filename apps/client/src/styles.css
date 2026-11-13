@@ -260,11 +260,13 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 
 /* Moderation mode (IMPL-0021): administrators only. The flag stays above every panel; it takes no clicks. */
 .modflag {
-  position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: none;
-  padding: 2px 12px 3px; border-radius: 0 0 10px 10px; white-space: nowrap;
+  position: fixed; top: env(safe-area-inset-top, 0px); left: 50%; transform: translateX(-50%); z-index: 30; pointer-events: none;
+  height: 24px; padding: 0 12px; line-height: 22px; border-radius: 0 0 10px 10px; white-space: nowrap;
   background: var(--red); color: var(--cream); border: 2px solid #6e2626; border-top: 0;
   font-weight: 900; font-size: 0.82rem; letter-spacing: 0.03em;
 }
+/* While the flag is up the HUD starts below it: at phone width the flag sat on the brand, wider on the first chips. */
+body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px); }
 .modbar, .hud__notice {
   max-width: min(360px, calc(100vw - 96px)); padding: 8px 12px; border-radius: var(--radius);
   background: var(--cream); color: var(--ink); border: 2px solid var(--pine); box-shadow: var(--shadow);
