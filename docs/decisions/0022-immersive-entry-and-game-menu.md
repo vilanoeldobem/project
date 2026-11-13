@@ -3,7 +3,7 @@
 **Status:** Proposta — implementada, a validar. É uma **PROPOSTA** do responsável técnico: a chegada sem tela de
 boas-vindas, a marca fora da tela de jogo e o menu do jogo só viram decisão quando o responsável pelo produto
 ratificar ([OQ-16](open-questions.md))
-**Data:** 2026-11-12
+**Data:** 2026-11-12 (itens 11 a 13 e ajustes dos itens 3 e 5 em 2026-11-13, depois da revisão)
 **Fontes:** pedido do responsável técnico em 2026-11-12 (entrar direto na Vila, tirar os botões de zoom e a marca
 da tela de jogo, menu no Esc); `vilanoeldobem/docs`: DEC-008 (solidariedade presente desde a chegada), DEC-022
 (projeto e logo em 3D), DEC-024 e PEN-016 (logo A3 em teste, sem aprovação final), DEC-026 (praça e doação global),
@@ -12,8 +12,8 @@ imediato a Explorar ONGs, Jogar e Doação global", "em celular, mantenha os tr�
 cena"); [IMPL-0002](0002-donations-disabled-until-partner-contract.md),
 [IMPL-0016](0016-click-navigation-and-colliders.md), [IMPL-0021](0021-administrator-role-and-moderation.md);
 [padrão de diálogo modal do W3C APG](https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/); código:
-`apps/client/src/game/{store,sim}.ts`, `apps/client/src/lib/{hud-keys,escape,controls,zoom-gestures,dialog-focus,confirm,endpoints}.ts`,
-`apps/client/src/ui/{Hud,Menu,Panel,Confirm,Environment,Wordmark}.tsx`, `apps/client/src/App.tsx`,
+`apps/client/src/game/{store,sim}.ts`, `apps/client/src/lib/{hud-keys,escape,controls,zoom-gestures,dialog-focus,veil,confirm,endpoints}.ts`,
+`apps/client/src/ui/{Hud,Menu,Panel,Confirm,Account,Environment,Wordmark}.tsx`, `apps/client/src/App.tsx`,
 `apps/client/src/styles.css`, `apps/client/scripts/{arrive,verify,verify-live,verify-collisions,verify-quests,verify-accounts}.mjs`
 
 ## Contexto
@@ -53,17 +53,24 @@ Tudo abaixo é **PROPOSTA** até a ratificação (OQ-16).
    placa de boas-vindas ao lado do ponto de chegada é cenário: **nenhum objeto novo foi criado** nesta mudança.
 3. **Como andar, em uma linha.** Quem ainda não andou neste navegador vê "Clique ou toque no chão para andar." no
    pé da tela, assim que a cena aparece (não durante o carregamento). Não é diálogo, não recebe cliques
-   (`pointer-events: none`), some no primeiro passo e também 20 s depois de a cena aparecer. Depois do primeiro passo não volta mais: o navegador guarda só a chave
-   `vila.moved.v1` com o valor `1` (nenhum dado pessoal).
+   (`pointer-events: none`), some no primeiro passo e também 20 s depois de a cena aparecer (o store conta o
+   prazo uma vez; abrir painéis ou o menu não o reinicia). Depois do primeiro passo não volta mais: o navegador
+   guarda só a chave `vila.moved.v1` com o valor `1` (nenhum dado pessoal), gravada no primeiro passo mesmo que a
+   linha já tenha saído. Fora das telas de toque a linha também diz o que ajuda sem mouse ("“Explorar ONGs” leva
+   até uma casa e Esc abre o menu", com a tecla tirada do mapa de teclas), e a frase é anunciada uma vez a
+   leitores de tela por uma região de status que já está na página quando o texto chega.
 4. **HUD sem botões de zoom e sem a marca.** O zoom segue pela roda do mouse, pela pinça de dois dedos e pelas
    teclas `+`, `=` e `-`; a tela "Controles" do menu diz isso. A marca fica onde identifica o projeto sem ocupar a
    tela de jogo: título da página, tela de carregamento (o `Wordmark` aparece enquanto a Vila carrega) e site
    público. A página ganhou um `<h1>` só para leitores de tela.
 5. **HUD em fluxo, sem sobreposição.** Topo: "agora na Vila" (hora e clima, visitantes, olhar o céu) e a navegação
    (caminhos; depois indicadores, conta, moderação e menu). Abaixo: bolsa de missão, avisos e o bloco de moderação;
-   o aviso passageiro (`toast`) entra nesse fluxo. Pé: ação contextual e Missões. Nada tem posição absoluta: o que
-   não cabe quebra de linha, de 320 px ao desktop. A faixa "Modo moderação" continua no topo e o HUD começa abaixo
-   dela. Dica flutuante (`data-tip`) só onde o controle fica sem nome visível.
+   o aviso passageiro (`toast`) entra nesse fluxo. Pé: ação contextual e Missões. Nenhum bloco tem posição
+   absoluta (só as dicas flutuantes, que não ocupam lugar): o que não cabe quebra de linha, de 320 px ao desktop.
+   A faixa "Modo moderação" continua no topo e o HUD começa abaixo dela. Dica flutuante (`data-tip`) só onde o
+   controle fica sem nome visível ou, no botão da conta, com o apelido abreviado; ela é posicionada pelo grupo do
+   controle e fica sempre dentro da tela. O topo e o pé não encolhem: em tela baixa (celular deitado) é o bloco
+   do meio que encolhe, e o bloco de moderação rola por dentro.
 6. **Menu do jogo.** Esc sem nada aberto abre o menu; Esc de novo, ou "Continuar", fecha. O botão "☰ Menu" do HUD
    faz o mesmo sem teclado. Entradas, só com conteúdo real: **Continuar**; **Configurações** (as mesmas opções do
    painel "Ambiente": qualidade, conforto, som e outros visitantes, pelo mesmo componente `EnvironmentSettings`);
@@ -85,6 +92,18 @@ Tudo abaixo é **PROPOSTA** até a ratificação (OQ-16).
    clique na árvore, na casa ou no terreno (são `onClick` dos modelos 3D).
 10. **Foco.** Painéis e menu usam o mesmo diálogo (`ui/Panel.tsx` + `lib/dialog-focus.ts`): o foco entra, Tab fica
     dentro, e ao fechar o foco volta para o botão que abriu.
+11. **Enter pertence ao controle em foco.** Com o foco num botão, link ou campo, Enter aciona esse controle; só
+    com o foco fora de um controle (na página, na cena) ele abre o que está perto do avatar. A tecla E abre o que
+    está perto com qualquer foco. Tecla mantida pressionada abre uma vez, e um Enter segurado que chega a um botão
+    do HUD é descartado (`hudKeyAction`, `onControl`, `heldOnControl`, puras). **Substitui** a regra da IMPL-0021,
+    em que só os controles de moderação ficavam com o próprio Enter e os demais botões do HUD abriam o que estava
+    perto: com o menu no HUD, Enter sobre "☰ Menu" ao lado da árvore abria a doação global, e Enter segurado em
+    "Continuar" reabria o menu.
+12. **Clique no véu.** Um toque ou clique fora do diálogo fecha o painel ou o menu no `click`, e só quando o toque
+    também começou no véu (`lib/veil.ts`). Fechar no `pointerdown` deixava o `click` do mesmo toque cair no botão
+    do HUD que estava embaixo.
+13. **Avisos passageiros com prazo próprio.** O `toast` sai da página 3,6 s depois de desenhado (`TOAST_MS`), com
+    ou sem animação; com `prefers-reduced-motion` ele aparece sem animação (antes ficava invisível).
 
 ### O que saiu e por quê
 
@@ -125,8 +144,12 @@ desabilitados e a nota honesta de sempre (IMPL-0002; nada mudou no painel de doa
   conforto: nada no jogo depende dele.
 - Esc numa confirmação agora cancela a confirmação em vez de fechar o painel inteiro; com a ação em envio
   ("Cancelar" desabilitado), o Esc não faz nada.
-- No celular o topo ocupa duas linhas (medido a 320 e 390 px); com a conta ligada, três nessas larguras. A 768 px
-  são duas e a 1280 px, uma.
+- O topo quebra de linha conforme a largura, a conta e o papel. Medido no Chrome com a fonte Nunito carregada, em
+  2026-11-13: a 320 e a 390 px, duas linhas (três para um administrador, pelo botão "Moderação"); a 360 px, duas;
+  a 641 px, duas (três com as contas ligadas); a 768 px, duas (três com apelido de 20 caracteres); a 1024 px, uma
+  (duas com apelido de 20 caracteres ou para um administrador); a 1280, 1360 e 1440 px, uma.
+- Enter com o foco num botão do HUD não abre mais o que está perto (item 11). Depois de "Explorar ONGs → Ir até
+  lá" o foco volta para o botão "Explorar ONGs": quem joga pelo teclado abre a casa com a tecla E.
 - Todos os scripts de navegador deixaram de clicar em "Entrar na Vila" e passaram a conferir a chegada
   (`scripts/arrive.mjs`: HUD presente, nenhum diálogo aberto). O `verify-live.mjs` desta versão **falha contra uma
   produção que ainda tenha a tela de boas-vindas**: use-o depois de publicar o jogo.

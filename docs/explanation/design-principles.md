@@ -27,9 +27,11 @@ Mundo 3D voxel (DEC-022/025); texto longo em painéis HTML legíveis sobre a cen
 
 ## 5. Celular primeiro
 
-Toque para andar, pinça para aproximar, botões ≥ 44 px (40 px nos chips do HUD abaixo de 360 px de largura),
-câmera que se afasta em retrato, `dpr` limitado. **No código:** `Ground` (`onPointerDown`), `Player` (`zoom`),
-`lib/zoom-gestures.ts`, `styles.css` (`@media (max-width: 640px)`, `pointer: coarse`).
+Toque para andar, pinça para aproximar, botões com 44 px de altura, câmera que se afasta em retrato, `dpr`
+limitado. Duas exceções hoje: em telas de até 360 px de largura os chips do HUD só com ícone têm 40 px de largura
+(a altura continua 44 px), e os botões pequenos dentro de listas e blocos (`btn--small`) têm 36 px de altura.
+**No código:** `Ground` (`onPointerDown`), `Player` (`zoom`), `lib/zoom-gestures.ts`, `styles.css`
+(`@media (max-width: 640px)`, `@media (max-width: 360px)`, `pointer: coarse`).
 
 ## 6. Mínimo de dados, máximo de cuidado
 

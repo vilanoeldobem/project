@@ -14,17 +14,31 @@ Cada versão indica o schema D1 que entrega.
 - Jogo: **a página abre direto na praça.** Não há mais painel de boas-vindas nem botão "Entrar na Vila": o primeiro
   clique ou toque no chão já anda. Quem ainda não andou neste navegador vê uma linha, "Clique ou toque no chão
   para andar.", que não recebe cliques, some no primeiro passo (ou 20 s depois de a cena aparecer) e não volta
-  depois dele (o navegador guarda só `vila.moved.v1 = 1`).
+  depois dele (o navegador guarda só `vila.moved.v1 = 1`). Fora das telas de toque a linha continua: "Sem mouse:
+  “Explorar ONGs” leva até uma casa e Esc abre o menu." Ela é anunciada uma vez a leitores de tela e dá lugar ao
+  botão de ação, a um painel, ao menu e ao bloco de moderação.
 - Jogo: os **três caminhos** (Explorar ONGs, Jogar, Doação global) ficam no HUD desde a chegada, num único grupo de
   navegação e sempre com o nome; no celular, numa linha própria (P01, DEC-008). A "Doação global" ganhou botão no
   HUD; o painel de doação não mudou (botões desabilitados com a nota de sempre, IMPL-0002).
 - Jogo: o HUD passou a ser montado em fluxo (topo, avisos, pé), de 320 px ao desktop: grupos, faixa de moderação,
   presença, Missões e avisos não se sobrepõem, e o centro da tela fica livre. O aviso passageiro (`toast`) deixou a
   posição fixa. Estados de passar o mouse, pressionar e "ligado" iguais em HUD e painéis; dica flutuante só onde o
-  controle fica sem nome visível. Chips do HUD com 44 px de altura (40 px abaixo de 360 px de largura).
+  controle fica sem nome visível ou com o apelido abreviado, sempre dentro da tela. Chips do HUD com 44 px de
+  altura; em telas de até 360 px de largura, a largura mínima do chip cai de 44 para 40 px (a altura não muda).
+  Em tela baixa (celular deitado) o bloco de moderação e o aviso de remoção encolhem e rolam por dentro, em vez de
+  cobrir o pé da tela.
+- Jogo: no botão da conta, "(bloqueada)" aparece sempre inteiro. Apelido com mais de 12 caracteres é abreviado no
+  botão ("@nome_muito_…"), e a dica flutuante mostra o texto completo.
 - Jogo: **Esc fecha uma camada por toque**: confirmação aberta → cancela a confirmação (antes fechava o painel
   inteiro); painel aberto → fecha o painel; nada aberto → abre o menu do jogo. Num campo de texto o Esc não abre o
   menu; tecla mantida pressionada conta uma vez.
+- Jogo: **Enter pertence ao controle em foco.** Com o foco num botão, link ou campo, Enter aciona esse controle e
+  não abre o que está perto do avatar (ao lado da árvore, Enter sobre "☰ Menu" abria a doação global). **Muda em
+  relação à versão anterior:** Enter com o foco num botão do HUD (por exemplo, depois de "Explorar ONGs → Ir até
+  lá") deixou de abrir a casa ao lado. A tecla E continua abrindo o que está perto com qualquer foco, e Enter
+  também, com o foco na página ou na cena. Tecla mantida pressionada abre uma vez, e Enter segurado não aciona de
+  novo um botão do HUD (segurar Enter em "Continuar" reabria o menu). A regra substitui a da IMPL-0021, que valia
+  só para os controles de moderação; "Controles" explica a diferença entre Enter e E.
 - Jogo: as opções de qualidade, conforto, som e outros visitantes aparecem no painel "Ambiente" e em
   "Configurações" do menu, pelo mesmo componente.
 - Verificação: os scripts de navegador (`verify.mjs`, `verify-live.mjs`, `verify-collisions.mjs`,
@@ -50,6 +64,20 @@ Cada versão indica o schema D1 que entrega.
   na tela de carregamento e no site público.
 - Jogo: o painel de boas-vindas (`ui/Welcome.tsx`); a promessa da Vila e o aviso de versão em desenvolvimento
   estão em "Ajuda".
+
+### Fixed — painéis, avisos e confirmações do jogo (revisão da IMPL-0022)
+
+- Jogo: **um toque fora de um painel ou do menu não aciona mais o botão que estava embaixo.** O véu fechava o
+  diálogo no `pointerdown`, e o `click` do mesmo toque caía no HUD (abria o Caderno de Missões ou a Doação
+  global). Agora fecha no `click`, e só quando o toque também começou no véu: arrastar de dentro do diálogo para
+  fora não fecha nada. Vale para todos os painéis e para o menu.
+- Jogo: **avisos passageiros visíveis com movimento reduzido.** Com `prefers-reduced-motion: reduce` todo aviso
+  (`toast`) ficava invisível: "Esse link expirou…", "Bem-vindo(a)…", missão concluída. Agora ele aparece sem
+  animação. Nos dois modos o aviso sai da página 3,6 s depois de ser desenhado (antes ficava lá, invisível).
+- Jogo, confirmações (sair da Vila, exclusão da conta bloqueada, moderação): um clique duplo no botão que abre a
+  pergunta não deixa mais o foco no botão de confirmar, onde um Enter logo depois confirmava. O clique do mouse
+  que seria ignorado (segundo clique de um clique duplo, ou antes dos 600 ms) mantém o foco na pergunta.
+- Jogo, menu: o link "Conhecer o projeto no site", em Ajuda, tem 44 px de altura como os outros alvos (tinha 36).
 
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 
@@ -86,9 +114,8 @@ Cada versão indica o schema D1 que entrega.
   aparece nem é consultada na API; o modo desliga ao sair, trocar de conta, perder o papel, ser bloqueado ou quando
   a sessão termina em outro lugar.
 - Jogo: perto de uma casa, da árvore ou de um morador, Enter sobre o botão "Moderação" ou sobre um botão do bloco
-  de moderação aciona esse botão em vez de abrir o que está perto. Para os outros botões do HUD nada muda: Enter e
-  E continuam abrindo o que está perto, também com o foco num botão (depois de "Explorar ONGs → Ir até lá" ou de um
-  clique no zoom).
+  de moderação aciona esse botão em vez de abrir o que está perto. (A IMPL-0022, acima, estendeu a regra a
+  qualquer botão, link ou campo.)
 - Jogo, casa de ONG publicada (no modo moderação): "Remover logo", "Remover foto" da galeria pública, "Retirar ONG
   da Vila" (PROPOSTA, IMPL-0020; com a mensagem obrigatória para a organização) e o link "Abrir no painel". Só
   aparecem as ações que podem funcionar (`/config.files`, `/config.withdrawal`, galeria pública com fotos). Cada
