@@ -147,7 +147,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Render budget (IMPL-0024): 150 draw calls and 250 000 triangles per frame, shadow pass included. A large baked
   block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
   `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
-  `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.
+  `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Something that spans the horizon (the forest,
+  the mountains) is meshed as one model and drawn in pieces (`voxelGeometries` with `partOf`), so the camera culls
+  each piece: never one mesh whose bounding sphere covers the village. Measure calls and triangles before and after;
+  `apps/client/scripts/verify.mjs` fails over the budget at the spawn, default zoom and zoomed out.
 - `GET /residential-plots` is an always-on public route: the shared layout is its source (every plot, always), the
   `residential_plots` table (0012, not in production yet) only adds state and is read only with the flag on. A
   missing table, a missing row or a D1 error answers "unavailable", never a 500 or a shorter list. `enabled` is the

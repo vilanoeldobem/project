@@ -25,7 +25,7 @@ import { villager } from "./gen/characters";
 import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
 import { BULBS, pine, reindeer, sleigh, snowman, SWAY, type Voxel } from "./models";
 import { type CasterPart, modelExtent, partAt } from "./shadowCasters";
-import { MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
+import { MergedVoxels, mergeVoxelModels, type Placement, splitParts, voxelGeometries, Voxels } from "./Voxels";
 
 /** Rotates a voxel model by quarter turns and moves it (merging many props into one instanced draw). */
 function place(model: Voxel[], dx: number, dz: number, quarter: number, scale = 1): Voxel[] {
@@ -36,51 +36,79 @@ function place(model: Voxel[], dx: number, dz: number, quarter: number, scale = 
   });
 }
 
-/** Sectors the pines are drawn in: each is one mesh per role, culled on its own. */
+/** Sectors the pines are meshed in: the pines of a sector hide each other's faces where they touch. */
 const PINE_SECTORS = 8;
+/**
+ * Pieces a sector is drawn in, each one mesh per role with its own bounding sphere: the small pines by the
+ * plaza, the tall pines of the belt behind the last ring, and the decorative forest of the sector in two
+ * halves of the horizon.
+ */
+const PINE_PARTS = 4;
 
 /**
- * Every pine (the village's own and the decorative forest), merged per sector of the horizon: 3 draw calls
- * for each sector in view. One mesh for the whole forest was drawn in full every frame, shadow pass
- * included, wherever the camera looked; with the larger village (IMPL-0024) that was the single largest
- * cost of the scene. A sector is still tens of units wide, so it joins the shadow pass only while the shadow
- * of one of its pines is seen (`casters`).
+ * Every pine (the village's own and the decorative forest). One mesh for the whole forest was drawn in full
+ * every frame, shadow pass included, wherever the camera looked; with the larger village (IMPL-0024) that was
+ * the single largest cost of the scene. It was then cut into eight sectors of the horizon, but a sector held
+ * the pines by the plaza and the forest 100 u away together: its bounding sphere reached the middle of the
+ * village, so six of the eight were drawn from the plaza with no pine of the forest on the screen (35 000
+ * triangles of a 250 000 budget, issue #41). Each sector is still meshed as one model, so the picture is the
+ * same triangle for triangle, but drawn in `PINE_PARTS` pieces the renderer culls one by one. A piece joins
+ * the shadow pass only while the shadow of one of its pines is seen (`casters`).
  */
 export function Pines() {
-  const sectors = useMemo(() => {
+  const pieces = useMemo(() => {
     const small = pine(false), tall = pine(true);
     const extent = new Map([small, tall].map((model) => [model, modelExtent(model, 1)]));
-    const out: Array<{ voxels: Voxel[]; casters: CasterPart[] }> = Array.from({ length: PINE_SECTORS }, () => ({ voxels: [], casters: [] }));
-    const add = (model: Voxel[], x: number, z: number, quarter: number) => {
-      const sector = ((Math.round((Math.atan2(z, x) * PINE_SECTORS) / (2 * Math.PI)) % PINE_SECTORS) + PINE_SECTORS) % PINE_SECTORS;
-      out[sector].voxels.push(...place(model, x, z, quarter));
+    const sectors = Array.from({ length: PINE_SECTORS }, () => ({ voxels: [] as Voxel[], part: new Map<Voxel, number>(), casters: Array.from({ length: PINE_PARTS }, (): CasterPart[] => []) }));
+    const add = (model: Voxel[], x: number, z: number, quarter: number, forest: boolean) => {
+      const turn = (Math.atan2(z, x) * PINE_SECTORS) / (2 * Math.PI);
+      const sector = sectors[((Math.round(turn) % PINE_SECTORS) + PINE_SECTORS) % PINE_SECTORS];
+      const part = forest ? (turn >= Math.round(turn) ? 3 : 2) : model === tall ? 1 : 0;
+      for (const voxel of place(model, x, z, quarter)) {
+        sector.voxels.push(voxel);
+        sector.part.set(voxel, part);
+      }
       const { reach, height } = extent.get(model)!;
       // Half a unit more than the model: the foliage sways up to about 0.45 u at the top of a tall pine (`foliageMaterial`).
-      out[sector].casters.push(partAt(x, z, reach + 0.5, height));
+      sector.casters[part].push(partAt(x, z, reach + 0.5, height));
     };
     // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
-    PINES.forEach((p, i) => add(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i));
+    PINES.forEach((p, i) => add(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i, false));
     const rnd = mulberry32(0xf0e57);
     // The forest ring is longer now (IMPL-0024) and farther away: a third more trees keep it reading as a forest.
     for (let i = 0; i < 120; i++) {
       const a = rnd() * Math.PI * 2;
       const r = FOREST_INNER + rnd() * (FOREST_OUTER - FOREST_INNER);
-      add(rnd() < 0.6 ? tall : small, Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r), i);
+      add(rnd() < 0.6 ? tall : small, Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r), i, true);
     }
-    return out;
+    return sectors.flatMap((sector) => {
+      const geometries = voxelGeometries(sector.voxels, 1, { sway: SWAY, partOf: (v) => sector.part.get(v) ?? 0, parts: PINE_PARTS });
+      // The foliage sways up to about 0.45 u beyond where it is meshed: the sphere a piece is culled by allows for it.
+      for (const g of geometries) if (g?.boundingSphere) g.boundingSphere.radius += 0.5;
+      return splitParts(geometries, PINE_PARTS)
+        .map((roles, part) => ({ roles, casters: sector.casters[part] }))
+        .filter((piece) => piece.roles.some(Boolean));
+    });
   }, []);
   return (
     <>
-      {sectors.map((sector, i) => (
-        <Voxels key={i} voxels={sector.voxels} sway={SWAY} casters={sector.casters} />
+      {pieces.map((piece, i) => (
+        <MergedVoxels key={i} geometries={piece.roles} casters={piece.casters} />
       ))}
     </>
   );
 }
 
-/** Distant voxel mountains in two rings (spec §10.2): silhouettes hazed by fog, no shadows. */
+/** Pieces the mountains are drawn in: sectors of the horizon, each culled on its own. */
+const MOUNTAIN_SECTORS = 8;
+
+/**
+ * Low-poly mountain silhouettes on the horizon (large voxels, far away, no collision). Meshed as one model
+ * and drawn in sectors: one mesh was 12 000 triangles in every frame, although the camera, which looks down on
+ * the village, seldom has more than a stretch of the horizon in its picture (issue #41).
+ */
 export function Mountains() {
-  const voxels = useMemo(() => {
+  const sectors = useMemo(() => {
     const out: Voxel[] = [];
     const rnd = mulberry32(0x3a7);
     for (const [ring, base, amp] of [[28, 2, 4], [35, 3, 6]] as const) {
@@ -97,11 +125,14 @@ export function Mountains() {
         }
       }
     }
-    return out;
+    const sectorOf = ([x, , z]: Voxel) => Math.min(MOUNTAIN_SECTORS - 1, Math.floor(((Math.atan2(z, x) + Math.PI) / (2 * Math.PI)) * MOUNTAIN_SECTORS));
+    return splitParts(voxelGeometries(out, 6, { partOf: sectorOf, parts: MOUNTAIN_SECTORS }), MOUNTAIN_SECTORS);
   }, []);
   return (
     <group position-y={-6}>
-      <Voxels voxels={voxels} size={6} castShadow={false} />
+      {sectors.map((roles, i) => (
+        <MergedVoxels key={i} geometries={roles} castShadow={false} />
+      ))}
     </group>
   );
 }

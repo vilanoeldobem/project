@@ -164,7 +164,7 @@ const SKY_RAYS: ReadonlyArray<readonly [dx: number, dy: number]> = [
  * one, the usual low view, is kept, and next to a row the camera goes up over the roofs. When none is clear
  * the last, highest one is used.
  */
-export function clearSkyOffset(occluders: readonly Occluder[], x: number, z: number, candidates: readonly Offset[], look: Offset, reach = 14): Offset {
+export function clearSkyOffset(occluders: readonly Occluder[], x: number, z: number, candidates: readonly Offset[], look: Offset, reach = 20): Offset {
   for (let i = 0; i < candidates.length; i++) {
     const c = candidates[i];
     const cx = x + c.x, cy = 1 + c.y, cz = z + c.z;

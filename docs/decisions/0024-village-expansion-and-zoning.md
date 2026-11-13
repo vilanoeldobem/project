@@ -318,7 +318,8 @@ O que foi feito para caber no orçamento:
 - 112 chalés e 256 peças assados em 24 blocos (um por faixa de cada lado), descartados um a um pela câmera e pela
   sombra;
 - modelos assados sem a face de baixo da camada do chão; chalés preenchidos por dentro (as faces internas somem);
-- a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores.
+- a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores (e depois, na
+  revisão, pedaços menores: ver o último acompanhamento).
 
 ### Acompanhamento: a vista com o zoom todo afastado
 
@@ -399,8 +400,63 @@ ele e a câmera (na época, um contorno vermelho), e entrou depois daquela medi�
   item 3 não entra nessa comparação: são os mesmos triângulos, com o mesmo material, em outra malha.
 
 **O que continua como estava:** a passada principal desenha inteiro todo bloco cuja esfera toca a tela, mesmo ao
-longe (não há nível de detalhe por distância); o chão (15 mil triângulos) e as montanhas (12 mil) são desenhados
-sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em celular**.
+longe (não há nível de detalhe por distância); o chão (15 mil triângulos) é desenhado sempre; o tempo de quadro
+medido segue preso aos 60 Hz e **não foi medido em celular**. (As montanhas, 12 mil triângulos desenhados sempre,
+e a floresta entraram no acompanhamento seguinte.)
+
+### Acompanhamento: folga com o zoom todo afastado (revisão, issue #41)
+
+A revisão da fase andou um roteiro pela Vila com o zoom todo afastado e achou o quadro mais caro em cerca de 252 mil
+triângulos, acima do orçamento. O orçamento não mudou e, de novo, **nada foi tirado da cena nem simplificado**.
+
+**De onde vinha.** Contando malha a malha na vista mais cara do roteiro (avatar em `(14, 4)`, zoom 1,6, 06:20, céu
+limpo, Média: 251 816 triângulos, 156 mil na passada principal e 92 mil na de sombra), a passada principal
+desenhava seis dos oito setores da floresta (35 mil triângulos) e as montanhas (12 mil) **sem nenhum pinheiro da
+floresta nem montanha na tela**. Cada setor juntava numa malha só os pinheiros da praça, os do cinturão e a
+floresta decorativa a 100 u dali: a esfera de um setor (54 a 67 u de raio) chegava ao meio da Vila, e a câmera,
+que olha a Vila de cima, quase nunca o descartava. As montanhas eram uma malha só em volta do mundo.
+
+**O que foi feito** (`scene/Scenery.tsx`, `voxelGeometries` com `partOf` em `scene/Voxels.tsx`):
+
+- cada setor da floresta continua sendo **malhado como um modelo só** (os mesmos voxels escondem as mesmas faces e
+  sombreiam os mesmos cantos), mas os triângulos são entregues em quatro pedaços, cada um com a sua esfera: os
+  pinheiros pequenos da praça, os pinheiros altos do cinturão e a floresta decorativa do setor em duas metades do
+  horizonte. O renderizador descarta pedaço por pedaço; a esfera de cada pedaço tem 0,5 u de folga para o balanço
+  da folhagem;
+- as montanhas, do mesmo jeito: um modelo, oito setores do horizonte.
+
+`scene/voxelParts.test.ts` confere que os pedaços são, triângulo por triângulo (posição, cor e centro do voxel),
+os da malha inteira. No navegador, sete vistas com a floresta ou as montanhas na imagem (céu a partir da praça, das
+bordas sul e norte; zoom todo afastado nas bordas oeste, norte e nordeste; spawn) foram capturadas antes e depois,
+com partículas desligadas e movimento reduzido. Entre antes e depois, de 3 a 4 812 dos 1 024 000 pixels de uma
+vista diferem em mais de 6/255 (até 0,47 %); entre dois quadros do mesmo build tirados com 0,7 s de intervalo, de
+565 a 17 655 (até 1,7 %: nuvens, luzes e a respiração dos moradores seguem animadas). A célula de 32 × 32 pixels
+com mais mudança forte (acima de 24/255) tem no máximo 320 dos 1 024 pixels alterados entre antes e depois, e 408
+entre dois quadros do mesmo build: nenhum pinheiro ou montanha sumiu de uma imagem. A comparação não separa pixel
+a pixel o que é animação; a garantia de que os triângulos são os mesmos é o teste unitário.
+
+**Medido** em 2026-11-13 com o roteiro da revisão (15 trechos a pé: praça, rua premium, as três ruas dos anéis nos
+quatro lados, de volta ao spawn; uma leitura dos contadores a cada 90 ms, cerca de 735 leituras por linha), build
+local, Chrome com GPU (Apple M5, Metal), 1280 × 800, céu limpo, `plaza-03` publicado. "Antes" é o `main` da fase:
+
+| Preset, zoom, hora | Mais triângulos num quadro, antes → depois | Média de triângulos | Mais chamadas, antes → depois | Leituras acima do orçamento |
+|---|---|---|---|---|
+| **Média, 1,6, 06:20** | **251 896 → 195 908** | 194 762 → 161 303 | 127 → 130 | 5 → 0 |
+| Alta, 1,6, 17:50 | 247 462 → 195 974 | 198 048 → 163 643 | 140 → 141 | 0 → 0 |
+| Média, 1,6, 15:30 | 231 784 → 181 686 | 187 269 → 154 054 | 122 → 121 | 0 → 0 |
+| Alta, 1, 17:50 | 194 204 → 153 494 | 164 070 → 132 095 | 127 → 125 | 0 → 0 |
+| Média, 1, 15:30 | 186 520 → 146 084 | 157 127 → 126 065 | 111 → 107 | 0 → 0 |
+
+Parado no spawn (Média), antes → depois: zoom padrão, 12:00 com neve, 102 chamadas e 164 504 triângulos → 101 e
+112 786; zoom todo afastado, 15:30 com céu limpo, 116 e 210 944 → 113 e 154 630; zoom todo afastado, 06:20, 119 e
+223 584 → 116 e 167 270; no preset Alta, zoom todo afastado, 17:50, 133 e 225 838 → 130 e 169 524.
+
+O quadro mais caro do roteiro com o zoom todo afastado ficou em 196 mil triângulos: **22 % abaixo de antes e 22 %
+de folga sob o orçamento** (eram 252 mil, 0,8 % acima). As chamadas sobem até 3 onde a floresta aparece (mais
+pedaços na tela) e ficam em no máximo 141. O ganho vale também no zoom padrão (cerca de 21 %), porque o desperdício
+não dependia do zoom. `apps/client/scripts/verify.mjs` passou a falhar se o spawn, no preset Média, passar de 150
+chamadas ou 250 mil triângulos no zoom padrão ou com o zoom todo afastado (inclusive às 06:20, a hora das sombras
+compridas).
 
 ## Alternativas consideradas
 
@@ -437,7 +493,7 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
   - "Olhar o céu" punha a câmera 10 u ao sul do avatar, a 3,6 u do chão: numa rua residencial isso é dentro de um
     chalé ou de cara para a parede dos fundos dele. Onde há uma construção nessa vista, a câmera agora sobe por
     cima dos telhados (`clearSkyOffset`: a primeira de cinco posições, cada uma mais alta, sem construção a menos
-    de 14 u em 13 direções da imagem); na praça e nas avenidas a vista baixa de sempre é mantida;
+    de 20 u em 13 direções da imagem); na praça a vista baixa de sempre é mantida;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
   - **as salas de presença não carregam versão do mundo** (IMPL-0008): uma aba aberta antes da publicação segue
@@ -446,7 +502,16 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador
     decorativo saiu de onde passa uma avenida;
   - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6
-    mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
+    mil; eram 1,8 vez antes do acompanhamento de desempenho; depois da revisão, 112,8 mil no mesmo quadro, 0,93 vez
+    o de antes da expansão, com 101 chamadas contra 70) e **mais
+    memória**. Heap de JavaScript no Chrome (`performance.memory.usedJSHeapSize` depois de forçar a coleta, Chrome
+    com `--enable-precise-memory-info`, preset Média, 1280 × 800, mediana de 5 cargas): depois de carregar,
+    **34,5 MB** (a revisão mediu 18,4 MB no `main` anterior à expansão e 34,8 MB na primeira versão desta fase;
+    hoje o mesmo método dá 34,9 MB para aquela versão); depois de três caminhadas longas, **39,7 MB** (21,7 MB
+    antes da expansão; 45,9 MB na primeira versão desta fase, que guardava 10,5 MB de rascunho da busca contra os
+    4,4 MB de hoje). Ou seja, cerca de 16 MB a mais ao carregar e 18 MB a mais depois de andar, e não os "cerca de
+    10 MB para a navegação" que este ADR dizia: a navegação responde por 2,2 MB (campo) mais 4,4 MB (rascunho), e
+    o resto são as malhas, os modelos e os mapas de colunas do mundo maior. Memória de GPU não foi medida;
   - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha como
     "Terreno em preparação" (rótulo 3D, título do painel e lista "Explorar ONGs"), sem convite para candidatura, e
     a visita a eles não conta para a missão de visitar um terreno.

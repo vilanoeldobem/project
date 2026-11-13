@@ -65,6 +65,13 @@ Cada versão indica o schema D1 que entrega.
   praça a vista é a de sempre.
 - O botão de ação de um terreno residencial só aparece com o avatar parado, e o alvo oferecido tem histerese: numa
   rua econômica o botão ficava na tela em 83 % do trajeto, trocando 15 vezes; agora, 0 %.
+- Desempenho: a floresta e as montanhas são desenhadas em pedaços que a câmera descarta um a um (os mesmos
+  triângulos de antes): o quadro mais caro de um roteiro a pé com o zoom todo afastado foi de ~252 mil para ~196 mil
+  triângulos (orçamento: 250 mil), e o ganho é parecido no zoom padrão.
+- Verificação: `verify.mjs` abre o painel de uma loja, de uma placa e de um terreno residencial e confere o texto,
+  e falha se o spawn passar de 150 chamadas ou 250 mil triângulos (zoom padrão e todo afastado, preset Média).
+  Os colisores da cena vêm de `scene/sceneColliders.ts`, que a auditoria de colisores confere: tirar os dos chalés
+  residenciais agora falha num teste unitário.
 - Celular: os botões "Ir até lá" da lista "Explorar ONGs" têm 44 px de altura (eram 36 px, em 12 linhas); um
   rótulo 3D que cairia embaixo de um botão ou aviso do HUD fica escondido até sair de lá.
 - Menu → Controles e Ajuda dizem o que um clique faz em cada coisa: árvore, casa de ONG e terreno abrem o painel;
