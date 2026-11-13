@@ -45,7 +45,10 @@ export function RemovedNotice() {
   );
 }
 
-/** HUD chip: São Paulo time + shared weather; opens the "Ambiente" panel. Also the sky-view toggle. */
+/**
+ * HUD status group: São Paulo time + shared weather (opens the "Ambiente" panel), who is in the plaza, and the
+ * sky-view toggle (icon-only, so it carries a tooltip).
+ */
 export function EnvironmentChip() {
   const f = useFrameSample(1000);
   const open = useVila((s) => s.open);
@@ -56,13 +59,19 @@ export function EnvironmentChip() {
   const w = WEATHER_LABEL[f.weather.kind];
   const event = f.events[f.events.length - 1];
   return (
-    <div className="env-chip">
+    <div className="hud__group env-chip" role="group" aria-label="Agora na Vila">
       <button
         className="btn btn--chip"
         onClick={() => open({ kind: "environment" })}
         aria-label={`Ambiente: ${pad(c.hour)}:${pad(c.minute)} em São Paulo, ${w.label}`}
       >
-        🕰️ {pad(c.hour)}:{pad(c.minute)} <span aria-hidden="true">{w.icon}</span>
+        <span className="chip__icon env-chip__clock" aria-hidden="true">
+          🕰️
+        </span>
+        {pad(c.hour)}:{pad(c.minute)}
+        <span className="chip__icon" aria-hidden="true">
+          {w.icon}
+        </span>
         <span className="env-chip__label">{event ? EVENT_LABEL[event.kind] : w.label}</span>
       </button>
       {net.status === "online" && (
@@ -82,12 +91,15 @@ export function EnvironmentChip() {
         </span>
       )}
       <button
-        className="btn btn--chip"
+        className="btn btn--chip chip--icon"
         aria-pressed={skyView}
         onClick={() => setSkyView(!skyView)}
         aria-label={skyView ? "Voltar à vista da Vila" : "Olhar o céu"}
+        data-tip={skyView ? "Voltar à vista da Vila" : "Olhar o céu"}
       >
-        {skyView ? "🏘️" : "🌌"}
+        <span className="chip__icon" aria-hidden="true">
+          {skyView ? "🏘️" : "🌌"}
+        </span>
       </button>
     </div>
   );
@@ -113,12 +125,10 @@ const NET_NOTE: Record<NetStatus, string> = {
 
 const QUALITY_NAME = { low: "Baixa", medium: "Média", high: "Alta", ultra: "Ultra" } as const;
 
-/** "Ambiente" panel: honest explanation of time/weather + per-device comfort and quality options. */
+/** "Ambiente" panel: honest explanation of time/weather + the per-device options (`EnvironmentSettings`). */
 export function EnvironmentPanel() {
   const f = useFrameSample(1000);
-  const s = useEnvSettings();
   const source = useEnvUi((u) => u.source);
-  const net = useNet();
   const c = saoPauloCivil(f.timestampMs);
   const w = WEATHER_LABEL[f.weather.kind];
   return (
@@ -143,7 +153,20 @@ export function EnvironmentPanel() {
         mas não têm relação com o tempo real lá fora.
       </p>
       {source === "local" && <p className="note">Usando o relógio deste aparelho até conectar com a Vila.</p>}
+      <EnvironmentSettings />
+    </Panel>
+  );
+}
 
+/**
+ * The per-device options: graphics quality, comfort (sound included) and other visitors. One component, shown
+ * in the "Ambiente" panel and in "Configurações" of the game menu (IMPL-0022), so there is one set of controls.
+ */
+export function EnvironmentSettings() {
+  const s = useEnvSettings();
+  const net = useNet();
+  return (
+    <>
       <fieldset className="env-fieldset">
         <legend>Qualidade gráfica</legend>
         <div className="env-options">
@@ -187,7 +210,7 @@ export function EnvironmentPanel() {
         </p>
       </fieldset>
       <p className="note">Essas opções mudam só a aparência e o som neste aparelho, nunca o jogo.</p>
-    </Panel>
+    </>
   );
 }
 

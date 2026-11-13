@@ -5,9 +5,11 @@
  * it joins the presence room for a few seconds and triggers the page's analytics. It fails when:
  *
  *   - the page does not answer 200 or sends no Content-Security-Policy;
- *   - the canvas or the "Entrar na Vila" button is missing;
+ *   - the canvas or the "Menu" button of the HUD is missing, a dialog is open on arrival or the welcome screen
+ *     ("Entrar na Vila") is back: the visitor lands in the village (IMPL-0022);
+ *   - one of the three paths (Explorar ONGs, Jogar, Doação global) is not on the HUD at arrival;
  *   - anything is written to the console as an error (CSP violations included) or a request fails;
- *   - the presence chip ("👥 …") does not show after entering, or the realtime server sent nothing over the
+ *   - the presence chip ("👥 …") does not show, or the realtime server sent nothing over the
  *     WebSocket (opening a socket is not enough: the room must answer);
  *   - the account chip of the HUD is shown although the API says accounts are off, or missing although they are on.
  *
@@ -16,6 +18,8 @@
 import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
+
+import { arrive } from "./arrive.mjs";
 
 const [url = "https://play.vilanoeldobem.com.br", apiUrl = "https://api.vilanoeldobem.com.br"] = process.argv.slice(2);
 const out = new URL("../verify-output/", import.meta.url).pathname;
@@ -38,9 +42,12 @@ const response = await page.goto(url, { waitUntil: "load" });
 if (response.status() !== 200) errors.push(`status ${response.status()}`);
 if (!response.headers()["content-security-policy"]) errors.push("no Content-Security-Policy header");
 await page.waitForSelector("canvas", { timeout: 20000 });
-await page.getByRole("button", { name: "Entrar na Vila" }).click();
+await arrive(page, errors, "arrival");
+for (const path of ["Explorar ONGs", "Jogar", "Doação global"]) {
+  if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`path "${path}" is not on the HUD at arrival`);
+}
 const chip = page.getByText(/👥/).first();
-await chip.waitFor({ timeout: 20000 }).catch(() => errors.push("no presence chip after entering the village"));
+await chip.waitFor({ timeout: 20000 }).catch(() => errors.push("no presence chip in the village"));
 // Late requests (analytics, presence) still count.
 await page.waitForTimeout(5000);
 if (!sockets.length) errors.push("the realtime server sent nothing over the WebSocket");

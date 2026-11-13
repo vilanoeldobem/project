@@ -131,7 +131,8 @@ export function savedWhere(s: { signedIn: boolean; blocked: boolean; pending: bo
   return "Seu progresso fica salvo na sua conta.";
 }
 
-function SavedWhere() {
+/** The sentence of `savedWhere` for the account on screen (also shown before leaving the Vila, IMPL-0022). */
+export function SavedWhere() {
   const signedIn = useAccount((s) => !!s.user);
   const blocked = useAccount((s) => !!s.user?.blocked);
   const pending = useAccount((s) => s.sync === "pending");

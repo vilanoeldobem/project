@@ -14,6 +14,8 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { arrive } from "./arrive.mjs";
+
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
 if (!/localhost|127\.0\.0\.1/.test(url + apiUrl)) {
   console.error("local only (creates accounts and publishes an NGO in the local D1)");
@@ -141,7 +143,7 @@ async function newPage(name) {
 async function enter(page, query = "?quests=1") {
   await page.goto(`${url}/${query}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 20000 });
-  await page.getByRole("button", { name: "Entrar na Vila" }).click();
+  await arrive(page, errors, "enter");
   await page.waitForTimeout(400);
 }
 
@@ -188,8 +190,10 @@ async function openNpc(page, name) {
 const dialogButton = (page, pattern) => page.getByRole("dialog").getByRole("button", { name: pattern });
 
 async function closePanel(page) {
-  await page.keyboard.press("Escape");
+  // Escape closes the open panel. With none open it would open the game menu (IMPL-0022), so it is not pressed.
+  if (await page.getByRole("dialog").count()) await page.keyboard.press("Escape");
   await page.waitForTimeout(250);
+  if (await page.getByRole("dialog").count()) errors.push(`closePanel: "${await page.getByRole("dialog").first().getAttribute("aria-label")}" is still open after Escape`);
 }
 
 /** Deterministic memory solver: learn every symbol, then pair them (the win routes to the active quest). */
@@ -253,7 +257,7 @@ await enter(blocked);
 await blocked.evaluate((p) => localStorage.setItem("vila.progress.v2", JSON.stringify(p)), SEEDED_PROGRESS);
 await blocked.reload({ waitUntil: "load" });
 await blocked.waitForSelector("canvas", { timeout: 20000 });
-await blocked.getByRole("button", { name: "Entrar na Vila" }).click();
+await arrive(blocked, errors, "blocked");
 await blocked.waitForTimeout(400);
 await blocked.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
 await blocked

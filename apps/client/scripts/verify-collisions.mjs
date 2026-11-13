@@ -16,6 +16,8 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { arrive } from "./arrive.mjs";
+
 const url = process.argv[2] ?? "http://localhost:8799";
 if (!/localhost|127\.0\.0\.1/.test(url)) {
   console.error("local only (the dev hooks are not exposed on a real hostname)");
@@ -80,7 +82,7 @@ page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text
 await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
 await page.goto(url, { waitUntil: "load" });
 await page.waitForSelector("canvas", { timeout: 20000 });
-await page.getByRole("button", { name: "Entrar na Vila" }).click();
+await arrive(page, errors, "page");
 await page.waitForFunction(() => !!window.__vila, null, { timeout: 10000 });
 
 const pose = () => page.evaluate(() => window.__vila.pose());

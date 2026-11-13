@@ -1,7 +1,7 @@
 # Começando — rodar a Vila localmente
 
 > **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v10 ·
-> **Atualizado em:** 2026-11-11
+> **Atualizado em:** 2026-11-12
 > **Fonte de verdade:** `package.json`, `apps/{client,api,server,dash}/package.json`,
 > `apps/{client,api,server,dash}/wrangler.jsonc`
 
@@ -74,10 +74,15 @@ depois de entrar pelo jogo, recarregue o painel.
 
 ## 5. Passear
 
-1. "Entrar na Vila".
-2. Clique ou toque no chão para andar; aproxime ou afaste com a roda do mouse, o gesto de pinça, os botões ＋/－ ou as teclas +/-. Encontre os presentes que flutuam (missão *Explorar*).
-3. Perto da árvore aparece "Doação global"; perto de um terreno, "Ver terreno" (tecla **E**).
+1. A página abre direto na praça: não há tela de boas-vindas nem botão para entrar
+   ([IMPL-0022](decisions/0022-immersive-entry-and-game-menu.md), PROPOSTA).
+2. Clique ou toque no chão para andar; aproxime ou afaste com a roda do mouse, o gesto de pinça ou as teclas +/-
+   (não há botões de zoom). Encontre os presentes que flutuam (missão *Explorar*).
+3. No alto da tela ficam os três caminhos: "Explorar ONGs", "Jogar" e "Doação global". Perto da árvore aparece
+   "Doação global"; perto de um terreno, "Ver terreno" (tecla **E**).
 4. Abra "Jogar" e complete o Jogo da Memória; veja o ★ Missões no canto inferior.
+5. **Esc** (ou o botão "☰ Menu") abre o menu do jogo: Continuar, Configurações, Controles, Ajuda e Sair da Vila.
+   Com um painel aberto, o Esc fecha o painel.
 
 ### 5.1 Conta e candidatura de ONG (local)
 

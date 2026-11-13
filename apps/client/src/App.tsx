@@ -11,13 +11,14 @@ import { Hud } from "./ui/Hud";
 import { Indicators } from "./ui/Indicators";
 import { Lot } from "./ui/Lot";
 import { MemoryGame } from "./ui/MemoryGame";
+import { GameMenu } from "./ui/Menu";
 import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
 import { VillageAction } from "./ui/VillageAction";
-import { Welcome } from "./ui/Welcome";
+import { Wordmark } from "./ui/Wordmark";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
 
@@ -33,15 +34,25 @@ export function App() {
 
   return (
     <>
+      {/* The page heading. The brand is not on the gameplay screen (IMPL-0022): it shows while the village loads. */}
+      <h1 className="sr-only">Vila Noel do Bem</h1>
       <main className="stage">
-        <Suspense fallback={<div className="loading">Acendendo as luzes da Vila…</div>}>
+        <Suspense
+          fallback={
+            <div className="loading">
+              <Wordmark large />
+              <p>Acendendo as luzes da Vila…</p>
+            </div>
+          }
+        >
           <World lots={lots} />
         </Suspense>
       </main>
+      {/* The visitor lands in the village: no panel opens by itself (PROPOSTA, IMPL-0022). */}
       <Hud />
       <ModerationFlag />
       <VillageAction />
-      {panel.kind === "welcome" && <Welcome />}
+      <GameMenu />
       {panel.kind === "donation" && <Donation />}
       {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} unlisted={Object.keys(lots).length > 0 && !lots[panel.lotId]} onChanged={loadLots} />}
       {panel.kind === "plot" && <PlotPanel plotId={panel.plotId} />}
