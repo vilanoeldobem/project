@@ -69,6 +69,7 @@ export const FLAG_LABEL: Record<string, string> = {
   withdrawal: "Retirada de ONG publicada (PROPOSTA)",
   "moderation.presence": "Remoção de visitante de uma sala do jogo (PROPOSTA)",
   "moderation.block": "Bloqueio de conta (PROPOSTA)",
+  residentialPlots: "Posse de terrenos residenciais (PROPOSTA)",
 };
 
 /**
