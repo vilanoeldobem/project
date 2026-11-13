@@ -158,7 +158,8 @@ describe("Ajuda", () => {
     const { page } = menu("help");
     expect(page).toContain("Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.");
     for (const words of ["🏡 Explorar ONGs", "🎲 Jogar", "🎄 Doação global", "★ Missões", "Caderno de Missões"]) expect(page).toContain(words);
-    expect(page).toContain(`<a class="btn btn--small" href="${SERVICES.site}" target="_blank" rel="noopener">Conhecer o projeto no site</a>`);
+    // A full-size button (44 px, like every other target of the menu), not the small variant.
+    expect(page).toContain(`<a class="btn" href="${SERVICES.site}" target="_blank" rel="noopener">Conhecer o projeto no site</a>`);
     expect(page).toContain("Jogar é gratuito e nunca é uma doação.");
   });
 

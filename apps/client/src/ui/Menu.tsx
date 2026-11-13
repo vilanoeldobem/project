@@ -163,7 +163,7 @@ export function GameMenuView({
             )}
           </ul>
           <p>
-            <a className="btn btn--small" href={SERVICES.site} target="_blank" rel="noopener">
+            <a className="btn" href={SERVICES.site} target="_blank" rel="noopener">
               Conhecer o projeto no site
             </a>
           </p>
