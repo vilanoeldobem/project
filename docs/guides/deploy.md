@@ -527,12 +527,17 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 
 ### 11.1 Ordem
 
-1. **O jogo (`apps/client`) pode ser publicado antes de tudo.** Ele desenha a Vila pelas constantes
-   compartilhadas e usa a API só para o estado. Contra a API e o banco de hoje (v3): os 8 terrenos que já existem
-   aparecem na posição nova com o estado certo, os 4 novos aparecem sem aceitar candidatura, e a leitura dos
-   terrenos residenciais falha em silêncio (a API antiga responde `404`; o painel segue dizendo que a posse não
-   está aberta).
-2. **A API desta versão também não depende da 0012.** `GET /lots` continua lendo o que o banco tem e
+1. **Com as contas desligadas (produção hoje), o jogo (`apps/client`) pode ser publicado antes de tudo.** Ele
+   desenha a Vila pelas constantes compartilhadas e usa a API só para o estado. Contra a API e o banco de hoje
+   (v3): os 8 terrenos que já existem aparecem na posição nova com o estado certo, os 4 novos aparecem como "em
+   preparação", sem aceitar candidatura, e a leitura dos terrenos residenciais falha em silêncio (a API antiga
+   responde `404`; o painel segue dizendo que os terrenos não têm dono).
+   **Com as contas ligadas (`ACCOUNTS_ENABLED = "true"`), a API vai primeiro.** A API antiga só conhece
+   `plaza-01`…`plaza-08`: quando um jogador com conta abre um dos 4 terrenos novos, o jogo novo envia o evento
+   `causes-visit-lot:plaza-09`…`plaza-12` no lote de progresso, a API antiga recusa **o lote inteiro** com
+   `400 bad_events` (os outros eventos do lote também não são gravados) e o jogo continua tentando reenviar.
+   A API desta versão aceita os 12 ids em qualquer esquema, e o jogo antigo funciona contra ela.
+2. **A API desta versão não depende da 0012.** `GET /lots` continua lendo o que o banco tem e
    `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, sem ler o banco enquanto a
    bandeira estiver desligada (e, com ela ligada, enquanto a tabela não existir). As rotas públicas respondem igual
    nos schemas v3 a v12.
@@ -561,7 +566,12 @@ ligar.
 
 ### 11.3 Reverter
 
-- Jogo, API e servidor: `wrangler rollback` de cada um; nenhum deles grava nada novo.
+- Jogo, API e servidor: `wrangler rollback` de cada um, na ordem inversa da publicação com as contas ligadas (o
+  jogo antes da API, pelo motivo do §11.1). **O que fica gravado depois de reverter:** com as contas ligadas, a
+  API desta versão grava em `progress_events` as visitas a `plaza-09`…`plaza-12`; essas linhas ficam no banco e a
+  API anterior não as apaga (ela só valida ids na gravação). No navegador de um visitante sem conta, o progresso
+  local (`localStorage`) pode guardar os mesmos ids. Nada mais é gravado de novo: os terrenos residenciais, as
+  lojas e as placas não gravam nada.
 - A migration 0012 não é revertida. Com ela aplicada e o jogo antigo no ar, os 8 terrenos continuam funcionando (o
   jogo antigo usa as posições das próprias constantes); as 4 linhas novas e `residential_plots` ficam sem uso.
 

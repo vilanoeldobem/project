@@ -14,7 +14,10 @@ Cada versão indica o schema D1 que entrega.
 - **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
   da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
   depois, três anéis de terrenos residenciais: 16 premium, 32 padrão e 64 econômico. O raio do mundo foi de 34 para
-  82,5 u. Do terreno mais distante até a árvore são 8,8 s a pé. Tudo é derivado de um plano só (`VILLAGE_PLAN`).
+  82,5 u. Do terreno mais distante até a árvore são 8,2 s a pé (68,5 u de caminho). O layout é derivado de um
+  plano só (`VILLAGE_PLAN`); o cenário da praça é posto à mão para esse plano, e `assertPlan` recusa o plano que
+  não dá para desenhar. Os ids de terreno são posicionais: depois da migration 0012 aplicada, mudar o plano exige
+  uma migration nova.
 - **Terrenos residenciais visíveis, posse desligada.** Chegar perto de um terreno e usar a ação (E, Enter ou toque)
   mostra o id, a faixa, o que a faixa exige e "A posse de terrenos ainda não está aberta.". O que a faixa exige é
   um requisito (um nível, alcançado jogando), nunca um preço: não há moeda, valor nem botão de compra. Nenhuma
@@ -54,8 +57,9 @@ Cada versão indica o schema D1 que entrega.
   janelas e lanternas dos blocos são duas malhas para a Vila inteira; a imagem não muda. A cena no spawn foi de 70
   chamadas e ~122 mil triângulos para 102 e ~165 mil (preset Média, 12:00 com neve); com o zoom todo afastado
   sobre a praça (15:30, céu limpo) são 116 chamadas e ~211 mil triângulos, dentro do orçamento de 150 e 250 mil
-  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; a pior rota medida
-  leva 4,8 ms para planejar.
+  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; o rascunho da busca
+  ocupa 4,4 MB (10 bytes por célula) e o plano que mais expande, numa amostra de 18 mil pares aleatórios, leva
+  6,8 ms (83 mil células).
 - Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
 - Verificação: `verify-accounts.mjs` chega à casa publicada por "Explorar ONGs" → "Ir até lá" (antes andava até a
   posição antiga do terreno e, com os arquivos ligados, como roda no CI, não chegava) e confere os 12 terrenos na

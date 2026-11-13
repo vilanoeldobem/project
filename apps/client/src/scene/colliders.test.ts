@@ -178,7 +178,7 @@ describe("collider audit (IMPL-0016)", () => {
   it("matches the static scenery, with quests off and available lots", () => {
     const colliders = [...OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))];
     expect(audit([...SCENERY, ...MARKERS], colliders)).toEqual({ walkThrough: [], invisible: [] });
-    // The audit covers the expanded village: 4 shops, 24 street lamps and the 272 dressing parts are in it.
+    // The audit covers the expanded village: 4 shops, 24 street lamps and the 256 dressing parts are in it.
     expect(SCENERY.filter((d) => /^shop-\d+$/.test(d.name))).toHaveLength(SHOPS.length);
     expect(SCENERY.length).toBeGreaterThan(RESIDENTIAL_DRESSING.length + STREET_LAMPS.length + 40);
   });

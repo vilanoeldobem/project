@@ -47,12 +47,39 @@ registrou o que vale para esta e para as próximas fases:
 
 ## Decisão
 
-### 1. Um plano, tudo derivado
+### 1. Um plano, e o que segue dele
 
 `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, PROPOSTA) é o único lugar com contagens, larguras, recuos e
 requisitos. `layoutVillage(plano)` deriva dele os anéis, os terrenos, as lojas, as placas, a rede de ruas e o raio
-do mundo; `VILLAGE` é o resultado para o plano em vigor. Mudar um número no plano muda as posições, a semente
-conferida pelos testes e a cena.
+do mundo; `VILLAGE` é o resultado para o plano em vigor. O cinturão de pinheiros altos, os postes de rua, as
+lanternas das travessas, o pátio da lenha, as peças das fileiras, o chão e a grade de navegação seguem o plano em
+vigor.
+
+**O que não segue o plano.** O cenário da praça é posto à mão para o plano em vigor (8 avenidas, praça de 26 u,
+uma loja a cada dois lados): postes e bancos da praça, os três pinheiros pequenos, a feira, o trenó, o lago, os
+bonecos de neve, os moradores e bichos, os NPCs e os itens das quests e os presentes não se mexem quando o plano
+muda. Por isso os números do plano são de dois tipos:
+
+| | Números | O que acontece ao mudar |
+|---|---|---|
+| **Seguros** | de cada faixa: `perHalf` (0 tira o anel e a rua), `width`, `depth`, `house`; `streetWidth`, `backYard`, `edge` | o layout, o cenário derivado e a navegação acompanham; os testes do layout e da caminhada conferem o resultado |
+| **Pedem revisão do cenário da praça** | `sides`, `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage`, `shopEvery` | o layout continua geometricamente válido, mas nada confere o cenário posto à mão: com 6 lados, por exemplo, uma avenida passa por cima de um NPC. `sides` diferente de 8 é recusado por `assertPlan` |
+
+`assertPlan(plano)`, chamada por `layoutVillage`, recusa com uma mensagem que nomeia o campo o plano que não dá para
+desenhar (lados diferentes de 8, tamanho não positivo, contagem fracionária, fachada menor que o piso de 7 × 7 de
+um terreno), em vez de devolver posições `NaN`. Em `village.test.ts`, o plano em vigor passa pela auditoria
+completa (geometria, ids, semente da migração, colisores e navegação com os terrenos vazios e com todos os chalés
+e as quests); as variações do plano conferem **só a geometria do layout**.
+
+**Ids são posicionais.** `plaza-NN`, `shop-NN` e `<faixa>-NN` são "o enésimo, contando em volta da Vila": só são
+estáveis enquanto o plano não muda. Outro `shopEvery`, `frontage.perHalf` ou `perHalf` de uma faixa renumera ou
+move terrenos, inclusive os que estão no D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, objetivos de
+quest, `ngo_withdrawals.lot_ids`, detalhes de auditoria, `residential_plots.id`). **Depois de aplicada a migration
+0012, mudar o plano exige uma migration nova que mova ou renomeie essas linhas.** Dois testes fixam `plaza-01`…
+`plaza-12`, as lojas e o primeiro e o último terreno de cada faixa ao seu lado, à sua metade e às suas
+coordenadas, e dizem isso quando falham. A parte numérica tem dois dígitos hoje e a largura que a maior contagem
+pedir (`economy-001`…`economy-112` num plano com 112 terrenos econômicos), para que os ids de um tipo tenham
+sempre a mesma forma.
 
 O modelo é uma **roda em volta da árvore**:
 
@@ -79,11 +106,13 @@ O modelo é uma **roda em volta da árvore**:
 
 **Em números:** raio do mundo 82,5 u (era 34: 5,9 vezes a área); 12 terrenos de ONG, 4 lojas, 4 placas, 112
 terrenos residenciais (16 + 32 + 64); 2 089 u de ruas (92 na rua da praça, 532 em avenidas, 1 041 nas três ruas
-dos anéis, 424 em travessas). A pé, a 8,5 u/s: do terreno econômico mais distante até a árvore **8,8 s** (72 u de
-caminho); do padrão mais distante, 6,7 s; do premium, 4,6 s.
+dos anéis, 424 em travessas). A pé, a 8,5 u/s, da frente do terreno mais distante de cada faixa até a árvore:
+econômico (`economy-09`) **8,2 s** e 68,5 u de caminho; padrão (`standard-05`) 6,3 s e 52,8 u; premium
+(`premium-01`) 4,4 s e 35,5 u. Método: `planRoute` até o centro (o caminho termina nas ramas da árvore) e
+`stepWalk` no passo fixo de 60 Hz, com todo terreno de ONG com chalé; `village.test.ts` fixa esses números.
 
-Cada terreno (de ONG ou residencial) tem id único e estável, zona ou faixa, posição, orientação e limites
-explícitos (largura e profundidade). Ids: `plaza-01`…`plaza-12`, `shop-01`…`shop-04`, `billboard-01`…`billboard-04`,
+Cada terreno (de ONG ou residencial) tem id único, zona ou faixa, posição, orientação e limites explícitos
+(largura e profundidade). Os ids são estáveis enquanto o plano não muda (ver acima). Ids: `plaza-01`…`plaza-12`, `shop-01`…`shop-04`, `billboard-01`…`billboard-04`,
 `premium-01`…`premium-16`, `standard-01`…`standard-32`, `economy-01`…`economy-64`.
 
 ### 2. Faixas reconhecíveis pelo ambiente, não por selo
@@ -102,17 +131,24 @@ solta fumaça. As casas têm um andar e cumeeira paralela à rua (ver "Consequê
 
 ### 3. Regra de vista para a árvore (`SIGHTLINE`)
 
-1. Toda avenida é um corredor reto e aberto até a árvore: nada com mais de 3 u de altura a menos de 0,25 u das suas
-   bordas, da ponta até as ramas da árvore.
-2. Todo terreno residencial dá para uma rua que chega a uma avenida em linha reta: da rua em frente ao terreno, o
-   trecho até a avenida da sua meia fileira não passa por nada alto, e tem no máximo 30 u. De qualquer terreno, a
-   árvore está a uma esquina de distância.
-3. Todo terreno e toda loja da fachada dá para a praça: nada alto entre a linha das varandas e a rua redonda, na
-   reta até a árvore.
+Cada regra está escrita como exatamente o que o teste confere. "Alto" são os chalés (de ONG e residenciais), as
+lojas e os pinheiros; postes, lanternas, barracas, o trenó, cercas e cercas-vivas não contam.
 
-"Alto" são os chalés (de ONG e residenciais), as lojas e os pinheiros. Postes, lanternas, barracas, cercas e
-cercas-vivas são finos ou baixos e não contam. Os pinheiros altos ficam só no cinturão atrás do último anel.
-`packages/shared/src/game/village.test.ts` confere a regra para o plano em vigor e para variações dele.
+1. **Avenidas.** Toda avenida é um corredor reto até a árvore: nada alto a menos de 0,25 u das suas bordas, da
+   ponta até as ramas da árvore. É a regra que pode falhar: um pinheiro, um terreno ou uma fileira posta na linha
+   de uma avenida a quebra (há um teste que põe um chalé numa avenida e confere que a regra acusa).
+2. **Terrenos residenciais.** O trecho de rua entre a frente do terreno e a avenida da sua meia fileira tem no
+   máximo 30 u. O teste também confere que esse trecho não tem nada alto, mas isso decorre do layout (nada é
+   posto sobre uma rua): o que distingue um plano de outro é só o comprimento.
+3. **Fachada da praça.** Nada alto entre a linha das varandas de um terreno ou de uma loja e a rua redonda, na
+   direção da árvore. Também decorre do layout (essa faixa só tem cenário baixo); o teste protege contra uma
+   coisa alta posta ali depois.
+
+**O que a regra não diz:** que a árvore é vista de todo terreno. De um terreno residencial vê-se a própria rua,
+não a árvore; e a reta de um terreno da fachada até a árvore pode cruzar cenário baixo da praça (hoje: o trenó em
+frente ao `plaza-03`, um pinheiro pequeno em frente ao `plaza-04` e a barraca de panetone em frente à `shop-03`).
+A primeira versão deste ADR dizia "de qualquer terreno, a árvore está a uma esquina de distância"; nenhum teste
+prova isso e a frase foi retirada. Os pinheiros altos ficam só no cinturão atrás do último anel.
 
 ### 4. Requisitos, nunca preços
 
@@ -199,19 +235,32 @@ a cena chegou a 150 chamadas e 271 mil triângulos: acima do orçamento de triâ
 Os números desta tabela são os da primeira versão da fase; os de hoje estão em
 [Acompanhamento: a vista com o zoom todo afastado](#acompanhamento-a-vista-com-o-zoom-todo-afastado).
 
-| Navegação (Node, mesma máquina, todo terreno de ONG com chalé) | Antes | Depois |
+| Navegação: o campo (Node, mesma máquina, todo terreno de ONG com chalé, quests ligadas) | Antes (`main`, raio 34 u) | Depois |
 |---|---|---|
-| Células da grade / caminháveis | 74 529 / 37 379 | 436 921 / 200 600 |
+| Células da grade / caminháveis | 74 529 / 37 379 | 436 921 / 201 050 |
 | Colisores | 70 | 546 |
-| Construir o campo (mediana) | 1,45 ms | 8,2 ms |
-| `planRoute`, mediana de 816 rotas entre frentes de terreno e a árvore | 0,29 ms | 0,51 ms |
-| `planRoute`, pior rota | 1,77 ms (77 u, 19 708 nós) | 4,84 ms (166 u, 40 720 nós) |
-| Memória do campo + rascunho da busca | 0,4 MB + 2,7 MB | 2,2 MB + 10,5 MB |
+| Construir o campo (mediana de 21) | 1,45 ms | 8,4 ms |
+| Memória do campo (`blocked` + `region`) | 0,4 MB | 2,2 MB |
+| Memória do rascunho da busca | 2,7 MB (24 bytes por célula) | 4,4 MB (10 bytes por célula) mais a lista aberta, que cresce com a busca; a primeira versão desta fase guardava 24 bytes por célula: 10,5 MB |
+
+| Navegação: `planRoute` no mundo novo (mesmas condições; tempo por `performance.now()` em volta de cada chamada, depois de 300 planos de aquecimento) | Pares | Mediana | p99 | Par que mais expande |
+|---|---|---|---|---|
+| Amostra fixa de lugares: de cada 3.º para cada 5.º de 226 pontos (spawn, frentes dos 112 terrenos, portas e lojistas, placas, frentes dos 12 terrenos de ONG, 80 nós da rede de ruas) | 3 212 | 0,40 ms | 2,8 ms | 51 667 células, 3,9 ms (frente do `economy-03` → frente do `economy-42`, 145 u) |
+| Pares aleatórios de pontos livres no disco inteiro, `mulberry32(2026)` | 18 000 | 0,45 ms | 4,2 ms | 82 895 células, 6,8 ms (183 u) |
+| Os mesmos, `mulberry32(40)` (é a amostra que `navigation.test.ts` confere: menos de 100 000 células) | 3 000 | 0,44 ms | 3,7 ms | 72 464 células, 5,5 ms (158 u) |
+
+Um clique pode cair em qualquer lugar: o pior caso que vale é o dos pares aleatórios (cerca de 83 mil células, 41 %
+das caminháveis; menos de 7 ms nesta máquina, sem contar uma pausa do coletor de lixo, que apareceu em medidas
+isoladas de até 19 ms). A primeira versão deste ADR dava "pior rota 4,84 ms, 40 720 nós": era a pior de uma amostra
+fixa de 816 rotas entre frentes de terreno e a árvore, não o pior caso. Com `main` (raio de 34 u), naquela
+amostra: mediana 0,29 ms e pior 1,77 ms (77 u, 19 708 nós). O rascunho menor não mudou nenhuma rota (mesma ordem
+de expansão; conferido nas 24 212 rotas das três amostras) e não ficou mais lento (a mediana da amostra aleatória
+era 0,51 ms com 24 bytes por célula).
 
 O que foi feito para caber no orçamento:
 
 - chão em faixas de mesma cor (um quad por faixa, só a face de cima): 23 mil células em menos de 11,5 mil quads;
-- 112 chalés e 272 peças assados em 24 blocos (um por faixa de cada lado), descartados um a um pela câmera e pela
+- 112 chalés e 256 peças assados em 24 blocos (um por faixa de cada lado), descartados um a um pela câmera e pela
   sombra;
 - modelos assados sem a face de baixo da camada do chão; chalés preenchidos por dentro (as faces internas somem);
 - a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores.
@@ -312,9 +361,10 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
 
 ## Consequências
 
-- **Positivas:** a Vila tem para onde crescer sem mexer no código de layout; todo ponto novo é alcançável a pé e
-  conferido por teste; nada sólido é atravessado e nada invisível bloqueia (auditoria nos dois sentidos, agora com
-  lojas, postes de rua, 272 peças e 112 chalés); produção (esquema v3) continua respondendo todas as rotas públicas.
+- **Positivas:** os anéis residenciais crescem ou encolhem mudando números do plano (os da coluna "seguros" do
+  §1); todo ponto novo é alcançável a pé e conferido por teste; nada sólido é atravessado e nada invisível bloqueia
+  (auditoria nos dois sentidos, agora com lojas, postes de rua, 256 peças e 112 chalés); produção (esquema v3)
+  continua respondendo todas as rotas públicas.
 - **Pior para quem joga hoje:**
   - a câmera olha do sul, de cima: uma casa ao sul de uma rua esconde quem anda rente a ela. As casas residenciais
     têm um andar e cumeeira paralela à rua, e o avatar ganha um contorno vermelho translúcido quando há uma
@@ -328,8 +378,10 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
     mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
   - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha e o painel
     diz que ainda não recebem candidaturas.
-- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0012, depois de aplicada
-  em produção, não se edita: um plano novo é uma migração nova. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
+- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições, e os ids são posicionais (§1): a
+  migração 0012, depois de aplicada em produção, não se edita, e um plano novo é uma migração nova que move ou
+  renomeia as linhas de `lots` e `residential_plots` e tudo o que guarda um id de terreno. Mudar um número da
+  praça (lados, tamanho da praça, espaçamento das lojas) pede revisar à mão o cenário dela. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
   posse só muda o estado respondido para `"available"`; não ligar antes da resposta à OQ-17.
 
 ## Pronto para as próximas fases
@@ -341,7 +393,7 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
 | Lareiras | `ResidentialPlot.hearth` (dentro das paredes de cada casa) e `chimneyOf()` (topo da chaminé do modelo; a fumaça de `Smoke` já aceita essas origens) |
 | NPCs e animais que andam, entregas, minimapa | `PATH_GRAPH`: 80 nós (avenidas, travessas e esquinas com as três ruas) e 120 arestas com tipo, largura e comprimento, todas em chão livre |
 | Posse de terreno | a bandeira e o estado na leitura pública. O esquema de posse **não** existe: entra com a migration da rota de posse, depois da resposta à OQ-17 |
-| Catálogo de loja, aluguel de placa | ids estáveis (`shop-NN`, `billboard-NN`) e os painéis |
+| Catálogo de loja | ids (`shop-NN`, `billboard-NN`; estáveis enquanto o plano não muda) e os painéis |
 
 ## Relacionados
 

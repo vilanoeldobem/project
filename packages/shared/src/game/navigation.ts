@@ -7,8 +7,9 @@
  *   A cell is free when an avatar centred on it keeps `NAV.clearance` from every collider. Free cells are
  *   grouped into regions; the largest one is the walkable village. The grid grew with the village
  *   (IMPL-0024: 82.5 u of radius, about 437 000 cells): the cell stays 0.25 u, so every route keeps the
- *   precision it had around the square, and the search scratch is kept small instead (32-bit costs, the
- *   path written over the spent heap).
+ *   precision it had around the square, and the search scratch is kept small instead: 10 bytes a cell (a
+ *   32-bit cost, the cell's place in the open list, one byte for the step that reached it, one for the visit
+ *   mark) and an open list that grows with the search.
  * - **Plan** (`planRoute`, on click): resolve the destination to the nearest walkable point, go straight
  *   when it is in plain sight, otherwise A* over the grid (bounded by the number of free cells) followed by
  *   string pulling, so the route is a few straight legs instead of a staircase.
@@ -69,7 +70,11 @@ export interface NavField {
   walkable: number;
 }
 
-/** Builds the navigation field for a collider set. Linear in grid cells plus collider areas (about 11 ms at 82.5 u). */
+/**
+ * Builds the navigation field for a collider set. Linear in grid cells plus collider areas: at 82.5 u, with the
+ * 546 colliders of a village where every lot has a chalet, a median of 8 ms over 31 builds in Node on an Apple M5
+ * (2026-11-13; the first build of a process, before the JIT warms up, took up to 15 ms).
+ */
 export function createNavField(colliders: readonly Collider[]): NavField {
   const blocked = new Uint8Array(CELLS);
   for (let iz = 0; iz < SIDE; iz++) for (let ix = 0; ix < SIDE; ix++) if (!inWorld(at(ix), at(iz))) blocked[iz * SIDE + ix] = 1;
@@ -186,33 +191,60 @@ export const createRoute = (): Route => ({
   aim: { x: 0, z: 0, rest: 0 },
 });
 
-/** Search scratch, shared by every field (same grid size) and allocated on the first search. */
+/**
+ * Search scratch, shared by every field (same grid size) and allocated on the first search that needs it (a
+ * destination in plain sight never does). Four arrays cover the grid, 10 bytes a cell (4.4 MB at 82.5 u); the
+ * open list and the found path grow with the search that needs them and are kept for the next one.
+ */
 interface Scratch {
-  /** Costs in cell units: 32 bits hold every route of the village exactly enough (ties are broken by cell index). */
+  /** Cost from the start, in cell units: 32 bits hold every route of the village exactly enough. */
   g: Float32Array;
-  f: Float32Array;
-  parent: Int32Array;
-  seen: Uint32Array;
-  heap: Int32Array;
+  /** Where each open cell sits in the heap; `CLOSED` once it was expanded. */
   slot: Int32Array;
-  /** The found path. Same memory as `heap`: a path is written only after its search ended. */
+  /** How each visited cell was reached: the code of the step from its parent (`NO_STEP` for the start). */
+  from: Uint8Array;
+  /** Visit generation: `seen[i] === generation` = visited by this search. */
+  seen: Uint8Array;
+  /** Open list: a binary heap of cells and, beside each, its f (cost so far plus the estimate to the goal). */
+  open: Int32Array;
+  keys: Float32Array;
+  /** The found path, or the queue of `escape`. */
   path: Int32Array;
 }
+/** Code of the step `(dx, dz)` from a cell's parent; `NO_STEP` marks the start. */
+const stepCode = (dx: number, dz: number) => (dz + 1) * 3 + (dx + 1);
+const NO_STEP = 4;
+const CLOSED = -1;
+/** Offset from a cell back to its parent, by step code. */
+const BACK = Int32Array.from({ length: 9 }, (_, code) => -((code % 3) - 1) - (((code / 3) | 0) - 1) * SIDE);
 let scratch: Scratch | null = null;
 let generation = 0;
-/** The scratch arrays with a fresh visit generation (`seen[i] === generation` = visited by this search). */
+/** The scratch arrays with a fresh visit generation. */
 function nextSearch(): Scratch {
-  if (!scratch) {
-    const heap = new Int32Array(CELLS);
-    scratch = { g: new Float32Array(CELLS), f: new Float32Array(CELLS), parent: new Int32Array(CELLS), seen: new Uint32Array(CELLS), heap, slot: new Int32Array(CELLS), path: heap };
-  }
+  scratch ??= { g: new Float32Array(CELLS), slot: new Int32Array(CELLS), from: new Uint8Array(CELLS), seen: new Uint8Array(CELLS), open: new Int32Array(4096), keys: new Float32Array(4096), path: new Int32Array(4096) };
   const s = scratch;
-  if (++generation > 0xfffffff0) {
+  if (++generation > 255) {
     s.seen.fill(0);
     generation = 1;
   }
   return s;
 }
+/** `list` with room for at least `size` entries (doubling, contents kept). */
+function withRoom<T extends Int32Array | Float32Array>(list: T, size: number): T {
+  if (size <= list.length) return list;
+  const grown = new (list.constructor as new (n: number) => T)(Math.max(size, list.length * 2));
+  grown.set(list);
+  return grown;
+}
+/**
+ * Drops the search scratch (a few megabytes): the next search allocates it again. For a caller that knows no
+ * walk will be planned for a while; planning itself never needs it.
+ */
+export function releaseSearchScratch(): void {
+  scratch = null;
+}
+/** Bytes the search scratch holds right now (0 before the first search): for tests and measurements. */
+export const searchScratchBytes = (): number => (scratch ? scratch.g.byteLength + scratch.slot.byteLength + scratch.from.byteLength + scratch.seen.byteLength + scratch.open.byteLength + scratch.keys.byteLength + scratch.path.byteLength : 0);
 /** Result of `resolve` (module scratch: planning is synchronous and single-threaded). */
 const goal = { x: 0, z: 0, cell: -1 };
 const rawX: number[] = [], rawZ: number[] = [], midX: number[] = [], midZ: number[] = [];
@@ -285,56 +317,52 @@ function resolve(field: NavField, sx: number, sz: number, tx: number, tz: number
   return true;
 }
 
-/** A* over the walkable region from `from` to `to`; writes the cells (goal first) to `scratch.path`. */
-function search(field: NavField, from: number, to: number, route: Route): number {
+/**
+ * A* over the walkable region from `start` to `to`; writes the cells (goal first) to `scratch.path`. Entries
+ * are ordered by f, then by cell index, so the result does not depend on how the heap happens to be laid out.
+ */
+function search(field: NavField, start: number, to: number, route: Route): number {
   const s = nextSearch();
-  const { g, f, parent, seen, heap, slot } = s;
+  const { g, slot, from, seen } = s;
+  let { open, keys } = s;
   const { blocked } = field;
   const tx = to % SIDE, tz = (to / SIDE) | 0;
-  const before = (a: number, b: number) => f[a] < f[b] || (f[a] === f[b] && a < b);
-  let size = 0;
-  const up = (i: number) => {
-    const node = heap[i];
-    while (i > 0) {
-      const p = (i - 1) >> 1;
-      if (!before(node, heap[p])) break;
-      heap[i] = heap[p];
-      slot[heap[i]] = i;
-      i = p;
-    }
-    heap[i] = node;
-    slot[node] = i;
-  };
-  const down = (i: number) => {
-    const node = heap[i];
-    for (;;) {
-      let c = 2 * i + 1;
-      if (c >= size) break;
-      if (c + 1 < size && before(heap[c + 1], heap[c])) c++;
-      if (!before(heap[c], node)) break;
-      heap[i] = heap[c];
-      slot[heap[i]] = i;
-      i = c;
-    }
-    heap[i] = node;
-    slot[node] = i;
-  };
-
-  seen[from] = generation;
-  g[from] = 0;
-  f[from] = 0;
-  parent[from] = -1;
-  heap[size++] = from;
-  slot[from] = 0;
+  // The heap is written out in the loop (no closures over the two lists, which may be swapped for larger ones).
+  let size = 1;
+  seen[start] = generation;
+  g[start] = 0;
+  from[start] = NO_STEP;
+  open[0] = start;
+  keys[0] = 0;
+  slot[start] = 0;
   while (size > 0) {
-    const cur = heap[0];
-    slot[cur] = -1;
+    const cur = open[0];
+    slot[cur] = CLOSED;
+    // Remove the top entry: the last one sinks from the root.
     if (--size > 0) {
-      heap[0] = heap[size];
-      down(0);
+      const node = open[size], key = keys[size];
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1;
+        if (c >= size) break;
+        if (c + 1 < size && (keys[c + 1] < keys[c] || (keys[c + 1] === keys[c] && open[c + 1] < open[c]))) c++;
+        if (!(keys[c] < key || (keys[c] === key && open[c] < node))) break;
+        open[i] = open[c];
+        keys[i] = keys[c];
+        slot[open[i]] = i;
+        i = c;
+      }
+      open[i] = node;
+      keys[i] = key;
+      slot[node] = i;
     }
     if (cur === to) break;
     route.expanded++;
+    // Room for the eight entries this cell may add.
+    if (size + 8 > open.length) {
+      s.open = open = withRoom(open, size + 8);
+      s.keys = keys = withRoom(keys, size + 8);
+    }
     const cx = cur % SIDE, cz = (cur / SIDE) | 0;
     for (let dz = -1; dz <= 1; dz++)
       for (let dx = -1; dx <= 1; dx++) {
@@ -347,21 +375,35 @@ function search(field: NavField, from: number, to: number, route: Route): number
         if (dx !== 0 && dz !== 0 && (blocked[cur + dx] || blocked[cur + dz * SIDE])) continue;
         const cost = g[cur] + (dx !== 0 && dz !== 0 ? DIAGONAL : 1);
         const fresh = seen[next] !== generation;
-        if (!fresh && (slot[next] < 0 || cost >= g[next])) continue;
+        if (!fresh && (slot[next] === CLOSED || cost >= g[next])) continue;
         const ax = Math.abs(nx - tx), az = Math.abs(nz - tz);
         g[next] = cost;
-        f[next] = cost + GREED * (ax > az ? ax + (DIAGONAL - 1) * az : az + (DIAGONAL - 1) * ax);
-        parent[next] = cur;
-        if (fresh) {
-          seen[next] = generation;
-          heap[size] = next;
-          slot[next] = size;
-          up(size++);
-        } else up(slot[next]);
+        from[next] = (dz + 1) * 3 + (dx + 1);
+        // A new entry rises from the end of the heap; a cell found again at a lower cost rises from where it is.
+        // The key is compared as stored, in 32 bits.
+        let i = fresh ? size++ : slot[next];
+        if (fresh) seen[next] = generation;
+        keys[i] = cost + GREED * (ax > az ? ax + (DIAGONAL - 1) * az : az + (DIAGONAL - 1) * ax);
+        const key = keys[i];
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (!(key < keys[p] || (key === keys[p] && next < open[p]))) break;
+          open[i] = open[p];
+          keys[i] = keys[p];
+          slot[open[i]] = i;
+          i = p;
+        }
+        open[i] = next;
+        keys[i] = key;
+        slot[next] = i;
       }
   }
   let n = 0;
-  for (let c = to; c >= 0; c = parent[c]) s.path[n++] = c;
+  for (let c = to; ; c += BACK[from[c]]) {
+    if (n === s.path.length) s.path = withRoom(s.path, n + 1);
+    s.path[n++] = c;
+    if (c === start || seen[c] !== generation) break;
+  }
   return n;
 }
 
@@ -373,31 +415,35 @@ function search(field: NavField, from: number, to: number, route: Route): number
  */
 function escape(field: NavField, sx: number, sz: number): number {
   const s = nextSearch();
-  const { parent, seen, heap: queue } = s;
+  const { from, seen } = s;
   const cx = cellOf(sx), cz = cellOf(sz);
   if (!inGrid(cx) || !inGrid(cz)) return 0;
   const span = Math.ceil(NAV.escape / NAV.cell);
+  // The queue never holds more than the window, and a way out is shorter than the queue: both fit in `path`.
+  const queue = (s.path = withRoom(s.path, (2 * span + 1) ** 2));
   const start = cz * SIDE + cx;
   let head = 0, tail = 0;
   queue[tail++] = start;
   seen[start] = generation;
-  parent[start] = -1;
+  from[start] = NO_STEP;
   while (head < tail) {
     const cur = queue[head++];
     if (field.region[cur] === field.main) {
+      // The queue is spent from here on: the way out is written over its start.
       let n = 0;
-      for (let c = cur; c !== start; c = parent[c]) s.path[n++] = c;
+      for (let c = cur; c !== start; c += BACK[from[c]]) queue[n++] = c;
       return n;
     }
     const ix = cur % SIDE, iz = (cur / SIDE) | 0;
     for (let k = 0; k < 4; k++) {
-      const nx = ix + (k === 0 ? -1 : k === 1 ? 1 : 0), nz = iz + (k === 2 ? -1 : k === 3 ? 1 : 0);
+      const dx = k === 0 ? -1 : k === 1 ? 1 : 0, dz = k === 2 ? -1 : k === 3 ? 1 : 0;
+      const nx = ix + dx, nz = iz + dz;
       if (!inGrid(nx) || !inGrid(nz) || Math.abs(nx - cx) > span || Math.abs(nz - cz) > span) continue;
       const next = nz * SIDE + nx;
       if (seen[next] === generation) continue;
       seen[next] = generation;
       if (field.blocked[next] && !(inWorld(at(nx), at(nz)) && clearance(field.colliders, at(nx), at(nz)) >= 0)) continue;
-      parent[next] = cur;
+      from[next] = stepCode(dx, dz);
       queue[tail++] = next;
     }
   }

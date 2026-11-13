@@ -122,11 +122,20 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   also holds the bytes of gallery photos under the same rules, and `ngo_photos` in D1 decides who may read them. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
-- The whole world layout is derived from `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, IMPL-0024): change
-  the plan, never scatter positions. Its lots and residential plots must stay in sync with the seed migrations
-  (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text and the migrated tables), and the
-  layout must keep the rules of `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by
-  distance, the sightline rule, every place reachable on foot).
+- The layout (rings, lots, shops, plots, streets, world radius) is derived from `VILLAGE_PLAN`
+  (`packages/shared/src/game/world.ts`, IMPL-0024): change the plan, never scatter positions. The scenery of the
+  square (plaza lamps, market, sleigh, pond, NPCs, quest items, gifts) is placed by hand for the plan in force and
+  does not follow it. Safe knobs: a tier's `perHalf`, `width`, `depth` and `house`, `streetWidth`, `backYard`,
+  `edge`. Review the square's scenery by hand before touching `sides` (`assertPlan` refuses anything but 8),
+  `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage` or `shopEvery`.
+- Lot, shop and plot ids are positional (`plaza-NN` = the n-th lot around the village): stable only for an
+  unchanged plan. They are stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
+  `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`), so once migration 0012 is applied, a plan
+  change that moves or renumbers one needs a new migration that follows. Lots and plots must stay in sync with the
+  seed migrations (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text, the migrated
+  tables and pin each id to its place), and the plan in force must keep the rules of
+  `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by distance, the sightline rule, every
+  place reachable on foot in both collider sets). Plan variants are only checked for the layout's geometry.
 - Every solid thing drawn in the village has a collider sized from its voxels (IMPL-0016): add or move a prop and
   its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.

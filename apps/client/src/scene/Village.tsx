@@ -181,7 +181,7 @@ const tierOf = (x: number, z: number): PlotTier => nearest(RESIDENTIAL_PLOTS, x,
  * The residential rows (IMPL-0024, PROPOSTA): a chalet per plot, seeded by the plot id, and the dressing that
  * tells the tiers apart. Scenery: nobody holds a plot (ownership is off), so no chimney smokes. Everything
  * static, baked into one geometry for each tier of each side of the village: 24 blocks the renderer culls
- * one by one, instead of 112 chalets and 272 parts. A block is a long, thin row, so it joins the shadow
+ * one by one, instead of 112 chalets and 256 parts. A block is a long, thin row, so it joins the shadow
  * pass only while the shadow of one of its chalets or parts is seen (`casters`). The windows and the
  * lanterns of every block are two meshes for the whole village (`joinLitRoles`).
  */

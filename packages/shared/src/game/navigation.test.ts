@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { mulberry32 } from "../environment/random";
 import { AVATAR_RADIUS, clearance, type Collider } from "./collision";
 import { type Body, createBody, MOTION, STEP } from "./motion";
-import { createNavField, createRoute, isOpen, NAV, type NavField, planRoute, type Route, stepWalk } from "./navigation";
+import { createNavField, createRoute, isOpen, NAV, type NavField, planRoute, releaseSearchScratch, type Route, searchScratchBytes, stepWalk } from "./navigation";
 import {
   DONATION_PANEL,
   GIFTS,
@@ -236,7 +236,8 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
           expect(route.expanded, `${name} (${sx}, ${sz}) → (${tx}, ${tz})`).toBeLessThanOrEqual(field.walkable);
           expect(route.count, `${name} waypoints`).toBeLessThan(40);
         }
-      // In practice a fraction of the bound: the hardest of these 324 plans stays under 60 000 expansions.
+      // In practice a fraction of the bound: the hardest of these 324 plans (every pair of the 18 spots above)
+      // stays under 60 000 expansions (measured: 31 124). The next test draws the pairs at random.
       expect(worst, name).toBeGreaterThan(0);
       expect(worst, name).toBeLessThan(60000);
       // Walking never plans: the expansion count of the route is untouched by a whole walk.
@@ -247,6 +248,62 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       expect([route.expanded, route.replans], name).toEqual([planned, 0]);
     }
   });
+
+  it("stays within the bound for a seeded random sample of pairs across the village", () => {
+    // The fixed spots above are places people go; a click can land anywhere. 3 000 pairs of open points drawn
+    // with `mulberry32(40)` over the whole disc, every lot a chalet and the quests on (the fewest walkable cells,
+    // the most detours). Measured: the hardest pair expands 72 464 cells, about a third of the walkable region
+    // (in a sample of 18 000 pairs with `mulberry32(2026)`, 82 895). IMPL-0024 has the times.
+    const [name, , field] = CONFIGS[2];
+    const random = mulberry32(40);
+    const point = (): [number, number] => {
+      for (;;) {
+        const x = (random() * 2 - 1) * WORLD_RADIUS, z = (random() * 2 - 1) * WORLD_RADIUS;
+        if (isOpen(field, x, z)) return [x, z];
+      }
+    };
+    const route = createRoute();
+    let worst = 0, longest = 0;
+    for (let i = 0; i < 3000; i++) {
+      const [sx, sz] = point(), [tx, tz] = point();
+      planRoute(field, route, sx, sz, tx, tz);
+      // Open ground is always reached, exactly, by a planned route.
+      if (route.direct || route.x !== tx || route.z !== tz) expect.fail(`${name}: (${sx}, ${sz}) → (${tx}, ${tz}) was not planned to its end`);
+      worst = Math.max(worst, route.expanded);
+      longest = Math.max(longest, route.count);
+    }
+    expect(worst).toBeGreaterThan(60000);
+    expect(worst).toBeLessThan(100000);
+    expect(worst).toBeLessThan(field.walkable / 2);
+    expect(longest).toBeLessThan(40);
+  }, 30_000);
+
+  it("allocates the search scratch on the first search that needs it, small, and gives it back when asked", () => {
+    const [, , field] = CONFIGS[2];
+    const route = createRoute();
+    const far = RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 30].front;
+    const plan = () => {
+      planRoute(field, route, SPAWN.x, SPAWN.z, far.x, far.z);
+      return [route.count, route.expanded, ...route.xs.slice(0, route.count), ...route.zs.slice(0, route.count)];
+    };
+    const before = plan();
+    releaseSearchScratch();
+    expect(searchScratchBytes()).toBe(0);
+    // A destination in plain sight is one line-of-sight test: no search, no scratch.
+    planRoute(field, route, SPAWN.x, SPAWN.z, SPAWN.x + 2, SPAWN.z + 2);
+    expect([route.expanded, searchScratchBytes()]).toEqual([0, 0]);
+    // The same walk planned on a fresh scratch is the same walk.
+    expect(plan()).toEqual(before);
+    // 10 bytes a cell over the grid, plus an open list and a path that grew with this search: under 5 MB
+    // (the first version of the expanded village kept 24 bytes a cell: 10.5 MB).
+    const cells = (2 * Math.ceil(WORLD_RADIUS / NAV.cell) + 1) ** 2;
+    expect(searchScratchBytes()).toBeGreaterThanOrEqual(10 * cells);
+    expect(searchScratchBytes()).toBeLessThan(5 * 1024 * 1024);
+    // More than 255 searches in a row (the visit mark is one byte and starts over): still the same walk.
+    for (let i = 0; i < 300; i++) planRoute(field, route, SPAWN.x, SPAWN.z, -23, 0);
+    expect(route.expanded).toBeGreaterThan(0);
+    expect(plan()).toEqual(before);
+  }, 20_000);
 
   it("does nothing but brake while idle or paused, and resumes the same route", () => {
     const [, set, field] = OFF;

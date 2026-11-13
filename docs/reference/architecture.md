@@ -202,8 +202,13 @@ na OQ-16).
 
 ### 2.4 Plano da Vila (IMPL-0024, PROPOSTA)
 
-Tudo vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas, placas,
-ruas e o raio do mundo. Decisão, números e o que fica para depois em
+O layout vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas,
+placas, ruas e o raio do mundo, e `assertPlan` recusa o plano que não dá para desenhar. O cenário da praça
+(postes, feira, trenó, lago, NPCs, itens de quest) é posto à mão para o plano em vigor e **não** acompanha o plano:
+os números de cada faixa, a largura das ruas, o quintal e a borda podem mudar sozinhos; lados, tamanho da praça,
+largura de avenida e de travessa, fachada e espaçamento das lojas pedem revisar esse cenário. Os ids são
+posicionais: só são estáveis enquanto o plano não muda, e depois da migration 0012 aplicada mudar o plano exige
+uma migration nova. Decisão, números e o que fica para depois em
 [IMPL-0024](../decisions/0024-village-expansion-and-zoning.md).
 
 | Peça | Onde | Constante |
@@ -216,7 +221,7 @@ ruas e o raio do mundo. Decisão, números e o que fica para depois em
 | Pátio da lenha, lugar do lojista, lugar da lareira | ponta da travessa norte; ao lado de cada porta; dentro de cada casa | `WOOD_YARD`, `ShopDef.keeper`, `ResidentialPlot.hearth` |
 
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
-  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 272 peças
+  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 256 peças
   assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
   para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
   setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
@@ -229,9 +234,11 @@ ruas e o raio do mundo. Decisão, números e o que fica para depois em
   em espera) e não têm botão além de fechar.
 - **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
   ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
-- **Regra de vista** (`SIGHTLINE`, `sightlines()`): avenidas livres de coisa alta até a árvore; de todo terreno, a
-  avenida fica a no máximo 30 u pela rua em frente. Conferida em `shared/game/village.test.ts`, também para
-  variações do plano.
+- **Regra de vista** (`SIGHTLINE`, `sightlines()`): (1) toda avenida é um corredor livre de coisa alta (chalé,
+  loja, pinheiro) até as ramas da árvore; (2) da frente de todo terreno residencial, a avenida fica a no máximo
+  30 u pela rua; (3) nada alto entre a linha das varandas da fachada e a rua redonda. As regras 2 e 3 decorrem do
+  layout, salvo o comprimento da 2. A regra não diz que a árvore é vista de todo terreno. Conferida em
+  `shared/game/village.test.ts` para o plano em vigor; nas variações do plano, só a geometria.
 
 ## 3. API (`apps/api/src`)
 
