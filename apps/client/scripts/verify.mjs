@@ -122,6 +122,91 @@ for (const [name, time, weather, sky, quality] of scenes) {
   stats[name] = (await page.locator(".env-debug").textContent())?.split("\n").find((l) => l.startsWith("calls")) ?? null;
   await page.close();
 }
+// Render budget (IMPL-0024): at most 150 draw calls and 250 000 triangles a frame on the medium preset, at the
+// spawn with the default zoom and with the zoom all the way out (the counters are those of the debug overlay,
+// every pass included; they do not depend on the resolution or on the GPU). 06:20 is the hour of the long
+// shadows, the dearest one on the review's walking tour.
+const BUDGET = { calls: 150, triangles: 250000 };
+stats.budget = {};
+for (const [name, time, weather, zoom] of [
+  ["spawn, default zoom, noon, snow", "2026-12-20T12:00", "SNOW", 1],
+  ["spawn, default zoom, 15:30, clear", "2026-12-20T15:30", "CLEAR_FROST", 1],
+  ["spawn, zoomed out, 15:30, clear", "2026-12-20T15:30", "CLEAR_FROST", 1.6],
+  ["spawn, zoomed out, 06:20, clear", "2026-12-20T06:20", "CLEAR_FROST", 1.6],
+]) {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+  page.on("pageerror", (e) => errors.push(`budget (${name}): ${e.message}`));
+  await page.addInitScript((zoom) => {
+    localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "medium", multiplayer: false }));
+    localStorage.setItem("vila.zoom.v1", String(zoom));
+  }, zoom);
+  const sep = url.includes("?") ? "&" : "?";
+  await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
+  await page.waitForSelector("canvas", { timeout: 15000 });
+  await arrive(page, errors, `budget (${name})`);
+  // The camera eases to its place and the shadow pass settles with it: the largest of a few readings counts.
+  let calls = 0, triangles = 0;
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(1500);
+    const line = (await page.locator(".env-debug").textContent())?.split("\n").find((l) => l.startsWith("calls")) ?? "";
+    const m = /calls (\d+) · tris (\d+)/.exec(line);
+    if (m) (calls = Math.max(calls, Number(m[1]))), (triangles = Math.max(triangles, Number(m[2])));
+  }
+  stats.budget[name] = { calls, triangles };
+  if (calls === 0) errors.push(`budget (${name}): the debug overlay shows no render counters`);
+  if (calls > BUDGET.calls || triangles > BUDGET.triangles) errors.push(`budget (${name}): ${calls} calls and ${triangles} triangles, over ${BUDGET.calls} and ${BUDGET.triangles}`);
+  await page.close();
+}
+
+// The expanded village (IMPL-0024, PROPOSTA): one shop, one billboard and one residential plot, each opened by
+// the contextual action from where it is used. The copy is neutral: nothing is sold, rented or promised, and
+// with ownership off (`/config.residentialPlots` false) the plot panel shows no requirement.
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
+  page.on("pageerror", (e) => errors.push(`village: ${e.message}`));
+  page.on("console", (m) => m.type() === "error" && errors.push(`village: ${m.text()}`));
+  await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
+  await page.goto(url, { waitUntil: "load" });
+  await arrive(page, errors, "village");
+  const PROMISE = /em breve|será liberad|quando abrir|alug|R\$|comprar|preço/i;
+  // [what, where the avatar stands (the south shop's door, its billboard's point, the front of economy-21),
+  //  the action, the panel's title, sentences the panel must show]
+  const places = [
+    ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja ainda não abriu.", "Se e como ela vai funcionar ainda não foi decidido.", "Nada é vendido na Vila."]],
+    ["billboard", 8.4, 25.5, /Ler placa/, "Placa 2", ["As placas mostram avisos da própria Vila.", "No telhado da loja Oficina de Brinquedos"]],
+    ["plot", -4.5, 67.75, /Ver terreno residencial/, "Terreno 21 · Bairro da Floresta", ["Os terrenos residenciais não têm dono.", "A casa neste terreno é cenário: ninguém mora nela."]],
+  ];
+  for (const [what, x, z, action, title, sentences] of places) {
+    await page.evaluate(([x, z]) => window.__vila.extra.teleport(x, z), [x, z]);
+    const button = page.getByRole("button", { name: action });
+    if (!(await button.waitFor({ timeout: 20000 }).then(() => true, () => false))) {
+      errors.push(`village: no "${action.source}" action at the ${what} (nearby: ${JSON.stringify(await page.evaluate(() => window.__vila.extra.nearby()))})`);
+      continue;
+    }
+    await button.click();
+    const dialog = page.getByRole("dialog", { name: title, exact: true });
+    await dialog.waitFor({ timeout: 10000 }).catch(() => errors.push(`village: the ${what} panel "${title}" did not open`));
+    const text = ((await dialog.textContent().catch(() => "")) ?? "").replace(/\s+/g, " ");
+    for (const sentence of sentences) if (!text.includes(sentence)) errors.push(`village: the ${what} panel does not say "${sentence}" (it says "${text}")`);
+    if (PROMISE.test(text)) errors.push(`village: the ${what} panel promises or sells something: "${text}"`);
+    if (/premium|standard|economy|shop-\d|billboard-\d/.test(text)) errors.push(`village: the ${what} panel shows an internal id: "${text}"`);
+    if (what === "plot") {
+      // With ownership off (the default everywhere) the panel says it is undecided and shows no requirement.
+      const flagOn = text.includes("Requisito em estudo");
+      if (!flagOn && !text.includes("A posse por jogadores é uma proposta em estudo e ainda não foi decidida.")) errors.push(`village: the plot panel is not the neutral one: "${text}"`);
+      if (!flagOn && /nível|requisito/i.test(text)) errors.push(`village: the plot panel shows a requirement with ownership off: "${text}"`);
+    }
+    if ((await dialog.getByRole("button").count()) !== 1) errors.push(`village: the ${what} panel has a button besides "Fechar"`);
+    await page.screenshot({ path: `${out}village-${what}.png` });
+    await page.keyboard.press("Escape");
+    // Opening a panel leaves no walk behind it.
+    await page.waitForTimeout(600);
+    const moved = await page.evaluate(([x, z]) => Math.hypot(window.__vila.pose().x - x, window.__vila.pose().z - z), [x, z]);
+    if (moved > 0.2 || (await page.evaluate(() => window.__vila.extra.target())) !== null) errors.push(`village: closing the ${what} panel left the avatar walking (${moved.toFixed(2)} u away)`);
+  }
+  await page.close();
+}
+
 // Gameplay: walk to the two gifts (click-to-move through the dev hook) → pickup events + mission done.
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
