@@ -44,7 +44,7 @@ import {
   validateSplitConfig,
 } from "@vila/shared/donations/contract";
 
-import { checkPixCharge, createOrGetSubAccount, createPixCharge, simulatePixPayment, verifyAbacateWebhook, type PixCharge } from "./abacatepay";
+import { checkPixCharge, createOrGetSubAccount, createPixCharge, simulatePixPayment, subAccountIdError, verifyAbacateWebhook, type PixCharge } from "./abacatepay";
 import { newId } from "./crypto";
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
 import { assertAccount, currentUser, requireAdmin, requireUser } from "./session";
@@ -52,7 +52,6 @@ import type { Env } from "./api";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WEBHOOK_MAX_BYTES = 64_000;
-const SUB_ACCOUNT = /^(?:dev_)?sacc_[A-Za-z0-9_]+$/;
 
 /** The flag that keeps every donation route dark until the owner approves it (404, like the withdraw route). */
 const requireDonations = (env: Env): void => {
@@ -259,25 +258,42 @@ const TRANSITIONS: Record<Exclude<DonationStatus, "pending">, DonationStatus[]> 
 };
 
 /**
- * The only place a charge changes a donation row. Guarded by the current status, so a late PENDING check cannot
- * undo a payment and a refund cannot be overwritten by a replay; `title_credited` follows the new status.
+ * One UPDATE of a donation row, guarded by the current status. `delivery` binds it to the webhook insert of THIS
+ * delivery: a replayed event keeps its first `processed_at`, so the EXISTS is false and nothing changes.
  */
-async function applyCharge(env: Env, charge: PixCharge, next: DonationStatus): Promise<void> {
-  if (next === "pending") return;
+function chargeUpdate(
+  env: Env,
+  charge: PixCharge,
+  next: Exclude<DonationStatus, "pending">,
+  delivery?: { eventId: string; marker: string }
+): D1PreparedStatement {
   const from = TRANSITIONS[next];
   const now = new Date().toISOString();
   const paid = next === "paid" ? 1 : 0;
   const refunded = next === "refunded" ? 1 : 0;
-  await env.DB!.prepare(
+  return env.DB!.prepare(
     `UPDATE donations SET status = ?, paid_at = CASE WHEN ? = 1 THEN COALESCE(paid_at, ?) ELSE paid_at END,
        refunded_at = CASE WHEN ? = 1 THEN COALESCE(refunded_at, ?) ELSE refunded_at END,
        title_credited = CASE WHEN ? = 1 AND user_id IS NOT NULL AND provider = 'abacatepay' THEN 1 ELSE 0 END,
        platform_fee_cents = COALESCE(?, platform_fee_cents), receipt_url = COALESCE(?, receipt_url),
        br_code = COALESCE(?, br_code), br_code_base64 = COALESCE(?, br_code_base64), updated_at = ?
-     WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")})`
-  )
-    .bind(next, paid, now, refunded, now, paid, charge.platformFeeCents, charge.receiptUrl, charge.brCode, charge.brCodeBase64, now, charge.id, ...from)
-    .run();
+     WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")})${
+       delivery ? " AND EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ? AND processed_at = ?)" : ""
+     }`
+  ).bind(
+    next, paid, now, refunded, now, paid, charge.platformFeeCents, charge.receiptUrl, charge.brCode, charge.brCodeBase64, now, charge.id,
+    ...from,
+    ...(delivery ? [delivery.eventId, delivery.marker] : [])
+  );
+}
+
+/**
+ * The only place a charge changes a donation row. Guarded by the current status, so a late PENDING check cannot
+ * undo a payment and a refund cannot be overwritten by a replay; `title_credited` follows the new status.
+ */
+async function applyCharge(env: Env, charge: PixCharge, next: DonationStatus): Promise<void> {
+  if (next === "pending") return;
+  await chargeUpdate(env, charge, next).run();
 }
 
 export async function createDonation(request: Request, env: Env): Promise<Response> {
@@ -323,6 +339,9 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
     throw new HttpError(409, targetKind === "global" ? "global_donation_not_configured" : "ngo_payment_not_configured");
   }
 
+  // Resolve the donor before creating the provider charge: a session read that fails must not leave a payable Pix
+  // with no local row.
+  const user = await currentUser(request, env);
   const id = newId();
   const charge = await createPixCharge(env, {
     amountCents: split.amountCents,
@@ -332,7 +351,6 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
     ngoShareCents: split.ngoShareCents,
     metadata: { donationId: id, targetKind },
   });
-  const user = await currentUser(request, env);
   await db
     .prepare(
       `INSERT INTO donations (id, target_kind, ngo_id, recipient_name, user_id, provider, provider_charge_id, sub_account_id,
@@ -414,7 +432,7 @@ export async function recordRedirect(request: Request, env: Env): Promise<Respon
 }
 
 /** The status the webhook event asks for; null when the event is not about a donation we track. */
-function webhookStatus(event: string, providerStatus: string): DonationStatus | null {
+function webhookStatus(event: string, providerStatus: string): Exclude<DonationStatus, "pending"> | null {
   const status = providerStatus.toUpperCase();
   if (event === "transparent.completed") return "paid";
   if (event === "transparent.refunded" || event === "transparent.lost") return "refunded";
@@ -462,22 +480,14 @@ export async function abacateWebhook(request: Request, env: Env): Promise<Respon
         }
       : null;
 
-  const statements = [env.DB.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId)];
+  // The update is bound to THIS insert, not merely to the event id: a replay inserts nothing and the old
+  // processed_at makes its EXISTS false, so a replayed event cannot undo a later dispute or refund.
+  const marker = new Date().toISOString();
+  const statements = [
+    env.DB.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id, processed_at) VALUES (?, ?, ?, ?)").bind(eventId, eventName, chargeId, marker),
+  ];
   if (charge && next) {
-    const from = TRANSITIONS[next as Exclude<DonationStatus, "pending">];
-    const paid = next === "paid" ? 1 : 0;
-    const refunded = next === "refunded" ? 1 : 0;
-    const now = new Date().toISOString();
-    statements.push(
-      env.DB.prepare(
-        `UPDATE donations SET status = ?, paid_at = CASE WHEN ? = 1 THEN COALESCE(paid_at, ?) ELSE paid_at END,
-           refunded_at = CASE WHEN ? = 1 THEN COALESCE(refunded_at, ?) ELSE refunded_at END,
-           title_credited = CASE WHEN ? = 1 AND user_id IS NOT NULL AND provider = 'abacatepay' THEN 1 ELSE 0 END,
-           platform_fee_cents = COALESCE(?, platform_fee_cents), receipt_url = COALESCE(?, receipt_url), updated_at = ?
-         WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")}) AND EXISTS
-           (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)`
-      ).bind(next, paid, now, refunded, now, paid, charge.platformFeeCents, charge.receiptUrl, now, charge.id, ...from, eventId)
-    );
+    statements.push(chargeUpdate(env, charge, next, { eventId, marker }));
   }
   const [inserted, updated] = await env.DB.batch(statements);
   if (!inserted.meta.changes) return json({ ok: true, duplicate: true }, { headers: NO_STORE });
@@ -508,9 +518,12 @@ export async function adminDonationOverview(request: Request, env: Env): Promise
   const settings = await readSettings(env);
   const { results: ngos } = await db
     .prepare(
-      `SELECT n.id, n.name, n.status, l.id AS lotId, c.payment_method, c.donation_url, c.sub_account_id, c.link_validated,
+      `SELECT n.id, n.name, CASE WHEN w.ngo_id IS NOT NULL THEN 'withdrawn' ELSE n.status END AS status,
+              l.id AS lotId, c.payment_method, c.donation_url, c.sub_account_id, c.link_validated,
               c.ngo_percent_bps, c.fixed_fee_cents
-         FROM ngos n LEFT JOIN lots l ON l.ngo_id = n.id AND l.state = 'published'
+         FROM ngos n
+         LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id
+         LEFT JOIN lots l ON l.ngo_id = n.id AND l.state = 'published'
          LEFT JOIN ngo_payment_configs c ON c.ngo_id = n.id
         ORDER BY n.name LIMIT 200`
     )
@@ -544,7 +557,8 @@ export async function adminUpdateSettings(request: Request, env: Env): Promise<R
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors);
   const split = splitFromBody(body);
   const given = typeof body.subAccountId === "string" ? body.subAccountId.trim() : "";
-  if (given && !SUB_ACCOUNT.test(given)) throw new HttpError(400, "invalid", { subAccountId: "Informe o ID da subconta (sacc_…)." });
+  const givenError = given ? subAccountIdError(env, given) : null;
+  if (givenError) throw new HttpError(400, "invalid", { subAccountId: givenError });
   const subAccountId = given || (await createOrGetSubAccount(env, { name, taxId: cnpj, externalId: "vila-global" })).id;
   const now = new Date().toISOString();
   const db = env.DB!;
@@ -602,7 +616,8 @@ export async function adminUpdateNgoPayment(request: Request, env: Env, id: stri
     linkValidated = 1;
   } else {
     const given = typeof body.subAccountId === "string" ? body.subAccountId.trim() : "";
-    if (given && !SUB_ACCOUNT.test(given)) throw new HttpError(400, "invalid", { subAccountId: "Informe o ID da subconta (sacc_…)." });
+    const givenError = given ? subAccountIdError(env, given) : null;
+    if (givenError) throw new HttpError(400, "invalid", { subAccountId: givenError });
     subAccountId = given || (await createOrGetSubAccount(env, { name: ngo.name, taxId: ngo.cnpj, externalId: ngo.id })).id;
   }
   const now = new Date().toISOString();

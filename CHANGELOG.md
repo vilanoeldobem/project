@@ -45,6 +45,17 @@ Cada versão indica o schema D1 que entrega.
   cobrança sai sem `splits`, mantendo o split completo no D1. Em produção a recusa vira
   `409 subaccounts_unavailable` e o admin pode informar um `sacc_…` existente.
 
+### Fixed — doações e conciliação (IMPL-0022, PROPOSTA)
+
+- Webhook repetido não altera mais o estado: a atualização é amarrada à inserção daquele evento, então um replay
+  tardio não desfaz uma disputa nem credita o Título de novo.
+- A descrição enviada ao Pix respeita o limite de 140 caracteres da AbacatePay.
+- Recusas de validação de subconta não viram mais o marcador de sandbox `dev_sacc_…`; em produção, um id de sandbox
+  é recusado em vez de criar a cobrança sem `splits`. O cliente do provedor tem limite de 15 s por chamada.
+- A sessão do doador é lida antes da criação da cobrança no provedor: uma falha ali não deixa um Pix pagável sem
+  registro local.
+- O painel de doações mostra uma ONG retirada como retirada, e ela sai da lista de comprovantes externos.
+
 ### Fixed — revisão da moderação e dos papéis (IMPL-0021; API e contrato compartilhado)
 
 - A mensagem da retirada de uma ONG segue a mesma regra da mensagem de bloqueio: caracteres que ninguém vê (largura

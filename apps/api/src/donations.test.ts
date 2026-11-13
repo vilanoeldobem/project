@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configuredVars, devVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
-import { ABACATEPAY_PUBLIC_KEY } from "./abacatepay";
+import { ABACATEPAY_PUBLIC_KEY, createOrGetSubAccount, createPixCharge } from "./abacatepay";
 import { handleApi, type Env } from "./api";
 import { sha256Hex } from "./crypto";
 
@@ -224,6 +224,36 @@ describe("configuration", () => {
     expect(prod.status).toBe(409);
     expect(((await prod.json()) as { error: string }).error).toBe("subaccounts_unavailable");
   });
+
+  it("does not turn a provider validation refusal into a sandbox sub-account", async () => {
+    subAccountFailure = { status: 400, body: { success: false, data: null, error: "CPF ou CNPJ inválido" } };
+    await expect(createOrGetSubAccount(env, { name: "Associação Exemplo", taxId: NGO_CNPJ, externalId: NGO })).rejects.toMatchObject({ status: 503 });
+    expect(count("donation_settings")).toBe(0);
+  });
+
+  it("refuses a sandbox sub-account id in production instead of silently dropping the split", async () => {
+    env.ENVIRONMENT = "production";
+    const refused = await settings({ subAccountId: "dev_sacc_x" });
+    expect(refused.status).toBe(400);
+    const fields = ((await refused.json()) as { fields?: Record<string, string> }).fields ?? {};
+    expect(fields.subAccountId).toContain("produção");
+    calls = [];
+    await expect(
+      createPixCharge(env, { amountCents: 500, description: "Doacao", externalId: "e1", subAccountId: "dev_sacc_x", ngoShareCents: 100, metadata: {} })
+    ).rejects.toMatchObject({ status: 409 });
+    expect(calls).toEqual([]);
+    expect(count("donation_settings")).toBe(0);
+  });
+
+  it("reports a withdrawn NGO as withdrawn in the donations overview", async () => {
+    await db.prepare("UPDATE ngos SET revision = 2 WHERE id = ?").bind(NGO).run();
+    await db
+      .prepare("INSERT INTO ngo_withdrawals (ngo_id, operation_token, reason, actor, withdrawn_at, revision, lot_ids) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(NGO, "op-1", "Mensagem para a organização.", "admin", "2026-11-13T00:00:00.000Z", 2, JSON.stringify(["plaza-01"]))
+      .run();
+    const body = (await (await call("GET", "/admin/donations/overview")).json()) as { ngos: Array<{ id: string; status: string }> };
+    expect(body.ngos.find((n) => n.id === NGO)?.status).toBe("withdrawn");
+  });
 });
 
 describe("Pix donations", () => {
@@ -255,6 +285,15 @@ describe("Pix donations", () => {
       data: { amount: 200, externalId: donation.id, metadata: { donationId: donation.id, targetKind: "global" }, splits: [{ subAccountId: `sacc_${PRIMARY_CNPJ}`, amount: 110 }] },
     });
     expect(db.sql("SELECT provider,status,amount_cents FROM donations")[0]).toEqual({ provider: "abacatepay", status: "pending", amount_cents: 200 });
+  });
+
+  it("keeps the Pix description inside the provider's 140-character limit", async () => {
+    await db.prepare("UPDATE ngos SET name = ? WHERE id = ?").bind("O".repeat(120), NGO).run();
+    const response = await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 });
+    expect(response.status).toBe(201);
+    const create = calls.find((c) => c.path.endsWith("/transparents/create"));
+    const description = (create?.body?.data as { description?: string } | undefined)?.description ?? "";
+    expect(description.length).toBe(140);
   });
 
   it("pays the NGO's own sub-account and keeps a visitor's donation out of any Título", async () => {
@@ -359,6 +398,17 @@ describe("webhook reconciliation", () => {
     expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "paid", title_credited: 1 });
     await webhook(event("log_lost", "transparent.lost", chargeId, "LOST"));
     expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+  });
+
+  it("ignores a replay of an event already applied, even after a later dispute", async () => {
+    await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"));
+    const replay = await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    expect(await replay.json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "under_dispute", title_credited: 0 });
+    const title = ((await (await call("GET", "/donations/my-title", undefined, "donor")).json()) as { title: { eligibleCents: number; confirmedCount: number } }).title;
+    expect(title).toMatchObject({ eligibleCents: 0, confirmedCount: 0 });
+    expect(count("abacatepay_webhook_events")).toBe(2);
   });
 
   it("refuses a wrong secret or tampered body and writes no event", async () => {

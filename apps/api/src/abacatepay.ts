@@ -52,21 +52,17 @@ export async function verifyAbacateSignature(rawBody: Uint8Array, signatureHeade
  * True only when the request carries the configured secret and a signature that matches its exact bytes.
  * The raw body must be read before parsing: a re-serialised JSON changes the bytes and never matches.
  */
-export async function verifyAbacateWebhook(request: Request, rawBody: Uint8Array, expectedSecret: string): Promise<boolean> {
+export async function verifyAbacateWebhook(request: Request, rawBody: Uint8Array, expectedSecret: string): Promise<void> {
   if (!expectedSecret || expectedSecret.length < 32) throw new HttpError(503, "payment_provider_unavailable");
   const receivedSecret = request.headers.get("X-Webhook-Secret") ?? new URL(request.url).searchParams.get("webhookSecret") ?? "";
   const signature = request.headers.get("X-Webhook-Signature") ?? "";
   const [secretOk, signatureOk] = await Promise.all([constantTimeEqual(receivedSecret, expectedSecret), verifyAbacateSignature(rawBody, signature)]);
   if (!secretOk || !signatureOk) throw new HttpError(401, "invalid_webhook_signature");
-  return true;
 }
 
 /** A provider refusal, kept internal: its text may carry account details and never reaches a response. */
 class ProviderError extends Error {
-  constructor(
-    readonly status: number,
-    readonly detail: string
-  ) {
+  constructor(readonly detail: string) {
     super("payment_provider_unavailable");
   }
 }
@@ -79,14 +75,15 @@ const providerUnavailable = (error: unknown): never => {
 /**
  * The sandbox account used during IMPL-0022 answers `Insufficient permissions` to `/sub-accounts/create` until
  * AbacatePay enables subcontas on it; the same refusal reaches production as `subaccounts_unavailable`.
+ * Only the two documented causes count: validation errors that mention a subconta are real refusals.
  */
 const subAccountsUnavailable = (error: unknown): boolean =>
-  error instanceof ProviderError && /fun[çc][ãa]o\s+n[ãa]o\s+habilitada|subconta|split|permission|insufficient|n[ãa]o\s+habilitad|not\s+enabled/i.test(error.detail);
+  error instanceof ProviderError && /fun[çc][ãa]o\s+n[ãa]o\s+habilitada|insufficient permissions/i.test(error.detail);
 
 /** One JSON call to the provider, with the API key. Throws `ProviderError` on a refusal or a missing answer. */
 async function callProvider(env: Env, method: "GET" | "POST", path: string, body?: unknown): Promise<Record<string, unknown>> {
   const apiKey = env.ABACATEPAY_API_KEY;
-  if (!apiKey) throw new ProviderError(0, "missing_api_key");
+  if (!apiKey) throw new ProviderError("missing_api_key");
   const base = (env.ABACATEPAY_BASE_URL ?? "https://api.abacatepay.com/v2").replace(/\/+$/, "");
   let response: Response;
   try {
@@ -98,9 +95,10 @@ async function callProvider(env: Env, method: "GET" | "POST", path: string, body
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new ProviderError(0, "network");
+    throw new ProviderError("network");
   }
   let payload: unknown = null;
   try {
@@ -114,7 +112,7 @@ async function callProvider(env: Env, method: "GET" | "POST", path: string, body
   if (typeof failure === "string") detail = failure;
   else if (failure && typeof failure === "object" && "message" in failure && typeof failure.message === "string") detail = failure.message;
   if (!response.ok || (failure !== null && failure !== undefined && failure !== "" && failure !== false))
-    throw new ProviderError(response.status, detail || `http_${response.status}`);
+    throw new ProviderError(detail || `http_${response.status}`);
   return (envelope.data && typeof envelope.data === "object" ? envelope.data : {}) as Record<string, unknown>;
 }
 
@@ -149,6 +147,17 @@ function chargeView(data: Record<string, unknown>): PixCharge {
   };
 }
 
+/** One sub-account id, including the local sandbox marker. */
+export const SUB_ACCOUNT_ID = /^(?:dev_)?sacc_[A-Za-z0-9_]+$/;
+
+/** Null when a sub-account id may be stored in this environment; the pt-BR field error otherwise. */
+export function subAccountIdError(env: Env, id: string): string | null {
+  if (!SUB_ACCOUNT_ID.test(id)) return "Informe o ID da subconta (sacc_…).";
+  if (id.startsWith("dev_sacc_") && env.ENVIRONMENT === "production")
+    return "Em produção, informe uma subconta real da AbacatePay (sacc_…).";
+  return null;
+}
+
 /**
  * The NGO's sub-account, created from its CNPJ. AbacatePay answers the existing sub-account for the same CNPJ,
  * so calling this again is safe. On a non-production sandbox without the feature enabled, returns the local
@@ -158,7 +167,7 @@ export async function createOrGetSubAccount(env: Env, input: { name: string; tax
   try {
     const data = await callProvider(env, "POST", "/sub-accounts/create", { name: input.name, taxId: input.taxId, externalId: input.externalId });
     const id = text(data.id);
-    if (!id || !/^(?:dev_)?sacc_[A-Za-z0-9_]+$/.test(id)) throw new ProviderError(502, "invalid_sub_account_id");
+    if (!id || !SUB_ACCOUNT_ID.test(id)) throw new ProviderError("invalid_sub_account_id");
     return { id, devMode: data.devMode === true };
   } catch (error) {
     if (subAccountsUnavailable(error) && env.ENVIRONMENT !== "production") return { id: `dev_sacc_${input.taxId}`, devMode: true };
@@ -172,14 +181,17 @@ export async function createPixCharge(
   env: Env,
   input: { amountCents: number; description: string; externalId: string; subAccountId: string; ngoShareCents: number; metadata: Record<string, string> }
 ): Promise<PixCharge> {
+  const devSubAccount = input.subAccountId.startsWith("dev_sacc_");
+  // A local sandbox marker must never route money in production: refuse instead of silently dropping the split.
+  if (devSubAccount && env.ENVIRONMENT === "production") throw new HttpError(409, "subaccounts_unavailable");
   const data: Record<string, unknown> = {
     amount: input.amountCents,
     expiresIn: 3600,
-    description: input.description.slice(0, 160),
+    description: input.description.slice(0, 140),
     externalId: input.externalId,
     metadata: input.metadata,
   };
-  if (!input.subAccountId.startsWith("dev_sacc_")) data.splits = [{ subAccountId: input.subAccountId, amount: input.ngoShareCents }];
+  if (!devSubAccount) data.splits = [{ subAccountId: input.subAccountId, amount: input.ngoShareCents }];
   try {
     return chargeView(await callProvider(env, "POST", "/transparents/create", { method: "PIX", data }));
   } catch (error) {
