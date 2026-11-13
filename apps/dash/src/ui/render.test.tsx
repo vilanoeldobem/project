@@ -21,7 +21,7 @@ import { Pending } from "./Pending";
 import { Shell } from "./Shell";
 import { Blocked, NotAdmin, SignIn } from "./SignIn";
 import { Flags, System } from "./System";
-import { SanctionsNote, UserConfirmation, Users, UserTable } from "./Users";
+import { focusAfterAction, SanctionsNote, UserConfirmation, Users, UserTable } from "./Users";
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const count = (text: string, part: string) => text.split(part).length - 1;
@@ -297,6 +297,16 @@ describe("accounts: roles and block (IMPL-0021)", () => {
     expect(confirmButtons(busy)).toEqual(["Enviando… (disabled)", "Cancelar (disabled)"]);
     expect(busy).toMatch(/<textarea disabled=""/);
     expect(busy).toMatch(/<input type="checkbox" disabled=""\/>/);
+  });
+
+  it("sends the focus to the result line, not to the row, after a refusal that makes the list be read again", () => {
+    // Done: the row already shows what the API answered, so its first button keeps the focus.
+    expect(focusAfterAction({ ok: true })).toBe("row");
+    // Refused as out of date: the buttons of that row are about to change or leave with the row. A focused
+    // button that unmounts drops the focus to <body>; the result line stays (it is focusable and announced).
+    expect(focusAfterAction({ ok: false })).toBe("outcome");
+    const page = html(<UserTable users={ALL} selfId={SELF.id} blockOn onAction={() => {}} detailOf={(u) => (u.id === PLAYER.id ? <p role="alert" tabIndex={-1} data-outcome="error">recusado</p> : undefined)} />);
+    expect(page).toContain('<p role="alert" tabindex="-1" data-outcome="error">recusado</p>');
   });
 
   it("says in the PROPOSTA note whether the block works in this API", () => {

@@ -66,6 +66,15 @@ export function SanctionsNote({ blockOn }: { blockOn?: boolean }) {
   );
 }
 
+/** What takes the focus when the panel of an account closes: the first button of its row, or the result line. */
+export type FocusTarget = "row" | "outcome";
+
+/**
+ * Done: the row is already what the API answered, so its first button is a safe place for the focus. Refused
+ * because the screen was out of date: the row is about to be read again, so the focus goes to the result line.
+ */
+export const focusAfterAction = (result: { ok: boolean }): FocusTarget => (result.ok ? "row" : "outcome");
+
 /** What is open or was just answered, about one account. */
 type Pending = { user: UserSummary; action: UserAction };
 type Outcome = { userId: string; tone: "ok" | "error"; text: string };
@@ -84,14 +93,24 @@ function Accounts({ accountId }: { accountId?: string }) {
   /** One request at a time, even if two clicks arrive before the screen is drawn again. */
   const sending = useRef(false);
   const root = useRef<HTMLDivElement>(null);
-  /** The account whose row gets the focus back once its panel closes. */
-  const [focusRow, setFocusRow] = useState<string | null>(null);
+  /**
+   * Where the focus goes once the panel of an account closes: the first button of its row, or the line that
+   * tells the result. After a refusal that makes the list be read again it is always the result line: the
+   * buttons of that row are about to change (or the row to leave), and a button that unmounts drops the focus.
+   */
+  const [focusAfter, setFocusAfter] = useState<{ userId: string; on: FocusTarget } | null>(null);
+  const outcomeLine = () => root.current?.querySelector<HTMLElement>("[data-outcome]");
   useEffect(() => {
-    if (!focusRow) return;
-    setFocusRow(null);
-    const row = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => r.dataset.row === focusRow);
-    (row?.querySelector<HTMLElement>("button:not(:disabled)") ?? root.current?.querySelector<HTMLElement>("[data-outcome]"))?.focus();
-  }, [focusRow]);
+    if (!focusAfter) return;
+    setFocusAfter(null);
+    const row = Array.from(root.current?.querySelectorAll<HTMLElement>("[data-row]") ?? []).find((r) => r.dataset.row === focusAfter.userId);
+    ((focusAfter.on === "row" ? row?.querySelector<HTMLElement>("button:not(:disabled)") : null) ?? outcomeLine())?.focus();
+  }, [focusAfter]);
+  // The list was read again and what had the focus went with it (the row left, its actions changed, the result
+  // line moved out of the table): back to the result, never to `<body>`.
+  useEffect(() => {
+    if (outcome && document.activeElement === document.body) outcomeLine()?.focus();
+  }, [page.items, outcome]);
 
   const open = (user: UserSummary, action: UserAction) => {
     if (sending.current) return;
@@ -100,9 +119,9 @@ function Accounts({ accountId }: { accountId?: string }) {
     setRefusal({ message: "", field: "" });
     setOutcome(null);
   };
-  const close = (userId: string) => {
+  const close = (userId: string, on: FocusTarget = "row") => {
     setPending(null);
-    setFocusRow(userId);
+    setFocusAfter({ userId, on });
   };
   const confirm = async () => {
     if (!pending || !accountId || sending.current) return;
@@ -118,13 +137,13 @@ function Accounts({ accountId }: { accountId?: string }) {
       page.patch((list) => withUser(list, result.user));
       page.reload();
       setOutcome({ userId: user.id, tone: "ok", text: result.done });
-      close(user.id);
+      close(user.id, focusAfterAction(result));
     } else if (result.stale) {
       // The account changed while this screen was open (or the flag did): show what is true now.
       page.reload();
       config.reload();
       setOutcome({ userId: user.id, tone: "error", text: result.message });
-      close(user.id);
+      close(user.id, focusAfterAction(result));
     } else {
       setRefusal({ message: result.message, field: result.field });
     }
