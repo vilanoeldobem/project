@@ -179,7 +179,7 @@ Valores são inteiros em **centavos**.
 | `ngo_payment_configs` | uma linha por ONG: modo pedido na candidatura e confirmação do admin | `payment_method` (`abacatepay`/`external_link`), `donation_url`, `sub_account_id`, `link_validated` 0/1, percentual e taxa |
 | `donations` | cobranças Pix do provedor e comprovantes externos conferidos | `provider` (`abacatepay`/`external_proof`), `provider_charge_id` UNIQUE, `status` (`pending`/`paid`/`refunded`/`under_dispute`/`expired`/`cancelled`), `title_credited` 0/1, split e valores, `br_code`/`br_code_base64`, `dev_mode` |
 | `donation_redirects` | clique que enviou alguém ao link próprio da ONG; **não é doação** | `ngo_id`, `user_id`, `target_url` (a URL não é exibida em lista pública) |
-| `abacatepay_webhook_events` | deduplicação do webhook pelo id do evento (`log_…`) | `id` PK, `event`, `charge_id`, `processed_at` |
+| `abacatepay_webhook_events` | deduplicação do webhook pelo id do evento (`log_…`) | `id` PK (a única coluna que decide se o evento é novo), `event`, `charge_id`, `processed_at` (só registro) |
 
 Índices: `idx_donations_ngo_status`, `idx_donations_user_title`, `idx_donations_status` e
 `idx_donation_redirects_ngo`. `donations.user_id` e `donation_redirects.user_id` referenciam `users` com

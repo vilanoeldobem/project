@@ -794,7 +794,10 @@ Regras:
 - **Webhook**: exige `X-Webhook-Secret` (ou `?webhookSecret=`) igual a `ABACATEPAY_WEBHOOK_SECRET` **e**
   `X-Webhook-Signature` = base64(HMAC-SHA256(corpo bruto, chave pública da AbacatePay)), comparados em tempo
   constante. O corpo é lido como bytes, nunca re-serializado. O id do evento (`log_…`) entra em
-  `abacatepay_webhook_events`: repetição responde `{ok: true, duplicate: true}` e não altera nada.
+  `abacatepay_webhook_events`: repetição responde `{ok: true, duplicate: true}` e não altera nada. A atualização
+  da doação só vale enquanto o id ainda não foi gravado, e a gravação vem em seguida na mesma transação; nenhum
+  horário entra na decisão, e o mesmo evento entregue duas vezes ao mesmo tempo é aplicado uma vez. Um evento novo
+  responde `{ok: true, applied}`, com `applied: false` quando o status atual da doação não admite a mudança.
 - **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
   configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
   gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um

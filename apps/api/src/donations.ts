@@ -260,14 +260,15 @@ const TRANSITIONS: Record<Exclude<DonationStatus, "pending">, DonationStatus[]> 
 };
 
 /**
- * One UPDATE of a donation row, guarded by the current status. `delivery` binds it to the webhook insert of THIS
- * delivery: a replayed event keeps its first `processed_at`, so the EXISTS is false and nothing changes.
+ * One UPDATE of a donation row, guarded by the current status. `unseenEventId` is the webhook's event id: the row
+ * changes only while that id is not in `abacatepay_webhook_events` yet (the webhook records it later in the same
+ * batch), so a delivery of an event already recorded changes nothing.
  */
 function chargeUpdate(
   env: Env,
   charge: PixCharge,
   next: Exclude<DonationStatus, "pending">,
-  delivery?: { eventId: string; marker: string }
+  unseenEventId?: string
 ): D1PreparedStatement {
   const from = TRANSITIONS[next];
   const now = new Date().toISOString();
@@ -280,12 +281,12 @@ function chargeUpdate(
        platform_fee_cents = COALESCE(?, platform_fee_cents), receipt_url = COALESCE(?, receipt_url),
        br_code = COALESCE(?, br_code), br_code_base64 = COALESCE(?, br_code_base64), updated_at = ?
      WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")})${
-       delivery ? " AND EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ? AND processed_at = ?)" : ""
+       unseenEventId ? " AND NOT EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)" : ""
      }`
   ).bind(
     next, paid, now, refunded, now, paid, charge.platformFeeCents, charge.receiptUrl, charge.brCode, charge.brCodeBase64, now, charge.id,
     ...from,
-    ...(delivery ? [delivery.eventId, delivery.marker] : [])
+    ...(unseenEventId ? [unseenEventId] : [])
   );
 }
 
@@ -482,18 +483,14 @@ export async function abacateWebhook(request: Request, env: Env): Promise<Respon
         }
       : null;
 
-  // The update is bound to THIS insert, not merely to the event id: a replay inserts nothing and the old
-  // processed_at makes its EXISTS false, so a replayed event cannot undo a later dispute or refund.
-  const marker = new Date().toISOString();
-  const statements = [
-    env.DB.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id, processed_at) VALUES (?, ?, ?, ?)").bind(eventId, eventName, chargeId, marker),
-  ];
-  if (charge && next) {
-    statements.push(chargeUpdate(env, charge, next, { eventId, marker }));
-  }
-  const [inserted, updated] = await env.DB.batch(statements);
+  // One batch, which D1 runs as a transaction, one at a time: the update applies only while this event id is not
+  // recorded, and the insert that records it comes after. A replay, or the same event delivered twice at once,
+  // finds the id and changes nothing, so it cannot undo a later dispute or refund. No clock takes part in it.
+  const record = env.DB.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId);
+  const results = await env.DB.batch(charge && next ? [chargeUpdate(env, charge, next, eventId), record] : [record]);
+  const inserted = results[results.length - 1];
   if (!inserted.meta.changes) return json({ ok: true, duplicate: true }, { headers: NO_STORE });
-  return json({ ok: true, applied: Boolean(updated?.meta.changes) }, { headers: NO_STORE });
+  return json({ ok: true, applied: results.length > 1 && Boolean(results[0].meta.changes) }, { headers: NO_STORE });
 }
 
 export async function getMyTitle(request: Request, env: Env): Promise<Response> {
