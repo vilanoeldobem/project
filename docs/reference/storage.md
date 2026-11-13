@@ -28,7 +28,7 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0009_ngo_withdrawals.sql` | tabela `ngo_withdrawals`: registro das retiradas administrativas de ONG publicada (**PROPOSTA**, [IMPL-0020](../decisions/0020-ngo-publication-withdrawal.md)); aditiva, só requer `ngos` |
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 | `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0023](../decisions/0023-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
-| `0012_village_expansion.sql` | expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
+| `0012_village_expansion.sql` | expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais; aditiva, requer `users` (0004) |
 
 Esta versão contém 0001–0012, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
@@ -207,7 +207,7 @@ para a fachada da praça sem tocar em `state` nem em `ngo_id`).
 
 ### residential_plots (v12, PROPOSTA)
 
-Terrenos residenciais ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Estrutura do mundo, como
+Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). Estrutura do mundo, como
 `lots`: as 112 linhas vêm da migração e espelham `RESIDENTIAL_PLOTS` em `packages/shared/src/game/world.ts`
 (testes conferem linha a linha, no texto da migração e no banco migrado). **A posse está desligada**
 (`RESIDENTIAL_PLOTS_ENABLED = "false"`, [OQ-17](../decisions/open-questions.md)): nada grava `owner_id` nem

@@ -187,7 +187,7 @@ describe("world helpers", () => {
     expect(surfaceAt(0, 15)).toBe("packed");
     expect(surfaceAt(0, 25)).toBe("snow");
     expect(surfaceAt(POND.x, POND.z)).toBe("ice");
-    // The village beyond the square (IMPL-0023): an avenue, the cobbled premium street, a yard, the edge.
+    // The village beyond the square (IMPL-0024): an avenue, the cobbled premium street, a yard, the edge.
     expect(groundAt(40 * Math.cos(Math.PI / 8), 40 * Math.sin(Math.PI / 8))).toBe("avenue");
     expect(groundAt(37.5, 6)).toBe("street-premium");
     expect(surfaceAt(37.5, 6)).toBe("stone");

@@ -19,7 +19,7 @@ const DOORS = [P.gold, P.red, P.pine, V.woodDark] as const;
 const FLOOR_H = 3;
 
 /**
- * Fixes part of a chalet instead of drawing it from the seed (IMPL-0023): the residential tiers give every
+ * Fixes part of a chalet instead of drawing it from the seed (IMPL-0024): the residential tiers give every
  * chalet of a row the same footprint, so the rows line up, and keep them low, so a row never hides the
  * street behind it from the camera. Without options the output is what it always was (NGO lots).
  */

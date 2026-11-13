@@ -1,5 +1,5 @@
 /**
- * Public read of the residential plots (IMPL-0023, PROPOSTA; OQ-17).
+ * Public read of the residential plots (IMPL-0024, PROPOSTA; OQ-17).
  *
  *   GET /residential-plots → { enabled, plots: [{ id, tier, slot, x, z, facing, state }] }
  *

@@ -66,7 +66,7 @@ export const fetchLots = () => getJson<{ lots: LotInfo[] }>("/lots");
 
 export type PlotState = "unavailable" | "available" | "occupied";
 
-/** A residential plot as the API answers it (IMPL-0023, PROPOSTA): its state, never who holds it. */
+/** A residential plot as the API answers it (IMPL-0024, PROPOSTA): its state, never who holds it. */
 export interface PlotInfo {
   id: string;
   state: PlotState;

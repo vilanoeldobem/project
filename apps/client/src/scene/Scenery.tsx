@@ -42,7 +42,7 @@ const PINE_SECTORS = 8;
 /**
  * Every pine (the village's own and the decorative forest), merged per sector of the horizon: 3 draw calls
  * for each sector in view. One mesh for the whole forest was drawn in full every frame, shadow pass
- * included, wherever the camera looked; with the larger village (IMPL-0023) that was the single largest
+ * included, wherever the camera looked; with the larger village (IMPL-0024) that was the single largest
  * cost of the scene. A sector is still tens of units wide, so it joins the shadow pass only while the shadow
  * of one of its pines is seen (`casters`).
  */
@@ -61,7 +61,7 @@ export function Pines() {
     // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
     PINES.forEach((p, i) => add(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i));
     const rnd = mulberry32(0xf0e57);
-    // The forest ring is longer now (IMPL-0023) and farther away: a third more trees keep it reading as a forest.
+    // The forest ring is longer now (IMPL-0024) and farther away: a third more trees keep it reading as a forest.
     for (let i = 0; i < 120; i++) {
       const a = rnd() * Math.PI * 2;
       const r = FOREST_INNER + rnd() * (FOREST_OUTER - FOREST_INNER);

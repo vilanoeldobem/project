@@ -118,7 +118,7 @@ As duas bandeiras ficam `"false"` em produção e staging e `true` no script loc
 remoção de logo por administrador não têm bandeira própria (valem com as contas ligadas).
 
 `residentialPlots` é `true` só com as contas ligadas **e** `RESIDENTIAL_PLOTS_ENABLED = "true"`. A posse de
-terrenos residenciais é **PROPOSTA** ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md),
+terrenos residenciais é **PROPOSTA** ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md),
 [OQ-17](../decisions/open-questions.md)): desligada em produção, em staging e no script local `dev`. Não existe
 rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde.
 
@@ -158,7 +158,7 @@ andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas n
 
 São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`plaza-08`) num banco antes da
 migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
-([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
+([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
 jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
 a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
 
@@ -169,7 +169,7 @@ a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
 
 ### GET /residential-plots
 
-Terrenos residenciais da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md), **PROPOSTA**) e o
+Terrenos residenciais da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**) e o
 estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca diz quem é o dono de um terreno.**
 
 ```json

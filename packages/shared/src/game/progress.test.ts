@@ -37,7 +37,7 @@ describe("missions (DEC-042)", () => {
 describe("world", () => {
   it("lot positions match the seed migrations", () => {
     // 0002 seeds the first eight lots with legacy ids `praca-NN`; 0003 renames them to `plaza-NN`; 0012 moves
-    // them to the square's frontage and adds the others (IMPL-0023). `village.test.ts` checks 0012 row by row,
+    // them to the square's frontage and adds the others (IMPL-0024). `village.test.ts` checks 0012 row by row,
     // residential plots included, and `apps/api` checks the migrated tables themselves.
     for (const lot of LOTS.slice(0, 8)) {
       expect(seed).toContain(`('praca-${String(lot.slot).padStart(2, "0")}', 'praca', ${lot.slot},`);

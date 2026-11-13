@@ -366,7 +366,7 @@ await dialogButton(page, "Aceitar missão").click();
 // Walk to the front of the published lot: 5.2 u from its centre, outside the chalet's porch (the house
 // blocks the avatar up to 4.5 u in front, IMPL-0016) and inside the lot's reach (6 u). The route planner
 // goes around whatever stands in between, so no detour along the street is needed any more.
-// Lots stand on the square's frontage (IMPL-0023): 30.5 u from the tree along the axis of their side and 5 u
+// Lots stand on the square's frontage (IMPL-0024): 30.5 u from the tree along the axis of their side and 5 u
 // to one side of its lane; plaza-01..08 on the eight sides, plaza-09..12 on the other half of the odd sides.
 const lotIndex = Number(publishedLot.split("-")[1]) - 1;
 const side = lotIndex < 8 ? lotIndex : 2 * (lotIndex - 8) + 1;

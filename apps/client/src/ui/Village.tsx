@@ -7,7 +7,7 @@ import { fetchResidentialPlots, type PlotState } from "../lib/api";
 import { Panel, Status } from "./Panel";
 
 /**
- * Panels of the expanded village (IMPL-0023, PROPOSTA): a residential plot, a shop and a billboard. Each one
+ * Panels of the expanded village (IMPL-0024, PROPOSTA): a residential plot, a shop and a billboard. Each one
  * says what is there and that it is not open yet. There is nothing to buy, to claim or to rent on any of
  * them: no price, no currency, no button that would pretend otherwise (IMPL-0002, DEC-042).
  */

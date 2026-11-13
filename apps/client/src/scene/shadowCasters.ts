@@ -4,7 +4,7 @@
  * The key light's shadow map covers a box around the avatar (`Lighting`). The renderer decides what goes into
  * it with one bounding sphere per mesh, and a merged block (a row of chalets, a sector of the forest) is long
  * and thin: its sphere reaches the box when none of its chalets or pines does. With the larger village
- * (IMPL-0023) about half of the triangles of a frame were such blocks, drawn into the shadow map for nothing.
+ * (IMPL-0024) about half of the triangles of a frame were such blocks, drawn into the shadow map for nothing.
  * Here a block is a caster only while one of its parts (a sphere around one chalet, one pine)
  *
  * 1. reaches the box (`reachesShadowBox`): a part outside it cannot write a texel of the shadow map; and

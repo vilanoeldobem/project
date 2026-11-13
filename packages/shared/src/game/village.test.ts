@@ -1,5 +1,5 @@
 /**
- * The village plan (IMPL-0023, PROPOSTA): everything is derived from `VILLAGE_PLAN`, and these are the rules
+ * The village plan (IMPL-0024, PROPOSTA): everything is derived from `VILLAGE_PLAN`, and these are the rules
  * the derived layout must keep, for the plan in force and for other plans (counts and sizes changed).
  */
 import { describe, expect, it } from "vitest";
@@ -188,7 +188,7 @@ function invariants(v: VillageLayout, pines: boolean, maxWalk: number = SIGHTLIN
   return wrong;
 }
 
-describe("village plan in force (IMPL-0023, PROPOSTA)", () => {
+describe("village plan in force (IMPL-0024, PROPOSTA)", () => {
   it("keeps every rule of the layout", () => {
     expect(invariants(VILLAGE, true)).toEqual([]);
   });

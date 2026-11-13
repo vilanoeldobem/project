@@ -48,7 +48,7 @@ const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", int
 const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
 const NEAR_PANEL: Nearby = { kind: "donation-panel" };
 /**
- * Places of the expanded village (IMPL-0023): where each one is used from, and the target handed to the store
+ * Places of the expanded village (IMPL-0024): where each one is used from, and the target handed to the store
  * while the avatar stands there. Built once, like the targets above.
  */
 const PLACES: Array<{ x: number; z: number; near: NonNullable<Nearby> }> = [
@@ -61,7 +61,7 @@ const NEAR_TREE: Nearby = { kind: "tree" };
 const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestPrio: number) =>
   !best || dist < bestDist - 0.5 || (dist - bestDist <= 0.5 && prio < bestPrio);
 /**
- * See-through outline of the avatar (IMPL-0023): the camera looks north from above, so a chalet south of a
+ * See-through outline of the avatar (IMPL-0024): the camera looks north from above, so a chalet south of a
  * street hides whoever walks right behind it. While a building stands between the avatar and the camera, the
  * avatar is drawn once more, flat and translucent, over everything. Never shown in the open.
  */
@@ -288,7 +288,7 @@ export function Player({ lots }: { lots: Collider[] }) {
       if (dist < lotDist) (lot = i), (lotDist = dist);
     }
     if (lot >= 0 && beats(lotDist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[lot];
-    // Shops, billboards and residential plots (IMPL-0023): only when nothing above is in reach.
+    // Shops, billboards and residential plots (IMPL-0024): only when nothing above is in reach.
     if (!best) {
       let placeDist = PLACE_INTERACT_DISTANCE;
       for (let i = 0; i < PLACES.length; i++) {

@@ -8,7 +8,7 @@ import { type GroundKind, groundAt, PALETTE as P } from "@vila/shared/game/world
 const noiseAt = (x: number, z: number) => Math.sin(x * 0.37 + z * 0.11) * Math.cos(z * 0.29 - x * 0.07);
 
 /**
- * Colour of one ground cell. The paving is one of the cues of a residential tier (IMPL-0023, PROPOSTA):
+ * Colour of one ground cell. The paving is one of the cues of a residential tier (IMPL-0024, PROPOSTA):
  * cobbles and a stone path to each door on the premium street, packed snow on the standard street, trodden
  * snow on the economy street.
  */
@@ -52,7 +52,7 @@ export type GroundRun = [x0: number, x1: number, z: number, color: string];
 
 /**
  * The ground as runs of equal colour, row by row. The ground is flat, so neighbouring cells of one colour
- * are one quad: the village is five times larger than the first square (IMPL-0023) and costs about as many
+ * are one quad: the village is five times larger than the first square (IMPL-0024) and costs about as many
  * triangles as that square did cell by cell. Only the top is drawn: the slab is never seen from the side or
  * from below (the snowfield lies around it).
  */

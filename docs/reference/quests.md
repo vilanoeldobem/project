@@ -164,7 +164,7 @@ Os dois sinos e a primeira lanterna foram afastados dos pinheiros (antes `(-10, 
 ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)), os pontos antigos ficavam dentro dele. Os ids
 não mudaram.
 
-Com a expansão da Vila ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)) o trenó, o lago e o trenó
+Com a expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)) o trenó, o lago e o trenó
 pequeno foram para a faixa festiva da praça, e com eles Baltazar (antes `(-2.5, 28.5)`), Aurora (antes
 `(24.5, -2.5)`), as duas lanternas do lago (antes `(23.2, 17)` e `(30.5, 10)`) e a interação `sled-ride` (antes
 `(2.5, 27)`): os lugares antigos ficaram sob a fachada de terrenos e lojas. Os ids não mudaram.

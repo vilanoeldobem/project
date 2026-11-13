@@ -586,7 +586,7 @@ await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });
 if (filesOn) {
   // 5b. A visitor goes to the front of the house the way the game offers it ("Explorar ONGs" → "Ir até lá", so
-  // no coordinate of the layout is repeated here, IMPL-0023) and opens it: the logo is there. The action is
+  // no coordinate of the layout is repeated here, IMPL-0024) and opens it: the logo is there. The action is
   // read once the walk has ended: on the way the avatar passes other lots and shops, whose action shows too.
   await click(c.getByRole("button", { name: "Explorar ONGs", exact: true }));
   const listed = c.getByRole("dialog", { name: "ONGs da Vila" }).getByRole("listitem");

@@ -194,7 +194,7 @@ function stall(seed: Seed, goods: "mixed" | "panetone"): GenModel {
   return { voxels: done(out), size: 0.42 }; // people-sized: the counter reaches the avatar's waist
 }
 
-/** Log pile (the wood yard, IMPL-0023): two rows of three logs and one on top, cut ends lighter, snow on the top log. Runs along X. */
+/** Log pile (the wood yard, IMPL-0024): two rows of three logs and one on top, cut ends lighter, snow on the top log. Runs along X. */
 export function logPile(seed: Seed): GenModel {
   const r = new Rng(seed, "log-pile");
   const barks = [P.trunk, P.wood, V.woodDark] as const;

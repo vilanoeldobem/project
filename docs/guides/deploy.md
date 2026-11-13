@@ -519,10 +519,10 @@ alcança o Worker local que estiver registrado como `vilanoeldobem-api`. Para um
 - Desligar `PRESENCE_MODERATION_ENABLED` faz a API responder `404` a bilhetes e consumos; bilhetes pendentes
   expiram sozinhos em 30 segundos.
 
-## 11. Expansão da Vila (IMPL-0023, PROPOSTA)
+## 11. Expansão da Vila (IMPL-0024, PROPOSTA)
 
 Layout novo, migração 0012 e a bandeira `RESIDENTIAL_PLOTS_ENABLED`
-([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)). Nada aqui autoriza deploy, migration remota ou
+([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). Nada aqui autoriza deploy, migration remota ou
 ativação de bandeira: cada passo exige autorização humana explícita (AGENTS.md).
 
 ### 11.1 Ordem
@@ -563,7 +563,7 @@ um terreno, e o jogo continua dizendo que a posse não está aberta. Não ligar.
 
 ## Limitações conhecidas
 
-- Expansão da Vila (IMPL-0023): migration 0012 não aplicada no remoto; `RESIDENTIAL_PLOTS_ENABLED` desligada; nada
+- Expansão da Vila (IMPL-0024): migration 0012 não aplicada no remoto; `RESIDENTIAL_PLOTS_ENABLED` desligada; nada
   desta entrega foi publicado. Desempenho medido só em computador (Chrome com GPU e por software), não em celular.
 - Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
   `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o

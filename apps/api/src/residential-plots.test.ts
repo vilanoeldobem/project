@@ -1,5 +1,5 @@
 /**
- * Residential plots and the lots of the expanded village (IMPL-0023, PROPOSTA): the public read, the flag, the
+ * Residential plots and the lots of the expanded village (IMPL-0024, PROPOSTA): the public read, the flag, the
  * seed of migration 0012 against the shared layout, and what the migration keeps of the lots that existed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";

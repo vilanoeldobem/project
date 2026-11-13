@@ -88,7 +88,7 @@ const SCENERY: Drawn[] = [
     const m = CRITTER[c.kind](c.seed);
     return { name: c.seed, voxels: m.voxels, size: m.size, x: c.x, z: c.z, y: c.y, rot: c.rot };
   }),
-  // The expanded village (IMPL-0023): shops with their billboard frame, and the dressing of the residential rows.
+  // The expanded village (IMPL-0024): shops with their billboard frame, and the dressing of the residential rows.
   ...SHOPS.flatMap((s) => [
     { name: s.id, voxels: shop(s.id).voxels, size: 1, x: s.x, z: s.z, rot: s.facing },
     { name: `${s.id}-frame`, voxels: billboardFrame(), size: 1, x: s.x, z: s.z },

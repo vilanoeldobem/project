@@ -631,7 +631,7 @@ files, gallery and progress work, and fix the findings of its review. Dark, PROP
 
 Delivery record: [docs/implementation/ngo-withdrawal-report.md](../docs/implementation/ngo-withdrawal-report.md).
 
-## Village expansion, phase 1 — 2026-11-13 (IMPL-0023, branch `feat/village-expansion`)
+## Village expansion, phase 1 — 2026-11-13 (IMPL-0024, branch `feat/village-expansion`)
 
 Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here re-decides them.
 
@@ -662,7 +662,7 @@ Decisions of the technical owner (2026-11-12) recorded in the ADR; nothing here 
 - Three `wrangler dev` processes cannot share one `--persist-to` directory (SQLITE_BUSY): one directory per Worker.
 - zustand selectors read the initial state under `renderToStaticMarkup`: keep a pure view component to test.
 
-## Integration of the village expansion with main (IMPL-0022 + IMPL-0023) — 2026-11-13
+## Integration of the village expansion with main (IMPL-0022 + IMPL-0024) — 2026-11-13
 
 Branch `feat/village-expansion`, merged with `origin/main` (21658a1: no welcome modal, trimmed HUD, Esc menu).
 

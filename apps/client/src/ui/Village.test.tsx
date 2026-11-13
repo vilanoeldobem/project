@@ -1,5 +1,5 @@
 /**
- * What a visitor reads on the panels of the expanded village (IMPL-0023, PROPOSTA; server-side render, no
+ * What a visitor reads on the panels of the expanded village (IMPL-0024, PROPOSTA; server-side render, no
  * browser): every panel says what is there and that it is not open, and none offers anything to buy, to claim
  * or to rent. They are ordinary panels (veil, Escape, the walk held). The action that opens them is the HUD's
  * one contextual action (`Hud.test.tsx`).

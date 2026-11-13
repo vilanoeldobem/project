@@ -32,7 +32,7 @@ export function ChristmasTree() {
 }
 
 /**
- * Lamp posts (the plaza's and the street corners', IMPL-0023) and benches: every copy shares one geometry
+ * Lamp posts (the plaza's and the street corners', IMPL-0024) and benches: every copy shares one geometry
  * (one draw call per material role).
  */
 export function Lamps() {

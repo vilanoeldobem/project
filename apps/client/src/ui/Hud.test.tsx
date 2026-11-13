@@ -235,7 +235,7 @@ describe("with the menu open", () => {
   });
 });
 
-describe("the one contextual action, for the places of the expanded village too (IMPL-0023)", () => {
+describe("the one contextual action, for the places of the expanded village too (IMPL-0024)", () => {
   const PLACES = [
     { near: { kind: "plot", plotId: "economy-07" }, label: "🏠 Ver terreno residencial", panel: { kind: "plot", plotId: "economy-07" } },
     { near: { kind: "shop", shopId: "shop-02" }, label: "🎁 Ver loja", panel: { kind: "shop", shopId: "shop-02" } },

@@ -4,7 +4,7 @@ import { groundAt, WORLD_RADIUS } from "@vila/shared/game/world";
 
 import { groundColor, groundRuns } from "./groundRuns";
 
-describe("ground runs (IMPL-0023)", () => {
+describe("ground runs (IMPL-0024)", () => {
   const radius = Math.ceil(WORLD_RADIUS) + 3;
   const runs = groundRuns(radius);
 

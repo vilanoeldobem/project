@@ -28,7 +28,7 @@ import { Billboards, Residences, Shops } from "./Village";
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
 
 /**
- * Walls and porch of the chalet of every residential plot (IMPL-0023): the footprint of the very model
+ * Walls and porch of the chalet of every residential plot (IMPL-0024): the footprint of the very model
  * `Residences` draws. Static, so built once.
  */
 const HOMES: Collider[] = RESIDENTIAL_PLOTS.flatMap((plot) => plotColliders(plot, residence(plot).solid ?? null));

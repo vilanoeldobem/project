@@ -89,7 +89,7 @@ na praça ([§2.3](#23-chegada-hud-e-menu-do-jogo)).
 
 Decisão e alternativas em [IMPL-0016](../decisions/0016-click-navigation-and-colliders.md). O layout é
 **PROPOSTA** (PEN-017/PEN-023; o plano em vigor está em §2.4 e em
-[IMPL-0023](../decisions/0023-village-expansion-and-zoning.md)); o que segue descreve só o que bloqueia o avatar.
+[IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)); o que segue descreve só o que bloqueia o avatar.
 
 **Colisor** (`shared/game/collision.ts`): um retângulo arredondado no chão. `{ x, z, r }` é um círculo; com `hx`/`hz`
 (meias-medidas do núcleo) e `ux`/`uz` (direção do eixo), uma cápsula ou caixa orientada. Raio do avatar: `0,45`.
@@ -200,11 +200,11 @@ na OQ-16).
 - **Onde a marca aparece:** título da página, tela de carregamento (`Wordmark`) e site público. A página tem um
   `<h1>` só para leitores de tela.
 
-### 2.4 Plano da Vila (IMPL-0023, PROPOSTA)
+### 2.4 Plano da Vila (IMPL-0024, PROPOSTA)
 
 Tudo vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas, placas,
 ruas e o raio do mundo. Decisão, números e o que fica para depois em
-[IMPL-0023](../decisions/0023-village-expansion-and-zoning.md).
+[IMPL-0024](../decisions/0024-village-expansion-and-zoning.md).
 
 | Peça | Onde | Constante |
 |---|---|---|
@@ -457,7 +457,7 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
 | Chamadas de desenho (medido, `verify.mjs`, Média, "dia-neve") | 56 (antes da malha de voxels: 96), sombra incluída |
 | Triângulos por quadro (mesma cena) | ~108 mil (antes: ~362 mil) |
-| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0023](../decisions/0023-village-expansion-and-zoning.md#desempenho)) |
+| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
 | Passada de sombra | Blocos residenciais (24) e setores da floresta (8) só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 

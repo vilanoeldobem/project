@@ -18,7 +18,7 @@ export type Panel =
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
   | { kind: "npc"; npcId: NpcId }
-  // The expanded village (IMPL-0023, PROPOSTA): honest "not open yet" panels, no purchase and no claim.
+  // The expanded village (IMPL-0024, PROPOSTA): honest "not open yet" panels, no purchase and no claim.
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
   | { kind: "billboard"; billboardId: string };
@@ -31,7 +31,7 @@ export type MenuView = "root" | "settings" | "controls" | "help" | "leave";
 
 /**
  * Closest interactive target near the avatar: it drives the one contextual action of the HUD (`ui/Hud.tsx`).
- * The last three are the places of the expanded village (IMPL-0023, PROPOSTA): a residential plot, a shop door
+ * The last three are the places of the expanded village (IMPL-0024, PROPOSTA): a residential plot, a shop door
  * and a billboard, offered only when nothing else is in reach (`scene/Player.tsx`).
  */
 export type Nearby =

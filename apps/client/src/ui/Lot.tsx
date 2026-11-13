@@ -21,7 +21,7 @@ import { PixDonation } from "./PixDonation";
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
  *
  * `unlisted`: the API answered its lots and this one is not among them (a database before migration 0012, which
- * adds the lots of the expanded village, IMPL-0023): the lot is drawn, but it cannot take an application yet.
+ * adds the lots of the expanded village, IMPL-0024): the lot is drawn, but it cannot take an application yet.
  */
 export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { lotId: string; info?: LotInfo; unlisted?: boolean; onChanged?: () => void }) {
   const record = useVila((s) => s.record);

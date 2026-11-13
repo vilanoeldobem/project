@@ -1,5 +1,5 @@
 /**
- * World layout (PROPOSTA, IMPL-0023; the final layout is PEN-017/PEN-023).
+ * World layout (PROPOSTA, IMPL-0024; the final layout is PEN-017/PEN-023).
  * Unit = 1 voxel. The square is centred on the origin; the tree marks the global donation point (example
  * from P01, not a decision) and stays the centre of the village: every avenue is a clear view of it.
  */
@@ -53,7 +53,7 @@ export const LOT_INTERACT_DISTANCE = 6;
 export const PLACE_INTERACT_DISTANCE = 3.2;
 
 // ---------------------------------------------------------------------------------------------------------
-// Village plan (IMPL-0023, PROPOSTA; the final plan is PEN-017/PEN-023).
+// Village plan (IMPL-0024, PROPOSTA; the final plan is PEN-017/PEN-023).
 //
 // The village is a wheel around the Christmas tree: `sides` avenues leave the square between the sides of a
 // polygon, and every ring of plots is a row along each side, facing the tree. A lane (pedestrian path) runs
@@ -791,7 +791,7 @@ export function plotColliders(plot: ResidentialPlot, house: readonly Rect[] | nu
 }
 
 /**
- * What is drawn around the chalets of a row, besides the ground (IMPL-0023): the cues that tell the tiers
+ * What is drawn around the chalets of a row, besides the ground (IMPL-0024): the cues that tell the tiers
  * apart without a badge. Each part is a small voxel model (`apps/client/src/scene/villageModels.ts`) and its
  * footprint, and every one blocks the avatar. The fillers also close the gap between two chalets of a row,
  * which is wider than the avatar but too narrow to plan a route through.
@@ -906,7 +906,7 @@ export type GroundKind = "ice" | "plaza" | "ring-street" | "avenue" | "lane" | `
 const TWO_PI = Math.PI * 2;
 
 /**
- * What the ground is at a point (IMPL-0023): the same function paints the voxel ground and picks the footstep
+ * What the ground is at a point (IMPL-0024): the same function paints the voxel ground and picks the footstep
  * sound. Paving is one of the cues of a tier: cobbles on the premium street and a stone path to each door,
  * packed snow on the standard street, trodden snow on the economy street.
  */
@@ -958,7 +958,7 @@ export function surfaceAt(x: number, z: number): Surface {
 }
 
 /**
- * Sightline rule (IMPL-0023). The tree is the heart of the village, so the main streets are views of it:
+ * Sightline rule (IMPL-0024). The tree is the heart of the village, so the main streets are views of it:
  *
  * 1. Every avenue is a straight, open corridor to the tree: nothing taller than `maxHeight` stands within
  *    `margin` of its edges, from its far end to the tree's boughs.

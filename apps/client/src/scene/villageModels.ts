@@ -1,5 +1,5 @@
 /**
- * Voxel models of the expanded village (IMPL-0023, PROPOSTA) that are not seeded generators: the dressing of
+ * Voxel models of the expanded village (IMPL-0024, PROPOSTA) that are not seeded generators: the dressing of
  * the residential rows (what tells the tiers apart) and the billboard frame. Pure, like `models.ts`: the
  * scene draws them and `colliders.test.ts` checks them against the footprints in the shared world.
  */

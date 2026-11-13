@@ -9,7 +9,7 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Added — expansão da Vila (IMPL-0023, **PROPOSTA**; schema D1 v12)
+### Added — expansão da Vila (IMPL-0024, **PROPOSTA**; schema D1 v12)
 
 - **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
   da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
@@ -37,7 +37,7 @@ Cada versão indica o schema D1 que entrega.
 - Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
   da lareira em cada casa.
 
-### Changed — expansão da Vila (IMPL-0023)
+### Changed — expansão da Vila (IMPL-0024)
 
 - O lago, o trenó com as renas, o trenó pequeno, duas lanternas e dois NPCs das quests mudaram de lugar, para
   dentro da faixa festiva da praça; um morador decorativo saiu de onde passa uma avenida. Os terrenos de ONG

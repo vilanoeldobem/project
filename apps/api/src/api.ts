@@ -6,7 +6,7 @@
  *   GET /config      → { accounts, quests, files, withdrawal, moderation, residentialPlots }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
- *   GET /residential-plots → residential plots and their state, never who holds one (IMPL-0023, PROPOSTA)
+ *   GET /residential-plots → residential plots and their state, never who holds one (IMPL-0024, PROPOSTA)
  *   GET /environment → world clock authority + procedural weather contract (IMPL-0006); no-store
  *   GET /ngos/:id/logo → logo of a published NGO, from R2 (IMPL-0017; only when NGO_FILES_ENABLED = "true")
  *
@@ -80,7 +80,7 @@ export interface Env {
    */
   PRESENCE_MODERATION_ENABLED?: string;
   /**
-   * "true" would open the ownership of residential plots (PROPOSTA; IMPL-0023, OQ-17). Needs ACCOUNTS_ENABLED
+   * "true" would open the ownership of residential plots (PROPOSTA; IMPL-0024, OQ-17). Needs ACCOUNTS_ENABLED
    * and migration 0012. Off in production and staging: no recorded product decision lets a player hold land
    * (DEC-028 reserves plots for NGOs). Today it only changes what `GET /residential-plots` answers: there is
    * no claim route yet.
@@ -289,7 +289,7 @@ async function route(request: Request, env: Env): Promise<Response> {
           accounts, quests: env.QUESTS_V1_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true",
           // What works right now (IMPL-0021, PROPOSTA), so the apps show only that.
           moderation: { presence: accounts && env.PRESENCE_MODERATION_ENABLED === "true", block: accounts && env.ACCOUNT_BLOCK_ENABLED === "true" },
-          // Ownership of residential plots (IMPL-0023, PROPOSTA): computed from the flags alone, like the others.
+          // Ownership of residential plots (IMPL-0024, PROPOSTA): computed from the flags alone, like the others.
           residentialPlots: residentialPlotsEnabled(env),
           // Donations work for visitors too, so this flag does not depend on ACCOUNTS_ENABLED.
           donations: env.DONATIONS_ENABLED === "true",

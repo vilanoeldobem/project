@@ -29,7 +29,7 @@ import {
   WORLD_RADIUS,
 } from "./world";
 
-/** The chalets of the residential plots (IMPL-0023): always drawn, here as the envelope of each tier. */
+/** The chalets of the residential plots (IMPL-0024): always drawn, here as the envelope of each tier. */
 const HOMES = RESIDENTIAL_PLOTS.flatMap((p) => plotColliders(p));
 /** The collider sets the client can be in: quests off (production today), quests on, every lot published. */
 const SETS: Record<string, Collider[]> = {
@@ -337,7 +337,7 @@ describe("collider table invariants (IMPL-0016)", () => {
       expect(front, `${lot.id} from the front`).toBeLessThan(LOT_INTERACT_DISTANCE - 0.5);
       expect(approach(lot.x, lot.z), `${lot.id} clicked`).toBeLessThan(LOT_INTERACT_DISTANCE - 0.5);
     }
-    // Shops, billboards and residential plots (IMPL-0023): the avatar reaches the very point each one is used from.
+    // Shops, billboards and residential plots (IMPL-0024): the avatar reaches the very point each one is used from.
     for (const shop of SHOPS) expect(approach(shop.door.x, shop.door.z), shop.id).toBeLessThan(PLACE_INTERACT_DISTANCE - 2.5);
     for (const sign of BILLBOARDS) expect(approach(sign.point.x, sign.point.z), sign.id).toBeLessThan(PLACE_INTERACT_DISTANCE - 2.5);
     for (const plot of RESIDENTIAL_PLOTS) {
@@ -408,7 +408,7 @@ describe("collider table invariants (IMPL-0016)", () => {
     (name, set, field) => {
       const can = reachable(set);
       // Every spot around the square, as before the village grew; beyond it the rows repeat the same few
-      // shapes on every side, so one spot in three is walked (IMPL-0023).
+      // shapes on every side, so one spot in three is walked (IMPL-0024).
       const starts = touching(set).filter(([x, z]) => can(x, z)).filter(([x, z], i) => Math.hypot(x, z) < 34 || i % 3 === 0);
       expect(starts.length, name).toBeGreaterThan(1500);
       const route = createRoute();

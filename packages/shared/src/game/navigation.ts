@@ -6,7 +6,7 @@
  * - **Field** (`createNavField`, built when the collider set changes): a 0.25 u grid over the world disc.
  *   A cell is free when an avatar centred on it keeps `NAV.clearance` from every collider. Free cells are
  *   grouped into regions; the largest one is the walkable village. The grid grew with the village
- *   (IMPL-0023: 82.5 u of radius, about 437 000 cells): the cell stays 0.25 u, so every route keeps the
+ *   (IMPL-0024: 82.5 u of radius, about 437 000 cells): the cell stays 0.25 u, so every route keeps the
  *   precision it had around the square, and the search scratch is kept small instead (32-bit costs, the
  *   path written over the spent heap).
  * - **Plan** (`planRoute`, on click): resolve the destination to the nearest walkable point, go straight

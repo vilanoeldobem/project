@@ -1,4 +1,4 @@
--- 0012_village_expansion: the village grows around the square (IMPL-0023, PROPOSTA; the final plan is
+-- 0012_village_expansion: the village grows around the square (IMPL-0024, PROPOSTA; the final plan is
 -- PEN-017/PEN-023). World structure only, no NGO, account or ownership data.
 --
 -- 1. `lots` keeps its meaning (plots reserved for approved NGOs, DEC-028): the eight existing lots move to the

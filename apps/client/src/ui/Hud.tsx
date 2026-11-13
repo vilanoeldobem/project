@@ -20,7 +20,7 @@ const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
   "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
 };
 
-/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1; places of IMPL-0023). */
+/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1; places of IMPL-0024). */
 export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   switch (nearby.kind) {
     case "npc":
@@ -45,7 +45,7 @@ export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): s
 /**
  * The one contextual action of the game: what the action button, E and Enter do with the thing the avatar is
  * next to. Every kind of `Nearby` is decided here and nowhere else, so a lot, a villager, the tree and the
- * places of the expanded village (residential plot, shop, billboard: IMPL-0023) follow the same rules: the key
+ * places of the expanded village (residential plot, shop, billboard: IMPL-0024) follow the same rules: the key
  * map, a held key, the hint that gives way, Escape. Each opens its panel, except a quest interaction, which
  * records its event.
  */

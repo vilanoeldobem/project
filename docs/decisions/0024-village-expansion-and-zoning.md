@@ -1,10 +1,14 @@
-# IMPL-0023: Expansão da Vila e zoneamento (praça, terrenos de ONG, três faixas residenciais, lojas e placas)
+# IMPL-0024: Expansão da Vila e zoneamento (praça, terrenos de ONG, três faixas residenciais, lojas e placas)
 
 **Status:** Proposta — fase 1 implementada (layout, dados, cena, interação). A posse de terrenos residenciais fica
 **desligada em produção e homologação** (`RESIDENTIAL_PLOTS_ENABLED = "false"`; política PENDENTE,
 [OQ-17](open-questions.md)). Lojas e placas são marcadores honestos: nada é vendido, reservado ou alugado. O plano
 final de terrenos continua **PENDENTE** (PEN-017/PEN-023, [OQ-19](open-questions.md))
 **Data:** 2026-11-13
+**Numeração:** enquanto estava em revisão, este ADR e a sua migration usavam os números que, ao integrar, já eram
+das doações ([IMPL-0023](0023-donations-abacatepay.md), migration 0011). Este passou a IMPL-0024 e a migration a
+`0012_village_expansion.sql`, que nunca tinha sido aplicada em lugar nenhum
+([versionamento](../reference/versioning.md)).
 **Fontes:** decisões do responsável técnico em 2026-11-12 (modelo de layout, dois tipos de terreno, economia por
 desbloqueio, lojas e placas como marcadores, sem veículos, fases seguintes);
 [registro de produto](https://github.com/vilanoeldobem/docs/blob/main/docs/decisions/registro-de-decisoes.md):

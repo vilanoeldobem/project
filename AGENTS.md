@@ -83,7 +83,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   flag without explicit approval, and never decide the sanction policy in code. The text an admin writes when
   blocking is a message the blocked person reads, not a private note; a block never takes away reading the reason
   or deleting the account.
-- Village expansion ([IMPL-0023](docs/decisions/0023-village-expansion-and-zoning.md)) is **PROPOSTA**. Plots
+- Village expansion ([IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md)) is **PROPOSTA**. Plots
   around the square stay reserved for approved NGOs (DEC-028). Residential plots are drawn, but **ownership is
   off**: `RESIDENTIAL_PLOTS_ENABLED` is "false" in production and staging, no recorded product decision lets a
   player hold land, and what a tier should require is the product owner's to answer (OQ-17). Never flip the flag
@@ -122,7 +122,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   also holds the bytes of gallery photos under the same rules, and `ngo_photos` in D1 decides who may read them. The `VillageRoom` Durable Object (IMPL-0008) holds ephemeral
   presence in memory only: never write to its storage, never put names, free text or personal data in it. Migrations in `migrations/NNNN_name.sql` are immutable once
   applied remotely: add a new file; never edit or renumber.
-- The whole world layout is derived from `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, IMPL-0023): change
+- The whole world layout is derived from `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, IMPL-0024): change
   the plan, never scatter positions. Its lots and residential plots must stay in sync with the seed migrations
   (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text and the migrated tables), and the
   layout must keep the rules of `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by
@@ -132,10 +132,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short. A billboard's notice is also
   on its panel as flat text.
-- One contextual action (IMPL-0022, IMPL-0023): whatever the avatar can use nearby is a kind of `Nearby`
+- One contextual action (IMPL-0022, IMPL-0024): whatever the avatar can use nearby is a kind of `Nearby`
   (`game/store.ts`), labelled and opened by `actionLabel` / `activate` in `ui/Hud.tsx`, the game's only reader of the
   key map (`lib/hud-keys.ts`). Never add a second action button or key listener; a new panel is the shared `Panel`.
-- Render budget (IMPL-0023): 150 draw calls and 250 000 triangles per frame, shadow pass included. A large baked
+- Render budget (IMPL-0024): 150 draw calls and 250 000 triangles per frame, shadow pass included. A large baked
   block that casts shadows (a row of chalets, a forest sector) passes `casters`, one sphere per part, so
   `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
   `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Measure calls and triangles before and after.

@@ -38,7 +38,7 @@ const nearest = <T extends { x: number; z: number }>(list: readonly T[], x: numb
   list.reduce((a, b) => (Math.hypot(b.x - x, b.z - z) < Math.hypot(a.x - x, a.z - z) ? b : a));
 
 /**
- * Christmas shops on the square's frontage (IMPL-0023, PROPOSTA): real buildings with a door to walk up to.
+ * Christmas shops on the square's frontage (IMPL-0024, PROPOSTA): real buildings with a door to walk up to.
  * None is open: the panel says what the shop will offer and that it has not opened (no catalogue, no
  * purchase). All four shops and their billboard frames are one geometry per material role.
  */
@@ -104,7 +104,7 @@ function drawNotices(canvas: HTMLCanvasElement) {
 }
 
 /**
- * The notices on the billboard frames (IMPL-0023, PROPOSTA): fixed text of the village from the shared world,
+ * The notices on the billboard frames (IMPL-0024, PROPOSTA): fixed text of the village from the shared world,
  * read in the world. One quad per frame, all in one draw call and one small texture. The same text is on the
  * billboard's panel as flat HTML, for whoever cannot read it here. Not for rent (PEN-008, OQ-18).
  */
@@ -178,7 +178,7 @@ const sideOf = (x: number, z: number) => {
 const tierOf = (x: number, z: number): PlotTier => nearest(RESIDENTIAL_PLOTS, x, z).tier;
 
 /**
- * The residential rows (IMPL-0023, PROPOSTA): a chalet per plot, seeded by the plot id, and the dressing that
+ * The residential rows (IMPL-0024, PROPOSTA): a chalet per plot, seeded by the plot id, and the dressing that
  * tells the tiers apart. Scenery: nobody holds a plot (ownership is off), so no chimney smokes. Everything
  * static, baked into one geometry for each tier of each side of the village: 24 blocks the renderer culls
  * one by one, instead of 112 chalets and 272 parts. A block is a long, thin row, so it joins the shadow
