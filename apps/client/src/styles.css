@@ -28,10 +28,14 @@ body {
 button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
-.stage { position: fixed; inset: 0; touch-action: none; }
-.loading { display: grid; place-items: center; height: 100%; font-weight: 800; color: var(--pine); }
+/* Read by assistive technology, not drawn (the page heading: the brand is not on the gameplay screen). */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
-/* Temporary blocky wordmark */
+.stage { position: fixed; inset: 0; touch-action: none; }
+.loading { display: grid; place-items: center; place-content: center; gap: 20px; height: 100%; padding: 16px; font-weight: 800; color: var(--pine); text-align: center; }
+.loading p { margin: 0; }
+
+/* Temporary blocky wordmark: shown while the village loads, never during play (IMPL-0022) */
 .wordmark {
   margin: 0; display: flex; flex-direction: column; line-height: 0.9;
   font-weight: 900; letter-spacing: 0.04em; color: var(--cream); font-size: 1rem;
@@ -48,44 +52,87 @@ button { font: inherit; color: inherit; }
   border: 2px solid var(--pine); background: var(--cream); color: var(--pine);
   font-weight: 800; box-shadow: 0 3px 0 var(--pine); transition: transform 0.08s, box-shadow 0.08s;
 }
+/* One set of states for every control, HUD and panels alike: hover warms the fill, pressed sinks, on is pine. */
+.btn:hover:not(:disabled), .icon-btn:hover, .hud__missions:hover { background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
 .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--pine); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
 a.btn { text-decoration: none; }
 .btn--primary { background: var(--red); border-color: #6e2626; color: var(--cream); box-shadow: 0 3px 0 #6e2626; }
 .btn--primary:hover:not(:disabled) { background: var(--red-2); }
+.btn--primary:active:not(:disabled) { box-shadow: 0 1px 0 #6e2626; }
 .btn--small { min-height: 36px; padding: 0.3em 0.8em; font-size: 0.9rem; }
 .btn--chip { min-height: 40px; padding: 0.35em 0.85em; font-size: 0.95rem; }
-.btn--path { flex: 1 1 0; flex-direction: column; min-height: 88px; font-size: 1rem; }
-.btn--path span { font-size: 1.7rem; }
 .icon-btn {
-  width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--pine);
-  background: transparent; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--pine);
+  flex: none; width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--pine);
+  background: transparent; font-size: 1.5rem; font-weight: 800; line-height: 1; cursor: pointer; color: var(--pine);
+  transition: transform 0.08s;
 }
+.icon-btn:active { transform: translateY(2px); }
 kbd {
   font: inherit; font-size: 0.75em; padding: 0 0.4em; border-radius: 4px;
   background: rgba(255, 249, 237, 0.25); border: 1px solid rgba(255, 249, 237, 0.5);
 }
+/* On the cream of a panel the key cap is drawn in pine. */
+.panel kbd { font-size: 0.85em; font-weight: 800; padding: 1px 0.5em; background: transparent; border: 2px solid var(--pine); border-bottom-width: 3px; color: var(--pine); }
 
-/* HUD */
-.hud { position: fixed; inset: 0; z-index: 15; pointer-events: none; padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
-.hud > * , .hud__top > * { pointer-events: auto; }
-.hud__top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
-.hud__brand { background: rgba(23, 61, 53, 0.88); border: 2px solid var(--gold); border-radius: 12px; padding: 8px 12px; cursor: pointer; box-shadow: var(--shadow); }
-.hud__nav { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/*
+ * HUD (IMPL-0022). Everything is in the flow of one column (top, notices, bottom), so no group can sit on
+ * another at any width: what does not fit wraps. Only the controls take clicks; the rest goes to the village.
+ */
+.hud {
+  position: fixed; inset: 0; z-index: 15; pointer-events: none; display: flex; flex-direction: column; gap: 8px;
+  padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.hud__top { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.hud__nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; margin-left: auto; }
+.hud__group { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+.hud__system { justify-content: flex-end; }
+/* Chips of the HUD: one height (a 44 px touch target), icon first, label when there is room. */
+.hud .btn--chip { min-width: 44px; min-height: 44px; white-space: nowrap; }
+.chip__icon { flex: none; }
+.chip--icon { padding-inline: 0; }
+.hud__system .chip__label { max-width: 14ch; overflow: hidden; text-overflow: ellipsis; }
+.hud .btn--chip[aria-pressed="true"]:not(.is-on) { background: var(--pine); color: var(--cream); }
+/* Tooltip, only where a control is icon-only (always: `chip--icon`; by width: see the media queries). */
+.btn--chip[data-tip] { position: relative; }
+.btn--chip[data-tip]::after {
+  content: attr(data-tip); display: none; position: absolute; top: calc(100% + 8px); left: 0; z-index: 1; pointer-events: none;
+  padding: 4px 10px; border-radius: 8px; white-space: nowrap; font-size: 0.8rem; font-weight: 800;
+  background: var(--pine); color: var(--cream); border: 2px solid var(--gold); box-shadow: var(--shadow);
+}
+.hud__system .btn--chip[data-tip]::after { left: auto; right: 0; }
+.chip--icon[data-tip]:focus-visible::after { display: block; }
+@media (hover: hover) { .chip--icon[data-tip]:hover::after { display: block; } }
+@media (max-width: 1359px) {
+  .chip--wide .chip__label { display: none; }
+  .chip--wide { padding-inline: 0; }
+  .chip--wide[data-tip]:focus-visible::after { display: block; }
+}
+@media (max-width: 1359px) and (hover: hover) { .chip--wide[data-tip]:hover::after { display: block; } }
+
+.hud__mid { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-height: 0; }
+.hud__info { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 0; max-width: 100%; }
+.hud__info > * { pointer-events: auto; }
+/* Quest bag chip (PROPOSTA quests-v1): text + counts, never colour alone. */
+.hud__bag { display: flex; flex-wrap: wrap; gap: 6px; max-width: min(360px, 100%); }
+.hud__bag span { background: var(--cream); border: 2px solid var(--gold); border-radius: 999px; padding: 2px 10px; font-weight: 800; font-size: 0.85rem; color: var(--pine); box-shadow: var(--shadow); }
+
+.hud__bottom { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.hud__bottom > * { pointer-events: auto; }
 .hud__missions {
-  position: absolute; left: 16px; bottom: max(16px, env(safe-area-inset-bottom));
-  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; text-align: left;
   background: var(--cream); border: 2px solid var(--pine); border-radius: var(--radius);
   padding: 8px 12px; font-weight: 800; color: var(--pine); cursor: pointer; box-shadow: var(--shadow); min-width: 200px;
+  transition: transform 0.08s;
 }
+.hud__missions:active { transform: translateY(2px); }
 .hud__missions .star { color: var(--gold); font-size: 1.4rem; -webkit-text-stroke: 1px var(--pine); grid-row: span 2; }
-/* Quest bag chip (PROPOSTA quests-v1): text + counts, never colour alone. */
-.hud__bag { display: flex; flex-wrap: wrap; gap: 6px; max-width: min(360px, 70vw); }
-.hud__bag span { background: var(--cream); border: 2px solid var(--gold); border-radius: 999px; padding: 2px 10px; font-weight: 800; font-size: 0.85rem; color: var(--pine); box-shadow: var(--shadow); }
-.hud__zoom { position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; }
-.hud__zoom .btn--chip { min-width: 44px; min-height: 44px; padding: 0; font-size: 1.2rem; font-weight: 800; }
-.hud__action { position: absolute; left: 50%; transform: translateX(-50%); bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px)); font-size: 1.05rem; }
-.hud__action:active:not(:disabled) { transform: translateX(-50%) translateY(2px); }
+.hud__action { align-self: center; font-size: 1.05rem; white-space: nowrap; }
+/* How to walk, until the first walk: a line, never a dialog. It takes no clicks. */
+.hud__bottom > .hud__hint {
+  align-self: center; margin: 0; pointer-events: none; padding: 8px 16px; border-radius: 999px; text-align: center;
+  background: rgba(23, 61, 53, 0.88); color: var(--cream); border: 2px solid var(--gold); font-weight: 800; font-size: 0.95rem;
+}
 
 .xp { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-weight: 800; }
 .xp--compact { font-size: 0.75rem; gap: 6px; }
@@ -94,11 +141,12 @@ kbd {
 .xp__bar span { display: block; height: 100%; background: var(--gold); transition: width 0.4s; }
 .xp__num { color: var(--ink-2); }
 
+/* In the flow under the top groups (beside the notices when there is room): it never covers a control. */
 .toast {
-  position: absolute; top: 84px; left: 50%; transform: translateX(-50%);
+  margin-inline: auto; pointer-events: none;
   background: var(--pine); color: var(--cream); border: 2px solid var(--gold);
   padding: 10px 16px; border-radius: 12px; font-weight: 800; box-shadow: var(--shadow);
-  animation: toast 3.6s ease forwards; max-width: calc(100vw - 32px); text-align: center;
+  animation: toast 3.6s ease forwards; max-width: 100%; text-align: center;
 }
 @keyframes toast { 0% { opacity: 0; translate: 0 -8px; } 8%, 85% { opacity: 1; translate: 0 0; } 100% { opacity: 0; } }
 
@@ -110,12 +158,21 @@ kbd {
 
 /* Panels */
 .backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(23, 61, 53, 0.35); z-index: 20; }
-.backdrop--welcome { background: radial-gradient(ellipse at center, rgba(23, 61, 53, 0.2), rgba(23, 61, 53, 0.65)); }
 .panel {
   width: min(520px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column;
   background: var(--cream); border: 3px solid var(--pine); border-radius: 18px; box-shadow: var(--shadow); outline: none;
 }
 .panel--wide { width: min(760px, 100%); }
+/* Game menu (IMPL-0022): a light veil and a small dialog, so the village stays visible behind it. */
+.backdrop--menu { background: rgba(23, 61, 53, 0.18); }
+.panel--menu { width: min(420px, 100%); }
+.menu { display: grid; gap: 10px; }
+.menu .note { margin: 4px 0 0; text-align: center; }
+/* "Controles": the key or the gesture on one line, what it does under it (it fits the narrowest phone). */
+.controls h3:first-child { margin-top: 4px; }
+.controls .facts { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.controls .facts dd { margin: 0 0 8px; }
+.controls .facts dd:last-child { margin-bottom: 0; }
 .panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 8px; border-bottom: 2px dashed rgba(23, 61, 53, 0.2); }
 .panel__head h2 { margin: 0; color: var(--pine); font-size: 1.45rem; font-weight: 900; }
 .panel__body { padding: 12px 18px 18px; overflow-y: auto; }
@@ -130,13 +187,6 @@ kbd {
 .facts dt { font-weight: 900; color: var(--pine); }
 .facts dd { margin: 0; }
 
-.welcome {
-  width: min(560px, 100%); display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center;
-  background: rgba(255, 249, 237, 0.96); border: 3px solid var(--pine); border-radius: 22px; padding: 28px 22px; box-shadow: var(--shadow);
-}
-.welcome__promise { margin: 0; font-size: 1.1rem; font-weight: 700; max-width: 40ch; }
-.welcome__paths { display: flex; gap: 10px; width: 100%; }
-.hint { margin: 0; font-size: 0.9rem; color: var(--ink-2); }
 .disclaimer { margin: 0; font-size: 0.75rem; color: var(--ink-2); }
 
 .lot-list, .mission-list, .indicators { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
@@ -165,27 +215,41 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .card--up { background: var(--cream); }
 .card--ok { background: #e4ecd9; border-color: var(--leaf); box-shadow: 0 3px 0 var(--leaf); }
 
+/*
+ * Phones. First row: what is happening now, with indicators, account and menu as icons on the right. Second
+ * row: the three paths with their names, sharing the width (P01: visible without covering the scene).
+ */
 @media (max-width: 640px) {
-  .hud__nav span { display: none; }
-  .hud__nav { flex-direction: column; align-items: flex-end; }
-  .welcome__paths { flex-direction: column; }
-  .btn--path { flex-direction: row; min-height: 56px; }
+  .hud__nav { display: contents; }
+  .hud__system { order: 1; margin-left: auto; }
+  .hud__system .chip__label { display: none; }
+  .hud__system .btn--chip { padding-inline: 0; }
+  .hud__system .btn--chip[data-tip]:focus-visible::after { display: block; }
+  .hud__paths { order: 2; flex: 1 0 100%; flex-wrap: nowrap; }
+  .hud__paths .btn--chip { flex: 1 1 0; min-width: 0; padding-inline: 6px; gap: 4px; font-size: 0.78rem; line-height: 1.1; white-space: normal; text-align: left; }
   .ngo-hud { grid-template-columns: 1fr; }
-  .hud__missions { right: 16px; }
-  .hud__zoom { bottom: max(104px, calc(env(safe-area-inset-bottom) + 88px)); }
+  .hud__missions { align-self: stretch; }
+  .panel__head { padding: 12px 14px 8px; }
+  .panel__body { padding: 10px 14px 16px; }
+}
+@media (max-width: 640px) and (hover: hover) { .hud__system .btn--chip[data-tip]:hover::after { display: block; } }
+/* The narrowest phones: smaller gutters, 40 px chips and no clock symbol, so the first row stays one row. */
+@media (max-width: 360px) {
+  .hud { padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); }
+  .hud__top { gap: 6px; }
+  .hud__group { gap: 4px; }
+  .env-chip__clock { display: none; }
+  .hud .btn--chip { min-width: 40px; padding-inline: 0.6em; }
+  .hud__system .btn--chip, .chip--icon { padding-inline: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-.hud__action { white-space: nowrap; }
 @media (pointer: coarse) { .hud__action kbd { display: none; } }
 
 /* Environment (IMPL-0006): time/weather chip, "Ambiente" panel, dev debug overlay. */
-.hud__left { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; pointer-events: none; }
-.hud__left > * { pointer-events: auto; }
-.env-chip { display: flex; gap: 6px; }
 .env-chip .btn--chip { font-variant-numeric: tabular-nums; }
 .env-chip__label { margin-left: 2px; }
 .env-chip__people { cursor: default; }
@@ -265,18 +329,18 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   background: var(--red); color: var(--cream); border: 2px solid #6e2626; border-top: 0;
   font-weight: 900; font-size: 0.82rem; letter-spacing: 0.03em;
 }
-/* While the flag is up the HUD starts below it: at phone width the flag sat on the brand, wider on the first chips. */
+/* While the flag is up the HUD starts below it, so the flag covers no chip at any width. */
 body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px); }
 .modbar, .hud__notice {
-  max-width: min(360px, calc(100vw - 96px)); padding: 8px 12px; border-radius: var(--radius);
+  max-width: min(360px, 100%); padding: 8px 12px; border-radius: var(--radius);
   background: var(--cream); color: var(--ink); border: 2px solid var(--pine); box-shadow: var(--shadow);
 }
-.modbar { border-color: var(--red); outline: none; display: grid; gap: 6px; justify-items: start; max-height: 60dvh; overflow-y: auto; }
+.modbar { border-color: var(--red); outline: none; display: grid; gap: 6px; justify-items: start; min-height: 0; max-height: max(120px, min(60dvh, calc(100dvh - 330px))); overflow-y: auto; }
 .modbar:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .modbar p { margin: 0; line-height: 1.35; }
 .modbar__title { color: var(--red); }
 .modbar__visitors { display: grid; gap: 6px; justify-items: start; }
-.modbar .is-on, .hud__nav .btn--chip.is-on { outline: 2px solid var(--gold); }
+.modbar .is-on, .hud__system .btn--chip.is-on { outline: 2px solid var(--gold); }
 .hud__notice { font-size: 0.92rem; line-height: 1.4; }
 .confirm { display: grid; gap: 6px; padding: 10px 12px; border: 2px solid var(--red); border-radius: 12px; background: rgba(158, 59, 59, 0.06); outline: none; }
 .confirm:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
@@ -285,4 +349,4 @@ body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px
 .moderation h3 { outline: none; }
 .moderation h4 { margin: 12px 0 4px; color: var(--pine); font-size: 0.95rem; }
 .moderation__photo { max-width: 100%; max-height: 180px; border-radius: 10px; border: 2px solid rgba(23, 61, 53, 0.15); }
-.hud__nav .btn--chip.is-on { background: var(--red); border-color: #6e2626; color: var(--cream); box-shadow: 0 3px 0 #6e2626; }
+.hud__system .btn--chip.is-on { background: var(--red); border-color: #6e2626; color: var(--cream); box-shadow: 0 3px 0 #6e2626; }

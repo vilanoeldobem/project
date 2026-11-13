@@ -1,6 +1,6 @@
 import { type RefObject, useEffect, useRef, type ReactNode } from "react";
 
-import { confirmAllowed } from "../lib/confirm";
+import { confirmAllowed, registerConfirmation } from "../lib/confirm";
 
 /**
  * When a step closes, the button that had the focus goes with it: focus moves to `ref` (a heading or a section
@@ -18,7 +18,9 @@ export function useFocusReturn(ref: RefObject<HTMLElement | null>, key: string) 
  * The explicit confirmation step of a moderation action (IMPL-0021). `title` is the question and names what is
  * acted on. The step cannot be answered by the gesture that opened it: focus goes to the question, never to
  * the confirm button; the second click of a double click, a key held down and anything in the first instants
- * after it appeared (`shownAt`, see `confirmAllowed`) are ignored. Cancel is always the first button.
+ * after it appeared (`shownAt`, see `confirmAllowed`) are ignored. Cancel is always the first button, and Escape
+ * is that button (IMPL-0022): it cancels the question and leaves the panel under it open; while the action is
+ * being sent ("Cancelar" disabled) Escape does nothing.
  */
 export function Confirm({
   title,
@@ -45,6 +47,9 @@ export function Confirm({
   const ref = useRef<HTMLDivElement>(null);
   // A step asked again (the application changed) is a new question: `shownAt` moves and focus returns to it.
   useEffect(() => ref.current?.focus(), [shownAt]);
+  const step = useRef({ busy, onCancel });
+  useEffect(() => void (step.current = { busy, onCancel }));
+  useEffect(() => registerConfirmation(step), []);
   return (
     <div className="confirm" role="group" aria-label={title} tabIndex={-1} ref={ref} data-confirm>
       <p className="confirm__title">

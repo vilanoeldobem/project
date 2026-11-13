@@ -38,13 +38,13 @@ export function AccountChip() {
   const { enabled, user } = useAccount();
   const open = useVila((s) => s.open);
   if (!enabled) return null;
+  const name = user ? `Sua conta: ${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar ou criar conta";
   return (
-    <button
-      className="btn btn--chip"
-      onClick={() => open({ kind: "account" })}
-      aria-label={user ? `Sua conta: ${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar ou criar conta"}
-    >
-      👤 <span>{user ? `@${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar"}</span>
+    <button className="btn btn--chip" onClick={() => open({ kind: "account" })} aria-label={name} data-tip={name}>
+      <span className="chip__icon" aria-hidden="true">
+        👤
+      </span>
+      <span className="chip__label">{user ? `@${user.nickname}${user.blocked ? " (bloqueada)" : ""}` : "Entrar"}</span>
     </button>
   );
 }

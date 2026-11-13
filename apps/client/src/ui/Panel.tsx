@@ -1,16 +1,17 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { useVila } from "../game/store";
-
-/** Visible, enabled descendants that can take focus (W3C APG modal dialog pattern). */
-const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+import { trapFocus } from "../lib/dialog-focus";
 
 /**
  * Flat, readable modal panel over the scene (doc 17: long text never lives in 3D). Follows the APG modal
- * dialog pattern: focus moves into the dialog, Tab cycles inside it, Escape closes and focus returns to
- * the element that opened it. A panel that swaps its content in place passes a `contentKey`: when it
- * changes and the focused control is gone, focus goes back to the dialog instead of falling to `<body>`.
- * `mark` is a small image shown before the title (the logo of an NGO, IMPL-0017).
+ * dialog pattern (`lib/dialog-focus.ts`): focus moves into the dialog, Tab cycles inside it and focus returns
+ * to the element that opened it. Escape is not handled here: one listener decides what a press closes
+ * (`lib/escape.ts`: a confirmation first, then the panel, then the game menu). A panel that swaps its content
+ * in place passes a `contentKey`: when it changes and the focused control is gone, focus goes back to the
+ * dialog instead of falling to `<body>`. `mark` is a small image shown before the title (the logo of an NGO,
+ * IMPL-0017). The game menu (IMPL-0022) is this same dialog with `variant="menu"` (smaller, lighter backdrop:
+ * the village stays visible) and its own `onClose`.
  */
 export function Panel({
   title,
@@ -19,6 +20,8 @@ export function Panel({
   children,
   wide,
   contentKey,
+  variant,
+  onClose,
 }: {
   title: string;
   kicker?: string;
@@ -26,49 +29,27 @@ export function Panel({
   children: ReactNode;
   wide?: boolean;
   contentKey?: string;
+  variant?: "menu";
+  /** What the close button and a press on the backdrop do; by default they close the open panel. */
+  onClose?: () => void;
 }) {
-  const close = useVila((s) => s.close);
+  const closePanel = useVila((s) => s.close);
+  const close = onClose ?? closePanel;
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    ref.current?.focus();
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        close();
-        return;
-      }
-      if (e.key !== "Tab") return;
-      const dialog = ref.current;
-      const focusable = [...(dialog?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])].filter((el) => el.offsetParent !== null);
-      if (focusable.length === 0) {
-        e.preventDefault();
-        dialog?.focus();
-        return;
-      }
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      const active = document.activeElement;
-      const inside = Boolean(dialog?.contains(active));
-      if (e.shiftKey && (active === first || active === dialog || !inside)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (active === last || !inside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      previous?.focus();
-    };
-  }, [close]);
+  useEffect(() => (ref.current ? trapFocus(ref.current, document, window) : undefined), []);
   useEffect(() => {
     if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
   }, [contentKey]);
   return (
-    <div className="backdrop" onPointerDown={(e) => e.target === e.currentTarget && close()}>
-      <div className={`panel${wide ? " panel--wide" : ""}`} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}>
+    <div className={`backdrop${variant ? ` backdrop--${variant}` : ""}`} onPointerDown={(e) => e.target === e.currentTarget && close()}>
+      <div
+        className={`panel${wide ? " panel--wide" : ""}${variant ? ` panel--${variant}` : ""}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        tabIndex={-1}
+        ref={ref}
+      >
         <header className="panel__head">
           {mark}
           <div>

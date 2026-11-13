@@ -4,13 +4,13 @@ import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
 import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
-import { type Nearby, useVila, ZOOM_MAX, ZOOM_MIN } from "../game/store";
-import { hudKeyAction } from "../lib/hud-keys";
+import { type Nearby, type Panel, useVila } from "../game/store";
+import { pressEscape } from "../lib/escape";
+import { boundAction, hudKeyAction, isTextField } from "../lib/hud-keys";
 import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
 import { ModerationBar, ModerationChip } from "./Moderation";
-import { Wordmark } from "./Wordmark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
@@ -34,14 +34,34 @@ function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   }
 }
 
-/** One zoom button/key press: 15% closer or farther. */
+/**
+ * The three paths of the arrival (P01, DEC-008): on the HUD from the first second, with their names, one press
+ * away and with no modal in front of them (PROPOSTA, IMPL-0022). Each opens the panel it always opened.
+ */
+export const PATHS: ReadonlyArray<{ id: string; icon: string; label: string; panel: Panel }> = [
+  { id: "explore", icon: "🏡", label: "Explorar ONGs", panel: { kind: "explore" } },
+  { id: "play", icon: "🎲", label: "Jogar", panel: { kind: "memory" } },
+  { id: "donation", icon: "🎄", label: "Doação global", panel: { kind: "donation" } },
+];
+
+/** One zoom key press: 15% closer or farther. */
 const ZOOM_STEP = 1.15;
 
-/** Fixed HUD: brand, missions, indicators, contextual action, zoom and toasts. */
+/** How long the line that says how to walk stays once the scene is on screen, if the visitor does not walk. */
+export const MOVE_HINT_MS = 20_000;
+
+/**
+ * Fixed HUD (IMPL-0022). Top: what is happening now (time, weather, visitors, sky view) and one navigation
+ * group (the three paths, then indicators, account, moderation and the menu). Below it: mission bag and
+ * notices. Bottom: the contextual action and the mission tracker. The centre of the screen stays clear. There
+ * is no brand and there are no zoom buttons here: zoom is the wheel, the pinch and the + / - keys.
+ */
 export function Hud() {
   const open = useVila((s) => s.open);
+  const openMenu = useVila((s) => s.openMenu);
   const nearby = useVila((s) => s.nearby);
-  const panel = useVila((s) => s.panel);
+  const idle = useVila((s) => s.panel.kind === "none" && s.menu === null);
+  const menuOpen = useVila((s) => s.menu !== null);
   const progress = useVila((s) => s.progress);
   const record = useVila((s) => s.record);
   const notify = useVila((s) => s.notify);
@@ -50,7 +70,6 @@ export function Hud() {
   const quests = useQuestsEnabled();
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
   const bag = quests ? activeInventory(progress) : [];
-  const zoom = useVila((s) => s.zoom);
   const zoomBy = useVila((s) => s.zoomBy);
 
   const activate = (n: NonNullable<Nearby>) => {
@@ -77,11 +96,19 @@ export function Hud() {
   };
 
   useEffect(() => {
+    // The one key listener of the game: every key comes from the key map (`lib/hud-keys.ts`).
     const onKey = (e: KeyboardEvent) => {
-      if (useVila.getState().panel.kind !== "none") return;
-      const n = useVila.getState().nearby;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (boundAction(e.key) === "menu") {
+        // Escape: a confirmation, then a panel, then the menu (`lib/escape.ts`). One press, one layer.
+        if (pressEscape({ target, repeat: e.repeat, isComposing: e.isComposing })) e.preventDefault();
+        return;
+      }
+      const vila = useVila.getState();
+      if (vila.panel.kind !== "none" || vila.menu !== null || isTextField(target)) return;
+      const n = vila.nearby;
       // Enter opens what is near whatever HUD button has the focus, except on a moderation control (`hudKeyAction`).
-      const action = hudKeyAction(e.key, e.target instanceof Element ? e.target : null, n !== null);
+      const action = hudKeyAction(e.key, target, n !== null);
       if (action === "zoom-in") zoomBy(1 / ZOOM_STEP);
       else if (action === "zoom-out") zoomBy(ZOOM_STEP);
       else if (action === "activate" && n) activate(n);
@@ -92,12 +119,40 @@ export function Hud() {
 
   return (
     <div className="hud">
-      <div className="hud__top">
-        <div className="hud__left">
-          <button className="hud__brand" onClick={() => open({ kind: "welcome" })} aria-label="Início">
-            <Wordmark />
-          </button>
-          <EnvironmentChip />
+      <nav className="hud__top" aria-label="Vila">
+        <EnvironmentChip />
+        <div className="hud__nav">
+          <div className="hud__group hud__paths" role="group" aria-label="Caminhos da Vila">
+            {PATHS.map((path) => (
+              <button key={path.id} className="btn btn--chip" data-path={path.id} onClick={() => open(path.panel)}>
+                <span className="chip__icon" aria-hidden="true">
+                  {path.icon}
+                </span>
+                <span className="chip__label">{path.label}</span>
+              </button>
+            ))}
+          </div>
+          <div className="hud__group hud__system" role="group" aria-label="Indicadores, conta e menu">
+            <button className="btn btn--chip chip--wide" onClick={() => open({ kind: "indicators" })} aria-label="Indicadores" data-tip="Indicadores">
+              <span className="chip__icon" aria-hidden="true">
+                📊
+              </span>
+              <span className="chip__label">Indicadores</span>
+            </button>
+            <AccountChip />
+            <ModerationChip />
+            <button className="btn btn--chip" onClick={openMenu} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} data-tip="Menu" data-menu="open">
+              <span className="chip__icon" aria-hidden="true">
+                ☰
+              </span>
+              <span className="chip__label">Menu</span>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="hud__mid">
+        <div className="hud__info">
           {bag.length > 0 && (
             <div className="hud__bag" role="status" aria-label="Bolsa de missão">
               {bag.map((item) => (
@@ -110,48 +165,49 @@ export function Hud() {
           <RemovedNotice />
           <ModerationBar />
         </div>
-        <nav className="hud__nav">
-          <AccountChip />
-          <ModerationChip />
-          <button className="btn btn--chip" onClick={() => open({ kind: "explore" })} aria-label="Explorar ONGs">
-            🏡 <span>Explorar ONGs</span>
-          </button>
-          <button className="btn btn--chip" onClick={() => open({ kind: "memory" })} aria-label="Jogar">
-            🎲 <span>Jogar</span>
-          </button>
-          <button className="btn btn--chip" onClick={() => open({ kind: "indicators" })} aria-label="Indicadores">
-            📊 <span>Indicadores</span>
-          </button>
-        </nav>
+        {toast && <Toast key={toast.id} text={toast.text} />}
       </div>
 
-      <button className="hud__missions" onClick={() => open({ kind: "missions" })} aria-label="Abrir Caderno de Missões">
-        <span className="star">★</span>
-        <span>
-          Missões {done}/{MISSIONS.length}
-        </span>
-        <XpBar compact />
-      </button>
-
-      {panel.kind === "none" && nearby && (
-        <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
-          {actionLabel(nearby, readActive)} <kbd>E</kbd>
+      <div className="hud__bottom">
+        {idle && !nearby && <MoveHint />}
+        {idle && nearby && (
+          <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
+            {actionLabel(nearby, readActive)} <kbd>E</kbd>
+          </button>
+        )}
+        <button className="hud__missions" onClick={() => open({ kind: "missions" })} aria-label="Abrir Caderno de Missões">
+          <span className="star" aria-hidden="true">
+            ★
+          </span>
+          <span>
+            Missões {done}/{MISSIONS.length}
+          </span>
+          <XpBar compact />
         </button>
-      )}
-
-      {panel.kind === "none" && (
-        <div className="hud__zoom" role="group" aria-label="Zoom da câmera">
-          <button className="btn btn--chip" onClick={() => zoomBy(1 / ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Aproximar" title="Aproximar (+)">
-            ＋
-          </button>
-          <button className="btn btn--chip" onClick={() => zoomBy(ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Afastar" title="Afastar (−)">
-            －
-          </button>
-        </div>
-      )}
-
-      {toast && <Toast key={toast.id} text={toast.text} />}
+      </div>
     </div>
+  );
+}
+
+/**
+ * How to walk, for a visitor who has not walked yet in this browser (IMPL-0022): one line, not a dialog. It
+ * appears with the scene (not while the village loads), takes no clicks, goes away at the first walk (for good)
+ * or `MOVE_HINT_MS` after the scene is on screen, and is never shown again once the visitor has walked.
+ */
+function MoveHint() {
+  const show = useVila((s) => s.moveHint);
+  const ready = useVila((s) => s.sceneReady);
+  const dismiss = useVila((s) => s.dismissMoveHint);
+  useEffect(() => {
+    if (!show || !ready) return;
+    const id = setTimeout(dismiss, MOVE_HINT_MS);
+    return () => clearTimeout(id);
+  }, [show, ready, dismiss]);
+  if (!show || !ready) return null;
+  return (
+    <p className="hud__hint" role="status" data-hint="move">
+      Clique ou toque no chão para andar.
+    </p>
   );
 }
 
