@@ -25,16 +25,19 @@ export function ModerationChip() {
 export function ModerationChipView({ user, on, onToggle }: { user: Me | null; on: boolean; onToggle: () => void }) {
   if (!canModerate(user)) return null;
   return (
-    // `data-moderation` marks a moderation control: Enter on it is its own, even next to a house (`lib/hud-keys.ts`).
+    // A button like every HUD control: Enter on it is its own, even next to a house (`lib/hud-keys.ts`).
     <button
-      className={`btn btn--chip${on ? " is-on" : ""}`}
+      className={`btn btn--chip chip--wide${on ? " is-on" : ""}`}
       aria-pressed={on}
       aria-label="Modo moderação"
-      title={on ? "Desligar o modo moderação" : "Ligar o modo moderação"}
+      data-tip={on ? "Desligar o modo moderação" : "Ligar o modo moderação"}
       data-moderation="switch"
       onClick={onToggle}
     >
-      🛡️ <span>Moderação</span>
+      <span className="chip__icon" aria-hidden="true">
+        🛡️
+      </span>
+      <span className="chip__label">Moderação</span>
     </button>
   );
 }
@@ -61,7 +64,7 @@ export function ModerationBar() {
   const presence = useAccount((s) => s.presenceModeration);
   const { on, selected, askedAt, sending, notice, setOn, selectNext, select, ask, cancel, confirm } = useModeration();
   const net = useNet();
-  const idle = useVila((s) => s.panel.kind === "none");
+  const idle = useVila((s) => s.panel.kind === "none" && s.menu === null);
   return (
     <ModerationBarView
       user={user}
@@ -112,7 +115,7 @@ export function ModerationBarView({
   askedAt: number | null;
   sending: boolean;
   notice: RemovalNotice | null;
-  /** No panel is open: the controls are shown (with one open they would sit behind it). */
+  /** No panel and no menu is open: the controls are shown (with one open they would sit behind it). */
   idle: boolean;
   onOff: () => void;
   onNext: () => void;
