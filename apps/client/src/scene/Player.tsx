@@ -64,7 +64,8 @@ const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestP
  * street hides whoever walks right behind it. While a building stands between the avatar and the camera, the
  * avatar is drawn once more, flat and translucent, over everything. Never shown in the open.
  */
-const OUTLINE = new MeshBasicMaterial({ color: "#FFE9B0", transparent: true, opacity: 0.6, depthTest: false, depthWrite: false, fog: false });
+// Red like the default coat: it reads on snow, which covers most roofs, and on the darker walls.
+const OUTLINE = new MeshBasicMaterial({ color: "#D8443C", transparent: true, opacity: 0.8, depthTest: false, depthWrite: false, fog: false });
 /** How far towards the camera (south) a building can stand and still hide the avatar: its height over the camera's slope. */
 const HIDES = [1.2, 2.4, 3.6, 4.8, 6];
 /** A collider this large is a building (chalet or shop); lamp posts, fences and villagers hide nobody. */
@@ -118,7 +119,7 @@ export function Player({ lots }: { lots: Collider[] }) {
   const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...lots], [lots, questsOn]);
   const buildings = useMemo(() => colliders.filter(isBuilding), [colliders]);
   const outline = useRef<Array<Group | null>>([]);
-  const hidden = useRef({ x: NaN, z: NaN, on: false });
+  const hidden = useRef({ x: Infinity, z: Infinity, on: false });
   // The navigation field follows the collider set (rebuilt only when a house or the quests flag changes).
   const field = useMemo(() => createNavField(colliders), [colliders]);
   useEffect(() => {

@@ -175,8 +175,9 @@ Medido em 2026-11-13 no build local (`vite build --mode workers`), Chrome com GP
 O tempo de quadro nessa máquina fica preso aos 60 Hz antes e depois, então **não mostra o custo em aparelho
 fraco**: chamadas e triângulos são o que vale comparar. Em renderização por software (SwiftShader, Média, spawn) o
 quadro p50 foi de 71,6 ms (com `dpr` 0,75) para 74,7 ms (com `dpr` 1); é medida ruidosa. **Não foi medido em
-celular.** Com o zoom todo afastado sobre a praça a cena chegou a 150 chamadas e 271 mil triângulos: acima do
-orçamento de triângulos, que vale para o zoom padrão.
+celular.** O custo muda com a hora: com o sol mais baixo (15:30, céu limpo) a sombra alcança mais blocos e a
+mesma câmera no spawn mediu 130 chamadas e 240 mil triângulos. Com o zoom todo afastado sobre a praça, nessa hora,
+a cena chegou a 150 chamadas e 271 mil triângulos: acima do orçamento de triângulos, que vale para o zoom padrão.
 
 | Navegação (Node, mesma máquina, todo terreno de ONG com chalé) | Antes | Depois |
 |---|---|---|
@@ -214,8 +215,8 @@ O que foi feito para caber no orçamento:
   lojas, postes de rua, 272 peças e 112 chalés); produção (esquema v3) continua respondendo todas as rotas públicas.
 - **Pior para quem joga hoje:**
   - a câmera olha do sul, de cima: uma casa ao sul de uma rua esconde quem anda rente a ela. As casas residenciais
-    têm um andar e cumeeira paralela à rua, e o avatar ganha um contorno translúcido quando há uma construção entre
-    ele e a câmera; ainda assim, nas ruas do lado sul parte do caminho é vista só pelo contorno. Chalés de ONG de
+    têm um andar e cumeeira paralela à rua, e o avatar ganha um contorno vermelho translúcido quando há uma
+    construção entre ele e a câmera; ainda assim, nas ruas do lado sul parte do caminho é vista só pelo contorno. Chalés de ONG de
     dois andares (gerador existente) escondem mais;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
