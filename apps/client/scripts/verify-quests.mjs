@@ -278,7 +278,7 @@ const page = await newPage("quests");
 await enter(page);
 
 // ---- flight-night (A Noite de Voo)
-await walkTo(page, -2.5, 26.5);
+await walkTo(page, -4.6, 23.4);
 await openNpc(page, "Baltazar");
 await page.screenshot({ path: `${out}quests-1-npc-dialog.png` });
 await dialogButton(page, "Aceitar missão").click();
@@ -292,7 +292,7 @@ await walkTo(page, 14.5, 3.5);
 await walkTo(page, 12.9, 9.2);
 await page.waitForFunction(() => window.__vila.progress().seen["harness-bells:bell-pine-east"], null, { timeout: 60000 }).catch(() => fail("harness-bells: east bell not collected"));
 await expectState(page, "harness-bells", "ready_to_turn_in");
-await walkTo(page, -2.5, 26.5);
+await walkTo(page, -4.6, 23.4);
 await openNpc(page, "Baltazar");
 await dialogButton(page, /Concluir missão \(\+20 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
@@ -304,7 +304,7 @@ await openNpc(page, "Seu Nivaldo");
 await page.screenshot({ path: `${out}quests-3-turn-in.png` });
 await dialogButton(page, /Concluir missão \(\+30 XP\)/).click();
 await closePanel(page);
-await walkTo(page, -2.5, 26.5);
+await walkTo(page, -4.6, 23.4);
 await openNpc(page, "Baltazar");
 await dialogButton(page, "Aceitar missão").click();
 await expectState(page, "charm-for-the-flight", "ready_to_turn_in");
@@ -337,7 +337,7 @@ await openNpc(page, "Dona Filó");
 await dialogButton(page, /Concluir missão \(\+25 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
 await playMemory(page);
-await walkTo(page, -2.5, 26.5);
+await walkTo(page, -4.6, 23.4);
 await openNpc(page, "Baltazar");
 await dialogButton(page, /Concluir missão \(\+50 XP\)/).click();
 await page.waitForTimeout(400);
@@ -359,12 +359,16 @@ await playMemory(page);
 await openNpc(page, "Seu Nivaldo");
 await dialogButton(page, /Concluir missão \(\+30 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
-// Walk to the front of the published lot: 5.5 u from its centre, outside the chalet's porch (the house
+// Walk to the front of the published lot: 5.2 u from its centre, outside the chalet's porch (the house
 // blocks the avatar up to 4.5 u in front, IMPL-0016) and inside the lot's reach (6 u). The route planner
 // goes around whatever stands in between, so no detour along the street is needed any more.
+// Lots stand on the square's frontage (IMPL-0023): 30.5 u from the tree along the axis of their side and 5 u
+// to one side of its lane; plaza-01..08 on the eight sides, plaza-09..12 on the other half of the odd sides.
 const lotIndex = Number(publishedLot.split("-")[1]) - 1;
-const angle = (2 * Math.PI * lotIndex) / 8 + Math.PI / 8;
-await walkTo(page, 16.5 * Math.cos(angle), 16.5 * Math.sin(angle));
+const side = lotIndex < 8 ? lotIndex : 2 * (lotIndex - 8) + 1;
+const half = lotIndex < 8 ? 1 : -1;
+const angle = (side * Math.PI) / 4;
+await walkTo(page, 25.3 * Math.cos(angle) - half * 5 * Math.sin(angle), 25.3 * Math.sin(angle) + half * 5 * Math.cos(angle));
 await page.getByRole("button", { name: /Ver terreno/ }).click();
 await page.getByRole("dialog").getByText("Destinatário: esta ONG").waitFor({ timeout: 10000 });
 await page.waitForFunction((lot) => window.__vila.progress().seen[`newest-house-visit:${lot}`], publishedLot, { timeout: 15000 }).catch(() => fail("newest-house-visit: lot visit not recorded"));
@@ -375,26 +379,26 @@ await dialogButton(page, /Concluir missão \(\+50 XP\)/).click();
 await closePanel(page);
 
 // ---- lake-lights (A noite das luzes do lago)
-await walkTo(page, 22.4, -2.5);
+await walkTo(page, 14.6, -9.2);
 await openNpc(page, "Aurora");
 await dialogButton(page, "Aceitar missão").click();
-await walkTo(page, 23.2, 17, 1.4);
+await walkTo(page, 19.5, 14.5, 1.4);
 await page.waitForFunction(() => window.__vila.progress().seen["lake-lanterns:lantern-lake-1"], null, { timeout: 60000 }).catch(() => fail("lake-lanterns: first lantern not collected"));
-await walkTo(page, 30.5, 10, 1.4);
+await walkTo(page, 22.5, 5.5, 1.4);
 await page.waitForFunction(() => window.__vila.progress().seen["lake-lanterns:lantern-lake-2"], null, { timeout: 60000 }).catch(() => fail("lake-lanterns: second lantern not collected"));
-await walkTo(page, 22.4, -2.5);
+await walkTo(page, 14.6, -9.2);
 await openNpc(page, "Aurora");
 await dialogButton(page, /Concluir missão \(\+20 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
-await walkTo(page, 2.5, 25);
+await walkTo(page, 12.6, -18.1);
 await page.getByRole("button", { name: /Dar uma volta/ }).click();
 await expectState(page, "kids-sled-run", "ready_to_turn_in");
-await walkTo(page, 22.4, -2.5);
+await walkTo(page, 14.6, -9.2);
 await openNpc(page, "Aurora");
 await dialogButton(page, /Concluir missão \(\+25 XP\)/).click();
 await dialogButton(page, "Aceitar missão").click();
 await expectState(page, "lantern-for-the-flight", "ready_to_turn_in");
-await walkTo(page, -2.5, 26.5);
+await walkTo(page, -4.6, 23.4);
 await openNpc(page, "Baltazar");
 await dialogButton(page, /Concluir missão \(\+50 XP\)/).click();
 await page.waitForTimeout(400);
