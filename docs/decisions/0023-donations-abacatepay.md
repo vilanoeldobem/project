@@ -42,10 +42,13 @@ máximo, o Vila registra o redirecionamento.
    (PEN-026).
 4. **Conciliação idempotente, sem contador paralelo.** Webhook (`transparent.completed`, `.refunded`, `.disputed`,
    `.lost`), `GET /donations/:id?refresh=1` e a simulação de sandbox passam por uma única atualização, guardada
-   pelo status atual. O id do evento (`log_…`) é inserido em `abacatepay_webhook_events`; repetição responde
-   `duplicate` e não altera nada. O Título e os indicadores são **somados de `donations`** (`status = 'paid'` e
-   `title_credited = 1`), então repetir o webhook não duplica crédito; estorno/disputa perdida zeram o crédito.
-   Doação não concede XP (DEC-042).
+   pelo status atual. No webhook, a atualização só vale enquanto o id do evento (`log_…`) ainda não está em
+   `abacatepay_webhook_events`, e o id é gravado em seguida na mesma transação (`db.batch`): a decisão não usa
+   horário nem valor gerado pelo pedido, então uma repetição, mesmo no mesmo milissegundo ou simultânea, responde
+   `duplicate` e não altera nada. Estorno é final e vale a partir de qualquer status: se chega antes da
+   confirmação do pagamento, a confirmação atrasada não reabre a doação. O Título e os indicadores são **somados
+   de `donations`** (`status = 'paid'` e `title_credited = 1`), então repetir o webhook não duplica crédito;
+   estorno/disputa perdida zeram o crédito. Doação não concede XP (DEC-042).
 5. **Webhook autenticado nos dois sentidos.** Exige o segredo configurado no painel da AbacatePay
    (`X-Webhook-Secret` ou `?webhookSecret=`, comparado em tempo constante com `ABACATEPAY_WEBHOOK_SECRET`) e a
    assinatura `X-Webhook-Signature` = base64(HMAC-SHA256(corpo bruto, chave pública da AbacatePay)). O corpo é lido
@@ -87,7 +90,8 @@ máximo, o Vila registra o redirecionamento.
   política de Título para link externo fica deliberadamente incompleta até PEN-026; nenhuma migration remota foi
   aplicada e nenhuma bandeira foi ligada.
 - Verificação: `pnpm typecheck && pnpm test && pnpm build`; `apps/api/src/donations.test.ts` cobre configuração,
-  split mínimo, webhook válido/repetido/adulterado, estorno, disputa, link externo, comprovante, sandbox e schema
+  split mínimo, webhook válido/repetido (também no mesmo milissegundo e em entregas simultâneas)/adulterado,
+  estorno, disputa, eventos fora de ordem, link externo, comprovante, sandbox e schema
   v9; `packages/shared/src/donations/contract.test.ts` cobre split, link e faixas do Título. O teste de rotas
   públicas (`public-ngo.test.ts`) passa a cobrir o schema v11.
 

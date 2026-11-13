@@ -156,7 +156,14 @@ beforeEach(async () => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
+
+/** Every delivery from here on is processed in the same millisecond, as on a fast machine or a provider burst. */
+function freezeClock(): void {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-13T12:00:00.000Z"));
+}
 
 describe("configuration", () => {
   it("saves the global partner with its split and the sub-account created from the CNPJ, and audits it", async () => {
@@ -409,6 +416,77 @@ describe("webhook reconciliation", () => {
     const title = ((await (await call("GET", "/donations/my-title", undefined, "donor")).json()) as { title: { eligibleCents: number; confirmedCount: number } }).title;
     expect(title).toMatchObject({ eligibleCents: 0, confirmedCount: 0 });
     expect(count("abacatepay_webhook_events")).toBe(2);
+  });
+
+  it("ignores a replay processed in the same millisecond as the original delivery", async () => {
+    freezeClock();
+    expect(await (await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: true });
+    expect(await (await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"))).json()).toEqual({ ok: true, applied: true });
+    const replay = await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    expect(await replay.json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "under_dispute", title_credited: 0 });
+    expect(count("abacatepay_webhook_events")).toBe(2);
+  });
+
+  it("applies different events for one charge in the same millisecond, in the order they arrive", async () => {
+    freezeClock();
+    for (const [id, name, status, expected] of [
+      ["log_paid", "transparent.completed", "PAID", "paid"],
+      ["log_dispute", "transparent.disputed", "UNDER_DISPUTE", "under_dispute"],
+      ["log_refund", "transparent.refunded", "REFUNDED", "refunded"],
+    ]) {
+      expect(await (await webhook(event(id, name, chargeId, status))).json()).toEqual({ ok: true, applied: true });
+      expect(db.sql("SELECT status FROM donations WHERE id=?", donationId)[0].status).toBe(expected);
+    }
+    expect(db.sql("SELECT title_credited FROM donations WHERE id=?", donationId)[0].title_credited).toBe(0);
+    expect(count("abacatepay_webhook_events")).toBe(3);
+  });
+
+  it("applies an event once when the same delivery arrives twice at the same time", async () => {
+    freezeClock();
+    const twice = (id: string, name: string, status: string) =>
+      Promise.all([webhook(event(id, name, chargeId, status)), webhook(event(id, name, chargeId, status))]).then((both) => Promise.all(both.map((r) => r.json())));
+    const paid = await twice("log_paid", "transparent.completed", "PAID");
+    expect(paid).toHaveLength(2);
+    expect(paid).toContainEqual({ ok: true, applied: true });
+    expect(paid).toContainEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "paid", title_credited: 1 });
+    const title = ((await (await call("GET", "/donations/my-title", undefined, "donor")).json()) as { title: { eligibleCents: number; confirmedCount: number } }).title;
+    expect(title).toMatchObject({ eligibleCents: 1000, confirmedCount: 1 });
+    // After the charge moved on, the same event twice at once is two duplicates.
+    await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"));
+    expect(await twice("log_paid", "transparent.completed", "PAID")).toEqual([{ ok: true, duplicate: true }, { ok: true, duplicate: true }]);
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "under_dispute", title_credited: 0 });
+    expect(count("abacatepay_webhook_events")).toBe(2);
+  });
+
+  it("keeps a refund that arrives before the payment confirmation", async () => {
+    // The provider retries a failed delivery later: the refund can be the first event the Vila receives.
+    expect(await (await webhook(event("log_refund", "transparent.refunded", chargeId, "REFUNDED"))).json()).toEqual({ ok: true, applied: true });
+    expect(await (await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: false });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+    const indicators = ((await (await call("GET", "/indicators", undefined, null, null)).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators;
+    expect([indicators.find((i) => i.key === "confirmed_donations")?.value, indicators.find((i) => i.key === "confirmed_amount")?.value]).toEqual([0, 0]);
+  });
+
+  it("refunds a disputed charge, and nothing that arrives after the refund reopens it", async () => {
+    await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"));
+    expect(await (await webhook(event("log_refund", "transparent.refunded", chargeId, "REFUNDED"))).json()).toEqual({ ok: true, applied: true });
+    for (const [id, name, status] of [
+      ["log_dispute_late", "transparent.disputed", "UNDER_DISPUTE"],
+      ["log_won_late", "transparent.disputed", "PAID"],
+      ["log_paid_again", "transparent.completed", "PAID"],
+    ])
+      expect(await (await webhook(event(id, name, chargeId, status))).json()).toEqual({ ok: true, applied: false });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+  });
+
+  it("ends refunded when a dispute arrives before the payment confirmation and is then lost", async () => {
+    expect(await (await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"))).json()).toEqual({ ok: true, applied: false });
+    await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    expect(await (await webhook(event("log_lost", "transparent.lost", chargeId, "LOST"))).json()).toEqual({ ok: true, applied: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
   });
 
   it("refuses a wrong secret or tampered body and writes no event", async () => {
