@@ -16,6 +16,7 @@ import { BlockedAccount, blockDate } from "./Account";
 import { Confirm } from "./Confirm";
 import { RemovedNotice } from "./Environment";
 import { dashApplicationUrl, LotModerationView } from "./LotModeration";
+import { savedWhere } from "./Missions";
 import { ModerationBarView, ModerationChipView, ModerationFlagView } from "./Moderation";
 
 const PLAYER: Me = { id: "u1", name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com", role: "player" };
@@ -356,6 +357,32 @@ describe("blocked account (PROPOSTA)", () => {
     expect(page).toContain("<strong>Mensagem da administração</strong>");
     expect(page).toContain("A administração não deixou uma mensagem.");
     expect(blockDate("not a date")).toBe("");
+  });
+
+  it("tells a blocked account where its progress is kept, never that it is offline", async () => {
+    const OFFLINE = "Sem conexão com a Vila: seu progresso será enviado para a sua conta quando a conexão voltar.";
+    const BLOCKED = "Conta bloqueada: o progresso fica só neste navegador.";
+    // A blocked account plays on this browser's progress (`progressOwner` null): that is not a lost connection.
+    expect(savedWhere({ signedIn: true, blocked: true, pending: false, onAccount: false })).toBe(BLOCKED);
+    expect(savedWhere({ signedIn: true, blocked: true, pending: true, onAccount: true })).toBe(BLOCKED);
+    expect(savedWhere({ signedIn: false, blocked: false, pending: false, onAccount: false })).toBe("Seu progresso fica salvo neste navegador.");
+    expect(savedWhere({ signedIn: true, blocked: false, pending: false, onAccount: true })).toBe("Seu progresso fica salvo na sua conta.");
+    expect(savedWhere({ signedIn: true, blocked: false, pending: true, onAccount: true })).toBe(OFFLINE);
+    expect(savedWhere({ signedIn: true, blocked: false, pending: false, onAccount: false })).toBe(OFFLINE);
+
+    // The panel itself, for the account as the page holds it after a blocked sign-in.
+    vi.stubGlobal("localStorage", { getItem: () => null, setItem: () => undefined, removeItem: () => undefined });
+    vi.stubGlobal("window", new EventTarget());
+    vi.resetModules();
+    const account = await import("../lib/account");
+    vi.doMock("../lib/account", () => ({ ...account, useAccount: live(account.useAccount) }));
+    const { Missions } = await import("./Missions");
+    account.useAccount.setState({ enabled: true, user: blocked, sync: "saved" });
+    const panel = html(<Missions />);
+    expect(panel).toContain(`<p class="note" role="status">${BLOCKED}</p>`);
+    expect(panel).not.toContain("Sem conexão");
+    account.useAccount.setState({ user: null });
+    expect(html(<Missions />)).toContain('<p class="note" role="status">Seu progresso fica salvo neste navegador.</p>');
   });
 
   it("is what the account panel and the NGO application show for a blocked account, and the chip says so", async () => {
