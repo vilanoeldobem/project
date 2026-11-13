@@ -43,7 +43,7 @@ const resetLocalNgos = () =>
       "DELETE FROM ngos WHERE name LIKE 'Projeto Vila Quest %' OR name LIKE 'Associação Teste %';"
   );
 
-// Local only: drop applications left by earlier runs (they would use up the 8 lots) so the blocked
+// Local only: drop applications left by earlier runs (they would use up the 12 lots) so the blocked
 // scenario really has no published house, then publish one through the applicant + admin flow.
 resetLocalNgos();
 

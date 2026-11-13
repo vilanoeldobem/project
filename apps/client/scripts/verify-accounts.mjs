@@ -26,6 +26,8 @@
  * give the same directory in VILA_API_PERSIST_TO, so the admin role is granted in its database:
  *   VILA_API_PERSIST_TO=/path/to/state node scripts/verify-accounts.mjs http://localhost:8799 http://localhost:8791
  * Without the variable, wrangler's default local state of apps/api is used.
+ * Name that API `localhost`, not `127.0.0.1`: the session cookie belongs to the host the builds call (`localhost`),
+ * and an answer rerouted to another host name leaves the page signed out (every later call answers 401).
  * An isolated config can set VILA_API_CONFIG (relative to apps/api); VILA_API_ENV and VILA_API_DB remain optional.
  * CHROMIUM_PATH selects the local
  * Chromium executable. VILA_STUB_ANALYTICS=1 stubs GTM only (OQ-13); that run does not validate analytics.
@@ -177,7 +179,7 @@ const JPEG_WITH_EXIF = Buffer.from(
 const filesOn = (await (await fetch(`${apiUrl}/config`)).json()).files === true;
 if (!filesOn) console.log("note: /config says files are off in this API; the upload steps are skipped");
 
-// Local only: drop applications left by earlier runs of this script (they would use up the 8 lots). Their file
+// Local only: drop applications left by earlier runs of this script (they would use up the 12 lots). Their file
 // rows go first (the table exists from migration 0006 on); the bytes stay, unreachable, in the local bucket.
 for (const table of ["ngo_files", "ngo_photos", "media_upload_intents"]) {
   try {
@@ -583,11 +585,18 @@ const c = await newPage("visitor");
 await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });
 if (filesOn) {
-  // 5b. A visitor walks to the front of the house (5.5 u from the lot's centre) and opens it: the logo is there.
-  const angle = (2 * Math.PI * (Number(lotValue.split("-")[1]) - 1)) / 8 + Math.PI / 8;
-  await c.evaluate(([x, z]) => window.__vila.walkTo(x, z), [16.5 * Math.cos(angle), 16.5 * Math.sin(angle)]);
-  const enter = c.getByRole("button", { name: /Ver terreno/ });
-  if (!(await visible(enter, 90000))) errors.push("visitor: did not reach the published lot");
+  // 5b. A visitor goes to the front of the house the way the game offers it ("Explorar ONGs" → "Ir até lá", so
+  // no coordinate of the layout is repeated here, IMPL-0023) and opens it: the logo is there. The action is
+  // read once the walk has ended: on the way the avatar passes other lots and shops, whose action shows too.
+  await click(c.getByRole("button", { name: "Explorar ONGs", exact: true }));
+  const listed = c.getByRole("dialog", { name: "ONGs da Vila" }).getByRole("listitem");
+  if ((await listed.count()) !== 12) errors.push(`visitor: "Explorar ONGs" lists ${await listed.count()} lots, expected 12`);
+  await click(listed.filter({ hasText: `Associação Teste ${run}` }).getByRole("button", { name: "Ir até lá" }));
+  const arrived = await c
+    .waitForFunction(() => window.__vila.extra.target() === null, null, { timeout: 120000 })
+    .then(() => true, () => false);
+  const enter = c.getByRole("button", { name: /Ver terreno(?! residencial)/ });
+  if (!arrived || !(await visible(enter, 5000))) errors.push(`visitor: did not reach the published lot (avatar at ${JSON.stringify(await c.evaluate(() => window.__vila.pose()))})`);
   else {
     await click(enter);
     const logo = c.getByRole("dialog", { name: `Associação Teste ${run}` }).getByRole("img", { name: `Logo de Associação Teste ${run}` });
