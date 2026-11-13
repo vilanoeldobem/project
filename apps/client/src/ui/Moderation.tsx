@@ -25,7 +25,7 @@ export function ModerationChip() {
 export function ModerationChipView({ user, on, onToggle }: { user: Me | null; on: boolean; onToggle: () => void }) {
   if (!canModerate(user)) return null;
   return (
-    // `data-moderation` marks a moderation control: Enter on it is its own, even next to a house (`lib/hud-keys.ts`).
+    // A button like every HUD control: Enter on it is its own, even next to a house (`lib/hud-keys.ts`).
     <button
       className={`btn btn--chip chip--wide${on ? " is-on" : ""}`}
       aria-pressed={on}

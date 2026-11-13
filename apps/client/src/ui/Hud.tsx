@@ -6,7 +6,7 @@ import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, type Panel, useVila } from "../game/store";
 import { pressEscape } from "../lib/escape";
-import { boundAction, hudKeyAction, isTextField } from "../lib/hud-keys";
+import { boundAction, heldOnControl, hudKeyAction, isTextField } from "../lib/hud-keys";
 import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
@@ -106,9 +106,11 @@ export function Hud() {
       }
       const vila = useVila.getState();
       if (vila.panel.kind !== "none" || vila.menu !== null || isTextField(target)) return;
+      // Enter held down presses a HUD button once: the repeats that reach one are dropped (`heldOnControl`).
+      if (heldOnControl(e.key, target, e.repeat)) return void e.preventDefault();
       const n = vila.nearby;
-      // Enter opens what is near whatever HUD button has the focus, except on a moderation control (`hudKeyAction`).
-      const action = hudKeyAction(e.key, target, n !== null);
+      // E opens what is near whatever has the focus; Enter only when the focus is not on a control (`hudKeyAction`).
+      const action = hudKeyAction(e.key, target, n !== null, e.repeat);
       if (action === "zoom-in") zoomBy(1 / ZOOM_STEP);
       else if (action === "zoom-out") zoomBy(ZOOM_STEP);
       else if (action === "activate" && n) activate(n);

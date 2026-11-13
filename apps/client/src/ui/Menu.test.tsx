@@ -147,6 +147,10 @@ describe("Controles", () => {
     const { page } = menu("controls");
     expect(page).toContain("Não há botões de zoom na tela: no celular, aproxime e afaste com a pinça de dois dedos; no teclado, com as teclas + e -.");
   });
+
+  it("says whose Enter is with the focus on a button: the button's; E is always what is near", () => {
+    expect(menu("controls").page).toContain("Com o foco em um botão, Enter aciona esse botão; a tecla E abre o que está perto.");
+  });
 });
 
 describe("Ajuda", () => {

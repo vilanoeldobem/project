@@ -130,7 +130,7 @@ export function GameMenuView({
           ))}
           <p className="note">
             Não há botões de zoom na tela: no celular, aproxime e afaste com a pinça de dois dedos; no teclado, com as teclas + e -. Sem mouse, “Explorar
-            ONGs” → “Ir até lá” leva o avatar até uma casa.
+            ONGs” → “Ir até lá” leva o avatar até uma casa. Com o foco em um botão, Enter aciona esse botão; a tecla E abre o que está perto.
           </p>
           {back}
         </>
