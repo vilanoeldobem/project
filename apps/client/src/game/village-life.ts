@@ -274,10 +274,11 @@ export function lifeAt(epochMs: number) {
   return LIFE_CAST.map((c, i) => ({ id: c.id, x: out.x[i], z: out.z[i], presence: out.presence[i], moving: out.moving[i] === 1 }));
 }
 
-/** For the verify scripts: this client's synchronized clock right now, and where that puts everyone (no frame involved). */
-export function lifeNow() {
-  const now = worldNow();
-  return { now, chars: lifeAt(now) };
-}
+/**
+ * For the verify scripts: this client's synchronized clock next to the device's own, read together. Two pages on
+ * one machine share the device clock, so the difference of their `now - wall` is how far apart their village
+ * clocks are, whenever each one is asked.
+ */
+export const lifeClock = () => ({ now: worldNow(), wall: Date.now() });
 
 export { REACT };

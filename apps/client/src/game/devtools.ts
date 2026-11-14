@@ -6,7 +6,7 @@ import { debugAllowed } from "../environment/runtime";
 import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
 import { sim } from "./sim";
-import { lifeAt, lifeNow, lifeReport } from "./village-life";
+import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 
@@ -68,7 +68,7 @@ export function installDevtools() {
       /** The village's characters (IMPL-0025): as the shared simulation has them now, and at any village time. */
       life: () => lifeReport(),
       lifeAt: (epochMs) => lifeAt(Number(epochMs)),
-      lifeNow: () => lifeNow(),
+      lifeClock: () => lifeClock(),
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
     },
