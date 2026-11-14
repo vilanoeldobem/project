@@ -873,3 +873,62 @@ Walking Christmas characters and animals, the same for every visitor, with nothi
 - A second handler for the same press drifts from the first: give a new click target the click only and let the
   one press rule decide, then test with that rule's real handler.
 - Check a new character against the player's own default look before calling it recognisable.
+# Task: read-only technical audit — 2026-11-14
+
+## Plan
+
+- [x] Establish the current revision, product constraints and deployment evidence.
+- [x] Review voxel meshing, rendering, model generation and visual quality gaps.
+- [x] Review deterministic NPC schedules, reactions, dialogue and improvement options.
+- [x] Review security, reliability, delivery, data lifecycle and production blockers.
+- [x] Run available verification gates and distinguish measured results from unverified risks.
+- [x] Return the full Markdown report in the conversation with evidence, priorities and acceptance criteria.
+
+## Scope and review
+
+Analysis only; no product implementation, flag changes, remote migrations or deployment.
+Only this required checklist is maintained. No approval is needed to perform the requested read-only review.
+Reviewed local revision 4d0ec31; remote main is 7c08e4d (boards UI/appearance merge), whose diff was reviewed
+separately without changing this checkout. Rendering/NPC/backend findings are unchanged by that merge.
+
+Verification: pnpm typecheck passed; pnpm test passed (1,563 tests across 77 files); pnpm build passed
+(rerun outside sandbox for Wrangler log access, dry-run only). Current production HTTP smoke passes all
+17 assertions. Public API reports version 0.5.0 and all product feature gates off; mail binding unavailable.
+Existing live browser verification reached the scene and received presence messages but failed with seven
+analytics/CSP errors. Latest remote-main CI is green; classic main protection is absent and both branch rules
+and repository rulesets are empty. No direct remote D1 migration-history query was performed.
+
+Findings include remote-avatar draw-call growth beyond the entire scene budget, postprocessing DPR/disposal,
+NPC place/radius mismatches, gated stale-account edit/deletion risk and payment creation recovery windows.
+Static generator measurements and capacity bounds are not GPU benchmarks. Real-device/thermal, full-room,
+full local UI/collision/life browser gates, staging and restore drills remain unverified in this audit.
+
+Lessons: compare remote main before reporting missing features; distinguish binding existence from enabled
+features and dependency health; an old failed smoke is not evidence of a current outage (fresh HTTP smoke passes).
+
+# Task: audit phase 1 — correctness fixes — 2026-11-14
+
+Branch `fix/audit-phase-1` (from origin/main 7c08e4d). Scope chosen by the owner: phase 1 of the audit above.
+
+## Plan
+
+- [x] Remote avatars as one mesh: slot-merged geometry + float matrix texture (`scene/remoteAvatars.ts`); 3 calls
+      for the whole room (scene, shadow, contact blob) regardless of distinct looks. No `BatchedMesh`: without
+      `WEBGL_multi_draw` (Firefox) three.js falls back to one call per instance.
+- [x] PostFx: follow `viewport.dpr` (adaptive DPR) and dispose every owned pass.
+- [x] `POST /me` / `DELETE /me`: `accountId` / `X-Vila-Account` → `409 account_changed` before any write.
+- [x] Village life: dialogue reads the occupied spot (`LifeState.at`); step-aside checked with the body radius.
+- [x] Docs (architecture, content, api) and CHANGELOG.
+- [x] typecheck, test (1 607), build.
+- [x] Browser gates: verify.mjs ok. verify-collisions: only analytics CSP errors (10). verify-life with analytics
+      stubbed: only the 3 quest-NPC (Seu Nivaldo) checks fail, identically on origin/main: pre-existing/local setup.
+
+## Review
+
+Full room measured locally (40 people, scripted remotes, swiftshader): baseline empty room 92 calls / 139 750 tris;
+39 distinct looks 95 / 171 502 (delta = 2 × 15 564 avatar tris + 624 blob, as computed); 39 shared looks
+95 / 166 894; high preset with bloom 109 / 175 124, adaptive DPR 1.5 → 1.25 with no errors. Not measured: composer
+target size read back after a DPR change, GPU resource plateau over quality toggles, real phones.
+
+Lessons: a looped probe reused room 0 before the previous bots left (stale numbers); run probes one at a time.
+verify-life/verify-collisions do not filter analytics CSP noise, unlike verify.mjs (audit §7.2, phase 2).

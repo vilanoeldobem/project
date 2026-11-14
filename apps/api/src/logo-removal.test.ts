@@ -153,7 +153,7 @@ describe("administrator removes an NGO logo (IMPL-0021)", () => {
     beforeNextBatch(() => db.prepare("UPDATE users SET blocked = 1 WHERE id = 'admin'").run());
     const blocked = await removeLogo();
     expect([blocked.status, blocked.body]).toEqual([403, { error: "admin_only" }]);
-    beforeNextBatch(() => call("DELETE", "/me", undefined, "admin2"));
+    beforeNextBatch(() => call("DELETE", "/me", undefined, "admin2", GAME, { "X-Vila-Account": "admin2" }));
     const erased = await removeLogo({}, "admin2");
     expect([erased.status, erased.body]).toEqual([401, { error: "not_signed_in" }]);
 
@@ -165,7 +165,7 @@ describe("administrator removes an NGO logo (IMPL-0021)", () => {
   });
 
   it("removes a published logo after the applicant erased the account", async () => {
-    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    expect((await call("DELETE", "/me", undefined, "owner", GAME, { "X-Vila-Account": "owner" })).status).toBe(204);
     // The NGO stays in the village with its logo; nothing says who uploaded it any more.
     expect(db.sql("SELECT id, uploaded_by FROM ngo_files")).toEqual([{ id: LOGO, uploaded_by: null }]);
     expect(db.sql("SELECT applicant_id, revision FROM ngos")).toEqual([{ applicant_id: null, revision: 2 }]);
@@ -181,7 +181,7 @@ describe("administrator removes an NGO logo (IMPL-0021)", () => {
   });
 
   it("keeps a retryable cleanup, recorded under the administrator, when R2 fails after the applicant's erasure", async () => {
-    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    expect((await call("DELETE", "/me", undefined, "owner", GAME, { "X-Vila-Account": "owner" })).status).toBe(204);
     bucket.failNext("delete");
     const answer = await removeLogo({ revision: 2 });
     expect([answer.status, answer.body]).toEqual([503, { error: "file_cleanup_pending" }]);

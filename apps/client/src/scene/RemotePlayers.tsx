@@ -1,14 +1,13 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
-import { CircleGeometry, type InstancedMesh, Matrix4, MeshBasicMaterial, Quaternion, Vector3 } from "three";
+import { BufferGeometry, CircleGeometry, type InstancedMesh, Matrix4, type Mesh, MeshBasicMaterial, Quaternion, Vector3 } from "three";
 
-import type { Look } from "@vila/shared/game/cosmetics";
 import { MOTION } from "@vila/shared/game/motion";
 import { ROOM_CAPACITY } from "@vila/shared/net/protocol";
 
 import { remotes, sampleRemotes, useNet } from "../net/multiplayer";
-import { solidMaterial } from "./environment/materials";
 import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
+import { mergeRemoteAvatars, remoteMaterials, remoteTexture, writePart } from "./remoteAvatars";
 import { voxelGeometries } from "./Voxels";
 
 /** Part pivots relative to the avatar root (same rig as `Player`). */
@@ -22,105 +21,111 @@ const PARTS = [
 
 const local = new Matrix4();
 const rot = new Matrix4();
+const root = new Matrix4();
 const out = new Matrix4();
 const q = new Quaternion();
 const up = new Vector3(0, 1, 0);
 const one = new Vector3(1, 1, 1);
 const pos = new Vector3();
 
-/** Root matrix and limb swing of a remote for this frame (written by `RemotePlayers`, read by groups). */
-const frame = new Map<number, { swing: number; root: Matrix4 }>();
-
 /**
- * Other visitors (IMPL-0008): avatars that share a look share five instanced meshes (body + four limbs),
- * so the cost is 5 draw calls per distinct look present, plus one instanced contact shadow for everyone.
- * Poses come from snapshot interpolation; the walk cycle follows the distance moved on screen.
+ * Other visitors (IMPL-0008): every remote is a slot of one merged mesh whose five rigid parts read their matrices
+ * from a float texture (`remoteAvatars.ts`), so the room costs one draw call in the scene pass, one in the shadow
+ * pass and one instanced contact shadow, whatever the number of distinct looks. The merged geometry is rebuilt
+ * only when someone joins, leaves or changes look. Poses come from snapshot interpolation; the walk cycle follows
+ * the distance moved on screen.
  */
 export function RemotePlayers() {
   const looks = useNet((s) => s.looks);
+  const mesh = useRef<Mesh>(null);
   const blobs = useRef<InstancedMesh>(null);
   const blob = useMemo(() => new CircleGeometry(0.5, 16).rotateX(-Math.PI / 2), []);
   const blobMaterial = useMemo(() => new MeshBasicMaterial({ color: "#1f2a3d", transparent: true, opacity: 0.22, depthWrite: false }), []);
   useEffect(() => () => (blob.dispose(), blobMaterial.dispose()), [blob, blobMaterial]);
   const last = useRef(new Map<number, { x: number; z: number }>());
 
-  // Runs before the look groups (lower priority value first) so they draw this frame's poses.
+  const batch = useMemo(() => {
+    const texture = remoteTexture(ROOM_CAPACITY);
+    return { texture, ...remoteMaterials(texture), geometry: new BufferGeometry(), roster: "" };
+  }, []);
+  /** Part geometries of each look present, meshed once per look. */
+  const parts = useMemo(() => new Map<string, Array<BufferGeometry | null>>(), []);
+  useEffect(
+    () => () => {
+      batch.geometry.dispose();
+      batch.texture.dispose();
+      batch.surface.dispose();
+      batch.depth.dispose();
+      for (const list of parts.values()) list.forEach((g) => g?.dispose());
+      parts.clear();
+    },
+    [batch, parts]
+  );
+
+  /** Rebuilds the merged geometry for the remotes in `slots` order (on join, leave or a change of look). */
+  const rebuild = (slots: ReadonlyArray<{ lookKey: string }>) => {
+    const present = new Set(slots.map((r) => r.lookKey));
+    for (const [key, list] of parts)
+      if (!present.has(key) || !looks[key]) (list.forEach((g) => g?.dispose()), parts.delete(key));
+    const geometries = slots.map((r) => {
+      const look = looks[r.lookKey];
+      if (!look) return [];
+      let list = parts.get(r.lookKey);
+      if (!list) {
+        const voxels = avatarParts(look);
+        list = PARTS.map((p) => voxelGeometries(voxels[p.key], AVATAR_SIZE)[0] ?? null);
+        parts.set(r.lookKey, list);
+      }
+      return list;
+    });
+    batch.geometry.dispose();
+    batch.geometry = mergeRemoteAvatars(geometries);
+    if (mesh.current) mesh.current.geometry = batch.geometry;
+  };
+
   useFrame(() => {
     sampleRemotes();
-    let n = 0;
-    for (const r of remotes.values()) {
+    const slots = [...remotes.values()].slice(0, ROOM_CAPACITY);
+    const roster = slots.map((r) => `${r.id}:${r.lookKey}:${looks[r.lookKey] ? 1 : 0}`).join(",");
+    if (roster !== batch.roster) (batch.roster = roster), rebuild(slots);
+    const data = batch.texture.image.data as Float32Array;
+    slots.forEach((r, slot) => {
       const prev = last.current.get(r.id);
       const moved = prev ? Math.hypot(r.x - prev.x, r.z - prev.z) : 0;
       if (prev) (prev.x = r.x), (prev.z = r.z);
       else last.current.set(r.id, { x: r.x, z: r.z });
       r.walk += (moved / MOTION.stride) * Math.PI;
       const run = Math.min(r.speed / MOTION.maxSpeed, 1);
-      const f = frame.get(r.id) ?? { swing: 0, root: new Matrix4() };
-      f.swing = walkSwing(r.walk, run);
-      f.root.compose(pos.set(r.x, walkLift(r.walk, run), r.z), q.setFromAxisAngle(up, r.yaw), one);
-      frame.set(r.id, f);
-      if (n < ROOM_CAPACITY) blobs.current?.setMatrixAt(n++, out.makeTranslation(r.x, 0.03, r.z));
-    }
-    for (const id of last.current.keys()) if (!remotes.has(id)) (last.current.delete(id), frame.delete(id));
-    if (blobs.current) {
-      blobs.current.count = n;
-      blobs.current.instanceMatrix.needsUpdate = true;
-    }
-  }, -1);
-
-  return (
-    <>
-      {Object.entries(looks).map(([key, look]) => (
-        <LookGroup key={key} lookKey={key} look={look} />
-      ))}
-      <instancedMesh ref={blobs} args={[blob, blobMaterial, ROOM_CAPACITY]} frustumCulled={false} renderOrder={1} />
-    </>
-  );
-}
-
-/** Five instanced meshes drawing every remote that wears `look`. */
-function LookGroup({ lookKey, look }: { lookKey: string; look: Look }) {
-  const meshes = useRef<Array<InstancedMesh | null>>([]);
-  const geometries = useMemo(() => {
-    const parts = avatarParts(look);
-    return PARTS.map((p) => voxelGeometries(parts[p.key], AVATAR_SIZE)[0]!);
-  }, [look]);
-  useEffect(() => () => geometries.forEach((g) => g.dispose()), [geometries]);
-
-  useFrame(() => {
-    let n = 0;
-    for (const r of remotes.values()) {
-      if (r.lookKey !== lookKey || n >= ROOM_CAPACITY) continue;
-      const f = frame.get(r.id);
-      if (!f) continue;
+      const swing = walkSwing(r.walk, run);
+      root.compose(pos.set(r.x, walkLift(r.walk, run), r.z), q.setFromAxisAngle(up, r.yaw), one);
       PARTS.forEach((p, i) => {
-        const mesh = meshes.current[i];
-        if (!mesh) return;
         local.makeTranslation(p.at[0], p.at[1], p.at[2]);
-        if (p.swing) local.multiply(rot.makeRotationX(f.swing * p.swing));
-        mesh.setMatrixAt(n, out.multiplyMatrices(f.root, local));
+        if (p.swing) local.multiply(rot.makeRotationX(swing * p.swing));
+        writePart(data, slot, i, out.multiplyMatrices(root, local));
       });
-      n++;
-    }
-    for (const m of meshes.current) {
-      if (!m) continue;
-      m.count = n;
-      m.instanceMatrix.needsUpdate = true;
+      blobs.current?.setMatrixAt(slot, out.makeTranslation(r.x, 0.03, r.z));
+    });
+    for (const id of last.current.keys()) if (!remotes.has(id)) last.current.delete(id);
+    batch.texture.needsUpdate = true;
+    if (mesh.current) mesh.current.visible = slots.length > 0;
+    if (blobs.current) {
+      blobs.current.count = slots.length;
+      blobs.current.instanceMatrix.needsUpdate = true;
     }
   });
 
   return (
     <>
-      {geometries.map((g, i) => (
-        <instancedMesh
-          key={i}
-          ref={(m) => void (meshes.current[i] = m)}
-          args={[g, solidMaterial, ROOM_CAPACITY]}
-          castShadow
-          frustumCulled={false}
-        />
-      ))}
+      <mesh
+        ref={mesh}
+        geometry={batch.geometry}
+        material={batch.surface}
+        customDepthMaterial={batch.depth}
+        castShadow
+        frustumCulled={false}
+        visible={false}
+      />
+      <instancedMesh ref={blobs} args={[blob, blobMaterial, ROOM_CAPACITY]} frustumCulled={false} renderOrder={1} />
     </>
   );
 }
-

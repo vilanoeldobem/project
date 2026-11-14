@@ -14,10 +14,12 @@ let db: ReturnType<typeof createD1>, env: Env;
 let objects: Map<string, Uint8Array>;
 type PhotoPut = (key: string, value: Uint8Array, options?: R2PutOptions) => Promise<{ etag: string } | null>;
 let bucket: { put: Mock<PhotoPut>; get: ReturnType<typeof vi.fn>; head: ReturnType<typeof vi.fn>; delete: ReturnType<typeof vi.fn> };
-const call = (method: string, path: string, body?: unknown, user = "owner", origin: string | null = ORIGIN) => handleApi(new Request(`https://api.example${path}`, {
-  method, headers: { ...(origin ? { Origin: origin } : {}), ...(user ? { Cookie: `__Host-vila_session=${user}` } : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+const call = (method: string, path: string, body?: unknown, user = "owner", origin: string | null = ORIGIN, headers: Record<string, string> = {}) => handleApi(new Request(`https://api.example${path}`, {
+  method, headers: { ...(origin ? { Origin: origin } : {}), ...(user ? { Cookie: `__Host-vila_session=${user}` } : {}), ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
   body: body === undefined ? undefined : JSON.stringify(body),
 }), env);
+/** Erasure names its own account in a header (DELETE carries no body). */
+const deleteAccount = (user = "owner") => call("DELETE", "/me", undefined, user, ORIGIN, { "X-Vila-Account": user });
 const upload = (override: Record<string, unknown> = {}, user = "owner") => handleApi(new Request(`https://api.example/ngo/photos?ngoId=${override.ngoId ?? NGO}&position=${override.position ?? 0}`, {
   method: "POST", headers: { Origin: ORIGIN, Cookie: `__Host-vila_session=${user}`, "X-Vila-Account": String(override.accountId ?? user), "Content-Type": String(override.contentType ?? "image/png"), "X-Vila-Caption": override.encodedCaption === undefined ? encodeURIComponent(String(override.caption ?? "Projeto de leitura")) : String(override.encodedCaption) },
   body: (override.bytes ?? Uint8Array.from(atob(PNG), (c) => c.charCodeAt(0))) as BodyInit,
@@ -225,7 +227,7 @@ it("account deletion erases all owned gallery, including approved public photos"
   const removed = await photo();
   await db.prepare("UPDATE ngo_photos SET status='removed' WHERE id=?").bind(removed).run();
   expect(objects.size).toBe(3);
-  expect((await call("DELETE", "/me")).status).toBe(204);
+  expect((await deleteAccount()).status).toBe(204);
   expect(db.sql("SELECT id FROM ngo_photos")).toEqual([]);
   expect(objects.size).toBe(0);
   expect((await call("GET", publicPath(approved), undefined, "")).status).toBe(404);
@@ -235,7 +237,7 @@ it("account deletion erases all owned gallery, including approved public photos"
 it("account deletion removes even approved photos when the NGO is unpublished", async () => {
   const approved = await photo(); await decision(approved);
   await db.prepare("UPDATE ngos SET status='under_review' WHERE id=?").bind(NGO).run();
-  expect((await call("DELETE", "/me")).status).toBe(204);
+  expect((await deleteAccount()).status).toBe(204);
   expect(objects.size).toBe(0);
   expect(db.sql("SELECT id FROM ngo_photos")).toEqual([]);
 });
@@ -333,7 +335,7 @@ it("account erasure cancels an in-flight conditional put and leaves no personal 
     return put(...args);
   });
   const pending=upload();await gate.ready;
-  expect((await call("DELETE","/me")).status).toBe(204);
+  expect((await deleteAccount()).status).toBe(204);
   gate.release();expect((await pending).status).toBe(409);
   expect(objects.size).toBe(0);expect(db.sql("SELECT id FROM ngo_photos")).toEqual([]);
 });
@@ -360,10 +362,10 @@ it("hides public gallery immediately when account erasure fails and remains retr
   const id=await photo();await decision(id);
   bucket.delete.mockRejectedValueOnce(new Error("unavailable"));
   const log=vi.spyOn(console,"error").mockImplementation(()=>{});
-  expect((await call("DELETE","/me")).status).toBe(500);
+  expect((await deleteAccount()).status).toBe(500);
   expect(await gallery()).toEqual([]);
   expect((await call("GET",publicPath(id),undefined,"")).status).toBe(404);
-  expect((await call("DELETE","/me")).status).toBe(204);
+  expect((await deleteAccount()).status).toBe(204);
   expect(objects.size).toBe(0);log.mockRestore();
 });
 

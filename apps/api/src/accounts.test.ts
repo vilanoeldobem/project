@@ -17,8 +17,8 @@ const ORIGIN = "https://play.example";
 let db: ReturnType<typeof createD1>;
 let env: Env;
 
-const call = async (method: string, path: string, body?: unknown, cookie?: string, origin: string | null = ORIGIN) => {
-  const headers: Record<string, string> = {};
+const call = async (method: string, path: string, body?: unknown, cookie?: string, origin: string | null = ORIGIN, extra: Record<string, string> = {}) => {
+  const headers: Record<string, string> = { ...extra };
   if (origin) headers.Origin = origin;
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (cookie) headers.Cookie = cookie;
@@ -43,6 +43,8 @@ type Signed = { cookie: string; user: { id: string } };
 /** Writes name the account the page believes is signed in. */
 const events = (s: Signed, list: Array<{ missionId: string; eventId: string }>) => call("POST", "/progress/events", { accountId: s.user.id, events: list }, s.cookie);
 const apply = (s: Signed, body: object) => call("POST", "/ngo/application", { accountId: s.user.id, ...body }, s.cookie);
+/** Erasure carries no body: it names the account in a header. */
+const eraseAccount = (s: Signed) => call("DELETE", "/me", undefined, s.cookie, ORIGIN, { "X-Vila-Account": s.user.id });
 const ALL_CHECKS = { activeCnpj: true, oneYear: true, fundsConfirmable: true };
 /** An admin decision on the version currently stored (what the admin is looking at); approve ticks the checks. */
 const decide = (id: string, body: { action: unknown; note?: string; checks?: object }, cookie: string) => {
@@ -232,7 +234,7 @@ describe("registration and magic link (P13, OQ-03)", () => {
     // Sign in again with a fresh link, then delete the account.
     const l = await call("POST", "/auth/link", { email: "ana@example.com" });
     const c2 = (await call("POST", "/auth/verify", { token: tokenOf(l.body.devLink) })).headers.get("Set-Cookie")!.split(";")[0];
-    expect((await call("DELETE", "/me", undefined, c2)).status).toBe(204);
+    expect((await eraseAccount({ cookie: c2, user })).status).toBe(204);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
     expect(db.sql("SELECT COUNT(*) AS n FROM sessions")[0].n).toBe(0);
     expect(db.sql("SELECT COUNT(*) AS n FROM progress_events")[0].n).toBe(0);
@@ -460,7 +462,7 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
   it("keeps the application (without the applicant link) when the account is deleted", async () => {
     const applicant = await signUp();
     await apply(applicant, APP);
-    await call("DELETE", "/me", undefined, applicant.cookie);
+    await eraseAccount(applicant);
     expect(db.sql("SELECT applicant_id, status FROM ngos")).toEqual([{ applicant_id: null, status: "submitted" }]);
   });
 });
@@ -501,12 +503,27 @@ describe("security review fixes (2026-11-11)", () => {
     expect((await call("GET", "/me", undefined, undefined, "https://www.example")).status).toBe(403);
   });
 
+  it("refuses a correction meant for another account (a tab that switched accounts) and changes nothing", async () => {
+    const a = await signUp();
+    const b = await signUp("bia", "bia@example.com");
+    const snapshot = () => ["users", "sessions", "audit_events"].map((table) => db.sql(`SELECT * FROM ${table} ORDER BY rowid`));
+    const before = snapshot();
+    const fields = { name: "Ana Souza", nickname: "ana_souza", city: "Olinda" };
+    // A page still showing Ana sends her correction with Bia's cookie; a request that names no account is refused too.
+    for (const body of [{ ...fields, accountId: a.user.id }, fields, { ...fields, accountId: "" }]) {
+      const r = await call("POST", "/me", body, b.cookie);
+      expect([r.status, r.body]).toEqual([409, { error: "account_changed" }]);
+    }
+    expect(snapshot()).toEqual(before);
+    expect((await call("GET", "/me", undefined, b.cookie)).body.user).toMatchObject({ id: b.user.id, name: "Ana Lima", nickname: "bia" });
+  });
+
   it("lets people correct their data (not the e-mail) and keeps nicknames unique", async () => {
     await signUp("bia", "bia@example.com");
-    const { cookie } = await signUp();
-    const r = await call("POST", "/me", { name: "Ana Souza", nickname: "ana_souza", city: "Olinda", email: "x@evil.example" }, cookie);
+    const { cookie, user } = await signUp();
+    const r = await call("POST", "/me", { accountId: user.id, name: "Ana Souza", nickname: "ana_souza", city: "Olinda", email: "x@evil.example" }, cookie);
     expect(r.body.user).toMatchObject({ name: "Ana Souza", nickname: "ana_souza", city: "Olinda", email: "ana@example.com" });
-    expect((await call("POST", "/me", { name: "Ana", nickname: "BIA", city: "Olinda" }, cookie)).status).toBe(409);
+    expect((await call("POST", "/me", { accountId: user.id, name: "Ana", nickname: "BIA", city: "Olinda" }, cookie)).status).toBe(409);
   });
 
   it("refuses self-review and unknown actions (no prototype keys)", async () => {
@@ -852,7 +869,7 @@ describe("backoffice dashboard (IMPL-0015)", () => {
       // Reading is not a mutation: nothing new in the audit trail.
       expect(db.sql("SELECT COUNT(*) AS n FROM audit_events")[0].n).toBe(before);
       // An actor whose account is gone shows as null.
-      await call("DELETE", "/me", undefined, applicant.cookie);
+      await eraseAccount(applicant);
       const after = (await call("GET", "/admin/audit", undefined, admin.cookie)).body.events;
       expect(after.map((e: { action: string; actor: string | null }) => [e.action, e.actor])).toEqual([["user.delete", null], ["ngo.request_changes", "admin_vila"], ["ngo.submit", null]]);
     });
@@ -930,7 +947,7 @@ describe("backoffice dashboard (IMPL-0015)", () => {
         expect([path, (await call("POST", path, body, admin.cookie)).status]).toEqual([path, 404]);
       for (const method of ["GET", "DELETE"]) expect((await call(method, `/admin/users/${player.user.id}/role`, undefined, admin.cookie)).status).toBe(404);
       // The profile correction ignores a `role` field.
-      expect((await call("POST", "/me", body, player.cookie)).body.user.role).toBe("player");
+      expect((await call("POST", "/me", { ...body, accountId: player.user.id }, player.cookie)).body.user.role).toBe("player");
       expect(db.sql("SELECT role FROM users WHERE id = ?", player.user.id)[0].role).toBe("player");
     });
   });

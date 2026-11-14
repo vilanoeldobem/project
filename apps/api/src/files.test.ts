@@ -36,6 +36,12 @@ const call = async (method: string, path: string, body?: unknown, cookie?: strin
   return { status: res.status, body: raw ? JSON.parse(raw) : null, headers: res.headers };
 };
 
+/** Erasure names its own account in a header (DELETE carries no body), as the game does. */
+const eraseAccount = async (s: Signed) => {
+  const res = await send("DELETE", "/me", { cookie: s.cookie, headers: { "X-Vila-Account": s.user.id } });
+  return { status: res.status };
+};
+
 const tokenOf = (devLink: string) => decodeURIComponent(new URLSearchParams(new URL(devLink).hash.slice(1)).get("login")!);
 
 async function signUp(nickname = "ana_lima", email = "ana@example.com"): Promise<Signed> {
@@ -200,7 +206,7 @@ describe("feature flag", () => {
     expect((await call("GET", "/ngo/application", undefined, a.cookie)).body).toMatchObject({ application: { status: "submitted" }, files: [] });
     const admin = await asAdmin();
     expect((await call("GET", `/admin/applications/${a.ngoId}`, undefined, admin.cookie)).body.files).toEqual([]);
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
   });
 
@@ -594,6 +600,28 @@ describe("reading and removing", () => {
 });
 
 describe("account deletion (LGPD)", () => {
+  it("refuses an erasure meant for another account (a tab that switched accounts) and changes nothing", async () => {
+    const a = await applicant();
+    await upload(a, "logo", png(), "image/png");
+    await upload(a, "document", pdf(), "application/pdf");
+    const b = await applicant("bia", "bia@example.com", { ...APP, cnpj: "11444777000161", lotId: "plaza-06" });
+    await upload(b, "document", pdf("outra"), "application/pdf");
+    const tables = ["users", "sessions", "ngos", "ngo_files", "audit_events"];
+    const snapshot = () => [...tables.map((table) => db.sql(`SELECT * FROM ${table} ORDER BY rowid`)), r2.keys()];
+    const before = snapshot();
+    // A page still showing Ana asks to erase "her" account with Bia's cookie; and a request that names no account.
+    for (const account of [a.user.id, null, ""]) {
+      const res = await send("DELETE", "/me", { cookie: b.cookie, headers: account === null ? {} : { "X-Vila-Account": account } });
+      expect([account, res.status, await res.json()]).toEqual([account, 409, { error: "account_changed" }]);
+    }
+    expect(snapshot()).toEqual(before);
+    expect(db.sql("SELECT id, files_deleting FROM users ORDER BY id")).toEqual(
+      [a.user.id, b.user.id].sort().map((id) => ({ id, files_deleting: 0 })));
+    // Naming the account signed in now erases that one, and only that one.
+    expect((await eraseAccount(b)).status).toBe(204);
+    expect(db.sql("SELECT id FROM users")).toEqual([{ id: a.user.id }]);
+  });
+
   it("deletes the documents and an unpublished logo from R2 and D1 with the account", async () => {
     const a = await applicant();
     await upload(a, "logo", png(), "image/png");
@@ -601,7 +629,7 @@ describe("account deletion (LGPD)", () => {
     await upload(a, "document", png(300, 300), "image/png");
     const b = await applicant("bia", "bia@example.com", { ...APP, cnpj: "11444777000161", lotId: "plaza-06" });
     const others = (await upload(b, "document", pdf("outra"), "application/pdf")).body.file;
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(rows().map((r) => r.id)).toEqual([others.id]);
     expect(r2.keys()).toEqual([`ngo/${b.ngoId}/${others.id}`]);
     expect(db.sql("SELECT applicant_id FROM ngos WHERE id = ?", a.ngoId)).toEqual([{ applicant_id: null }]);
@@ -613,7 +641,7 @@ describe("account deletion (LGPD)", () => {
     const logo = (await upload(a, "logo", png(), "image/png")).body.file;
     await upload(a, "document", pdf(), "application/pdf");
     await decide(a.ngoId, "approve", admin);
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(rows().map((r) => [r.id, r.kind])).toEqual([[logo.id, "logo"]]);
     expect(r2.keys()).toEqual([`ngo/${a.ngoId}/${logo.id}`]);
     expect((await send("GET", `/ngos/${a.ngoId}/logo`, { origin: null })).status).toBe(200);
@@ -624,10 +652,10 @@ describe("account deletion (LGPD)", () => {
     await upload(a, "document", pdf(), "application/pdf");
     env.NGO_FILES_ENABLED = "false";
     r2.failNext("delete");
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(500);
+    expect((await eraseAccount(a)).status).toBe(500);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
     expect(rows()).toHaveLength(1);
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(rows()).toEqual([]);
     expect(r2.keys()).toEqual([]);
   });
@@ -639,7 +667,7 @@ describe("account deletion (LGPD)", () => {
       const late = await upload(a, "document", pdf(), "application/pdf");
       expect([late.status, late.body.error]).toEqual([409, "account_deleting"]);
     });
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(rows()).toEqual([]);
     expect(r2.keys()).toEqual([]);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
@@ -658,7 +686,7 @@ describe("account deletion (LGPD)", () => {
       }
       return remove(keys);
     };
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(rows()).toEqual([]);
     expect(r2.keys()).toEqual([]);
   });
@@ -679,7 +707,7 @@ describe("account deletion (LGPD)", () => {
   it("deletes an account without files exactly as before", async () => {
     const a = await applicant();
     env.FILES = undefined;
-    expect((await call("DELETE", "/me", undefined, a.cookie)).status).toBe(204);
+    expect((await eraseAccount(a)).status).toBe(204);
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(0);
   });
 });

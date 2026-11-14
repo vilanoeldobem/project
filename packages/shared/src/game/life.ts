@@ -597,10 +597,16 @@ export interface LifeState {
   moving: Uint8Array;
   /** Index into `LIFE_ACTIVITIES`. */
   activity: Uint8Array;
-  /** The spot it stands at, or walks to. */
+  /** The spot of this slot's trip: where it stands once there, or walks to (still ahead before it sets off). */
   spot: Int16Array;
   /** The spot it left (equal to `spot` when it did not move in this slot). */
   origin: Int16Array;
+  /**
+   * The spot it occupies right now: `origin` until it sets off, `spot` once it has arrived (or for a trip of no
+   * length, at a door), -1 while it walks between them. What a character says about where it is reads this, never
+   * `spot`, which already names the destination before the walk begins.
+   */
+  at: Int16Array;
   /** Distance walked on the current trip (u): the client's walk cycle follows it, so feet agree across clients. */
   walked: Float64Array;
   /** Speed (u/s) right now. */
@@ -612,7 +618,7 @@ export function createLifeState(count: number = LIFE_CAST.length): LifeState {
     epochMs: 0,
     x: new Float64Array(count), z: new Float64Array(count), y: new Float64Array(count), yaw: new Float32Array(count),
     presence: new Float32Array(count), moving: new Uint8Array(count), activity: new Uint8Array(count),
-    spot: new Int16Array(count), origin: new Int16Array(count), walked: new Float64Array(count), speed: new Float32Array(count),
+    spot: new Int16Array(count), origin: new Int16Array(count), at: new Int16Array(count), walked: new Float64Array(count), speed: new Float32Array(count),
   };
 }
 
@@ -962,6 +968,7 @@ export function evaluateLife(life: Life, out: LifeState): LifeState {
     out.spot[i] = b;
     if (a === b || since <= 0 || since >= dur) {
       const s = a === b || since >= dur ? b : a;
+      out.at[i] = s;
       out.x[i] = c.sx[s];
       out.z[i] = c.sz[s];
       out.y[i] = c.sy[s];
@@ -995,6 +1002,8 @@ export function evaluateLife(life: Life, out: LifeState): LifeState {
     if (c.inside[b]) presence = Math.min(presence, (dur - since) / fadeMs);
     out.presence[i] = presence < 0 ? 0 : presence > 1 ? 1 : presence;
     out.moving[i] = route.length > 0 ? 1 : 0;
+    // A trip of no length (out of a door and onto the same ground) is already at its destination.
+    out.at[i] = route.length > 0 ? -1 : b;
     out.speed[i] = route.length > 0 ? route.length / (dur / 1000) : 0;
     out.walked[i] = walked;
     out.activity[i] = route.length === 0 ? ACTIVITY_INDEX.get(c.def.spots[b].activity)! : c.def.spots[b].carry ? CARRY : WALK;

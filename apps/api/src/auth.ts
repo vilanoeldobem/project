@@ -31,10 +31,10 @@ import { normaliseEmail, validateRegistration } from "@vila/shared/accounts/vali
 
 import { activeBlock } from "./account-moderation";
 import { isoIn, newId, randomToken, sha256Hex } from "./crypto";
-import { removeFilesOfAccount } from "./files";
+import { assertAccountHeader, removeFilesOfAccount } from "./files";
 import { HttpError, json, NO_STORE, readJson } from "./http";
 import { sendLoginLink } from "./mail";
-import { clearCookie, currentUser, meView, readSessionToken, requireSession, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
+import { assertAccount, clearCookie, currentUser, meView, readSessionToken, requireSession, requireUser, SESSION_TTL_MS, sessionCookie, type User } from "./session";
 import type { Env } from "./api";
 
 export const LINK_TTL_MS = 15 * 60 * 1000;
@@ -163,6 +163,8 @@ async function ownView(db: D1Database, user: User) {
 export async function updateMe(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
   const body = await readJson(request);
+  // A stale tab that still shows another account must not correct the one signed in now.
+  assertAccount(body, user);
   const { value, errors } = validateRegistration({ ...user, ...body, email: user.email });
   delete errors.email;
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
@@ -197,6 +199,9 @@ export async function me(request: Request, env: Env): Promise<Response> {
  */
 export async function deleteMe(request: Request, env: Env): Promise<Response> {
   const user = await requireSession(request, env);
+  // The request carries no body, so the account it means to erase is named in a header (as for file removals):
+  // a stale tab that still shows another account must not erase the one signed in now. Before any change.
+  assertAccountHeader(request, user);
   const db = env.DB!;
   // Durable intent freezes NGO/file decisions while R2 cleanup runs. A failed cleanup is retried by DELETE /me.
   const frozen = await db.prepare("UPDATE users SET files_deleting = 1 WHERE id = ? AND files_deleting = 0").bind(user.id).run();

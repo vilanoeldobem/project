@@ -56,7 +56,7 @@ const DAY = saoPauloToEpoch(2026, 12, 20, 0, 0);
 const HOUR = 3_600_000;
 
 /** Free room around a body of `radius` at a point, in the tighter of the two collider sets. */
-const room = (x: number, z: number, radius = 0.45) => Math.min(...COLLIDER_SETS.map(([, set]) => clearance(set, x, z))) + 0.45 - radius;
+const room = (x: number, z: number, radius = 0.45) => Math.min(...COLLIDER_SETS.map(([, set]) => clearance(set, x, z, radius)));
 /** Why a ground position is not allowed, or null. */
 function unsafe(x: number, z: number): string | null {
   if (Math.hypot(x, z) > WORLD_RADIUS - 0.45) return "outside the world";
@@ -411,6 +411,32 @@ describe("village life: a pure function of (seed, time, plan)", () => {
     const once = Array.from(sa.x);
     sampleLife(a, times[7], sa);
     expect(Array.from(sa.x)).toEqual(once);
+  });
+
+  it("tells the spot a character occupies apart from the one its trip goes to: origin before it sets off, none on the way, destination once there", { timeout: 30_000 }, () => {
+    const state = createLifeState();
+    let before = 0, during = 0, after = 0;
+    for (let ms = DAY; ms < DAY + 86_400_000; ms += 7_000) {
+      sampleLife(life, ms, state);
+      for (let i = 0; i < life.count; i++) {
+        const c = life.chars[i], a = state.origin[i], b = state.spot[i], at = state.at[i];
+        if (state.moving[i] === 1) {
+          expect(at, `${c.def.id} walking`).toBe(-1);
+          during++;
+          continue;
+        }
+        expect(at, `${c.def.id} standing`).toBeGreaterThanOrEqual(0);
+        // Wherever it stands is the occupied spot's point, and what it does there is that spot's activity.
+        expect([state.x[i], state.z[i]], c.def.id).toEqual([c.sx[at], c.sz[at]]);
+        expect(LIFE_ACTIVITIES[state.activity[i]], c.def.id).toBe(c.def.spots[at].activity);
+        if (a !== b && at === a) before++;
+        if (a !== b && at === b) after++;
+      }
+    }
+    // Every case was seen: standing before a trip (where `spot` already names the destination), on it, after it.
+    expect(before).toBeGreaterThan(50);
+    expect(during).toBeGreaterThan(50);
+    expect(after).toBeGreaterThan(50);
   });
 
   it("differs between seeds, and between characters of a kind (pace, lane, how long they linger)", () => {

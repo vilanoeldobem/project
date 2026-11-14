@@ -15,24 +15,33 @@ import { env } from "../../environment/runtime";
  */
 export function PostFx({ strength }: { strength: number }) {
   const { gl, scene, camera, size } = useThree();
+  // Adaptive resolution changes the pixel ratio without changing the CSS size: follow it, or the passes keep
+  // rendering at the resolution they started with.
+  const dpr = useThree((s) => s.viewport.dpr);
 
-  const { composer, bloom } = useMemo(() => {
+  const { composer, bloom, passes } = useMemo(() => {
     const c = new EffectComposer(gl);
     c.renderTarget1.texture.type = HalfFloatType;
     c.renderTarget2.texture.type = HalfFloatType;
-    c.addPass(new RenderPass(scene, camera));
     const b = new UnrealBloomPass(new Vector2(256, 256), strength, 0.55, 1.0);
-    c.addPass(b);
-    c.addPass(new OutputPass());
-    return { composer: c, bloom: b };
+    const owned = [new RenderPass(scene, camera), b, new OutputPass()];
+    for (const pass of owned) c.addPass(pass);
+    return { composer: c, bloom: b, passes: owned };
   }, [gl, scene, camera, strength]);
 
   useEffect(() => {
-    composer.setPixelRatio(gl.getPixelRatio());
+    composer.setPixelRatio(dpr);
     composer.setSize(size.width, size.height);
-  }, [composer, gl, size]);
+  }, [composer, dpr, size]);
 
-  useEffect(() => () => composer.dispose(), [composer]);
+  // The composer frees only its own targets; each pass owns render targets, materials and a quad of its own.
+  useEffect(
+    () => () => {
+      for (const pass of passes) pass.dispose();
+      composer.dispose();
+    },
+    [composer, passes]
+  );
 
   // Priority 1 takes over rendering from react-three-fiber.
   useFrame((_, dt) => {

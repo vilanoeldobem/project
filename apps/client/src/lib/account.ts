@@ -81,9 +81,10 @@ export const api = {
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
   me: () => call<{ user: Me | null }>("GET", "/me"),
-  updateMe: (b: { name: string; nickname: string; city: string }) => call<{ user: Me }>("POST", "/me", b),
+  updateMe: (b: { name: string; nickname: string; city: string }) => call<{ user: Me }>("POST", "/me", { ...b, accountId: accountId() }),
   logout: () => call<null>("POST", "/auth/logout", {}),
-  deleteMe: () => call<null>("DELETE", "/me"),
+  /** No body: the account to erase goes in a header, as for `deleteFile`. */
+  deleteMe: () => call<null>("DELETE", "/me", undefined, { "X-Vila-Account": accountId() }),
   progress: () => call<{ progress: Progress }>("GET", "/progress"),
   postEvents: (owner: string, events: Array<{ missionId: string; eventId: string }>) =>
     call<{ progress: Progress }>("POST", "/progress/events", { accountId: owner, events }),

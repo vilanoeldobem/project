@@ -30,6 +30,8 @@ const request = async (method: string, path: string, session: string, origin: st
 };
 const call = (method: string, path: string, body?: unknown, session = "admin", origin: string | null = DASH) =>
   request(method, path, session, origin, body === undefined ? {} : { "Content-Type": "application/json" }, body === undefined ? undefined : JSON.stringify(body));
+/** Erasure names its own account in a header (DELETE carries no body). */
+const deleteMe = (session: string, account = session) => request("DELETE", "/me", session, GAME, { "X-Vila-Account": account });
 const setRole = (target: string, role: unknown, actor = "admin") => call("POST", `/admin/users/${target}/role`, { accountId: actor, role }, actor);
 const block = (target: string, actor = "admin", message: unknown = MESSAGE) => call("POST", `/admin/users/${target}/block`, { accountId: actor, message }, actor);
 const unblock = (target: string, actor = "admin") => call("POST", `/admin/users/${target}/unblock`, { accountId: actor }, actor);
@@ -203,7 +205,7 @@ describe("role management (IMPL-0021)", () => {
   });
 
   it("answers 404 when the account was deleted meanwhile, and rolls back when the audit row cannot be written", async () => {
-    beforeNextBatch(() => call("DELETE", "/me", undefined, "ana", GAME));
+    beforeNextBatch(() => deleteMe("ana"));
     const late = await setRole("ana", "admin");
     expect([late.status, late.body]).toEqual([404, { error: "not_found" }]);
     expect(audit().map((row) => row.action)).toEqual(["user.delete"]);
@@ -278,7 +280,7 @@ describe("account block (PROPOSTA, IMPL-0021)", () => {
   it("never takes erasure away: a blocked person deletes the account, and the block ledger goes with it", async () => {
     await block("ana");
     const { session } = await signIn("ana@example.test");
-    const deleted = await call("DELETE", "/me", undefined, session, GAME);
+    const deleted = await deleteMe(session, "ana");
     expect(deleted.status).toBe(204);
     expect(db.sql("SELECT id FROM users WHERE id = 'ana'")).toEqual([]);
     expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
@@ -524,7 +526,7 @@ describe("block racing other writes", () => {
     let competing!: Answer;
     beforeNextBatch(async () => { competing = await block("ana"); });
     // The erasure's own session was read before the block ended it.
-    expect((await call("DELETE", "/me", undefined, "ana", GAME)).status).toBe(204);
+    expect((await deleteMe("ana")).status).toBe(204);
     expect(competing.status).toBe(200);
     expect(db.sql("SELECT id FROM users WHERE id = 'ana'")).toEqual([]);
     expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
@@ -532,7 +534,7 @@ describe("block racing other writes", () => {
   });
 
   it("answers 404 and writes nothing when the account was erased between the block's read and its write", async () => {
-    beforeNextBatch(() => call("DELETE", "/me", undefined, "ana", GAME));
+    beforeNextBatch(() => deleteMe("ana"));
     const late = await block("ana");
     expect([late.status, late.body]).toEqual([404, { error: "not_found" }]);
     expect(db.sql("SELECT * FROM account_blocks")).toEqual([]);
@@ -569,13 +571,13 @@ describe("block racing other writes", () => {
     const before = db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'");
     // The block commits after this request's session check and nickname check, right before its only write.
     beforeStatement(/^UPDATE users SET name/, () => block("ana"));
-    const late = await call("POST", "/me", { name: "Another Name", nickname: "ana_again", city: "Natal" }, "ana", GAME);
+    const late = await call("POST", "/me", { accountId: "ana", name: "Another Name", nickname: "ana_again", city: "Natal" }, "ana", GAME);
     expect([late.status, late.body]).toEqual([403, { error: "session_blocked" }]);
     expect(late.headers.get("Cache-Control")).toBe("no-store");
     expect(db.sql("SELECT name, nickname, nickname_key, city FROM users WHERE id = 'ana'")).toEqual(before);
     expect(user("ana").blocked).toBe(1);
     // Without a block the same correction goes through, and nobody else's account is touched by it.
-    const corrected = await call("POST", "/me", { name: "Another Name", nickname: "bia_again", city: "Natal" }, "bia", GAME);
+    const corrected = await call("POST", "/me", { accountId: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" }, "bia", GAME);
     expect([corrected.status, corrected.body.user]).toEqual([200, expect.objectContaining({ id: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" })]);
     expect(db.sql("SELECT nickname_key FROM users WHERE id = 'bia'")).toEqual([{ nickname_key: "bia_again" }]);
   });
