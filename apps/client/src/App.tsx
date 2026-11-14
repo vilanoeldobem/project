@@ -1,7 +1,8 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
+import { type ContextState, watchContext } from "./lib/context-watch";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { isUnlisted } from "./lib/lots";
 import { Account } from "./ui/Account";
@@ -24,6 +25,7 @@ import { Missions } from "./ui/Missions";
 import { LifeDialog, NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
 import { Wordmark } from "./ui/Wordmark";
+import { WorldBoundary, WorldPaused } from "./ui/WorldBoundary";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
 
@@ -37,21 +39,33 @@ export function App() {
   useEffect(() => void initAccount(), []);
   useEffect(loadLots, [loadLots]);
 
+  // A lost graphics context pauses the village; one that does not come back shows the failure screen (audit 7.1).
+  const [graphics, setGraphics] = useState<ContextState>("ok");
+  const stopWatch = useRef<(() => void) | null>(null);
+  const onCanvas = useCallback((canvas: HTMLCanvasElement) => {
+    stopWatch.current?.();
+    stopWatch.current = watchContext(canvas, setGraphics);
+  }, []);
+  useEffect(() => () => stopWatch.current?.(), []);
+
   return (
     <>
       {/* The page heading. The brand is not on the gameplay screen (IMPL-0022): it shows while the village loads. */}
       <h1 className="sr-only">Vila Noel do Bem</h1>
       <main className="stage">
-        <Suspense
-          fallback={
-            <div className="loading">
-              <Wordmark large />
-              <p>Acendendo as luzes da Vila…</p>
-            </div>
-          }
-        >
-          <World lots={lots} />
-        </Suspense>
+        <WorldBoundary failed={graphics === "failed"}>
+          <Suspense
+            fallback={
+              <div className="loading">
+                <Wordmark large />
+                <p>Acendendo as luzes da Vila…</p>
+              </div>
+            }
+          >
+            <World lots={lots} onCanvas={onCanvas} />
+          </Suspense>
+        </WorldBoundary>
+        {graphics === "lost" && <WorldPaused />}
       </main>
       {/* The visitor lands in the village: no panel opens by itself (PROPOSTA, IMPL-0022). */}
       <Hud />

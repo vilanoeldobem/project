@@ -29,7 +29,7 @@ const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default:
  * 3D village. Snowy Christmas village whose light follows the real São Paulo time and whose fictional
  * weather is shared by every visitor (IMPL-0006). Quality presets change cost, never the world state.
  */
-export function World({ lots }: { lots: Record<string, LotInfo> }) {
+export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCanvas?: (canvas: HTMLCanvasElement) => void }) {
   const preset = usePreset();
   // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
   const quests = useQuestsEnabled();
@@ -43,6 +43,7 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
       camera={{ position: [0, 26, 26], fov: 40, near: 0.5, far: 260 }}
       gl={{ antialias: true, powerPreference: "high-performance" }}
       aria-label="Praça da Vila Noel do Bem em 3D"
+      onCreated={({ gl }) => onCanvas?.(gl.domElement)}
     >
       <RenderStats maxDpr={preset.maxDpr} />
       <EnvironmentDriver />

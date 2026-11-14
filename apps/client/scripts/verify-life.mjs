@@ -18,6 +18,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const [url = "http://localhost:8799", shots = new URL("../verify-output/", import.meta.url).pathname] = process.argv.slice(2);
@@ -44,7 +45,8 @@ const epoch = (hhmm) => Date.parse(`${DAY}T${hhmm}:00-03:00`);
 async function open(name, { time, weather = WEATHER, quests = false, viewport = { width: 1280, height: 800 }, zoom = 1, quality = "medium", settings = {}, context = null } = {}) {
   const page = await (context ?? browser).newPage(context ? undefined : { viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => fail(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && fail(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && fail(`${name}: ${m.text()}`));
+  await isolateAnalytics(page);
   await page.addInitScript(([quality, zoom, settings]) => {
     localStorage.setItem("vila.environment.v1", JSON.stringify({ quality, multiplayer: false, ...settings }));
     localStorage.setItem("vila.zoom.v1", String(zoom));

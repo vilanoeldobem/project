@@ -43,6 +43,9 @@ Resultados são relatados como são: se algo falhou, diga o quê e com que saíd
 5. Decisão técnica nova ou revertida → ADR em `docs/decisions/` (`IMPL-NNNN`, MADR simplificado).
 6. Pergunta que só o dono do produto pode responder → linha em `docs/decisions/open-questions.md`; não decida por ele.
 7. Revisão de outro integrante antes de entrar na `main` (proposta do README da documentação, a alinhar com a equipe).
+8. A `main` é protegida desde 14/11/2026: só entra por PR, com o check de CI `typecheck · test · build` verde,
+   sem push forçado nem exclusão, e a regra vale também para administradores. Aprovação de revisão ainda não é
+   exigida (0), até a equipe decidir o item 7.
 
 ## Regras de produto e arquitetura (resumo)
 

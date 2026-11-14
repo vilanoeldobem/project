@@ -12,6 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { analyticsNoise } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const url = process.argv[2] ?? "http://localhost:8787";
@@ -21,12 +22,6 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const errors = [];
 const stats = {};
-/**
- * Google Tag Manager is not under test here (OQ-13): its collection hosts are outside the game's CSP, so a
- * machine with network answers with CSP console errors that have nothing to do with the UI. They are skipped;
- * every other console error still fails the run.
- */
-const analyticsNoise = (text) => /googletagmanager|google-analytics|doubleclick|google\.com\/g\/collect|google\.com\.br\/ads/.test(text);
 for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));

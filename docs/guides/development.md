@@ -31,6 +31,10 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
   scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
   scripts/verify-life.mjs   personagens da Vila em Chrome real: dois visitantes, falas, praça cheia, orçamento (só local)
+  scripts/verify-recovery.mjs  Vila em 3D indisponível: código da cena bloqueado, sem WebGL, contexto perdido (só local)
+  scripts/verify-fullroom.mjs  sala cheia (40 pessoas, visuais distintos e iguais, troca de visual e reconexão) dentro
+                            do orçamento de 150 chamadas e 250 000 triângulos (só local; precisa do servidor)
+  scripts/analytics.mjs     isola a tag do Google nas verificações locais (resposta 204 e ruído de CSP ignorado; OQ-13)
 apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*) — IMPL-0015
   src/
     main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
@@ -218,7 +222,9 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 - [ ] `verify.mjs` rodado se a interface mudou (desktop e celular; o do app que mudou: jogo, site ou painel);
       `verify-accounts.mjs` se mexeu em conta, ONG ou admin;
       `verify-collisions.mjs` se mexeu em movimento, colisores ou no lugar das peças do mapa;
-      `verify-life.mjs` se mexeu nos personagens da Vila, nos pontos ou nas falas deles.
+      `verify-life.mjs` se mexeu nos personagens da Vila, nos pontos ou nas falas deles;
+      `verify-recovery.mjs` se mexeu no carregamento da cena, no `Canvas` ou na tela de falha;
+      `verify-fullroom.mjs` se mexeu nos avatares, na presença ou no custo de desenho da cena.
 - [ ] Nenhuma migration existente alterada.
 - [ ] Nenhum log novo com dados pessoais ou segredos.
 - [ ] `CHANGELOG.md` e docs atualizados; ADR se a decisão for estrutural.
