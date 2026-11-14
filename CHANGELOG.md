@@ -9,6 +9,15 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-14
+
+**Moderação, entrada direta na Vila, expansão e vida na Vila**
+([IMPL-0021](docs/decisions/0021-administrator-role-and-moderation.md) a
+[IMPL-0025](docs/decisions/0025-village-life.md)). Schema D1 **v12**: as migrations `0004` a `0012` foram aplicadas
+em produção nesta publicação. Contas (`ACCOUNTS_ENABLED`), arquivos e fotos de ONG, retirada, bloqueio de conta,
+remoção de visitante, terrenos residenciais e doações seguem **desligados** em produção; o que é PROPOSTA continua
+PROPOSTA (OQ-11, OQ-14, OQ-15, OQ-17, OQ-18, OQ-19, OQ-20; PEN-004, PEN-006).
+
 ### Added — vida na Vila (IMPL-0025, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
 
 - **A Vila ganhou gente e bichos que andam.** Trinta personagens numa tabela só: Papai Noel, 3 duendes, 4 lojistas,
