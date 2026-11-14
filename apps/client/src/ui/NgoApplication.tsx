@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { type Application, lotNumber, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
-import { APPLICATION_STEP, NGO_TAGS, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
+import { APPLICATION_STEP, formatBrDate, maskBrDate, NGO_TAGS, parseBrDate, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
 import type { NgoPaymentMethod } from "@vila/shared/donations/contract";
 import { LOTS } from "@vila/shared/game/world";
 
@@ -21,6 +21,7 @@ import { fetchLots, type LotInfo } from "../lib/api";
 import { Field } from "./Account";
 import { ApplicationFiles } from "./ApplicationFiles";
 import { Panel, Status } from "./Panel";
+import { SheetFlow, SheetSection, SheetSteps } from "./sheet";
 
 const STEPS = ["Dados da organização", "Documentos e comprovações", "Apresentação e projetos", "Revisão e envio"] as const;
 
@@ -73,16 +74,18 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
 
   if (!user)
     return (
-      <Panel kicker="Cadastro de ONGs" title="Entre para candidatar sua ONG">
-        <p className="lead">A candidatura é feita por uma conta da Vila (nome, nickname, cidade e e-mail).</p>
-        <button className="btn btn--primary" onClick={() => open({ kind: "account", then: { kind: "ngo", lotId } })}>
-          Entrar ou criar conta
-        </button>
+      <Panel board="P12" sheet icon="📋" title="Cadastro de ONGs" subtitle="Candidatura">
+        <SheetSection n={1} icon="📝" title="Entre para candidatar sua ONG">
+          <p className="lead">A candidatura é feita por uma conta da Vila (nome, nickname, cidade e e-mail).</p>
+          <button className="btn btn--primary" onClick={() => open({ kind: "account", then: { kind: "ngo", lotId } })}>
+            Entrar ou criar conta
+          </button>
+        </SheetSection>
       </Panel>
     );
   if (blocked)
     return (
-      <Panel kicker="Cadastro de ONGs" title="Conta bloqueada">
+      <Panel board="P12" sheet icon="📋" title="Cadastro de ONGs" subtitle="Candidatura">
         <p className="lead" data-state="blocked">
           Sua conta está bloqueada pela administração da Vila: a candidatura de ONG não pode ser lida, enviada nem alterada.
         </p>
@@ -93,7 +96,7 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
     );
   if (app === undefined)
     return (
-      <Panel kicker="Cadastro de ONGs" title="Carregando…">
+      <Panel board="P12" sheet icon="📋" title="Cadastro de ONGs" subtitle="Candidatura">
         {error ? <p className="form__error">{error}</p> : <p>Carregando sua candidatura…</p>}
       </Panel>
     );
@@ -132,17 +135,22 @@ export function ApplicationStatusView({
   const filesOn = useAccount((s) => s.files);
   return (
     // A removed file takes its buttons away: the key sends the focus back to the dialog.
-    <Panel kicker="Cadastro de ONGs" title={app.name} contentKey={files.map((f) => f.id).join()}>
+    <Panel board="P12" sheet icon="📋" title={app.name} subtitle={STATUS_LABEL[app.status]} contentKey={files.map((f) => f.id).join()}>
       <p>
         <Status>{STATUS_LABEL[app.status]}</Status> · Terreno {lotNumber(app.lotId)}
         {withdrawn ? " (liberado)" : ""} · versão {app.revision}
       </p>
-      <ol className="flow" aria-label="Etapas">
-        <li className="is-done">Candidatura enviada</li>
-        <li className={app.status === "submitted" ? "" : "is-done"}>Análise administrativa</li>
-        <li className={app.status === "published" || withdrawn ? "is-done" : ""}>Casa publicada após aprovação</li>
-        {withdrawn && <li className="is-done">Retirada da Vila pela administração</li>}
-      </ol>
+      <SheetFlow
+        steps={
+          withdrawn
+            ? ["Candidatura enviada", "Análise administrativa", "Casa publicada após aprovação", "Retirada da Vila pela administração"]
+            : ["Candidatura enviada", "Análise administrativa", "Casa publicada após aprovação"]
+        }
+        current={withdrawn ? 3 : app.status === "submitted" ? 0 : app.status === "published" ? 2 : 1}
+      />
+      <p className="note">
+        A análise é feita pela administração da Vila; a casa só aparece depois da aprovação.
+      </p>
       {withdrawn ? (
         <>
           <p className="note" data-state="withdrawn">
@@ -178,6 +186,8 @@ export function ApplicationStatusView({
 function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot?: string; onDone: (a: Application) => void }) {
   const [form, setForm] = useState<NgoApplication>(initial);
   const [step, setStep] = useState(1);
+  /** The opening date as it is typed (dd/mm/aaaa); the form keeps the ISO day the API stores. */
+  const [openedOnText, setOpenedOnText] = useState(() => formatBrDate(initial.openedOn));
   const [shown, setShown] = useState<Partial<Record<keyof NgoApplication, string>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -218,14 +228,9 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
   };
   const decl = form.declarations;
   return (
-    <Panel kicker={`Cadastro da ONG · etapa ${step} de 4`} title={STEPS[step - 1]} wide>
-      <ol className="steps" aria-label="Etapas da candidatura">
-        {STEPS.map((s, i) => (
-          <li key={s} className={i + 1 === step ? "is-on" : i + 1 < step ? "is-done" : ""} aria-current={i + 1 === step ? "step" : undefined}>
-            {s}
-          </li>
-        ))}
-      </ol>
+    <Panel board="P12" sheet icon="📋" title="Cadastro da ONG" subtitle="Candidatura">
+      <SheetSteps label="Etapas da candidatura" steps={STEPS} current={step - 1} />
+      <SheetSection n={step} icon="📝" title={STEPS[step - 1]}>
       <div className="form">
         {step === 1 && (
           <>
@@ -235,8 +240,23 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
             <Field label="CNPJ *" error={shown.cnpj} hint="Só números ou no formato 00.000.000/0000-00.">
               <input value={form.cnpj} onChange={(e) => set("cnpj", e.target.value)} inputMode="numeric" maxLength={18} />
             </Field>
-            <Field label="Data de abertura do CNPJ *" error={shown.openedOn} hint="A organização precisa ter pelo menos 1 ano.">
-              <input type="date" value={form.openedOn} onChange={(e) => set("openedOn", e.target.value)} />
+            <Field
+              label="Data de abertura do CNPJ *"
+              error={shown.openedOn}
+              hint="Use dd/mm/aaaa. A organização precisa ter pelo menos 1 ano."
+            >
+              <input
+                value={openedOnText}
+                onChange={(e) => {
+                  const text = maskBrDate(e.target.value);
+                  setOpenedOnText(text);
+                  set("openedOn", parseBrDate(text) ?? "");
+                }}
+                inputMode="numeric"
+                placeholder="dd/mm/aaaa"
+                maxLength={10}
+                autoComplete="off"
+              />
             </Field>
             <Field label="Cidade da sede *" error={shown.city} hint="Usada na análise da candidatura; não aparece no perfil público.">
               <input value={form.city} onChange={(e) => set("city", e.target.value)} maxLength={60} />
@@ -372,7 +392,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
               </dd>
               <dt>CNPJ</dt>
               <dd>
-                {form.cnpj} · aberto em {form.openedOn}
+                {form.cnpj} · aberto em {formatBrDate(form.openedOn) || "—"}
               </dd>
               <dt>Resumo</dt>
               <dd>{form.summary}</dd>
@@ -400,6 +420,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
           )}
         </div>
       </div>
+      </SheetSection>
     </Panel>
   );
 }

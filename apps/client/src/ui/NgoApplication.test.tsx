@@ -65,7 +65,7 @@ describe("an NGO withdrawn by the administration (IMPL-0020, PROPOSTA)", () => {
     const page = view(withdrawn);
     expect(page).toContain('<span class="status">Retirada da Vila</span>');
     expect(page).toContain("Terreno 3 (liberado) · versão 3");
-    expect(page).toContain('<li class="is-done">Retirada da Vila pela administração</li>');
+    expect(page).toContain('<li class="is-on">Retirada da Vila pela administração</li>');
     expect(page).toContain('data-state="withdrawn"');
     expect(page).toContain("A administração retirou esta organização da Vila: a casa não aparece mais e o terreno foi liberado.");
     expect(page).toContain("não pode ser editada nem reenviada");

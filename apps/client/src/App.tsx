@@ -5,12 +5,17 @@ import { initAccount } from "./lib/account";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { isUnlisted } from "./lib/lots";
 import { Account } from "./ui/Account";
+import { AvatarPanel } from "./ui/AvatarPanel";
+import { Badges } from "./ui/Badges";
 import { Donation } from "./ui/Donation";
 import { EnvironmentDebug, EnvironmentPanel, GameSound, Presence } from "./ui/Environment";
 import { Explore } from "./ui/Explore";
+import { Games } from "./ui/Games";
 import { Hud } from "./ui/Hud";
 import { Indicators } from "./ui/Indicators";
+import { Invite } from "./ui/Invite";
 import { Lot } from "./ui/Lot";
+import { MapPanel } from "./ui/MapPanel";
 import { MemoryGame } from "./ui/MemoryGame";
 import { GameMenu } from "./ui/Menu";
 import { ModerationFlag } from "./ui/Moderation";
@@ -58,6 +63,11 @@ export function App() {
       {panel.kind === "shop" && <ShopPanel shopId={panel.shopId} />}
       {panel.kind === "billboard" && <BillboardPanel billboardId={panel.billboardId} />}
       {panel.kind === "explore" && <Explore lots={lots} />}
+      {panel.kind === "invite" && <Invite />}
+      {panel.kind === "avatar" && <AvatarPanel />}
+      {panel.kind === "games" && <Games />}
+      {panel.kind === "map" && <MapPanel lots={lots} />}
+      {panel.kind === "badges" && <Badges />}
       {panel.kind === "memory" && <MemoryGame />}
       {panel.kind === "missions" && <Missions lots={lots} />}
       {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} />}

@@ -17,7 +17,8 @@ import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/accoun
 import { SERVICES } from "../lib/services";
 import { Confirm } from "./Confirm";
 import { Panel } from "./Panel";
-import { MyTitleCard } from "./Title";
+import { AvatarPortrait } from "./AvatarPortrait";
+import { SheetSection, SheetTabs } from "./sheet";
 
 export function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: ReactNode }) {
   return (
@@ -105,7 +106,7 @@ export function BlockedAccount({ user }: { user: Me }) {
     }
   };
   return (
-    <Panel kicker="Conta" title="Conta bloqueada" contentKey={askedAt === null ? "blocked" : "confirm"}>
+    <Panel board="P13" sheet icon="👤" title="Conta bloqueada" subtitle={`@${user.nickname}`} contentKey={askedAt === null ? "blocked" : "confirm"}>
       <p className="lead" data-state="blocked">
         A conta @{user.nickname} está bloqueada pela administração da Vila.
       </p>
@@ -154,11 +155,15 @@ function SignedOut() {
   const [sent, setSent] = useState<{ email: string; devLink?: string } | null>(null);
   if (sent) {
     return (
-      <Panel kicker="Conta" title="Confira seu e-mail">
+      <Panel board="P13" sheet icon="👤" title="Confira seu e-mail" subtitle="Cadastro rápido">
         <p className="lead">
           Enviamos um link de acesso para <strong>{sent.email}</strong>. Ele vale por 15 minutos e só funciona uma vez.
         </p>
         <p className="note">Não chegou? Veja a caixa de spam ou peça outro link daqui a pouco.</p>
+        <div className="sheet-card">
+          <h3>Cadastro recebido</h3>
+          <p className="note">Fluxo de acesso a definir.</p>
+        </div>
         {sent.devLink && (
           <p>
             <a className="btn btn--small" href={sent.devLink}>
@@ -173,22 +178,22 @@ function SignedOut() {
     );
   }
   return (
-    <Panel kicker="Conta" title={mode === "register" ? "Criar conta na Vila" : "Entrar na Vila"}>
+    <Panel board="P13" sheet icon="👤" title={mode === "register" ? "Criar conta na Vila" : "Entrar na Vila"} subtitle="Cadastro rápido">
       <p className="note">Explorar e jogar não precisa de conta. Com conta, seu progresso fica salvo e você pode cadastrar uma ONG.</p>
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={mode === "register"} className={`btn btn--chip${mode === "register" ? " is-on" : ""}`} onClick={() => setMode("register")}>
-          Criar conta
-        </button>
-        <button role="tab" aria-selected={mode === "login"} className={`btn btn--chip${mode === "login" ? " is-on" : ""}`} onClick={() => setMode("login")}>
-          Já tenho conta
-        </button>
-      </div>
+      <SheetTabs
+        label="Entrar ou criar conta"
+        tabs={["Criar conta", "Já tenho conta"] as const}
+        value={mode === "register" ? "Criar conta" : "Já tenho conta"}
+        onChange={(tab) => setMode(tab === "Criar conta" ? "register" : "login")}
+      />
       {mode === "register" ? <RegisterForm onSent={setSent} /> : <LoginForm onSent={setSent} />}
     </Panel>
   );
 }
 
 function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: string }) => void }) {
+  const look = useVila((s) => s.look);
+  const appearance = useVila((s) => s.appearance);
   const [form, setForm] = useState<Registration>({ name: "", nickname: "", city: "", email: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof Registration, string>>>({});
   const [busy, setBusy] = useState(false);
@@ -213,25 +218,37 @@ function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: strin
   };
   return (
     <form className="form" onSubmit={submit} noValidate>
-      <Field label="Nome *" error={errors.name}>
-        <input value={form.name} onChange={set("name")} autoComplete="name" maxLength={80} required />
-      </Field>
-      <Field label="Nickname *" error={errors.nickname} hint="É o único dado que aparece para as outras pessoas na Vila.">
-        <input value={form.nickname} onChange={set("nickname")} autoComplete="nickname" maxLength={20} required autoCapitalize="none" />
-      </Field>
-      <Field label="Cidade *" error={errors.city}>
-        <input value={form.city} onChange={set("city")} autoComplete="address-level2" maxLength={60} required />
-      </Field>
-      <Field label="E-mail *" error={errors.email} hint="Usamos só para enviar o link de acesso. Sem senha.">
-        <input type="email" inputMode="email" value={form.email} onChange={set("email")} autoComplete="email" maxLength={254} required />
-      </Field>
-      <div className="preview" aria-label="Prévia pública">
-        <span className="kicker">Prévia pública</span> <strong>@{form.nickname || "nickname"}</strong> <span className="note">Seu nickname aparece na Vila</span>
+      <div className="account-grid">
+        <SheetSection n={1} icon="📝" title="Seus dados">
+          <Field label="Nome *" error={errors.name}>
+            <input value={form.name} onChange={set("name")} autoComplete="name" maxLength={80} required />
+          </Field>
+          <Field label="Nickname *" error={errors.nickname} hint="É o único dado que aparece para as outras pessoas na Vila.">
+            <input value={form.nickname} onChange={set("nickname")} autoComplete="nickname" maxLength={20} required autoCapitalize="none" />
+          </Field>
+          <Field label="Cidade *" error={errors.city}>
+            <input value={form.city} onChange={set("city")} autoComplete="address-level2" maxLength={60} required />
+          </Field>
+          <Field label="E-mail *" error={errors.email} hint="Usamos só para enviar o link de acesso. Sem senha.">
+            <input type="email" inputMode="email" value={form.email} onChange={set("email")} autoComplete="email" maxLength={254} required />
+          </Field>
+          {error && (
+            <p className="form__error" role="alert">
+              {error}
+            </p>
+          )}
+          <button className="btn btn--primary" disabled={busy}>
+            {busy ? "Enviando…" : "Criar conta"}
+          </button>
+        </SheetSection>
+        <SheetSection n={3} icon="👤" title="Prévia pública">
+          <div className="preview" aria-label="Prévia pública">
+            <AvatarPortrait look={look} appearance={appearance} size={8} label="Prévia do personagem" />
+            <strong>@{form.nickname || "nickname"}</strong>
+            <span className="note">Seu nickname aparece na Vila.</span>
+          </div>
+        </SheetSection>
       </div>
-      {error && <p className="form__error" role="alert">{error}</p>}
-      <button className="btn btn--primary" disabled={busy}>
-        {busy ? "Enviando…" : "Criar conta"}
-      </button>
     </form>
   );
 }
@@ -287,7 +304,7 @@ function SignedIn({ then }: { then?: PanelState }) {
     }
   };
   return (
-    <Panel kicker="Conta" title={`@${user.nickname}`}>
+    <Panel board="P13" sheet icon="👤" title="Conta" subtitle={`@${user.nickname}`}>
       {user.deletionPending && (
         <div className="callout" role="status" data-state="deletion-pending">
           <strong>Exclusão da conta pendente</strong>
@@ -316,9 +333,14 @@ function SignedIn({ then }: { then?: PanelState }) {
         <dd>{ROLE_LABEL[user.role] ?? ROLE_LABEL.player}</dd>
       </dl>
       <p className="note">Só o seu nickname aparece para outras pessoas. Seu progresso de missões fica salvo nesta conta.</p>
-      <MyTitleCard />
       {!user.deletionPending && <EditProfile />}
       <div className="actions">
+        <button className="btn" onClick={() => open({ kind: "avatar" })}>
+          Abrir aparência
+        </button>
+        <button className="btn" onClick={() => open({ kind: "badges" })}>
+          Suas badges
+        </button>
         {user.role === "admin" && (
           // The review of NGO applications lives in the backoffice dashboard (IMPL-0015): a plain link, new tab.
           <a className="btn" href={SERVICES.dash} target="_blank" rel="noopener">
@@ -336,11 +358,11 @@ function SignedIn({ then }: { then?: PanelState }) {
         <summary>Excluir minha conta</summary>
         <p>Apaga seu nome, nickname, cidade, e-mail e o progresso salvo na conta. Não dá para desfazer.</p>
         {!confirm ? (
-          <button className="btn btn--small" onClick={() => setConfirm(true)}>
+          <button className="btn" onClick={() => setConfirm(true)}>
             Quero excluir
           </button>
         ) : (
-          <button className="btn btn--small btn--primary" disabled={busy} onClick={() => void remove()}>
+          <button className="btn btn--primary" disabled={busy} onClick={() => void remove()}>
             {busy ? "Excluindo…" : "Confirmar exclusão"}
           </button>
         )}
@@ -385,7 +407,7 @@ function EditProfile() {
           <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={60} />
         </Field>
         {msg && <p className="note" role="status">{msg}</p>}
-        <button className="btn btn--small">Salvar</button>
+        <button className="btn">Salvar</button>
       </form>
     </details>
   );

@@ -232,6 +232,7 @@ async function solveMemory(page) {
 
 async function playMemory(page) {
   await page.getByRole("button", { name: /Jogar/ }).first().click();
+  await page.getByRole("dialog", { name: "Minijogos da Vila" }).getByRole("button", { name: "Jogar", exact: true }).click();
   await page.getByRole("dialog", { name: "Jogo da Memória" }).waitFor({ timeout: 10000 });
   await solveMemory(page);
   await closePanel(page);
