@@ -97,9 +97,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   model or other AI service** drives a character or writes a line: behaviour is a schedule
   (`packages/shared/src/game/life.ts`) and dialogue is fixed pt-BR text chosen by context (`life-dialogue.ts`), two
   or three lines and one "Continuar". No chat, no free text, no names of people. A shopkeeper or the lumberjack
-  says what a place is about and that it has not opened ("Nada é vendido na Vila."), never an offer, a price or a
-  date; no line pressures anyone to stay, return, donate or spend, or asks anything personal (the copy tests in
-  `life-dialogue.test.ts` reject it).
+  says what a place is about and that it is closed ("A loja está fechada.", "Nada é vendido na Vila."), never an
+  offer, a price or a date, and never "ainda não abriu" or what a place "will" be: "not yet" announces an opening
+  nobody decided, so characters talk about what they do today. No line pressures anyone to stay, return, donate
+  or spend, or asks anything personal (the copy tests in `life-dialogue.test.ts` reject all of it).
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 

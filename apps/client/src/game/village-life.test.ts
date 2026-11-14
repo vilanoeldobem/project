@@ -468,14 +468,14 @@ describe("what each one says where it is", () => {
 
   it("the lumberjack at the wood yard, a shopkeeper at the shop, Santa by the sleigh and by the tree, a villager on the bench", () => {
     frame(when("lumberjack", (c) => c.activity === "chop"));
-    expect(lines("lumberjack")).toMatchObject({ name: "Lenhador", lines: ["A lenha da Vila vai sair daqui, do pátio na beira da floresta.", "O pátio da lenha ainda não abriu.", NOTHING_SOLD] });
+    expect(lines("lumberjack")).toMatchObject({ name: "Lenhador", lines: ["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", NOTHING_SOLD] });
     frame(when("lumberjack", (c) => c.activity === "carry"));
-    expect(lines("lumberjack").lines[0]).toBe("Estou levando umas achas para perto do Empório da Lareira.");
+    expect(lines("lumberjack").lines.slice(0, 2)).toEqual(["Estou levando umas achas para perto do Empório da Lareira. Eu corto a lenha na beira da floresta.", "O pátio da lenha está fechado."]);
 
     frame(when("shopkeeper-2", (c) => c.activity === "tend", 10));
-    expect(lines("shopkeeper-2")).toMatchObject({ name: "Lojista", lines: ["Este lugar se chama Oficina de Brinquedos. O tema é brinquedos e lembranças.", "A loja ainda não abriu.", NOTHING_SOLD] });
+    expect(lines("shopkeeper-2")).toMatchObject({ name: "Lojista", lines: ["Este lugar se chama Oficina de Brinquedos. O tema é brinquedos e lembranças.", "A loja está fechada.", NOTHING_SOLD] });
     frame(when("shopkeeper-4", (c) => c.activity === "sweep", 10));
-    expect(lines("shopkeeper-4").lines.slice(0, 2)).toEqual(["Este lugar se chama Empório da Lareira. O tema é lenha e lanternas.", "A loja ainda não abriu. Enquanto isso, varro a neve da porta."]);
+    expect(lines("shopkeeper-4").lines.slice(0, 2)).toEqual(["Este lugar se chama Empório da Lareira. O tema é lenha e lanternas.", "A loja está fechada. Eu varro a neve da porta."]);
 
     frame(when("santa", (c) => !c.moving && c.presence === 1 && c.z > 15, 10));
     expect(lines("santa")).toMatchObject({ name: "Papai Noel", lines: ["Ho, ho, ho! Que alegria ver você na Vila.", "Estou cuidando do trenó e das renas.", "Cada casa em volta da praça é de uma ONG. Conheça no seu tempo."] });

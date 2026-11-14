@@ -57,7 +57,7 @@ export const LIFE = {
   gap: 1.5,
   /** Seconds a character takes to appear or disappear at a door (an off-stage transition). */
   fade: 1.2,
-  /** Hours (São Paulo) the shopkeepers stand at their shops. The shops themselves have not opened. */
+  /** Hours (São Paulo) the shopkeepers stand at their shops. The shops themselves are closed. */
   shopHours: [9, 19] as const,
   /** Most people are home between these hours. */
   quietHours: [22, 7] as const,

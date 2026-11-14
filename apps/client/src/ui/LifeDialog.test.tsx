@@ -63,11 +63,11 @@ describe("the action offered next to a character", () => {
 describe("the dialogue of a character", () => {
   it("shows who is talking, the lines and one button that closes it: nothing to answer, accept or buy", () => {
     vi.stubGlobal("window", new EventTarget());
-    const page = renderToStaticMarkup(<LifeDialog charId="lumberjack" name="Lenhador" role="Cuida do pátio da lenha" lines={["A lenha da Vila vai sair daqui, do pátio na beira da floresta.", "O pátio da lenha ainda não abriu.", NOTHING_SOLD]} />);
+    const page = renderToStaticMarkup(<LifeDialog charId="lumberjack" name="Lenhador" role="Cuida do pátio da lenha" lines={["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", NOTHING_SOLD]} />);
     expect(page).toContain('role="dialog"');
     expect(page).toContain('aria-label="Lenhador"');
     expect(page).toContain("Cuida do pátio da lenha");
-    expect([...page.matchAll(/<p[^>]*data-life-line="\d"[^>]*>(.*?)<\/p>/g)].map((m) => m[1])).toEqual(["A lenha da Vila vai sair daqui, do pátio na beira da floresta.", "O pátio da lenha ainda não abriu.", "Nada é vendido na Vila."]);
+    expect([...page.matchAll(/<p[^>]*data-life-line="\d"[^>]*>(.*?)<\/p>/g)].map((m) => m[1])).toEqual(["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", "Nada é vendido na Vila."]);
     const buttons = [...page.matchAll(/<button[^>]*>(.*?)<\/button>/g)].map((m) => m[1].replace(/<[^>]+>/g, "").trim());
     expect(buttons).toEqual(["×", "Continuar"]);
     expect(/<input|<textarea|<a |<form|<select/.test(page)).toBe(false);

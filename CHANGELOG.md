@@ -14,7 +14,7 @@ Cada versão indica o schema D1 que entrega.
 - **A Vila ganhou gente e bichos que andam.** Trinta personagens numa tabela só: Papai Noel, 3 duendes, 4 lojistas,
   o lenhador, 6 moradores, 3 visitantes da temporada, 2 renas em cercados, 2 cachorros, 2 gatos, 4 passarinhos, um
   coelho e a coruja. Cada um tem rotina pelo relógio da Vila: os lojistas ficam à porta das lojas das 9:00 às 19:00
-  (as lojas continuam sem abrir), o lenhador racha lenha no pátio e leva achas pela travessa norte, os duendes
+  (as lojas estão fechadas), o lenhador racha lenha no pátio e leva achas pela travessa norte, os duendes
   levam enfeites do trenó para perto da árvore, dois vizinhos conversam num banco, visitantes leem as placas. À
   noite (22:00–7:00) as pessoas estão em casa e a coruja aparece; na neve forte as ruas esvaziam. Os moradores e
   bichos que eram decoração são os mesmos (mesma semente, mesmo boneco) e agora andam. O elenco, os nomes, as
@@ -29,8 +29,9 @@ Cada versão indica o schema D1 que entrega.
   (conferido por teste, estático e por amostragem de 24 h).
 - **Conversar.** Perto de um personagem parado, o botão de ação oferece "Conversar com …" (E, Enter ou toque;
   clicar no personagem leva o avatar até ele). A fala são duas ou três linhas fixas, escolhidas por quem é, onde
-  está, a hora e o clima, e um botão "Continuar". Lojista e lenhador dizem o que o lugar é, que ainda não abriu e
-  "Nada é vendido na Vila."; Papai Noel e os duendes apontam a árvore e as casas das ONGs; um morador comenta o
+  está, a hora e o clima, e um botão "Continuar". Lojista e lenhador dizem o que o lugar é, que está fechado e
+  "Nada é vendido na Vila." (nenhuma fala diz "ainda não abriu" nem o que um lugar "vai" ser: isso anunciaria o
+  que ninguém decidiu); Papai Noel e os duendes apontam a árvore e as casas das ONGs; um morador comenta o
   clima e aponta um dos três caminhos. **Sem IA**, sem chat, sem texto livre, sem pergunta a quem visita. O botão
   nunca toma o lugar da árvore, de um terreno de ONG ou de um NPC de quest.
 - **Reações.** Um personagem dá passagem ao avatar (o seu e o dos outros visitantes); o cachorro chega perto e

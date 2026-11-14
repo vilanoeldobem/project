@@ -29,7 +29,7 @@ condições do responsável técnico:
 - comportamento leve: horários, máquinas de estado, variação por semente. **Nenhuma IA nesta fase**; falas são
   texto fixo em pt-BR, escolhido pelo contexto;
 - sem chat, sem texto livre, sem nomes de pessoas; o protocolo de presença fica como está;
-- nada é vendido: lojista e lenhador falam do que o lugar é e que ainda não abriu, nunca oferecem nada;
+- nada é vendido: lojista e lenhador falam do que o lugar é e que está fechado, nunca oferecem nada;
 - o público provável inclui menores: nada que pressione a ficar, voltar, doar ou gastar.
 
 ## Decisão
@@ -85,7 +85,7 @@ personagens.
 |---|---|---|
 | Papai Noel | 1 | junto ao trenó e à vista da árvore, das 10:00 às 21:30; descansa no trenó (fora de cena) |
 | Duendes | 3 | arrumam o trenó e levam enfeites até perto da árvore, das 8:00 às 21:00 |
-| Lojistas | 4 | um por loja, no ponto `ShopDef.keeper` enquanto durar o horário da loja (9:00–19:00, `LIFE.shopHours`), às vezes varrendo a porta; vão de casa à loja um quarto de hora antes e voltam ao fechar |
+| Lojistas | 4 | um por loja (as lojas estão fechadas), no ponto `ShopDef.keeper` das 9:00 às 19:00 (`LIFE.shopHours`), às vezes varrendo a porta; vão de casa à loja um quarto de hora antes e voltam ao fechar |
 | Lenhador | 1 | racha e empilha lenha no pátio (`WOOD_YARD`), leva achas pela travessa norte até perto do Empório da Lareira, descansa no caminho; mora no Bairro da Floresta |
 | Moradores | 6 | os três que eram decoração (mesma semente, mesmo boneco) e mais três; olham a árvore, as barracas, o lago, as renas; dois vizinhos conversam no banco do sudoeste; cada um mora num chalé do Bairro do Centro |
 | Visitantes da temporada | 3 | cada um numa avenida: param para ler a placa da loja, numa esquina, perto da praça; chegam e vão embora pela ponta da avenida |
@@ -161,13 +161,18 @@ Em vez de bloquear, o personagem **dá passagem**, numa camada local e só visua
   (`life-dialogue.ts`) devolve duas ou três linhas fixas pelo que o personagem é, onde está, o que faz, a hora e o
   clima. O painel (`LifeDialog`, ao lado do `NpcDialog` dos NPCs de quest, o mesmo `Panel`) mostra as linhas e um
   botão "Continuar". Sem árvore de diálogo, sem sequência, sem pergunta ao visitante.
-- **Quem fala o quê** (PROPOSTA, OQ-20): o lenhador diz de onde a lenha vai sair e que o pátio ainda não abriu;
-  o lojista diz o nome e o tema da loja e que ela ainda não abriu; os dois terminam com "Nada é vendido na Vila.";
+- **Quem fala o quê** (PROPOSTA, OQ-20): o lenhador diz o que faz hoje ("Eu corto e empilho lenha aqui, na beira
+  da floresta.") e que o pátio está fechado ("O pátio da lenha está fechado."); o lojista diz o nome e o tema da
+  loja e que ela está fechada ("A loja está fechada.", como o painel da loja: "Esta loja está fechada."); os dois
+  terminam com "Nada é vendido na Vila.". **Nenhuma fala diz "ainda não abriu" nem o que um lugar ou uma coisa
+  "vai" ser ou fazer:** "ainda não" anuncia uma abertura que ninguém decidiu (a primeira versão desta fase dizia
+  "A lenha da Vila vai sair daqui" e "ainda não abriu", e foi corrigida na revisão);
   Papai Noel e os duendes apontam para a árvore e para as casas das ONGs; morador e visitante cumprimentam pela
   hora, comentam o clima e o lugar, e o morador aponta um dos três caminhos do HUD pelo nome do botão ("Explorar
   ONGs", "Jogar", "Doação global"). Animais reagem, não falam.
 - **Testes de texto** (`life-dialogue.test.ts`, sobre toda linha que pode ser produzida): recusam venda, preço,
-  moeda, promessa de data ou de abertura, pressão para ficar, voltar, doar ou gastar, pergunta ao visitante e dado
+  moeda, promessa de data ou de abertura ("ainda não", "vai abrir", "em breve", "vai sair", "por enquanto" e
+  parecidos, e o padrão `PROMISE` que o `verify.mjs` aplica aos painéis da Vila), pressão para ficar, voltar, doar ou gastar, pergunta ao visitante e dado
   pessoal; nenhuma linha mistura a doação global com as ONGs (DEC-010..013), e a doação só aparece com "Doar é
   sempre uma escolha.".
 - **Ação contextual** (`game/nearby.ts`): `Nearby` ganhou o tipo `life`. Um personagem parado a até 2,4 u oferece

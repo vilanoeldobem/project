@@ -6,8 +6,10 @@
  * Rules of the copy (`life.test.ts` checks them over every line that can be produced):
  *
  * - two or three short lines, then the dialogue closes: no tree, no sequence, nothing to come back for;
- * - nothing is sold in the village: a shopkeeper or the lumberjack says what the place is about and that it has
- *   not opened ("Nada é vendido na Vila." is the established line), never a price, a currency or an offer;
+ * - nothing is sold in the village: a shopkeeper or the lumberjack says what the place is about and that it is
+ *   closed ("Nada é vendido na Vila." is the established line), never a price, a currency or an offer;
+ * - nothing announces what was not decided: a place "is closed", it never "has not opened yet", and nobody says
+ *   what a place, a thing or the village "will" be or do. Characters talk about what they do today;
  * - no pressure to stay, return, donate or spend; "Doar é sempre uma escolha." when the donation is mentioned;
  * - the global donation is one path of the village, the NGOs are another: no line mixes them (DEC-010..013);
  * - nothing personal is asked or said: no name, age, place, school or contact.
@@ -48,6 +50,9 @@ export const LIFE_NAMES: Partial<Record<LifeKind, { name: string; role: string; 
 };
 
 export const NOTHING_SOLD = "Nada é vendido na Vila.";
+/** A place that does nothing today "is closed" (the shop's own panel says "Esta loja está fechada."): never "not yet". */
+export const SHOP_CLOSED = "A loja está fechada.";
+export const YARD_CLOSED = "O pátio da lenha está fechado.";
 
 export type DayPart = "morning" | "afternoon" | "evening" | "night";
 export const dayPart = (hour: number): DayPart => (hour >= 5 && hour < 12 ? "morning" : hour >= 12 && hour < 18 ? "afternoon" : hour >= 18 && hour < 22 ? "evening" : "night");
@@ -94,17 +99,17 @@ export function lifeTalk(ctx: LifeTalkContext): LifeTalk | null {
     case "lumberjack":
       lines =
         ctx.place === "yard"
-          ? ["A lenha da Vila vai sair daqui, do pátio na beira da floresta.", "O pátio da lenha ainda não abriu.", NOTHING_SOLD]
+          ? ["Eu corto e empilho lenha aqui, na beira da floresta.", YARD_CLOSED, NOTHING_SOLD]
           : ctx.activity === "carry" || ctx.place === "shop"
-            ? ["Estou levando umas achas para perto do Empório da Lareira.", "A lenha vai sair do pátio, no fim da travessa norte. Ele ainda não abriu.", NOTHING_SOLD]
-            : ["Parei um pouco para descansar os braços.", "A lenha vai sair do pátio na beira da floresta, que ainda não abriu.", NOTHING_SOLD];
+            ? ["Estou levando umas achas para perto do Empório da Lareira. Eu corto a lenha na beira da floresta.", YARD_CLOSED, NOTHING_SOLD]
+            : ["Parei um pouco para descansar os braços. Eu corto e empilho lenha na beira da floresta.", YARD_CLOSED, NOTHING_SOLD];
       break;
     case "shopkeeper": {
       const shop = shopOf(ctx.shopId);
       lines =
         ctx.place === "shop"
-          ? [`Este lugar se chama ${shop.name}. O tema é ${shop.theme}.`, ctx.activity === "sweep" ? "A loja ainda não abriu. Enquanto isso, varro a neve da porta." : "A loja ainda não abriu.", NOTHING_SOLD]
-          : [`Eu cuido de uma loja da praça: ${shop.name}.`, "A loja ainda não abriu.", NOTHING_SOLD];
+          ? [`Este lugar se chama ${shop.name}. O tema é ${shop.theme}.`, ctx.activity === "sweep" ? `${SHOP_CLOSED} Eu varro a neve da porta.` : SHOP_CLOSED, NOTHING_SOLD]
+          : [`Eu cuido de uma loja da praça: ${shop.name}.`, SHOP_CLOSED, NOTHING_SOLD];
       break;
     }
     case "santa":
@@ -125,7 +130,7 @@ export function lifeTalk(ctx: LifeTalkContext): LifeTalk | null {
       lines = [hello, ctx.place === "billboard" ? "Vim passear na Vila e estou lendo os avisos das placas." : "Vim passear na Vila. As avenidas levam todas até a árvore.", HOUR[part]];
       break;
     default:
-      lines = [hello, (ctx.activity !== "walk" && VILLAGER_PLACE[ctx.place]) || (level === "heavy" ? "Vou me recolher até a neve acalmar." : "Estou dando uma volta pela Vila."), WAYS[(((ctx.turn ?? 0) % WAYS.length) + WAYS.length) % WAYS.length]];
+      lines = [hello, (ctx.activity !== "walk" && VILLAGER_PLACE[ctx.place]) || (level === "heavy" ? "Com esta neve, estou indo para casa." : "Estou dando uma volta pela Vila."), WAYS[(((ctx.turn ?? 0) % WAYS.length) + WAYS.length) % WAYS.length]];
   }
   return { name: who.name, role: who.role, lines };
 }

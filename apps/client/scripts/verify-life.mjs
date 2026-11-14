@@ -77,6 +77,9 @@ const shot = async (page, name) => {
   await page.evaluate(() => document.querySelector(".env-debug")?.removeAttribute("hidden"));
 };
 const PEOPLE = /^(santa|elf|shopkeeper|lumberjack|villager|visitor)/;
+/** `PROMISE` of verify.mjs, and what announces something nobody decided ("ainda não abriu", "vai sair daqui"). */
+const PROMISE = /em breve|será liberad|quando abrir|ainda não abri|alug|R\$|comprar|preço/i;
+const FUTURE = /ainda não|não abri|vai abrir|vai sair|vai ter|vai funcionar|será|por enquanto|enquanto isso/i;
 
 // ---------------------------------------------------------------------------------------------------------
 // 1. Two visitors: the same characters in the same places at the same moment.
@@ -186,8 +189,8 @@ const when = (id, point, from, within = 0.6) =>
     [id, point, from, within]
   );
 const TALKS = [
-  { id: "lumberjack", at: [3.5, -78.1], from: "08:00", action: "Conversar com o lenhador", title: "Lenhador", lines: ["A lenha da Vila vai sair daqui, do pátio na beira da floresta.", "O pátio da lenha ainda não abriu.", "Nada é vendido na Vila."] },
-  { id: "shopkeeper-2", at: [7.2, 25.8], from: "10:00", action: "Conversar com lojista", title: "Lojista", lines: ["Este lugar se chama Oficina de Brinquedos. O tema é brinquedos e lembranças.", "A loja ainda não abriu.", "Nada é vendido na Vila."] },
+  { id: "lumberjack", at: [3.5, -78.1], from: "08:00", action: "Conversar com o lenhador", title: "Lenhador", lines: ["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", "Nada é vendido na Vila."] },
+  { id: "shopkeeper-2", at: [7.2, 25.8], from: "10:00", action: "Conversar com lojista", title: "Lojista", lines: ["Este lugar se chama Oficina de Brinquedos. O tema é brinquedos e lembranças.", "A loja está fechada.", "Nada é vendido na Vila."] },
   { id: "santa", at: [-0.3, 16.4], from: "11:00", action: "Conversar com Papai Noel", title: "Papai Noel", lines: ["Ho, ho, ho! Que alegria ver você na Vila.", "Estou cuidando do trenó e das renas.", "Cada casa em volta da praça é de uma ONG. Conheça no seu tempo."] },
   { id: "villager-5", at: [-6.51, 7.64], from: "14:00", action: "Conversar com morador", title: "Morador da Vila", lines: ["Boa tarde! Está caindo uma neve fininha, boa para passear.", "Paramos aqui no banco para pôr a conversa em dia.", null], click: true },
 ];
@@ -211,7 +214,7 @@ for (const talk of TALKS) {
     const at = await page.evaluate(([x, z]) => window.__vila.extra.project(x, 1.4, z), [c.x, c.z]);
     await page.mouse.click(at.x, at.y);
     await page.waitForFunction(() => window.__vila.extra.target() !== null, null, { timeout: 5000 }).catch(() => fail(`${talk.id}: a click on the character did not start a walk`));
-    check((await page.evaluate(() => window.__vila.extra.panel())).kind === "none", `${talk.id}: a click from afar opened a panel`);
+    check((await page.getByRole("dialog").count()) === 0, `${talk.id}: a click from afar opened a panel`);
     await page.waitForFunction(() => window.__vila.extra.target() === null, null, { timeout: 20000 }).catch(() => fail(`${talk.id}: the walk to the character never ended`));
     const pose = await page.evaluate(() => window.__vila.pose());
     check(Math.hypot(pose.x - c.x, pose.z - c.z) < 2.4, `${talk.id}: the walk ended ${Math.hypot(pose.x - c.x, pose.z - c.z).toFixed(2)} u from the character`);
@@ -236,12 +239,16 @@ for (const talk of TALKS) {
   const lines = await dialog.locator("[data-life-line]").allTextContents();
   talk.lines.forEach((expected, i) => expected === null || check(lines[i] === expected, `${talk.id}: line ${i + 1} is "${lines[i]}", expected "${expected}"`));
   check(lines.length >= 2 && lines.length <= 3, `${talk.id}: ${lines.length} lines`);
+  // The rule verify.mjs holds the village's panels to, and the one about what was not decided: nothing is
+  // promised, announced or sold ("Nada é vendido na Vila." is the line that says so).
+  const said = ((await dialog.textContent().catch(() => "")) ?? "").replace(/\s+/g, " ");
+  check(!PROMISE.test(said) && !FUTURE.test(said), `${talk.id}: the dialogue promises or announces something: "${said}"`);
   check((await page.evaluate(() => window.__vila.extra.target())) === null, `${talk.id}: a walk is waiting behind the dialogue`);
   check(/Explorar ONGs|Jogar|Doação global/.test(lines.join(" ")) === (talk.id === "villager-5"), `${talk.id}: the path a villager points to is ${talk.id === "villager-5" ? "missing" : "said by someone else"}`);
   report.talks[talk.id] = { time: envTime(time), action: label.replace(/\s*E$/, "").trim(), lines };
   await shot(page, `life-dialog-${talk.id}`);
   await dialog.getByRole("button", { name: "Continuar" }).click();
-  await page.waitForFunction(() => window.__vila.extra.panel().kind === "none", null, { timeout: 3000 }).catch(() => fail(`${talk.id}: "Continuar" did not close the dialogue`));
+  await page.waitForFunction(() => !document.querySelector('[role="dialog"]'), null, { timeout: 3000 }).catch(() => fail(`${talk.id}: "Continuar" did not close the dialogue`));
   if (talk.id === "shopkeeper-2") {
     // The shop and its billboard keep their action at their own points, with the keeper standing between them.
     for (const [point, wanted] of [[[5, 25.5], "Ver loja"], [[8.4, 25.5], "Ler placa"]]) {

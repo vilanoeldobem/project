@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { LIFE_ACTIVITIES, LIFE_CAST, LIFE_KINDS, type LifePlace, isPerson } from "./life";
-import { dayPart, LIFE_NAMES, lifeTalk, type LifeTalkContext, NOTHING_SOLD, snowLevel, WAYS } from "./life-dialogue";
+import { dayPart, LIFE_NAMES, lifeTalk, type LifeTalkContext, NOTHING_SOLD, SHOP_CLOSED, snowLevel, WAYS, YARD_CLOSED } from "./life-dialogue";
 import { SHOP_COPY, SHOPS } from "./world";
 
 const PLACES: LifePlace[] = ["home", "street", "square", "tree", "sleigh", "bench", "stall", "shop", "yard", "paddock", "billboard", "pond", "perch", "edge"];
@@ -22,7 +22,8 @@ const ALL = [...contexts()];
 const LINES = new Set(ALL.flatMap((ctx) => lifeTalk(ctx)?.lines ?? []));
 
 describe("what the village's characters say (IMPL-0025, PROPOSTA)", () => {
-  it("gives people two or three short lines and animals none", () => {
+  // Explicit limits on the tests that walk every context: the CI runner is about twice as slow, a busy machine more.
+  it("gives people two or three short lines and animals none", { timeout: 30_000 }, () => {
     expect(ALL.length).toBeGreaterThan(50_000);
     for (const ctx of ALL) {
       const talk = lifeTalk(ctx);
@@ -54,7 +55,6 @@ describe("what the village's characters say (IMPL-0025, PROPOSTA)", () => {
       ["pressure", /volte|amanhã|todo dia|todos os dias|não perca|corra|depressa|rápido|agora mesmo|últim|só hoje|falta pouco|precisa|tem que|você deve|\bdoe\b|\bdoem\b|ajude|contribu|não vá embora|fique mais/i],
       ["personal data", /seu nome|se chama você|como você se chama|quantos anos|idade|onde você mora|sua cidade|escola|e-?mail|telefone|whats|endereço|seus pais|sua mãe|seu pai|sua família/i],
       ["a question to the visitor", /\?/],
-      ["a promise of a date or of an opening", /em breve|logo mais|semana que vem|vai abrir|abre (às|em|dia)|inaugura/i],
       ["a machine talking about itself", /\bIA\b|intelig|rob[ôo]|chat|modelo/i],
     ];
     for (const line of text) for (const [what, pattern] of banned) expect(pattern.test(line), `${what}: "${line}"`).toBe(false);
@@ -68,36 +68,57 @@ describe("what the village's characters say (IMPL-0025, PROPOSTA)", () => {
     }
   });
 
-  it("has the lumberjack say where firewood will come from and that the yard has not opened", () => {
+  it("has the lumberjack say what he does today and that the yard is closed: never where firewood will come from", { timeout: 30_000 }, () => {
     for (const ctx of ALL.filter((c) => c.kind === "lumberjack")) {
       const { lines } = lifeTalk(ctx)!;
-      expect(lines.join(" ")).toMatch(/pátio/);
-      expect(lines.join(" ")).toMatch(/ainda não abriu/);
+      expect(lines.join(" ")).toMatch(/corto/);
+      expect(lines).toContain("O pátio da lenha está fechado.");
       expect(lines[lines.length - 1]).toBe(NOTHING_SOLD);
     }
     expect(lifeTalk({ kind: "lumberjack", place: "yard", activity: "chop", hour: 10, snow: 0.2 })!.lines).toEqual([
-      "A lenha da Vila vai sair daqui, do pátio na beira da floresta.",
-      "O pátio da lenha ainda não abriu.",
+      "Eu corto e empilho lenha aqui, na beira da floresta.",
+      "O pátio da lenha está fechado.",
       "Nada é vendido na Vila.",
     ]);
-    expect(lifeTalk({ kind: "lumberjack", place: "street", activity: "carry", hour: 10, snow: 0.2 })!.lines[0]).toBe("Estou levando umas achas para perto do Empório da Lareira.");
+    expect(lifeTalk({ kind: "lumberjack", place: "street", activity: "carry", hour: 10, snow: 0.2 })!.lines).toEqual([
+      "Estou levando umas achas para perto do Empório da Lareira. Eu corto a lenha na beira da floresta.",
+      "O pátio da lenha está fechado.",
+      "Nada é vendido na Vila.",
+    ]);
+    expect(lifeTalk({ kind: "lumberjack", place: "street", activity: "rest", hour: 12.5, snow: 0.2 })!.lines[0]).toBe("Parei um pouco para descansar os braços. Eu corto e empilho lenha na beira da floresta.");
   });
 
-  it("has each shopkeeper name the shop and its theme, say it has not opened, and offer nothing", () => {
+  it("has each shopkeeper name the shop and its theme, say it is closed, and offer nothing", () => {
     SHOPS.forEach((shop, i) => {
       for (const activity of ["tend", "sweep", "walk"] as const) {
         const { lines, name } = lifeTalk({ kind: "shopkeeper", place: activity === "walk" ? "street" : "shop", activity, hour: 14, snow: 0.5, shopId: shop.id })!;
         expect(name).toBe("Lojista");
         expect(lines[0]).toContain(SHOP_COPY[i].name);
-        expect(lines[1]).toContain("A loja ainda não abriu.");
+        expect(lines[1]).toContain("A loja está fechada.");
         expect(lines[2]).toBe(NOTHING_SOLD);
       }
-      expect(lifeTalk({ kind: "shopkeeper", place: "shop", activity: "tend", hour: 14, snow: 0, shopId: shop.id })!.lines[0]).toBe(`Este lugar se chama ${SHOP_COPY[i].name}. O tema é ${SHOP_COPY[i].theme}.`);
+      expect(lifeTalk({ kind: "shopkeeper", place: "shop", activity: "tend", hour: 14, snow: 0, shopId: shop.id })!.lines).toEqual([`Este lugar se chama ${SHOP_COPY[i].name}. O tema é ${SHOP_COPY[i].theme}.`, "A loja está fechada.", "Nada é vendido na Vila."]);
     });
-    expect(lifeTalk({ kind: "shopkeeper", place: "shop", activity: "sweep", hour: 10, snow: 0, shopId: "shop-01" })!.lines[1]).toBe("A loja ainda não abriu. Enquanto isso, varro a neve da porta.");
+    expect(lifeTalk({ kind: "shopkeeper", place: "shop", activity: "sweep", hour: 10, snow: 0, shopId: "shop-01" })!.lines[1]).toBe("A loja está fechada. Eu varro a neve da porta.");
   });
 
-  it("has Santa and the elves point to the NGOs and to the tree, by where they are", () => {
+  it("announces nothing that was not decided: no \"not yet\", no opening, nothing a place or a thing \"will\" be or do", () => {
+    // "Ainda não abriu" announces an opening nobody decided; "a lenha vai sair daqui" announces a feature. A
+    // character says what is there and what it does today. (Its own next step, "estou indo para casa", is not a promise.)
+    const FUTURE = /ainda não|não abri|vai abrir|vão abrir|abre em|abre às|reabr|inaugur|em breve|logo mais|daqui a pouco|vai sair|vão sair|vai ter|vão ter|vai chegar|vão chegar|vai funcionar|vai vender|vai poder|será|serão|haverá|quando abrir|quando estiver|no futuro|futur|aguarde|novidade|por enquanto|enquanto isso|até lá|um dia\b/i;
+    for (const line of LINES) expect(FUTURE.test(line), `a promise: "${line}"`).toBe(false);
+    // The pattern `apps/client/scripts/verify.mjs` holds the panels of the village to (its `PROMISE`): the
+    // characters' lines pass it too, the established line about selling included.
+    const PROMISE = /em breve|será liberad|quando abrir|ainda não abri|alug|R\$|comprar|preço/i;
+    for (const line of LINES) expect(PROMISE.test(line), `verify.mjs would reject: "${line}"`).toBe(false);
+    // What a closed place says, in the words of the shop's own panel ("Esta loja está fechada.").
+    expect([SHOP_CLOSED, YARD_CLOSED]).toEqual(["A loja está fechada.", "O pátio da lenha está fechado."]);
+    expect([...LINES].filter((l) => /fechad/.test(l)).length).toBeGreaterThanOrEqual(3);
+    // The patterns do catch what they are for.
+    for (const bad of ["A loja ainda não abriu.", "A lenha da Vila vai sair daqui.", "A loja vai abrir em dezembro.", "Em breve teremos novidades.", "Por enquanto só varro a porta."]) expect(FUTURE.test(bad), bad).toBe(true);
+  });
+
+  it("has Santa and the elves point to the NGOs and to the tree, by where they are", { timeout: 30_000 }, () => {
     const santaTree = lifeTalk({ kind: "santa", place: "tree", activity: "watch", hour: 16, snow: 0 })!;
     expect(santaTree.name).toBe("Papai Noel");
     expect(santaTree.lines).toEqual(["Ho, ho, ho! Que alegria ver você na Vila.", "A árvore da praça é o coração da Vila.", "Cada casa em volta da praça é de uma ONG. Conheça no seu tempo."]);
@@ -124,7 +145,7 @@ describe("what the village's characters say (IMPL-0025, PROPOSTA)", () => {
       "Estou dando uma volta pela Vila.",
       "A “Doação global” fica na árvore da praça. Doar é sempre uma escolha.",
     ]);
-    expect(lifeTalk({ kind: "villager", place: "street", activity: "walk", hour: 15, snow: 0.9, turn: 0 })!.lines[1]).toBe("Vou me recolher até a neve acalmar.");
+    expect(lifeTalk({ kind: "villager", place: "street", activity: "walk", hour: 15, snow: 0.9, turn: 0 })!.lines[1]).toBe("Com esta neve, estou indo para casa.");
     // The three paths, by the names on their buttons.
     expect(WAYS.map((w) => /“([^”]+)”/.exec(w)![1])).toEqual(["Explorar ONGs", "Jogar", "Doação global"]);
     for (let turn = -6; turn < 9; turn++) expect(WAYS).toContain(lifeTalk({ kind: "villager", place: "square", activity: "stand", hour: 10, snow: 0, turn })!.lines[2]);
