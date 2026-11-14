@@ -9,6 +9,48 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — vida na Vila (IMPL-0025, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
+
+- **A Vila ganhou gente e bichos que andam.** Trinta personagens numa tabela só: Papai Noel, 3 duendes, 4 lojistas,
+  o lenhador, 6 moradores, 3 visitantes da temporada, 2 renas em cercados, 2 cachorros, 2 gatos, 4 passarinhos, um
+  coelho e a coruja. Cada um tem rotina pelo relógio da Vila: os lojistas ficam à porta das lojas das 9:00 às 19:00
+  (as lojas continuam sem abrir), o lenhador racha lenha no pátio e leva achas pela travessa norte, os duendes
+  levam enfeites do trenó para perto da árvore, dois vizinhos conversam num banco, visitantes leem as placas. À
+  noite (22:00–7:00) as pessoas estão em casa e a coruja aparece; na neve forte as ruas esvaziam. Os moradores e
+  bichos que eram decoração são os mesmos (mesma semente, mesmo boneco) e agora andam. O elenco, os nomes, as
+  rotinas e as falas são proposta do responsável técnico (OQ-20).
+- **Iguais para todos, sem servidor.** Onde cada personagem está é uma função pura da semente do mundo, da hora
+  sincronizada e do plano da Vila (`sampleLife`, `packages/shared/src/game/life.ts`): cada navegador calcula, e
+  todos veem o mesmo. Nenhuma mensagem nova, nenhum estado no Durable Object, nada no D1. Medido com dois
+  navegadores na mesma máquina: relógios a 0,45 ms um do outro, maior diferença de posição 0,0024 u em 42 480
+  comparações; para a mesma hora, posições idênticas bit a bit.
+- **Não atravessam nada e não se sobrepõem.** Todo ponto e todo caminho ficam em chão livre, nas ruas e trilhas;
+  cada personagem tem os seus pontos, grupos andam um de cada vez e grupos diferentes nunca se encontram
+  (conferido por teste, estático e por amostragem de 24 h).
+- **Conversar.** Perto de um personagem parado, o botão de ação oferece "Conversar com …" (E, Enter ou toque;
+  clicar no personagem leva o avatar até ele). A fala são duas ou três linhas fixas, escolhidas por quem é, onde
+  está, a hora e o clima, e um botão "Continuar". Lojista e lenhador dizem o que o lugar é, que ainda não abriu e
+  "Nada é vendido na Vila."; Papai Noel e os duendes apontam a árvore e as casas das ONGs; um morador comenta o
+  clima e aponta um dos três caminhos. **Sem IA**, sem chat, sem texto livre, sem pergunta a quem visita. O botão
+  nunca toma o lugar da árvore, de um terreno de ONG ou de um NPC de quest.
+- **Reações.** Um personagem dá passagem ao avatar (o seu e o dos outros visitantes); o cachorro chega perto e
+  abana o rabo, o gato e o coelho mantêm distância, o passarinho pula para longe, a rena levanta a cabeça, a
+  pessoa parada vira e acena. É só no seu aparelho, até 1 u do lugar do personagem, e volta sozinho.
+- **Dois cercados de renas** na faixa da praça, ao lado das travessas do sudeste e do sudoeste.
+- **Configurações:** "Mostrar os moradores e os animais da Vila" (ligado por padrão; "Menos movimento" tira o
+  balanço dos personagens).
+- `apps/client/scripts/verify-life.mjs`: conferência em navegador real, só local.
+
+### Changed
+
+- **Moradores e bichos deixaram de bloquear o avatar.** Os três moradores, o cachorro, o gato e o coelho que
+  ficavam parados como decoração agora andam e saem da frente; o gato desceu do banco para o chão ao lado dele.
+  É a única exceção à regra dos colisores (IMPL-0016), registrada no `AGENTS.md`. `CRITTERS` saiu de `world.ts`.
+- **Desenho.** O elenco inteiro custa uma chamada de desenho (duas com a sombra), no lugar das nove peças de
+  decoração, que custavam uma ou duas cada. No spawn (Média, 12:00 com neve): de 101 para 91 chamadas e de
+  112 786 para 138 354 triângulos (personagens e a sombra deles); a pior das 18 vistas medidas tem 120 chamadas e
+  194 mil triângulos, dentro do orçamento de 150 e 250 mil. Não medido em celular.
+
 ### Added — expansão da Vila (IMPL-0024, **PROPOSTA**; schema D1 v12)
 
 - **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta

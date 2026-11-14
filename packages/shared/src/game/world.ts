@@ -68,7 +68,8 @@ export const PLACE_INTERACT_DISTANCE = 3.2;
 //   yard, the dressing of the rows, the ground and the navigation grid follow the plan in force (`VILLAGE`).
 // - The scenery of the square is placed by hand for the plan in force: 8 avenues, a square of 26 u, a shop
 //   every two sides. The plaza lamps and benches, the three small pines, the market, the sleigh, the pond,
-//   the snowmen, the critters, the quest NPCs, the quest items and the gifts do not move with the plan.
+//   the snowmen, the reindeer pens, the quest NPCs, the quest items and the gifts do not move with the plan;
+//   nor do the spots of the village's characters (`life.ts`, IMPL-0025), whose tests say when one no longer fits.
 //
 // So the knobs are of two kinds:
 //
@@ -211,7 +212,7 @@ export interface ShopDef {
   facing: number;
   /** Where the avatar stands to use the shop: in front of its door. */
   door: { x: number; z: number };
-  /** Named spot for a future shopkeeper, beside the door, facing the square. Nothing stands there yet. */
+  /** Where the shop's keeper stands during the shop's hours (IMPL-0025, `life.ts`): beside the door, facing the square. */
   keeper: { x: number; z: number; rot: number };
 }
 
@@ -612,8 +613,9 @@ export const FOREST_INNER = WORLD_RADIUS + 4;
 export const FOREST_OUTER = WORLD_RADIUS + 30;
 
 /**
- * The lumberjack's wood yard (PROPOSTA, a later phase): a named spot at the end of the northern lane, by
- * the forest. Only a pile of logs stands there today; the firewood quest is not built.
+ * The lumberjack's wood yard (PROPOSTA): a named spot at the end of the northern lane, by the forest, with a
+ * pile of logs. The lumberjack works there (IMPL-0025, `life.ts`); the yard has not opened and the firewood quest
+ * is not built.
  */
 export const WOOD_YARD = (() => {
   const s = Math.round((VILLAGE_PLAN.sides * 3) / 4) % VILLAGE_PLAN.sides;

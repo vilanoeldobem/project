@@ -30,6 +30,7 @@ apps/client/                jogo (Worker "vilanoeldobem", play.vilanoeldobem.com
   scripts/arrive.mjs        chegada conferida por todos os scripts de navegador (HUD presente, nenhum diálogo)
   scripts/verify-accounts.mjs  contas e candidatura no jogo, análise no painel, em Chrome real (só local)
   scripts/verify-collisions.mjs  clique para andar e colisores em Chrome real (só local)
+  scripts/verify-life.mjs   personagens da Vila em Chrome real: dois visitantes, falas, praça cheia, orçamento (só local)
 apps/dash/                  painel administrativo (Worker "vilanoeldobem-dash", dash.*) — IMPL-0015
   src/
     main.tsx, App.tsx       raiz React; decide a tela pela sessão (entrar, só admins, contas desligadas, seções)
@@ -216,7 +217,8 @@ O modelo em `.github/PULL_REQUEST_TEMPLATE.md` é obrigatório. Resumo:
 - [ ] Três gates verdes, com saída real.
 - [ ] `verify.mjs` rodado se a interface mudou (desktop e celular; o do app que mudou: jogo, site ou painel);
       `verify-accounts.mjs` se mexeu em conta, ONG ou admin;
-      `verify-collisions.mjs` se mexeu em movimento, colisores ou no lugar das peças do mapa.
+      `verify-collisions.mjs` se mexeu em movimento, colisores ou no lugar das peças do mapa;
+      `verify-life.mjs` se mexeu nos personagens da Vila, nos pontos ou nas falas deles.
 - [ ] Nenhuma migration existente alterada.
 - [ ] Nenhum log novo com dados pessoais ou segredos.
 - [ ] `CHANGELOG.md` e docs atualizados; ADR se a decisão for estrutural.

@@ -28,6 +28,7 @@ pnpm --filter @vila/client dev:worker                           # client → :87
 node apps/client/scripts/verify.mjs http://localhost:8799
 sh scripts/smoke-api.sh http://localhost:8787 http://localhost:8788 http://localhost:8799
 node apps/client/scripts/verify-collisions.mjs http://localhost:8799   # movement, colliders, layout (local only)
+node apps/client/scripts/verify-life.mjs http://localhost:8799         # village characters: same place for two visitors, talks, busy square, budget (local only)
 # after a deploy only (not a pre-merge gate; verify.mjs above is local only):
 node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
@@ -91,6 +92,14 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   price: no R$ value, no in-game currency, no "comprar" button (DEC-042, IMPL-0002). Shops say what they will
   offer and that they are not open; billboards show only the village's own notices from the repository, never
   third-party content or a brand, and are not for rent (PEN-008, OQ-18). No vehicles: everything is on foot.
+- Village life ([IMPL-0025](docs/decisions/0025-village-life.md)) is **PROPOSTA**: the cast, its names, its routines
+  and what it says are config and copy of the technical owner until the product owner answers OQ-20. **No language
+  model or other AI service** drives a character or writes a line: behaviour is a schedule
+  (`packages/shared/src/game/life.ts`) and dialogue is fixed pt-BR text chosen by context (`life-dialogue.ts`), two
+  or three lines and one "Continuar". No chat, no free text, no names of people. A shopkeeper or the lumberjack
+  says what a place is about and that it has not opened ("Nada é vendido na Vila."), never an offer, a price or a
+  date; no line pressures anyone to stay, return, donate or spend, or asks anything personal (the copy tests in
+  `life-dialogue.test.ts` reject it).
 - Minors are a likely audience (ECA Digital, LGPD): collect the minimum (P13: Nome, Nickname,
   Cidade, E-mail), only the nickname is public, no rewards for time online, no dark patterns.
 
@@ -139,6 +148,16 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Every solid thing drawn in the village has a collider sized from its voxels (IMPL-0016): add or move a prop and
   its footprint in `world.ts` together; `apps/client/src/scene/colliders.test.ts` checks both ways. Walking goes
   through `planRoute`/`stepWalk` (`packages/shared/src/game/navigation.ts`): plan on click, never per frame.
+- Village characters (IMPL-0025) are a pure function of (world seed, synchronized village time, the village plan):
+  `sampleLife` in `packages/shared/src/game/life.ts`, evaluated by each client. **Never simulate, relay or store
+  them on the server** (no presence message, no Durable Object state, no D1), and never read `Math.random`,
+  `Date.now` or a transcendental function on the way to a position. They are the one exception to the collider
+  rule above: a character that walks has no collider and is not in the navigation grid, so the avatar is never
+  blocked or trapped by one; it steps aside on each client by a bounded, per-viewer offset
+  (`apps/client/src/game/life-reactions.ts`) that never feeds back into the simulation. Every spot and every route
+  must stay on open ground in both collider sets, and apart from every other character's (groups move one at a
+  time; `life.test.ts` checks statically and by sampling): add a character, a spot or a footpath in the one table
+  and let the tests place it. The whole cast is one draw call (`scene/Life.tsx`): do not add a mesh per character.
 - UI text is flat HTML over the canvas (readable, accessible); 3D labels are short. A billboard's notice is also
   on its panel as flat text.
 - One contextual action (IMPL-0022, IMPL-0024): whatever the avatar can use nearby is a kind of `Nearby`

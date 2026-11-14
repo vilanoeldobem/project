@@ -43,5 +43,6 @@
 | [IMPL-0022](0022-immersive-entry-and-game-menu.md) | Chegada sem tela de boas-vindas, HUD sem botões de zoom e sem a marca, menu do jogo no Esc | Proposta — implementada, a validar (PROPOSTA do responsável técnico; ratificação na OQ-16) |
 | [IMPL-0023](0023-donations-abacatepay.md) | Doações Pix com split e conciliação pela AbacatePay (global e por ONG), Título creditado uma vez | Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); depende de PEN-004, PEN-006 e PEN-026 |
 | [IMPL-0024](0024-village-expansion-and-zoning.md) | Expansão da Vila e zoneamento: plano único, fachada de ONGs, três faixas residenciais, lojas e placas como marcadores, regra de vista para a árvore | Proposta — fase 1 implementada; posse de terrenos desligada em produção e homologação (`RESIDENTIAL_PLOTS_ENABLED`); política PENDENTE (OQ-17, OQ-18, OQ-19) |
+| [IMPL-0025](0025-village-life.md) | Vida na Vila: 30 personagens e animais que andam, posição como função pura do relógio compartilhado (nada passa pelo servidor de tempo real), sem colisor e com reação local limitada, falas fixas sem IA, elenco inteiro numa chamada de desenho | Proposta — fase 3 implementada, visível; elenco, nomes, rotinas e falas PENDENTES do dono do produto (OQ-20) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

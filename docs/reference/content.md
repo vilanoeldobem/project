@@ -74,12 +74,19 @@ terrenos de ONG não mudaram). A casa é cenário: nenhuma chaminé solta fumaç
 peças que distinguem as faixas (muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha) e a moldura da
 placa são modelos fixos em `villageModels.ts`, não geradores.
 
-Moradores e animais (PROPOSTA de decoração, `CRITTERS` em `packages/shared/src/game/world.ts`): 3 moradores, um
-cachorro, um gato no banco, dois passarinhos nos postes, um coelho e uma coruja num pinheiro, cada um com semente
-fixa. Respiram e olham em volta pelo material `idle` (shader de vértice; "Menos movimento" desliga). A coruja só
-aparece com as luzes da Vila acesas (noite pela hora real de São Paulo). Moradores, cachorro, gato e coelho
-bloqueiam o avatar (pegada de cada um em `world.ts`); passarinhos e coruja, empoleirados, não. Os adereços colocados
-no mapa (`PLACED_PROPS`) trazem a própria pegada (`solid`), inclusive as cercas.
+Moradores e animais (PROPOSTA, [IMPL-0025](../decisions/0025-village-life.md); elenco final na OQ-20): 30
+personagens numa tabela só (`LIFE_CAST` em `packages/shared/src/game/life.ts`), cada um com semente fixa. Os 3
+moradores, o cachorro, o gato, os dois passarinhos, o coelho e a coruja que eram decoração (`CRITTERS`, que deixou
+de existir) estão nela com a mesma semente e o mesmo boneco, e agora andam; somam-se Papai Noel, 3 duendes, 4
+lojistas, o lenhador, mais 3 moradores, 3 visitantes da temporada, 2 renas em cercados, outro cachorro, outro gato
+e 2 passarinhos de chão. O boneco de cada um vem dos geradores que já existiam (`villager`, `dog`, `cat`, `bird`,
+`rabbit`, `owl`, `reindeer`), cortado em partes rígidas que giram em torno de um pivô
+(`apps/client/src/scene/gen/cast.ts`); Papai Noel, duendes, lojistas, lenhador e visitantes são um morador com
+fantasia. **Nenhum bloqueia o avatar** (dão passagem; ver a referência de arquitetura §2.5); "Menos movimento"
+tira o balanço, e "Mostrar os moradores e os animais da Vila", nas configurações, esconde todos. A coruja só
+aparece à noite e os passarinhos, de dia (hora de São Paulo). Os cinco NPCs de quest continuam parados, com
+colisor e rótulo. Os adereços colocados no mapa (`PLACED_PROPS`) trazem a própria pegada (`solid`), inclusive as
+cercas dos dois cercados das renas (`PADDOCKS`).
 Animais pequenos não projetam sombra (economia de chamadas). Sem nomes nem rótulos. Os demais adereços ainda não têm lugar no mapa (layout é PEN-017/PEN-023).
 
 Os cinco moradores das quests narrativas (`NPCS`; PROPOSTA `quests-v1`, PEN-025) usam o mesmo gerador `villager` com
