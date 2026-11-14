@@ -70,6 +70,10 @@ function click(b: Body, route: Route, field: NavField, colliders: readonly Colli
   return follow(b, route, field, colliders);
 }
 
+// These tests walk the whole village: the slow ones take 0.7 to 5 s on an idle laptop, about twice that on the
+// CI runner and up to four times on a busy machine, so each carries its own limit, at least ten times its idle time.
+const SLOW = 30_000;
+
 describe("planRoute + stepWalk (IMPL-0016)", () => {
   it("goes straight to a destination in plain sight, without searching", () => {
     const [, set, field] = OFF;
@@ -247,7 +251,7 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       expect(follow(b, route, field, set).arrived, name).toBe(true);
       expect([route.expanded, route.replans], name).toEqual([planned, 0]);
     }
-  });
+  }, SLOW);
 
   it("stays within the bound for a seeded random sample of pairs across the village", () => {
     // The fixed spots above are places people go; a click can land anywhere. 3 000 pairs of open points drawn
@@ -276,7 +280,7 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
     expect(worst).toBeLessThan(100000);
     expect(worst).toBeLessThan(field.walkable / 2);
     expect(longest).toBeLessThan(40);
-  }, 30_000);
+  }, 60_000); // 3 000 planned walks: 2.3 s idle, 6.3 s on a busy machine
 
   it("allocates the search scratch on the first search that needs it, small, and gives it back when asked", () => {
     const [, , field] = CONFIGS[2];
@@ -408,7 +412,7 @@ describe("collider table invariants (IMPL-0016)", () => {
     for (const n of NPCS) expect(approach(n.x, n.z), n.id).toBeLessThan(INTERACT_DISTANCE - 2.5);
     expect(approach(DONATION_PANEL.x, DONATION_PANEL.z), "lectern").toBeLessThan(INTERACT_DISTANCE - 2.5);
     for (const i of QUEST_INTERACTIONS) expect(approach(i.x, i.z), i.id).toBeLessThan(i.radius - 1.5);
-  });
+  }, SLOW);
 
   it.each(CONFIGS)("has no enclosed pocket: all the open ground is one region (%s)", (_, __, field) => {
     const stray = field.regionSizes.filter((_size, id) => id !== field.main);
@@ -479,7 +483,8 @@ describe("collider table invariants (IMPL-0016)", () => {
       }
       expect(stuck, name).toEqual([]);
     },
-    30000
+    // More than 1 500 walks: 5 s idle, 20 s on a busy machine (the 30 s it had left no room on a slow runner).
+    120_000
   );
 
   it.each(CONFIGS)("survives a long run of random clicks, some of them mid-walk (%s)", (name, set, field) => {
@@ -512,5 +517,5 @@ describe("collider table invariants (IMPL-0016)", () => {
       walked++;
     }
     expect(walked).toBeGreaterThan(80);
-  });
+  }, SLOW);
 });

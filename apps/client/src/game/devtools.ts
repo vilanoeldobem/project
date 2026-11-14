@@ -58,12 +58,11 @@ export function installDevtools() {
         route.active = false;
         useVila.setState({ target: null, panel: { kind: "none" }, skyView: false });
       },
-      /** The target of the contextual action, the open panel, the camera state and where a world point is on the page. */
+      /** The target of the contextual action (verify.mjs). */
       nearby: () => useVila.getState().nearby,
-      panel: () => useVila.getState().panel,
-      view: () => ({ ...sim.view, skyView: useVila.getState().skyView, zoom: useVila.getState().zoom }),
-      setSkyView: (on) => useVila.getState().setSkyView(Boolean(on)),
-      setZoom: (zoom) => useVila.setState({ zoom: Number(zoom) }),
+      /** What the camera is doing: whether the avatar is drawn see-through, the height of the sky camera (verify.mjs). */
+      view: () => ({ ...sim.view }),
+      /** Where a point of the world is on the page, or null before the scene is up (verify.mjs clicks on things by where they are). */
       project: (x, y, z) => probe.project?.(Number(x), Number(y), Number(z)) ?? null,
       /** The village's characters (IMPL-0025): as the shared simulation has them now, and at any village time. */
       life: () => lifeReport(),

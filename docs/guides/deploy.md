@@ -544,7 +544,8 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 3. **O servidor de tempo real (`apps/server`) deve ser publicado junto com o jogo.** Ele limita a pose ao raio do
    mundo, que vem do pacote compartilhado: com o servidor antigo (34 u), quem anda além disso aparece para os
    outros preso na borda antiga.
-   **As salas não carregam versão do mundo.** Uma aba aberta antes da publicação continua com o jogo antigo (mundo
+   **As salas não carregam versão do mundo: é um limite conhecido, documentado e não corrigido** (IMPL-0024,
+   "Consequências"). Uma aba aberta antes da publicação continua com o jogo antigo (mundo
    de 34 u, terrenos de ONG nas posições antigas) e fica na mesma sala de quem já carregou o novo: ela vê os
    visitantes novos andando fora do mundo dela, por cima do que para ela é floresta, e os novos veem os antigos
    atravessando lojas e casas. Dura até a aba recarregar; nada é gravado errado (a presença é só pose e visual,

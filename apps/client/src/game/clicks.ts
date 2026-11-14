@@ -12,6 +12,9 @@
  *
  * A panel opened by a click on the scene drops whatever walk was on its way: the click is the new intention.
  * (A panel opened by the action button or the menu keeps the walk, which goes on when it closes: IMPL-0022.)
+ *
+ * In moderation mode (PROPOSTA, IMPL-0021) one thing comes before all of that: a press on another visitor
+ * picks that visitor, whatever stands behind them, and that press does nothing else (`pressScene`).
  */
 import { type GroundKind, groundAt, PLACE_INTERACT_DISTANCE, type ResidentialPlot } from "@vila/shared/game/world";
 
@@ -26,8 +29,41 @@ export function walkTo(x: number, z: number): void {
   if (to) events.emit({ type: "tap", x: to.x, z: to.z });
 }
 
+/**
+ * The press in progress picked a visitor (moderation mode): the click that ends it opens nothing and walks
+ * nowhere. Decided on pointer down (`pressScene`); the handlers below, which run on the click, read it.
+ */
+let pickedVisitor = false;
+
+/** A new press starts with nothing picked. `Ground` calls this for every press on the page, before anything else. */
+export function startPress(): void {
+  pickedVisitor = false;
+}
+
+/** What a press did, as the ground saw it: it picked a visitor, it walked, or it was left to what stands in front. */
+export type PressOutcome = "picked" | "walked" | "left";
+
+/**
+ * A press on the scene, seen from the ground, which lies under every press. In this order:
+ *
+ * 1. `pick` is tried first, whatever is under the pointer: in moderation mode it selects the visitor the press
+ *    is on (`selectVisitorAt`), and for everybody else it is always false. A press that picked does nothing
+ *    else: no walk now, and nothing from the click that follows (`pickedVisitor`).
+ * 2. A chalet, a shop, the tree, a lot or a villager stands in front of the ground: its own click decides
+ *    what this press does, and the ground walks nowhere (`groundIsFirst`).
+ * 3. Open ground: the avatar walks to `(x, z)`.
+ */
+export function pressScene(press: { intersections: ReadonlyArray<{ eventObject: unknown }>; own: unknown; x: number; z: number; pick: () => boolean }): PressOutcome {
+  pickedVisitor = press.pick();
+  if (pickedVisitor) return "picked";
+  if (!groundIsFirst(press.intersections, press.own)) return "left";
+  walkTo(press.x, press.z);
+  return "walked";
+}
+
 /** Opens a panel from a click on the scene: no walk is left waiting behind it. */
 export function openFromScene(panel: Panel): void {
+  if (pickedVisitor) return;
   const { open, setTarget } = useVila.getState();
   setTarget(null);
   open(panel);
@@ -38,6 +74,7 @@ export function openFromScene(panel: Panel): void {
  * button); from farther away the avatar walks to that spot instead, like a click on a villager.
  */
 export function visit(spot: { x: number; z: number }, panel: Panel, reach: number = PLACE_INTERACT_DISTANCE): void {
+  if (pickedVisitor) return;
   if (Math.hypot(spot.x - sim.pose.x, spot.z - sim.pose.z) < reach) openFromScene(panel);
   else walkTo(spot.x, spot.z);
 }
@@ -74,6 +111,7 @@ export const isStreet = (kind: GroundKind): boolean => kind === "plaza" || kind 
  * its yard) goes to the plot.
  */
 export function tapResidence(plot: ResidentialPlot, ground: { x: number; z: number } | null): void {
+  if (pickedVisitor) return;
   if (ground && isStreet(groundAt(ground.x, ground.z))) walkTo(ground.x, ground.z);
   else visit(plot.front, { kind: "plot", plotId: plot.id });
 }

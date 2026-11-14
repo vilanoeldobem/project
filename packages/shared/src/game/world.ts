@@ -204,7 +204,7 @@ export interface LotDef {
   facing: number;
 }
 
-/** A Christmas shop on the square's frontage (PROPOSTA): a real building, not open yet (no catalogue). */
+/** A Christmas shop on the square's frontage (PROPOSTA): a real building, closed (no catalogue; nothing is sold). */
 export interface ShopDef {
   id: string;
   x: number;
@@ -546,7 +546,7 @@ export const LOT_FRONT = 5.3;
 export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + LOT_FRONT * Math.sin(lot.facing)), z: round2(lot.z + LOT_FRONT * Math.cos(lot.facing)) });
 
 /**
- * Name and theme of each shop (PROPOSTA): shown on the shop's panel next to "ainda não abriu". A theme says
+ * Name and theme of each shop (PROPOSTA): shown on the shop's panel next to "Esta loja está fechada.". A theme says
  * what the building looks like it is about, not what a visitor will get: whether and how a shop works is not
  * decided, there is no catalogue, and nothing is sold (DEC-042, IMPL-0002). Names are the village's own; no
  * real shop, brand or partner.

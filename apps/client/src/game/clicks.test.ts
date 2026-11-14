@@ -1,13 +1,14 @@
 /**
  * One intention per click (IMPL-0024, issue #41): a click on a building never leaves a walk behind its panel,
  * a click from afar walks to the building's interaction point with the marker there, and on a street a tap on
- * the roof that covers the paving walks to the paving.
+ * the roof that covers the paving walks to the paving. In moderation mode a press on a visitor picks that
+ * visitor and does nothing else, whatever stands behind them (IMPL-0021).
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { BILLBOARDS, groundAt, INTERACT_DISTANCE, NPCS, PLACE_INTERACT_DISTANCE, RESIDENTIAL_PLOTS, SHOPS } from "@vila/shared/game/world";
 
-import { groundIsFirst, groundUnder, isStreet, openFromScene, tapResidence, visit, walkTo } from "./clicks";
+import { groundIsFirst, groundUnder, isStreet, openFromScene, pressScene, startPress, tapResidence, visit, walkTo } from "./clicks";
 import { events, type GameEvent } from "./events";
 import { sim, walkRoute } from "./sim";
 import { useVila } from "./store";
@@ -30,9 +31,11 @@ beforeEach(() => {
   stand(0, 9);
   useVila.setState({ panel: { kind: "none" }, menu: null, target: null });
   sim.route.active = false;
+  startPress();
 });
 afterEach(() => {
   off();
+  startPress();
   useVila.setState({ panel: { kind: "none" }, menu: null, target: null });
   sim.route.active = false;
   stand(0, 9);
@@ -188,5 +191,105 @@ describe("a tap on a chalet of a residential row", () => {
     const ridge = { x: plot.house.x, y: 5, z: plot.house.z };
     const ground = groundUnder(cam, { x: ridge.x - cam.x, y: ridge.y - cam.y, z: ridge.z - cam.z })!;
     expect(groundAt(ground.x, ground.z)).toBe("street-economy");
+  });
+});
+
+describe("a press on the scene, as the ground under it sees it", () => {
+  const ground = {}, front = {};
+  const OPEN_GROUND = [{ eventObject: ground }];
+  // A lot's pad, a chalet, a shop, the tree or a villager is nearer the camera than the ground under it.
+  const BEHIND_SOMETHING = [{ eventObject: front }, { eventObject: ground }];
+  const nobody = () => false, visitor = () => true;
+  const press = (intersections: typeof OPEN_GROUND, pick: () => boolean) => pressScene({ intersections, own: ground, x: 20, z: 20, pick });
+
+  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-19")!;
+  const yard = { x: plot.house.x, z: plot.house.z + 1 };
+  const street = { x: plot.front.x + 1, z: plot.front.z - 1 };
+  const npc = NPCS[0];
+  /** What the click that ends a press does on each thing of the scene: [what, where the avatar stands, the click]. */
+  const CLICKS: Array<[string, { x: number; z: number }, () => void]> = [
+    ["the pad of a lot", { x: 0, z: 9 }, () => openFromScene({ kind: "lot", lotId: "plaza-10" })],
+    ["the tree", { x: 0, z: 9 }, () => openFromScene({ kind: "donation" })],
+    ["a shop, from its door", SHOPS[0].door, () => visit(SHOPS[0].door, { kind: "shop", shopId: SHOPS[0].id })],
+    ["a shop, from afar", { x: 0, z: 9 }, () => visit(SHOPS[0].door, { kind: "shop", shopId: SHOPS[0].id })],
+    ["a billboard, from afar", { x: 0, z: 9 }, () => visit(BILLBOARDS[0].point, { kind: "billboard", billboardId: BILLBOARDS[0].id })],
+    ["the chalet of a residential plot, from its front", plot.front, () => tapResidence(plot, yard)],
+    ["the chalet of a residential plot, from afar", { x: 0, z: 9 }, () => tapResidence(plot, yard)],
+    ["a roof that covers the street", { x: 0, z: 9 }, () => tapResidence(plot, street)],
+    ["a quest NPC, from talking distance", { x: npc.x + 1.5, z: npc.z }, () => visit(npc, { kind: "npc", npcId: npc.id }, INTERACT_DISTANCE)],
+    ["a quest NPC, from afar", { x: npc.x + 9, z: npc.z }, () => visit(npc, { kind: "npc", npcId: npc.id }, INTERACT_DISTANCE)],
+  ];
+  const outcome = () => ({ panel: state().panel, target: state().target, walking: sim.route.active, taps: [...taps] });
+  const NOTHING = { panel: { kind: "none" }, target: null, walking: false, taps: [] };
+
+  it("walks to the pressed spot on open ground, with the tap marker there", () => {
+    expect(press(OPEN_GROUND, nobody)).toBe("walked");
+    expect(outcome()).toEqual({ panel: { kind: "none" }, target: { x: 20, z: 20 }, walking: true, taps: [{ x: 20, z: 20 }] });
+  });
+
+  it("walks nowhere when something that answers a click stands in front of the ground: that click decides", () => {
+    expect(press(BEHIND_SOMETHING, nobody)).toBe("left");
+    expect(outcome()).toEqual(NOTHING);
+    // Nothing under the pointer but the ground's own hit missing from the list: still open ground.
+    expect(press([], nobody)).toBe("walked");
+  });
+
+  it.each([["open ground", OPEN_GROUND], ["a lot's pad, a chalet, a shop, the tree or a villager", BEHIND_SOMETHING]])(
+    "tries the pick first on %s, and a press that picked a visitor walks nowhere",
+    (_, intersections) => {
+      const order: string[] = [];
+      const off = events.on((e: GameEvent) => void (e.type === "tap" && order.push("tap")));
+      expect(press(intersections, () => (order.push("pick"), true))).toBe("picked");
+      expect(outcome()).toEqual(NOTHING);
+      // And with nobody under the pointer the pick was still asked, once, before anything walked.
+      expect(press(OPEN_GROUND, () => (order.push("pick"), false))).toBe("walked");
+      expect(order).toEqual(["pick", "pick", "tap"]);
+      off();
+    }
+  );
+
+  it.each(CLICKS)("a press that picked a visitor in front of %s opens no panel and sets no walk target", (_, at, click) => {
+    stand(at.x, at.z);
+    expect(press(BEHIND_SOMETHING, visitor)).toBe("picked");
+    click();
+    expect(outcome()).toEqual(NOTHING);
+  });
+
+  it.each(CLICKS)("a press that picks nobody on %s behaves exactly as before", (_, at, click) => {
+    // What the click does with no press rule at all…
+    stand(at.x, at.z);
+    click();
+    const before = outcome();
+    expect(before).not.toEqual(NOTHING);
+    useVila.setState({ panel: { kind: "none" }, target: null });
+    taps.length = 0;
+    // …is what it does after a press that picked nobody (moderation mode or not).
+    stand(at.x, at.z);
+    expect(press(BEHIND_SOMETHING, nobody)).toBe("left");
+    click();
+    expect(outcome()).toEqual(before);
+  });
+
+  it("keeps a walk that was on its way when a press picks a visitor", () => {
+    walkTo(-20, 20);
+    expect(press(BEHIND_SOMETHING, visitor)).toBe("picked");
+    openFromScene({ kind: "donation" });
+    expect([state().panel, state().target, sim.route.active]).toEqual([{ kind: "none" }, { x: -20, z: 20 }, true]);
+  });
+
+  it("mutes only its own press: the next one starts over", () => {
+    stand(SHOPS[0].door.x, SHOPS[0].door.z);
+    const click = CLICKS[2][2];
+    expect(press(BEHIND_SOMETHING, visitor)).toBe("picked");
+    // The next press picks nobody: its click opens the shop.
+    expect(press(BEHIND_SOMETHING, nobody)).toBe("left");
+    click();
+    expect(state().panel).toEqual({ kind: "shop", shopId: SHOPS[0].id });
+    state().close();
+    // A press the ground never sees (a roof against the sky) starts over too (`startPress`, on every pointer down).
+    expect(press(BEHIND_SOMETHING, visitor)).toBe("picked");
+    startPress();
+    click();
+    expect(state().panel).toEqual({ kind: "shop", shopId: SHOPS[0].id });
   });
 });

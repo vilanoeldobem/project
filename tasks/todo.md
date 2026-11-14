@@ -746,14 +746,18 @@ PR #40 was merged with its two reviews unanswered. Nothing is live: not deployed
 - [x] B7 `scene/sceneColliders.ts` audited by `colliders.test.ts`; `verify.mjs` opens the three panels and asserts the budget
 - [x] B8 Forest and mountains drawn in pieces: tour peak 251 896 → 195 908 triangles; heap figures corrected; search scratch 10.5 → 4.4 MB
 - [x] B9 44 px rows; labels hidden under the HUD; a tap whose ground is paving walks to that spot
-- [x] B10 Controls copy, `viewPlanes` without allocations, `LABEL_RADIUS` comment, rooms carry no world version (docs)
+- [x] B10 Controls copy, `viewPlanes` without allocations, `LABEL_RADIUS` comment
+- [ ] B11 Rooms carry no world version: **a known limit, documented, not fixed** (ADR 0024 "Consequências",
+      `docs/guides/deploy.md`). No code of this branch addresses it: the protocol has no version and the game shows
+      no "reload" notice, so a tab opened before a deploy shares a room with the new world until it reloads.
 
 ## Review
 
 - Gates and browser checks: see the report of the change (isolated local stack on private ports; GTM stubbed).
 - The merge of `origin/main` (donations webhook fixes, PR #42) carries git's default message, without the
   session trailers: it was made with `git merge --no-edit` and not rewritten.
-- Not done: the see-through drawing for remote visitors; a measurement on a real phone; GPU memory.
+- Not done: the see-through drawing for remote visitors; a measurement on a real phone; GPU memory; a world
+  version for the presence rooms (B11: documented as a known limit, not fixed).
 
 ### Lessons
 
@@ -765,6 +769,61 @@ PR #40 was merged with its two reviews unanswered. Nothing is live: not deployed
 - Before `git commit`, look at `git status --short`: a `cherry-pick -n` leaves its files staged, and they ride
   along with the next commit (the docs of one commit went into the `perf(shared)` commit that way).
 - `git merge` with `--no-commit` when the message needs trailers.
+
+
+---
+
+# Task: re-review of PR #43, five findings — 2026-11-13
+
+Branch `fix/village-expansion-review` (PR #43), on top of `6678b70`. Client, tests and docs only.
+
+## Plan
+
+- [x] C1 CI red: `colliders.test.ts` "audits the very list…" timed out on the runner (5.6 s against 5 s). Explicit
+      limits on every test over 1 s locally (list in the Review below)
+- [x] C2 Moderation regression: the pick of a visitor comes first for every press, whatever is under the pointer;
+      a press that picked does nothing else (`pressScene` and `pickedVisitor` in `game/clicks.ts`)
+- [x] C3 The "ground walks only when it is first under the pointer" rule can fail a test: `pressScene` is the
+      whole press, `scene/Ground.test.tsx` presses the handler the scene mounts, `verify.mjs` clicks a shop
+- [x] C4 Copy: "Esta loja está fechada." (panel, tests, `verify.mjs`, ADR 0024, architecture, CHANGELOG)
+- [x] C5 See-through avatar: 250 ms hold (`seeThroughShown`), no look in the sky view, the cost comment, a test
+      for the last-candidate fallback of `clearSkyOffset`
+- [x] C6 Docs: "rooms carry no world version" is a known limit, documented, not fixed (B11 above, ADR 0024, deploy guide)
+- [x] C7 Dev hooks with no user removed (`panel`, `setSkyView`, `setZoom`); `project` and `view` are used by `verify.mjs`
+
+## Review
+
+- Slow tests and their limits (idle laptop / the same laptop busy → limit): `navigation.test.ts` "never traps"
+  ×3 5.0 / 20.2 s → 120 s (was 30 s); "seeded random sample" 2.3 / 6.3 s → 60 s (was 30 s); "walk up to every
+  interaction target" ×3 0.7 / 1.7 s, "plans within a bounded number" 0.5 / 1.5 s, "long run of random clicks" ×3
+  0.6 / 1.4 s → 30 s each; `village.test.ts` full audit 0.5 / 1.3 s → 30 s; `colliders.test.ts` the three
+  whole-village audits 1.1 to 1.8 / 2.8 to 3.5 s → 30 s; `shadowCasters.test.ts` two sampling tests 0.5 to 0.8 /
+  1.4 to 1.8 s → 30 s. Not touched: `apps/api/src/public-ngo.test.ts` (1.4 to 2.2 / 8.8 s, already 60 s; outside
+  this task's lane).
+- Mutations that now fail a unit test: the rule line removed or inverted, the disc without its handler, the
+  hits not passed, the pick after the rule (the regression), each click handler ignoring the pick, no hold, a
+  hold that delays showing, the sky fallback returning the first candidate.
+- Real browser (Chrome with GPU, a local `--mode workers` build on a private port, API and presence room answered
+  by request routing, GTM stubbed), before (`6678b70`) → after: in moderation mode a visitor on the pad of a lot
+  (available or published) could not be picked at any height, and one at a shop's door, at the front of a
+  residential plot or beside a quest NPC only at some heights → picked at every height in all seven places, with
+  no panel and no walk; with nobody under the pointer, and with the mode off, every click does what it did. The
+  walk along the south economy street: 14 changes of the see-through drawing, six spells off of 100 to 117 ms →
+  2 changes, none shorter than 150 ms; the drawing stays 246 ms after a teleport into the open (was 10 ms).
+- `verify.mjs` through the scratch wrapper (private ports, own registry and state): passes; with the rule line
+  removed from `pressScene` it fails on the three new click assertions and on nothing else.
+- Gates: see the report of the change.
+- Left as it is, outside this task's lane: two comments in `packages/shared/src/game/world.ts` still say "not
+  open yet" / "ainda não abriu" about the shops.
+
+### Lessons
+
+- A rule that lives in an event handler inside a component has no test that can fail. Put the whole decision in
+  a function, mount it from a hook-free component, and press that component's own handler in the test.
+- A browser check must go through the path the bug was on: the action button after a teleport never touched
+  the click on the scene.
+- An explicit test limit is sized on a busy machine, not on an idle one: the same test ran 4× slower here with
+  other work going on, more than the CI runner's 2×.
 
 # Task: village life, phase 3 of the expansion (IMPL-0025, PROPOSTA) — 2026-11-13
 

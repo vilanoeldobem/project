@@ -139,6 +139,22 @@ export function avatarHidden(occluders: readonly Occluder[], cx: number, cy: num
   return segmentBlocked(occluders, cx, cy, cz, x, AVATAR_CHEST, z) || segmentBlocked(occluders, cx, cy, cz, x, AVATAR_HEAD, z);
 }
 
+/**
+ * How long the see-through drawing stays after the camera sees the avatar again (ms). Walking past a row, the
+ * avatar is in plain view for a tenth of a second in each gap between two chalets: without the hold the drawing
+ * blinked off and on at every gap (14 changes along one street in the review of this rule).
+ */
+export const SEE_THROUGH_HOLD = 250;
+
+/**
+ * Whether the see-through drawing is on at `now` (ms, any clock that only goes forward): at once while the
+ * avatar is hidden, and for `hold` ms after `lastHidden`, the last instant it was. Time, not frames: the hold
+ * lasts the same at any frame rate. An avatar that was never hidden has `lastHidden = -Infinity`.
+ */
+export function seeThroughShown(hidden: boolean, now: number, lastHidden: number, hold: number = SEE_THROUGH_HOLD): boolean {
+  return hidden || now - lastHidden < hold;
+}
+
 /** An offset from the point the camera follows (the avatar, 1 u above the ground). */
 export interface Offset {
   x: number;

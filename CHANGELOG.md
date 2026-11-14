@@ -70,9 +70,9 @@ Cada versão indica o schema D1 que entrega.
   nunca um preço: não há moeda, valor nem botão de compra) só aparece com a bandeira ligada, e o painel diz quando
   as missões abertas não chegam a esse nível.
 - **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o nome, o tema e que
-  ela ainda não abriu, sem prometer venda nem abertura ("Se e como ela vai funcionar ainda não foi decidido. Nada é
-  vendido na Vila."). Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
-  aviso em texto e "As placas mostram avisos da própria Vila." (OQ-18).
+  ela está fechada, sem prometer venda nem abertura ("Esta loja está fechada. Se e como ela vai funcionar ainda
+  não foi decidido. Nada é vendido na Vila."). Cada loja tem uma placa no telhado com um aviso da própria Vila; o
+  painel da placa mostra o aviso em texto e "As placas mostram avisos da própria Vila." (OQ-18).
 - **Terreno de ONG que a API ainda não lista** (banco antes da migration 0012: produção tem 8 dos 12): o rótulo 3D,
   o painel e a lista "Explorar ONGs" dizem "Terreno em preparação", sem convite para candidatura, e a visita a ele
   não conta como missão.
@@ -101,8 +101,9 @@ Cada versão indica o schema D1 que entrega.
 - Enquanto a câmera não vê o peito ou a cabeça do avatar (uma construção, a árvore ou um pinheiro no caminho), ele
   é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é uma reta da câmera
   ao avatar contra o mapa de colunas de cada construção (antes: a pegada de uma construção ao sul e um contorno
-  vermelho chapado, que aparecia com o avatar à vista e faltava atrás de esquinas e da árvore). Só o próprio
-  avatar; os outros visitantes não têm esse desenho.
+  vermelho chapado, que aparecia com o avatar à vista e faltava atrás de esquinas e da árvore). O desenho aparece
+  na hora e fica por 250 ms depois que o avatar volta a ser visto, para não piscar nos vãos entre os chalés de
+  uma fileira. Só o próprio avatar; os outros visitantes não têm esse desenho.
 - "Olhar o céu" sobe a câmera por cima dos telhados onde uma construção ficaria na vista (ruas residenciais); na
   praça a vista é a de sempre.
 - O botão de ação de um terreno residencial só aparece com o avatar parado, e o alvo oferecido tem histerese: numa
@@ -112,15 +113,24 @@ Cada versão indica o schema D1 que entrega.
   triângulos (orçamento: 250 mil), e o ganho é parecido no zoom padrão.
 - Verificação: `verify.mjs` abre o painel de uma loja, de uma placa e de um terreno residencial e confere o texto,
   e falha se o spawn passar de 150 chamadas ou 250 mil triângulos (zoom padrão e todo afastado, preset Média).
+  Também clica numa loja com o mouse, na própria cena (de longe: nada anda enquanto o botão está apertado, e o
+  clique anda até a porta; da porta: o painel abre e nada anda depois do Esc), e confere que o avatar é desenhado
+  por cima da loja atrás da qual está e deixa de ser no spawn.
   Os colisores da cena vêm de `scene/sceneColliders.ts`, que a auditoria de colisores confere: tirar os dos chalés
   residenciais agora falha num teste unitário.
+- Testes: os testes que percorrem a Vila inteira (auditoria de colisores, rotas, sombras) têm limite de tempo
+  explícito, de pelo menos dez vezes o tempo numa máquina ociosa; a auditoria de `sceneColliders` estourava os 5 s
+  padrão no CI (5,6 s). A regra do toque na cena passou a ter teste que falha (`pressScene`,
+  `scene/Ground.test.tsx`).
 - Celular: os botões "Ir até lá" da lista "Explorar ONGs" têm 44 px de altura (eram 36 px, em 12 linhas); um
   rótulo 3D que cairia embaixo de um botão ou aviso do HUD fica escondido até sair de lá.
 - Menu → Controles e Ajuda dizem o que um clique faz em cada coisa: árvore, casa de ONG e terreno abrem o painel;
   loja, placa e casa residencial levam o avatar até lá e, de perto, abrem o painel.
 - Um clique, uma intenção: clicar numa construção não deixa mais uma caminhada esperando o painel fechar; de longe,
   o avatar anda até o ponto de uso e o marcador do toque fica lá; um toque num telhado que cobre a rua anda até o
-  ponto da rua.
+  ponto da rua. No modo moderação (PROPOSTA, IMPL-0021), o toque sobre outro visitante o seleciona esteja ele
+  onde estiver (campo aberto, piso de um terreno, porta de loja, frente de um chalé ou da árvore), e esse toque
+  não anda nem abre painel.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
   não lista (banco antes da 0012) não oferece candidatura e aparece como "Terreno em preparação" (os 12 terrenos
   aparecem na lista "Explorar ONGs", cada um com "Ir até lá").
