@@ -28,7 +28,7 @@ const decision = (action = "approve", seen = revision()) => json("POST", `/admin
 const upload = (kind = "document") => request("POST", `/ngo/application/files?kind=${kind}`, "owner",
   kind === "logo" ? png() : pdf(), { "Content-Type": kind === "logo" ? "image/png" : "application/pdf", "X-Vila-Account": "owner" });
 const remove = (id: string) => request("DELETE", `/ngo/application/files/${id}`, "owner", undefined, { "X-Vila-Account": "owner" });
-const deleteAccount = () => request("DELETE", "/me");
+const deleteAccount = () => request("DELETE", "/me", "owner", undefined, { "X-Vila-Account": "owner" });
 const fileRows = () => db.sql("SELECT * FROM ngo_files ORDER BY id");
 const audits = (action: string) => db.sql("SELECT * FROM audit_events WHERE action=?", action);
 const intent = () => db.sql("SELECT files_deleting FROM users WHERE id='owner'")[0]?.files_deleting;

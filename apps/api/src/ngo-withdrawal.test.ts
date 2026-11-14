@@ -39,7 +39,7 @@ const uploadDocument = (user = "owner") => request("POST", "/ngo/application/fil
 const uploadLogo = (user = "owner") => request("POST", "/ngo/application/files?kind=logo", user, ORIGIN,
   { "X-Vila-Account": user, "Content-Type": "image/png" }, png() as BodyInit);
 const deletePhoto = (id: string, user = "owner") => request("DELETE", `/ngo/photos/${id}`, user, ORIGIN, { "X-Vila-Account": user });
-const deleteAccount = (user = "owner") => request("DELETE", "/me", user, ORIGIN, {});
+const deleteAccount = (user = "owner") => request("DELETE", "/me", user, ORIGIN, { "X-Vila-Account": user });
 const approve = (revision = 1) => call("POST", `/admin/applications/${NGO}/decision`, { action: "approve", revision, checks: { activeCnpj: true, oneYear: true, fundsConfirmable: true } });
 const deleteFile = (id: string, user = "owner") => request("DELETE", `/ngo/application/files/${id}`, user, ORIGIN, { "X-Vila-Account": user });
 const error = async (response: Response | Promise<Response>) => ((await (await response).json()) as { error: string }).error;
@@ -583,7 +583,7 @@ describe("database without migration 0009", () => {
       expect(await error(call("POST", `/admin/applications/${NGO}/decision`, { action, revision: 1, checks: CHECKS, note: "Synthetic note for the test." }))).toBe("schema_outdated");
     expect(db.sql("SELECT status FROM ngos WHERE id=?", NGO)[0].status).toBe("submitted");
     expect(db.sql("SELECT * FROM audit_events")).toEqual([]);
-    expect((await call("DELETE", "/me", undefined, "owner")).status).toBe(204);
+    expect((await deleteAccount("owner")).status).toBe(204);
     expect(db.sql("SELECT applicant_id FROM ngos WHERE id=?", NGO)[0].applicant_id).toBeNull();
     expect(logged).not.toHaveBeenCalled();
   });

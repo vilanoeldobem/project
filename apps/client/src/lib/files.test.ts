@@ -98,7 +98,7 @@ describe("API client", () => {
       vi.fn(async (url: string, init: RequestInit = {}) => {
         const path = new URL(url).pathname;
         if (path === "/config") return Response.json(config);
-        if (path === "/me") return Response.json({ user: USER });
+        if (path === "/me" && (init.method ?? "GET") === "GET") return Response.json({ user: USER });
         if (path.startsWith("/progress")) return Response.json({ progress: { xp: 0, counters: {}, completed: {}, seen: {} } });
         const call = { method: init.method ?? "GET", url, headers: init.headers as Record<string, string>, credentials: init.credentials, body: init.body };
         calls.push(call);
@@ -148,6 +148,19 @@ describe("API client", () => {
     expect(call.credentials).toBe("include");
     expect(call.headers).toEqual({ Accept: "application/json", "X-Vila-Account": "u1" });
     expect(call.body).toBeUndefined();
+  });
+
+  it("names the account in a profile correction and in an erasure (a tab that switched accounts is refused)", async () => {
+    const { api } = await page({ accounts: true, files: true }, (call) =>
+      call.method === "DELETE" ? new Response(null, { status: 204 }) : Response.json({ user: { id: "u1" } }));
+    await api.updateMe({ name: "Ana Souza", nickname: "ana_souza", city: "Olinda" });
+    await expect(api.deleteMe()).resolves.toBeNull();
+    const [update, erase] = calls;
+    expect(update.method).toBe("POST");
+    expect(JSON.parse(String(update.body))).toEqual({ name: "Ana Souza", nickname: "ana_souza", city: "Olinda", accountId: "u1" });
+    expect(erase.method).toBe("DELETE");
+    expect(erase.headers).toEqual({ Accept: "application/json", "X-Vila-Account": "u1" });
+    expect(erase.body).toBeUndefined();
   });
 
   it("reads a file as a Blob with the session, and an error answer as ApiError", async () => {

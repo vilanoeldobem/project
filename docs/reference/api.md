@@ -251,9 +251,10 @@ Avaliadas nesta ordem, para toda rota de conta:
 5. Corpo (`POST`): exige `Content-Type: application/json` (`415 json_required`; também força o preflight de CORS),
    no máximo 16 000 bytes (32 000 na candidatura; `413 too_large`), objeto JSON (`400 bad_json`). Sem
    `Content-Length`, a leitura para assim que o limite é passado (nunca guarda um corpo enorme na memória).
-6. Escritas da própria conta (`POST /progress/events`, `POST /ngo/application`) levam `accountId`, o id da conta que
-   a página acredita estar conectada. Diferente da sessão do cookie (outra aba trocou de conta) → `409
-   account_changed`, nada é gravado; o cliente relê `/me` e passa a mostrar a conta certa.
+6. Escritas da própria conta (`POST /progress/events`, `POST /ngo/application`, `POST /me`) levam `accountId`, o id
+   da conta que a página acredita estar conectada; as que não têm corpo JSON (`DELETE /me` e as rotas de arquivo)
+   levam o mesmo id no cabeçalho `X-Vila-Account`. Ausente ou diferente da sessão do cookie (outra aba trocou de
+   conta) → `409 account_changed`, nada é gravado nem apagado; o cliente relê `/me` e passa a mostrar a conta certa.
 7. Sessão de conta bloqueada ([bloqueio de conta](#bloqueio-de-conta-impl-0021-proposta), PROPOSTA): toda rota que
    exige sessão responde `403 session_blocked`, exceto `GET /me`, `POST /auth/logout` e `DELETE /me`. A conferência
    é feita a cada requisição e não depende da bandeira.
@@ -277,8 +278,8 @@ Rotas que exigem sessão respondem `401 not_signed_in` sem ela.
 | `POST /auth/verify` | `{token}` | `200 {user}` + `Set-Cookie: __Host-vila_session=…` |
 | `POST /auth/logout` | — | `204`, apaga a sessão e o cookie |
 | `GET /me` | — | `200 {user}` ou `200 {"user": null}` sem sessão (visitante não é erro) |
-| `POST /me` | `{name, nickname, city}` | `200 {user}` (correção; e-mail não muda) |
-| `DELETE /me` | — | `204`, exclui a conta (ver abaixo) |
+| `POST /me` | `{accountId, name, nickname, city}` | `200 {user}` (correção; e-mail não muda) |
+| `DELETE /me` | sem corpo; `X-Vila-Account` = id da conta | `204`, exclui a conta (ver abaixo) |
 
 `user` = `{id, name, nickname, city, email, role, deletionPending, blocked?}` (`role`: `player` ou `admin`; a
 interface mostra "Padrão" e "Administrador", `ROLE_LABEL` em `packages/shared/src/accounts/contract.ts`). `deletionPending`
@@ -343,13 +344,19 @@ respondem `503 schema_outdated` sem escrever:
 Num banco em dia nada disso muda: a consulta de `/auth/link` é a mesma para todo e-mail, e a confirmação continua
 de uso único (só vence a requisição que marca `used_at`).
 
-**Correção (`POST /me`):** `{name, nickname, city}` corrige os dados (direito de correção; também desfaz um cadastro
+**Correção (`POST /me`):** `{accountId, name, nickname, city}` corrige os dados (direito de correção; também desfaz um cadastro
 feito por outra pessoa com este e-mail antes do dono entrar). O e-mail não é editável. Se a conta for bloqueada
 enquanto o pedido está a caminho, a correção é recusada no próprio comando: `403 session_blocked`, nada muda.
+`accountId` ausente ou diferente da conta da sessão (uma aba antiga que ainda mostra outra conta) → `409
+account_changed`, antes de qualquer validação ou leitura no D1: nada muda.
 
 **Exclusão (`DELETE /me`):** apaga a conta, as sessões, os links e os eventos de missão (cascata no D1); uma
 candidatura de ONG continua, sem o vínculo com quem a enviou (`applicant_id` vira `NULL`). Grava `audit_events`
 `user.delete` (ator e assunto pelo id, sem dados pessoais).
+O pedido não tem corpo e nomeia a conta no cabeçalho `X-Vila-Account`, como as rotas de arquivo. Ausente ou diferente
+da conta da sessão (uma aba antiga que ainda mostra outra conta) → `409 account_changed`, antes da marca
+`files_deleting` e de qualquer mudança no R2 ou no D1: nenhuma das contas é tocada. Uma conta bloqueada mantém o
+direito de se excluir; só precisa nomear a si mesma.
 Se a limpeza dos arquivos falhar, `GET /me` mantém a sessão e responde `deletionPending: true`. A tela da conta
 exibe a exclusão pendente e o botão **Tentar concluir exclusão**. A exclusão não pode ser cancelada: parte dos
 bytes já pode ter sido apagada. O cliente relê esse estado depois de uma falha e repete o mesmo `DELETE /me`.
