@@ -1,7 +1,7 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-13
+> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
 
@@ -33,6 +33,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [reference/quests.md](reference/quests.md) — missões narrativas `quests-v1` (PROPOSTA): estados, eventos, flags, NPCs, painel de doação e portão da casa publicada.
 - [reference/storage.md](reference/storage.md) — schema D1, migrations, estados; arquivos de ONG no R2.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
+- [reference/releases.md](reference/releases.md) — registro de cada publicação em produção: commit, hosts, schema, R2, bandeiras e conferências.
 
 **Explicação**
 - [explanation/design-principles.md](explanation/design-principles.md) — princípios e onde aparecem no código.
@@ -45,18 +46,18 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [implementation/progress-persistence-report.md](implementation/progress-persistence-report.md) — persistência concorrente e correção do progresso divergente ao entrar na conta.
 - [implementation/ngo-withdrawal-report.md](implementation/ngo-withdrawal-report.md) — retirada de ONG publicada (PROPOSTA, desligada): porte para o fluxo canônico e respostas à revisão.
 
-## Status por área (2026-11-12)
+## Status por área (2026-11-14)
 
 | Área | Status | Referência |
 |---|---|---|
-| Apps separados (client, api, server, site, dash) e subdomínios | Em produção; último deploy em 2026-11-12 (IMPL-0009) | [architecture](reference/architecture.md) |
+| Apps separados (client, api, server, site, dash) e subdomínios | Em produção; último deploy em 2026-11-14, 0.5.0 ([releases](reference/releases.md)) (IMPL-0009) | [architecture](reference/architecture.md) |
 | Praça 3D, avatar, câmera | Parcial (estudo de câmera, G12) | [architecture](reference/architecture.md) |
 | Vila nevada, dia/noite real, clima compartilhado | Implementado — arte nevada confirmada (OQ-07); DEC pendente (IMPL-0006) | [environment](reference/environment.md) |
 | Terrenos e casas de ONG | Parcial — candidatura e análise implementadas, desligadas em produção (IMPL-0011) | [api](reference/api.md#candidatura-de-ong-p12-dec-015-dec-037) |
-| Logo e documentos de ONG (R2) | Implementado, desligado em produção (`NGO_FILES_ENABLED`); bucket não criado; lista de documentos PENDENTE (PEN-019, OQ-12) (IMPL-0017) | [api](reference/api.md#arquivos-da-candidatura-impl-0017) · [storage](reference/storage.md#5-arquivos-no-r2-impl-0017) |
+| Logo e documentos de ONG (R2) | Implementado, desligado em produção (`NGO_FILES_ENABLED`); bucket criado em 2026-11-14, vazio; lista de documentos PENDENTE (PEN-019, OQ-12) (IMPL-0017) | [api](reference/api.md#arquivos-da-candidatura-impl-0017) · [storage](reference/storage.md#5-arquivos-no-r2-impl-0017) |
 | Retirada de ONG publicada | Implementado como PROPOSTA, desligado em produção e homologação (`NGO_WITHDRAWAL_ENABLED`); política PENDENTE (OQ-14) (IMPL-0020) | [api](reference/api.md#retirada-administrativa-de-ong-publicada-impl-0020-proposta) · [0020](decisions/0020-ngo-publication-withdrawal.md) |
 | Administrador e moderação | Papéis geridos pela API e remoção de logo por administrador implementados (valem com as contas ligadas); bloqueio de conta e remoção de visitante de uma sala implementados como PROPOSTA, desligados em produção e homologação (`ACCOUNT_BLOCK_ENABLED`, `PRESENCE_MODERATION_ENABLED`); política de sanções PENDENTE (OQ-11); telas do painel e do jogo implementadas (IMPL-0021) | [api](reference/api.md#papéis-impl-0021) · [0021](decisions/0021-administrator-role-and-moderation.md) |
-| Expansão da Vila: praça maior, lojas, placas e terrenos residenciais | Layout, cena e leitura pública implementados como PROPOSTA; posse de terrenos desligada em produção e homologação (`RESIDENTIAL_PLOTS_ENABLED`); migration 0012 não aplicada no remoto; política PENDENTE (OQ-17, OQ-18, OQ-19) (IMPL-0024) | [architecture](reference/architecture.md#24-plano-da-vila-impl-0024-proposta) · [api](reference/api.md#get-residential-plots) · [0023](decisions/0024-village-expansion-and-zoning.md) |
+| Expansão da Vila: praça maior, lojas, placas e terrenos residenciais | Layout, cena e leitura pública implementados como PROPOSTA; posse de terrenos desligada em produção e homologação (`RESIDENTIAL_PLOTS_ENABLED`); migration 0012 aplicada em produção em 2026-11-14; política PENDENTE (OQ-17, OQ-18, OQ-19) (IMPL-0024) | [architecture](reference/architecture.md#24-plano-da-vila-impl-0024-proposta) · [api](reference/api.md#get-residential-plots) · [0023](decisions/0024-village-expansion-and-zoning.md) |
 | Vida na Vila: personagens e animais que andam | Implementado como PROPOSTA, visível (sem dado, rota nem mensagem novos); elenco, nomes, rotinas e falas PENDENTES do dono do produto (OQ-20) (IMPL-0025) | [architecture](reference/architecture.md#25-vida-na-vila-impl-0025-proposta) · [content](reference/content.md) · [0025](decisions/0025-village-life.md) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
 | Painel administrativo (`apps/dash`, `dash.*`) | Publicado em 2026-11-12, contas desligadas (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |

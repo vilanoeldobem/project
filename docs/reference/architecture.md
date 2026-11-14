@@ -1,7 +1,7 @@
 # Arquitetura
 
-> **Status:** Implementado (0.4.0) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-13
+> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
 
@@ -357,7 +357,7 @@ A tabela aditiva `ngo_withdrawals` marca a retirada sem mudar `ngos.status` (con
 privadas projetam o estado efetivo `withdrawn`. No mesmo batch, a retirada incrementa a revisão, libera os
 terrenos efetivamente associados e grava uma auditoria. **As projeções públicas de uma ONG exigem o terreno
 publicado e não leem essa tabela**: a ONG retirada some de `/lots`, `/indicators`, do perfil, do logo e das
-fotos, e as rotas públicas respondem igual nos schemas v3 a v9. As rotas de candidatura e análise leem a tabela
+fotos, e as rotas públicas respondem igual nos schemas v3 a v12. As rotas de candidatura e análise leem a tabela
 e respondem `503 schema_outdated` sem a migration 0009. O texto que o admin escreve é a mensagem lida pela
 organização; não entra em resposta pública nem na auditoria. O jogo precisa recarregar para atualizar uma cena
 aberta; não há broadcast de retirada nem alteração de XP ou missões.
@@ -486,7 +486,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala, só quando o bilhete foi emitido (IMPL-0021) |
 | api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
 | api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
-| api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, **ainda não criado** (IMPL-0017) |
+| api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, criado em 2026-11-14 e vazio (IMPL-0017) |
 | api | `vars.NGO_FILES_ENABLED` | `"false"` | Envio de logo e documentos desligado até a lista de documentos (PEN-019) e a revisão LGPD |
 | server | `durable_objects` + `migrations` | binding `ROOMS` → `VillageRoom` (SQLite, tag `v1-village-room`) | Salas de presença (IMPL-0008) |
 | server | `vars.ALLOWED_ORIGINS` | `https://play.vilanoeldobem.com.br` | WebSocket só do jogo |

@@ -39,6 +39,7 @@ Keep a Changelog 1.1.0. Toda mudança visível entra em `[Unreleased]`. Cada ver
 3. Gates + `verify.mjs`.
 4. Commit `chore(release): X.Y.Z`, tag `vX.Y.Z`.
 5. Deploy ([guides/deploy.md](../guides/deploy.md)) com autorização.
+6. Registrar a publicação em [releases.md](releases.md) e no "Último deploy" do guia de deploy.
 
 ## Ver também
 
