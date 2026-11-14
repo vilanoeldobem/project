@@ -1,12 +1,13 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-13
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation,donations,abacatepay}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v12 no código**; último estado registrado de produção: v3). O histórico aplicado identifica o schema real e
+(**v12 no código**; produção na v12 desde 2026-11-14, com as migrations `0004` a `0012` aplicadas no deploy da 0.5.0,
+segundo o registro do deploy; ver [releases.md](releases.md)). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -383,7 +384,7 @@ ficarão separados dos dados de gamificação (dossiê §13).
 ## 5. Arquivos no R2 (IMPL-0017)
 
 Bucket `vilanoeldobem-files`, binding `FILES`, ligado só ao Worker da API. **PROPOSTA, desligado em produção**
-(`NGO_FILES_ENABLED = "false"`); o bucket ainda não foi criado.
+(`NGO_FILES_ENABLED = "false"`); o bucket foi criado em 2026-11-14 (deploy da 0.5.0), vazio e privado.
 
 | Item | Como é |
 |---|---|

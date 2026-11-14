@@ -50,7 +50,7 @@ Caderno de Missões local. Ver [CHANGELOG](CHANGELOG.md#010---2026-11-08).
 
 **Objetivo:** validar a stack (G11) e a câmera/desempenho em celular real (G12) com a versão publicada na conta
 Cloudflare do projeto. **Publicado em 2026-11-08:** jogo em https://app.vilanoeldobem.com.br e site em https://www.vilanoeldobem.com.br; falta o teste em aparelhos reais.
-Com a separação em apps ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md), deploy pendente), o jogo
+Com a separação em apps ([IMPL-0009](docs/decisions/0009-split-client-api-server-shared.md), em produção; último deploy em 2026-11-14), o jogo
 passa a https://play.vilanoeldobem.com.br (`app.*` redireciona), a API a `api.*` e a presença a `server.*`.
 
 ### Infraestrutura de entrega (0.3.x) — em andamento

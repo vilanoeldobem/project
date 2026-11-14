@@ -11,7 +11,7 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 | Host | Worker | App |
 |---|---|---|
 | https://play.vilanoeldobem.com.br | `vilanoeldobem` | `apps/client` (jogo, Static Assets) |
-| https://client.vilanoeldobem.com.br | `vilanoeldobem` | 302 → `play` (apelido com o nome do app; mesmo caminho e query). **Ainda não publicado:** o domínio nasce no próximo `pnpm deploy:client` |
+| https://client.vilanoeldobem.com.br | `vilanoeldobem` | 302 → `play` (apelido com o nome do app; mesmo caminho e query). Publicado: em 14/11/2026 `GET /x?y=1` respondeu 302 para `https://play.vilanoeldobem.com.br/x?y=1` |
 | https://app.vilanoeldobem.com.br | `vilanoeldobem` | 301 → `play` (mesmo caminho e query) |
 | https://api.vilanoeldobem.com.br | `vilanoeldobem-api` | `apps/api` (API HTTP + D1) |
 | https://server.vilanoeldobem.com.br | `vilanoeldobem-server` | `apps/server` (presença, Durable Object `VillageRoom`) |
@@ -26,6 +26,8 @@ Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel admin
 servidor → jogo → painel → site, depois das migrations remotas `0004` a `0012` (o D1 de produção está na **v12**).
 Contas e todas as propostas seguem desligadas; o bucket R2 `vilanoeldobem-files` foi criado nesse dia, vazio e
 privado. O `smoke-api.sh` passa; o `verify-live.mjs` falha só pelos destinos do Google bloqueados pela CSP (OQ-13).
+O registro completo de cada publicação (commit, hosts, schema, R2, bandeiras por Worker, conferências e o que não
+foi verificado) fica em [reference/releases.md](../reference/releases.md).
 
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
 ([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1 e o do bucket
@@ -365,14 +367,16 @@ reverta o jogo junto ou mantenha o painel.
 
 Logo e documentos das candidaturas ficam num bucket R2 privado, lido só pela API
 ([IMPL-0017](../decisions/0017-ngo-files-r2.md)). **PROPOSTA, desligado em produção**
-(`NGO_FILES_ENABLED = "false"` em `apps/api/wrangler.jsonc`). O R2 já está habilitado na conta (2026-11-12); **o
-bucket ainda não existe**.
+(`NGO_FILES_ENABLED = "false"` em `apps/api/wrangler.jsonc`). O R2 está habilitado na conta desde 2026-11-12; o
+bucket `vilanoeldobem-files` foi criado em 2026-11-14, no deploy da 0.5.0, vazio e privado (registro do deploy;
+em 14/11/2026 `GET /health` da API respondeu `"files": true`, o que mostra o binding presente, não que gravar ou
+ler funcione). Os passos 1 e 2 abaixo já foram feitos em produção; ficam como roteiro para outro ambiente.
 
 ### 9.1 Ordem
 
 Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurso, aplica migration remota ou publica.
 
-1. **Criar o bucket** (uma vez), em `apps/api`:
+1. **Criar o bucket** (uma vez; em produção, feito em 2026-11-14), em `apps/api`:
 
    ```bash
    CLOUDFLARE_ACCOUNT_ID=9119b7496767fec497f6627c5ca56f32 pnpm exec wrangler r2 bucket create vilanoeldobem-files --location enam
@@ -392,7 +396,8 @@ Cada passo abaixo exige autorização humana explícita (AGENTS.md): cria recurs
    estiverem ligadas, publicar esta API antes da 0007 ou da 0010 interrompe o acesso autenticado** e, antes da 0009, as
    rotas de candidatura e análise, com `503 schema_outdated`, mesmo com fotos e retirada desligadas. Cadastro/link/logout não provam que a sessão funciona.
    Aplicar a sequência antes da API e conferir `/me` com sessão sintética de homologação. O código anterior é
-   compatível com as colunas/tabelas adicionais. Esta orientação não afirma aplicação no banco remoto.
+   compatível com as colunas/tabelas adicionais. Em produção, as migrations `0004` a `0012` foram aplicadas em
+   2026-11-14 (deploy da 0.5.0); com as contas desligadas, `/me` com sessão não foi conferido.
 3. **Conferir:**
 
    ```bash
@@ -585,13 +590,17 @@ ligar.
 
 ## Limitações conhecidas
 
-- Expansão da Vila (IMPL-0024): migration 0012 não aplicada no remoto; `RESIDENTIAL_PLOTS_ENABLED` desligada; nada
-  desta entrega foi publicado. Desempenho medido só em computador (Chrome com GPU e por software), não em celular.
-- Moderação (IMPL-0021): migration 0010 não aplicada no remoto; `ACCOUNT_BLOCK_ENABLED` e
-  `PRESENCE_MODERATION_ENABLED` desligadas; nada desta entrega foi publicado (API, servidor de tempo real com o
-  binding de serviço, painel e jogo).
-- Doações (IMPL-0023): migration 0011 não aplicada no remoto; `DONATIONS_ENABLED` desligada; nada desta entrega foi
-  publicado.
+Estado de produção depois do deploy de 2026-11-14 (0.5.0; detalhes em
+[reference/releases.md](../reference/releases.md)): D1 na v12 (migrations `0004` a `0012` aplicadas), bucket R2
+criado e vazio, os cinco Workers publicados. Isso não liga nada: todas as bandeiras abaixo seguem `"false"`.
+
+- Expansão da Vila (IMPL-0024): layout, cena e leitura pública publicados; migration 0012 aplicada;
+  `RESIDENTIAL_PLOTS_ENABLED` desligada e sem rota de posse. Desempenho medido só em computador (Chrome com GPU e
+  por software), não em celular.
+- Moderação (IMPL-0021): migration 0010 aplicada; API, servidor de tempo real (com o binding de serviço no
+  `wrangler.jsonc`), painel e jogo publicados; `ACCOUNT_BLOCK_ENABLED` e `PRESENCE_MODERATION_ENABLED` desligadas.
+  A chamada do servidor à API pelo binding não foi exercitada em produção (não verificado em 14/11/2026).
+- Doações (IMPL-0023): migration 0011 aplicada (tabelas vazias); `DONATIONS_ENABLED` desligada.
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
 - Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
@@ -599,8 +608,11 @@ ligar.
   do jogo bloqueia. Cada bloqueio é um erro de console; `verify.mjs` (local) e `verify-live.mjs` (produção) falham por
   isso até a configuração do Google Analytics ser ajustada. Nada mais falha nessas conferências.
 - Contas (0.4.0) desligadas em produção até a revisão LGPD / ECA Digital, a verificação do domínio no Resend e a
-  chave `RESEND_API_KEY` no Worker.
-- Arquivos de ONG (IMPL-0017): bucket não criado, migration 0006 não aplicada, envio desligado.
+  chave `RESEND_API_KEY` no Worker (em 14/11/2026 `GET /health` respondeu `"mail": false`).
+- Arquivos de ONG (IMPL-0017): bucket criado e migrations 0006/0007 aplicadas em 2026-11-14; envio desligado
+  (`NGO_FILES_ENABLED`). Gravar e ler no bucket não foi exercitado em produção (não verificado em 14/11/2026).
+- Sem registro de ensaio de recuperação do D1 de produção (Time Travel ou export) nem de teste em aparelhos reais
+  (celular): não verificado em 14/11/2026.
 
 ## Ver também
 

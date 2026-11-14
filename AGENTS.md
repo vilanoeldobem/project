@@ -122,7 +122,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
-  association and reads no table newer than the one it serves: production runs behind the code (schema v3). Never
+  association and reads no table newer than the one it serves: production may run behind the code (v12 since the 0.5.0 deploy, 2026-11-14; `docs/reference/releases.md`). Never
   join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
   `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
@@ -141,7 +141,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage` or `shopEvery`.
 - Lot, shop and plot ids are positional (`plaza-NN` = the n-th lot around the village): stable only for an
   unchanged plan. They are stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
-  `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`), so once migration 0012 is applied, a plan
+  `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`), and migration 0012 is applied in production (2026-11-14), so a plan
   change that moves or renumbers one needs a new migration that follows. Lots and plots must stay in sync with the
   seed migrations (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text, the migrated
   tables and pin each id to its place), and the plan in force must keep the rules of
@@ -173,7 +173,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   each piece: never one mesh whose bounding sphere covers the village. Measure calls and triangles before and after;
   `apps/client/scripts/verify.mjs` fails over the budget at the spawn, default zoom and zoomed out.
 - `GET /residential-plots` is an always-on public route: the shared layout is its source (every plot, always), the
-  `residential_plots` table (0012, not in production yet) only adds state and is read only with the flag on. A
+  `residential_plots` table (0012, in production since 2026-11-14) only adds state and is read only with the flag on. A
   missing table, a missing row or a D1 error answers "unavailable", never a 500 or a shorter list. `enabled` is the
   same value as `/config.residentialPlots`. The table has no ownership columns: they come with the migration that
   brings a claim route (OQ-17), never before.

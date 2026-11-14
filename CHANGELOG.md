@@ -55,6 +55,13 @@ Cada versão indica o schema D1 que entrega.
   `YYYY-MM-DD` que a API guarda (o mesmo formato aparece na revisão da candidatura e no painel administrativo).
 - O painel de badges passou a dizer **"Suas badges"** (antes "Meus badges").
 
+### Changed — documentação de operação
+
+- **Registro de publicações** ([`docs/reference/releases.md`](docs/reference/releases.md)), começando pela 0.5.0
+  (commit, hosts, schema D1 v12, bucket R2, bandeiras por Worker, conferências e o que não foi verificado); guia
+  de deploy, armazenamento, arquitetura, índices e ROADMAP deixam de dizer que as migrations 0010–0012, o bucket
+  R2 e o apelido `client.*` não estavam em produção.
+
 ## [0.5.0] - 2026-11-14
 
 **Moderação, entrada direta na Vila, expansão e vida na Vila**
