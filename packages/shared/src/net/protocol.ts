@@ -5,14 +5,14 @@
  * avatar pose. No chat, no free text (minors: ECA Digital, LGPD). Messages are compact JSON arrays.
  *
  *   client → server  ["p", x, z, yaw, speed]                 pose, ≤ 10 Hz, only when it changed
- *                    ["k", hat, scarf, sweater, palette]     avatar look (catalogue ids only, IMPL-0010)
+ *                    ["k", code]                             avatar look (one catalogue index per slot, IMPL-0010/0027)
  *                    ["a"]                                   the person clicked, tapped or typed; ≤ 1 per ACTIVE_MS
  *                    ["m", target, ticket]                   PROPOSTA (IMPL-0021): an administrator asks the room to remove
  *                                                            the connection `target`; see "Removal" below
  *                    "ping"                                  keep-alive (answered "pong" without waking the room)
  *   server → client  ["w", selfId, room]                     welcome
  *                    ["s", tickMs, [[id, x, z, yaw, speed, ageMs], …]]  poses that changed since the last tick
- *                    ["k", id, [hat, scarf, sweater, palette]] someone's look (on change; all of them on join)
+ *                    ["k", id, code]                          someone's look (on change; all of them on join)
  *                    ["l", id]                                someone left
  *                    ["m", target, 0 | 1]                     answer to the sender of ["m", …]: 1 = the room closed
  *                                                             `target` with 4003, 0 = nobody was closed
@@ -37,7 +37,7 @@
  * minute, answered or not; beyond that the room closes the sender with 1008. A removal is not a ban: the
  * removed visitor's client shows an honest message and waits before reconnecting, nothing more.
  */
-import { COSMETICS, type Look, SLOTS } from "../game/cosmetics";
+import { COSMETICS, type Look, type Slot, SLOTS } from "../game/cosmetics";
 import { MOTION } from "../game/motion";
 import { WORLD_RADIUS } from "../game/world";
 
@@ -109,25 +109,33 @@ export function decodePose(raw: string): Pose | null {
   return { x: px, z: pz, yaw: wrap(yaw as number), speed: Math.min(Math.max(speed as number, 0), MOTION.maxSpeed) };
 }
 
-/** Look as the four slot ids, in `SLOTS` order. */
-const lookArray = (l: Look) => SLOTS.map((s) => l[s]);
+/** Items of one slot, in catalogue order; index 0 is the default of that slot. */
+const slotItems = (slot: Slot) => COSMETICS.filter((c) => c.slot === slot);
+
+/** Look as one base36 catalogue index per slot, in `SLOTS` order (the default is `0` in every slot). */
+const lookCode = (l: Look) =>
+  SLOTS.map((slot) => {
+    const index = slotItems(slot).findIndex((c) => c.id === l[slot]);
+    return (index < 0 ? 0 : index).toString(36);
+  }).join("");
 
 /**
- * Validates a look array: exactly one known catalogue id per slot. (Unlocks are checked on the client
- * and, with accounts, on the server; here only "is this a real item in the right slot".)
+ * Validates a look code: exactly one base36 index per slot, each one a real item of that slot. (Unlocks are
+ * checked on the client and, with accounts, on the server; here only "is this a real item in the right slot".)
  */
 export function parseLook(raw: unknown): Look | null {
-  if (!Array.isArray(raw) || raw.length !== SLOTS.length) return null;
+  if (typeof raw !== "string" || raw.length !== SLOTS.length) return null;
   const out = {} as Look;
   for (let i = 0; i < SLOTS.length; i++) {
-    const c = COSMETICS.find((x) => x.id === raw[i]);
-    if (!c || c.slot !== SLOTS[i]) return null;
-    out[SLOTS[i]] = c.id;
+    const index = Number.parseInt(raw[i] as string, 36);
+    const item = Number.isInteger(index) ? slotItems(SLOTS[i] as Slot)[index] : undefined;
+    if (!item) return null;
+    out[SLOTS[i] as Slot] = item.id;
   }
   return out;
 }
 
-export const encodeLook = (l: Look) => JSON.stringify(["k", ...lookArray(l)]);
+export const encodeLook = (l: Look) => JSON.stringify(["k", lookCode(l)]);
 
 const TICKET = new RegExp(`^[A-Za-z0-9_-]{${MODERATION_TICKET_LENGTH}}$`);
 /** The only accepted spelling of a removal request: what `encodeRemove` writes (no spaces, plain digits). */
@@ -166,7 +174,7 @@ export function decodeClient(raw: string): ClientMessage | null {
   if (raw.startsWith('["k"')) {
     try {
       const m = JSON.parse(raw) as unknown[];
-      const look = parseLook(m.slice(1));
+      const look = parseLook(m[1]);
       return look ? { t: "k", look } : null;
     } catch {
       return null;
@@ -177,7 +185,7 @@ export function decodeClient(raw: string): ClientMessage | null {
 }
 
 export function encodeServer(m: ServerMessage): string {
-  if (m.t === "k") return JSON.stringify(["k", m.id, lookArray(m.look)]);
+  if (m.t === "k") return JSON.stringify(["k", m.id, lookCode(m.look)]);
   if (m.t === "w") return JSON.stringify(["w", m.id, m.room]);
   if (m.t === "l") return JSON.stringify(["l", m.id]);
   if (m.t === "m") return JSON.stringify(["m", m.target, m.ok ? 1 : 0]);

@@ -114,7 +114,11 @@ const BOARDS = [
 const openBoard = async (page, board) => {
   await page.evaluate(([kind, arg]) => window.__vila.extra.panel(kind, arg), [board.kind, board.arg]);
   const dialog = page.getByRole("dialog", { name: board.title, exact: true });
-  await dialog.waitFor({ timeout: 10000 }).catch(() => fail(`${board.id}: the dialog "${board.title}" did not open`));
+  const opened = await dialog.waitFor({ timeout: 10000 }).then(() => true, () => false);
+  if (!opened) {
+    fail(`${board.id}: the dialog "${board.title}" did not open`);
+    return null;
+  }
   if (board.tab) {
     await dialog.getByRole("tab", { name: board.tab, exact: true }).click();
     await page.waitForTimeout(200);
@@ -181,6 +185,7 @@ for (const [name, width, height] of [
       continue;
     }
     const dialog = await openBoard(page, board);
+    if (!dialog) continue;
     const root = board.selector ?? `[data-board="${board.id}"]`;
     if (!(await page.locator(root).count())) fail(`${board.id}: no ${root} on the screen`);
     const small = await smallTargets(dialog);

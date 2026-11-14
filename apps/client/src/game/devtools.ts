@@ -28,6 +28,8 @@ export interface VilaDevtools {
   walkTo: (x: number, z: number) => void;
   pose: () => { x: number; z: number };
   progress: () => ReturnType<typeof useVila.getState>["progress"];
+  /** The equipped cosmetic look (P08/IMPL-0027), for the shop browser check. */
+  look: () => ReturnType<typeof useVila.getState>["look"];
   /** Gameplay events seen since load (type only, newest last). */
   events: string[];
   /** Ad-hoc hooks for the verify scripts (`never[]` keeps typed callers out; the scripts are plain JS). */
@@ -53,6 +55,7 @@ export function installDevtools() {
     walkTo: (x, z) => useVila.getState().setTarget({ x, z }),
     pose: () => ({ x: sim.pose.x, z: sim.pose.z }),
     progress: () => useVila.getState().progress,
+    look: () => useVila.getState().look,
     events: log,
     extra: {
       remotes: () => [...remotes.values()].map((r) => ({ id: r.id, x: r.x, z: r.z })),

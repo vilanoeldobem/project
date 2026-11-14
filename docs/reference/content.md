@@ -98,28 +98,39 @@ rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitur
 as quests ligadas. Posições e rótulos são sugestões PROPOSTA; a copy diz
 "ao sul" para o trenó e o trenó pequeno, que estão em `+z` na tela. Ver [quests.md](quests.md).
 
-## 4. Cosméticos do avatar (PROPOSTA)
+## 4. Cosméticos do avatar e o provador P08 (PROPOSTA)
 
-Catálogo e regras em `packages/shared/src/game/cosmetics.ts`; camadas de voxels em
-`apps/client/src/scene/gen/cosmetics.ts`. Cada item é uma camada (chapéu, cachecol, suéter) ou uma paleta de cores
-pintada sobre `avatarParts()`; o visual escolhido fica salvo neste navegador (`vila.look.v1`) e é sempre conferido
-contra o que o progresso já liberou.
+Catálogo e regras em `packages/shared/src/game/cosmetics.ts`; modelos de voxels em
+`apps/client/src/scene/gen/cosmetics.ts`. A prancha P08 fixa **dez categorias**: capacete, blusa, calça, vestido,
+sapato, costas, rosto, mão esquerda, mão direita e especial. São **100 entradas** (80 gratuitas e 20 pagas), com 94
+modelos e seis estados "sem item". O padrão de cada slot é o primeiro item, e o visual escolhido fica neste navegador
+em `vila.look.v2` (o `vila.look.v1` é migrado uma vez: `hat`→`helmet`, `sweater`→`blouse`; `scarf`/`palette` saem).
 
-| Item | Encaixe | Como libera |
-|---|---|---|
-| Gorro de Noel · Sem cachecol · Casaco liso · Clássico | — | Padrão |
-| Gorro de tricô · Cachecol listrado | chapéu · cachecol | Missão "Encontre 2 presentes escondidos na praça" |
-| Protetor de orelha · Suéter floco de neve | chapéu · suéter | Missão "Complete o Jogo da Memória" |
-| Cachecol verde · Paleta Floresta | cachecol · cores | Missão "Visite um terreno e conheça o cadastro de ONGs" |
-| Coroa de azevinho · Suéter listrado · Paleta Noite estrelada | chapéu · suéter · cores | Nível 2 |
+| Categoria | Loja do provador | Itens | Como libera |
+|---|---|---:|---|
+| Capacete | Ateliê de Enfeites | 10 | 1 padrão, 7 por missão ou nível 2, 2 pagos |
+| Costas | Ateliê de Enfeites | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
+| Rosto | Ateliê de Enfeites | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
+| Blusa | Alfaiataria de Inverno | 10 | 1 padrão, 7 por missão ou nível 2, 2 pagos |
+| Calça | Alfaiataria de Inverno | 10 | 1 padrão, 7 por missão ou nível 2, 2 pagos |
+| Vestido | Alfaiataria de Inverno | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
+| Sapato | Alfaiataria de Inverno | 10 | 1 padrão, 7 por missão ou nível 2, 2 pagos |
+| Mão esquerda | Oficina de Brinquedos | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
+| Mão direita | Oficina de Brinquedos | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
+| Especial | Empório da Lareira | 10 | 1 "sem item", 7 por missão ou nível 2, 2 pagos |
 
-Regras: libera só por missão ou nível (derivado do progresso; regras de XP inalteradas); tudo alcançável sem doar
-(nenhum item ligado à missão sobre doação, mesmo sendo só leitura); sem compra, sorteio, recompensa por tempo online
-ou contagem regressiva. Ao concluir uma missão que libera algo, o aviso diz "Novo visual: …". O painel "Caderno de
-Missões" mostra "Visual do avatar", com cadeado e o requisito exato nos itens ainda fechados.
+Regras: os itens gratuitos liberam só por missão ou nível (derivado do progresso; regras de XP inalteradas); todos são
+alcançáveis sem doar e nenhum se liga à missão de doação. Um vestido repõe blusa e calça nos padrões; vestir blusa ou
+calça tira o vestido. O aviso de missão resume a leva de itens novos em vez de listar todos. Não há compra, sorteio,
+recompensa por tempo online nem contagem regressiva.
 
-O visual viaja pela presença (IMPL-0008) como ids do catálogo: os outros visitantes veem seu chapéu, cachecol, suéter
-e cores. Avatares remotos com o mesmo visual são desenhados juntos (5 chamadas por visual diferente presente).
+O painel de cada loja abre o **provador** (P08/IMPL-0027): categorias daquela loja, retrato com prévia, dez cartões por
+categoria, "Em uso", o requisito exato dos itens fechados, "Equipar", o inventário ("No inventário: X de 80 visuais
+gratuitos") e "Só o que eu tenho". A loja continua **fechada** e nada é vendido; o provador é grátis. O cartão pago
+tem o selo "Pago" e **"Ver compra"** apenas revela "A compra de visuais não está disponível." — sem preço, moeda ou
+pagamento; a compra paga é o D21/PEN-022. "Visuais pagos são compras de aparência. Doações são separadas." O teste da
+P08 é `scripts/verify-shop.mjs`. Os geradores `hat`/`scarf`/`sweater` da tabela da seção 3 são só da galeria de
+desenvolvimento; o catálogo usa os modelos explícitos desta seção.
 
 ## 5. Testes (contrato de todo gerador)
 

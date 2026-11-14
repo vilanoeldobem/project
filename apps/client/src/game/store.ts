@@ -103,15 +103,56 @@ function saveProgress(p: Progress) {
   }
 }
 
-// Chosen avatar look (cosmetic layer ids, PROPOSTA). Always re-checked against what progress unlocked.
-const LOOK_KEY = "vila.look.v1";
+// Chosen avatar look (ten cosmetic slot ids, P08/IMPL-0027). Always re-checked against what progress unlocked.
+const LOOK_KEY = "vila.look.v2";
+const LOOK_KEY_V1 = "vila.look.v1";
+
+/** The four old hats and three old sweaters map to the new craft; the scarf and palette slots have no P08 slot. */
+const OLD_HATS: Record<string, string> = {
+  "hat-santa": "helmet-santa",
+  "hat-beanie": "helmet-beanie",
+  "hat-earmuffs": "helmet-earmuffs",
+  "hat-holly": "helmet-holly",
+};
+const OLD_SWEATERS: Record<string, string> = {
+  "sweater-none": "blouse-plain",
+  "sweater-snowflake": "blouse-snowflake",
+  "sweater-stripes": "blouse-stripes",
+};
+
+function readLook(key: string): unknown {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? "null");
+  } catch {
+    return null;
+  }
+}
+
+/** The v1 look, mapped to the two slots that survive; null when there is nothing to migrate. */
+function migrateLook(raw: unknown): Partial<Look> | null {
+  if (!raw || typeof raw !== "object") return null;
+  const v = raw as Record<string, unknown>;
+  const out: Partial<Look> = {};
+  const hat = typeof v.hat === "string" ? OLD_HATS[v.hat] : undefined;
+  const sweater = typeof v.sweater === "string" ? OLD_SWEATERS[v.sweater] : undefined;
+  if (hat) out.helmet = hat;
+  if (sweater) out.blouse = sweater;
+  return Object.keys(out).length ? out : null;
+}
 
 function loadLook(p: Progress): Look {
+  const current = readLook(LOOK_KEY);
+  if (current) return sanitizeLook(current, p);
+  const old = migrateLook(readLook(LOOK_KEY_V1));
+  if (!old) return sanitizeLook(null, p);
+  const look = sanitizeLook(old, p);
   try {
-    return sanitizeLook(JSON.parse(localStorage.getItem(LOOK_KEY) ?? "null"), p);
+    localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+    localStorage.removeItem(LOOK_KEY_V1);
   } catch {
-    return sanitizeLook(null, p);
+    /* storage unavailable: the migrated look lasts for this session */
   }
+  return look;
 }
 
 // Chosen character appearance (P07, "não são dados da conta"): a visual preference of this browser only, never
@@ -324,7 +365,9 @@ export const useVila = create<VilaState>((set, get) => ({
       // New cosmetics are a consequence of the mission, never a separate reward roll (PROPOSTA).
       const before = unlockedIds(previous);
       const fresh = COSMETICS.filter((c) => unlockedIds(progress).has(c.id) && !before.has(c.id));
-      get().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${fresh.map((c) => c.name).join(", ")}` : ""));
+      const names = fresh.map((c) => c.name);
+      const summary = names.length > 3 ? `${names.slice(0, 3).join(", ")} e mais ${names.length - 3}` : names.join(", ");
+      get().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${summary}` : ""));
       events.emit({ type: "mission", missionId: completed.id });
     }
   },

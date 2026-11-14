@@ -52,13 +52,22 @@ describe("look messages", () => {
   it("round-trips a valid look and rejects invalid ones", async () => {
     const { DEFAULT_LOOK } = await import("../game/cosmetics");
     const { decodeClient, encodeLook } = await import("./protocol");
-    const look = { ...DEFAULT_LOOK, hat: "hat-holly", palette: "palette-night" };
+    const look = { ...DEFAULT_LOOK, helmet: "helmet-holly", blouse: "blouse-snowflake", special: "special-halo" };
     const raw = encodeLook(look);
     expect(raw.length).toBeLessThanOrEqual(96);
     expect(decodeClient(raw)).toEqual({ t: "k", look });
     expect(decodeServer(encodeServer({ t: "k", id: 4, look }))).toEqual({ t: "k", id: 4, look });
-    expect(decodeClient('["k","hat-holly"]')).toBeNull();
-    expect(decodeServer('["k",4,["x","y","z","w"]]')).toBeNull();
+    expect(decodeClient(encodeLook(DEFAULT_LOOK))).toEqual({ t: "k", look: DEFAULT_LOOK });
+    for (const bad of [
+      '["k","000000000"]',
+      '["k","00000000000"]',
+      '["k","000000000z"]',
+      '["k",123]',
+      '["k",null]',
+      '["k","hat-holly"]',
+    ])
+      expect(decodeClient(bad), bad).toBeNull();
+    for (const bad of ['["k",4,"000000000z"]', '["k",4,["x","y","z","w"]]', '["k",4,"000000000"]']) expect(decodeServer(bad), bad).toBeNull();
   });
 });
 

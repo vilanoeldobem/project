@@ -3,7 +3,7 @@ import { darkenHex, type Appearance } from "@vila/shared/game/appearance";
 import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
 import { PALETTE as P } from "@vila/shared/game/world";
 
-import { applyLayer, ITEMS, PALETTES } from "./gen/cosmetics";
+import { applyLayer, backLayer, blouseBase, dressOverlay, faceLayer, handLayer, helmetLayer, pantsVoxels, shoesVoxels, specialLayer } from "./gen/cosmetics";
 import { dedupe } from "./gen/parts";
 
 export type Voxel = [number, number, number, string];
@@ -172,29 +172,43 @@ export interface AvatarParts {
 }
 
 /**
- * Avatar split into body and four limbs so it can walk (draw with AVATAR_SIZE). Front = +z. The look
- * (palette, sweater, scarf, hat) is a set of cosmetic layers painted onto the base body (IMPL-0010;
- * catalogue PROPOSTA). The default look is the original red coat and Santa hat. Avatar editor: P07 (DEC-032).
+ * Avatar split into body and four limbs so it can walk (draw with AVATAR_SIZE). Front = +z. The look (ten
+ * P08 slots, IMPL-0027) is painted onto the base body: blouse and trousers/limbs, shoes, an optional dress,
+ * helmet, back, face, hands and a special effect (IMPL-0010; catalogue PROPOSTA). The default look is the
+ * original red coat, blue trousers, brown boots and Santa hat. Avatar editor: P07 (DEC-032).
  *
  * Without `appearance` the body is exactly the original one (remote visitors and the geometry tests call it
  * that way). With it, the base head, hair, skin, eyes and facial hair are drawn before the cosmetic layers:
  * this is the player's own appearance, stored in this browser only.
  */
 export function avatarParts(look: Look = DEFAULT_LOOK, appearance?: Appearance): AvatarParts {
-  const pal = PALETTES[look.palette] ?? PALETTES["palette-classic"];
-  let body: Voxel[] = [];
-  box(body, -1, 1, 3, 5, 0, 0, pal.coat); // torso
-  box(body, -1, 1, 3, 3, 0, 0, pal.trim); // belt trim
-  if (appearance) body = dedupe([...body, ...appearanceVoxels(appearance)]);
-  else {
+  const skin = appearance?.skin ?? P.skin;
+  let body: Voxel[] = appearance ? dedupe(appearanceVoxels(appearance)) : [];
+  if (!appearance) {
     box(body, -1, 1, 6, 8, -1, 1, P.skin); // head
     body.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes
   }
-  for (const slot of ["sweater", "scarf", "hat"] as const) body = applyLayer(body, ITEMS[look[slot]]?.() ?? null);
-  const skin = appearance?.skin ?? P.skin;
-  const leg = (): Voxel[] => [[0, -3, 0, pal.pants], [0, -2, 0, pal.pants], [0, -1, 0, pal.pants]];
-  const arm = (): Voxel[] => [[0, -3, 0, skin], [0, -2, 0, pal.coat], [0, -1, 0, pal.coat]];
-  return { body, legL: leg(), legR: leg(), armL: arm(), armR: arm() };
+  const blouse = blouseBase(look.blouse);
+  body = dedupe([...body, ...blouse.torso.map(([x, y, z, c]): Voxel => [x, y + 3, z, c])]);
+  const legs = pantsVoxels(look.pants);
+  const legL = shoesVoxels(look.shoes, legs);
+  const legR = shoesVoxels(look.shoes, legs);
+  const arm = (sleeve: string, cuff: string): Voxel[] => [[0, -3, 0, skin], [0, -2, 0, cuff], [0, -1, 0, sleeve]];
+  let armL = arm(blouse.sleeve, blouse.cuff);
+  let armR = arm(blouse.sleeve, blouse.cuff);
+  const dress = dressOverlay(look.dress);
+  if (dress) {
+    body = dedupe([...body, ...dress.torso, ...dress.skirt]);
+    armL = arm(dress.sleeve, dress.sleeve);
+    armR = arm(dress.sleeve, dress.sleeve);
+  }
+  body = applyLayer(body, helmetLayer(look.helmet));
+  body = applyLayer(body, backLayer(look.back));
+  body = applyLayer(body, faceLayer(look.face));
+  body = applyLayer(body, specialLayer(look.special));
+  armL = applyLayer(armL, handLayer(look.handLeft));
+  armR = applyLayer(armR, handLayer(look.handRight));
+  return { body: dedupe(body), legL: dedupe(legL), legR: dedupe(legR), armL: dedupe(armL), armR: dedupe(armR) };
 }
 
 /** Head, hair, eyes, beard and mustache of one appearance, in avatar voxels (before the cosmetic layers). */
