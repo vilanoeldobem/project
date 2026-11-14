@@ -45,6 +45,7 @@ import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost
 import { donationPanel } from "./gen/quest-items";
 import { shop } from "./gen/shops";
 import { bench, lamp, lotMarker, pine, reindeer, sleigh, snowman, tree, type Voxel } from "./models";
+import { HOME_COLLIDERS, sceneColliders } from "./sceneColliders";
 import { billboardFrame, chimneyOf, dressingModel, residence } from "./villageModels";
 
 /** A voxel whose underside is below this height is at the avatar's legs, body or face: it must block. */
@@ -150,6 +151,9 @@ function outline(c: Collider): Array<[number, number]> {
 
 const nearest = (colliders: readonly Collider[], x: number, z: number) => Math.min(...colliders.map((c) => distanceTo(c, x, z)));
 
+/** An audit of the whole village tries every voxel against every collider: 1 to 2 s on an idle laptop, 5.6 s on the CI runner (the default limit is 5 s). */
+const WHOLE_VILLAGE = 30_000;
+
 function audit(drawn: readonly Drawn[], colliders: readonly Collider[]) {
   const walkThrough: string[] = [];
   for (const d of drawn)
@@ -178,10 +182,10 @@ describe("collider audit (IMPL-0016)", () => {
   it("matches the static scenery, with quests off and available lots", () => {
     const colliders = [...OBSTACLES, ...LOTS.flatMap((l) => lotColliders(l, null))];
     expect(audit([...SCENERY, ...MARKERS], colliders)).toEqual({ walkThrough: [], invisible: [] });
-    // The audit covers the expanded village: 4 shops, 24 street lamps and the 272 dressing parts are in it.
+    // The audit covers the expanded village: 4 shops, 24 street lamps and the 256 dressing parts are in it.
     expect(SCENERY.filter((d) => /^shop-\d+$/.test(d.name))).toHaveLength(SHOPS.length);
     expect(SCENERY.length).toBeGreaterThan(RESIDENTIAL_DRESSING.length + STREET_LAMPS.length + 40);
-  });
+  }, WHOLE_VILLAGE);
 
   it("matches the chalet of every residential plot, alone and among its neighbours", () => {
     for (const { plot, model } of HOMES) expect(model.solid, plot.id).toBeDefined();
@@ -190,7 +194,25 @@ describe("collider audit (IMPL-0016)", () => {
     // With the dressing in between: the fillers close the gap between two chalets, nothing sticks out of either.
     const all = audit([...SCENERY, ...MARKERS, ...HOME_SCENERY], [...OBSTACLES, ...colliders, ...LOTS.flatMap((l) => lotColliders(l, null))]);
     expect(all).toEqual({ walkThrough: [], invisible: [] });
-  });
+  }, WHOLE_VILLAGE);
+
+  it("audits the very list the scene walks around (`sceneColliders`): nothing drawn is left without its collider", () => {
+    // The scene (`Player`) takes its colliders from `sceneColliders`, so a kind of collider dropped from that
+    // list (the chalets of the residential plots, say) fails here. Before, the scene built its own list and every
+    // test passed with the 112 chalets walk-through.
+    const none = sceneColliders(new Set(), false);
+    expect(audit([...SCENERY, ...MARKERS, ...HOME_SCENERY], none)).toEqual({ walkThrough: [], invisible: [] });
+    const everyLot = new Set(LOTS.map((l) => l.id));
+    expect(audit([...SCENERY, ...HOUSES, ...HOME_SCENERY, ...QUEST_SCENERY], sceneColliders(everyLot, true))).toEqual({ walkThrough: [], invisible: [] });
+    // One published chalet among markers, as in the review's scene.
+    const one = new Set(["plaza-03"]);
+    expect(audit([...SCENERY, ...MARKERS.filter((m) => m.name !== "marker-plaza-03"), ...HOUSES.filter((h) => h.name === "house-plaza-03"), ...HOME_SCENERY], sceneColliders(one, false))).toEqual({ walkThrough: [], invisible: [] });
+    // What the list is made of: the static obstacles, five colliders per empty lot, and every residential chalet.
+    expect(HOME_COLLIDERS.length).toBeGreaterThanOrEqual(RESIDENTIAL_PLOTS.length);
+    expect(none).toHaveLength(OBSTACLES.length + 5 * LOTS.length + HOME_COLLIDERS.length);
+    expect(sceneColliders(new Set(), true)).toHaveLength(none.length + QUEST_OBSTACLES.length);
+    for (const home of HOME_COLLIDERS) expect(none).toContain(home);
+  }, WHOLE_VILLAGE);
 
   it("keeps every residential chalet inside the envelope of its tier, low, with its chimney over its own walls", () => {
     for (const { plot, model } of HOMES) {

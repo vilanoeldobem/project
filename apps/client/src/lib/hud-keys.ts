@@ -23,7 +23,7 @@ export interface KeyBinding {
 }
 
 export const KEY_BINDINGS: readonly KeyBinding[] = [
-  { action: "activate", keys: ["e", "E", "Enter"], caps: ["E", "Enter"], does: "Abrir o que está perto: uma casa, um terreno, a árvore ou um morador" },
+  { action: "activate", keys: ["e", "E", "Enter"], caps: ["E", "Enter"], does: "Abrir o que está perto: uma casa, um terreno, a árvore, uma loja, uma placa ou um morador" },
   { action: "zoom-in", keys: ["+", "="], caps: ["+", "="], does: "Aproximar a câmera" },
   { action: "zoom-out", keys: ["-"], caps: ["-"], does: "Afastar a câmera" },
   { action: "menu", keys: ["Escape"], caps: ["Esc"], does: "Abrir ou fechar o menu; com um painel aberto, fechar o painel" },

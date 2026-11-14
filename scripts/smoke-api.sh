@@ -22,6 +22,10 @@ curl -s "$API/lots" | grep -q '"id":"plaza-01"' && echo "ok   lots use English i
 check "GET api /environment" 200 "$(code "$API/environment")"
 curl -s "$API/environment" | grep -q '"timezone":"America/Sao_Paulo"' && echo "ok   environment uses São Paulo time" || { echo "FAIL environment timezone"; fail=1; }
 check "POST api /lots" 405 "$(code -X POST "$API/lots")"
+# Residential plots (IMPL-0024): always answered from the shared layout, whatever the schema and the flag.
+check "GET api /residential-plots" 200 "$(code "$API/residential-plots")"
+curl -s "$API/residential-plots" | grep -q '"id":"economy-64"' && echo "ok   residential plots list the whole layout" || { echo "FAIL residential plots missing economy-64"; fail=1; }
+check "POST api /residential-plots" 405 "$(code -X POST "$API/residential-plots")"
 check "GET api /nope" 404 "$(code "$API/nope")"
 # server
 check "GET server /health" 200 "$(code "$SERVER/health")"

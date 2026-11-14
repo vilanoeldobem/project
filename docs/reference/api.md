@@ -120,7 +120,8 @@ remoção de logo por administrador não têm bandeira própria (valem com as co
 `residentialPlots` é `true` só com as contas ligadas **e** `RESIDENTIAL_PLOTS_ENABLED = "true"`. A posse de
 terrenos residenciais é **PROPOSTA** ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md),
 [OQ-17](../decisions/open-questions.md)): desligada em produção, em staging e no script local `dev`. Não existe
-rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde.
+rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde. É o mesmo valor do campo
+`enabled` daquela rota, em qualquer esquema e sem banco (`/config` não lê o banco).
 
 `donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
 existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
@@ -160,7 +161,8 @@ São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`
 migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
 ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
 jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
-a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
+a rota não lista (banco antes da 0012) aparece no jogo como "Terreno em preparação" (rótulo 3D, painel e lista
+"Explorar ONGs"), sem aceitar candidatura; o jogo não envia a visita a ele como progresso.
 
 `ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 
@@ -170,7 +172,8 @@ a rota não lista (banco antes da 0012) aparece no jogo sem aceitar candidatura.
 ### GET /residential-plots
 
 Terrenos residenciais da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**) e o
-estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca diz quem é o dono de um terreno.**
+estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca diz quem é o dono de um terreno**
+(não existe dono: a tabela não tem coluna de posse).
 
 ```json
 { "enabled": false,
@@ -180,19 +183,27 @@ estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca d
 
 | Campo | Significado |
 |---|---|
-| `enabled` | `true` só quando há algo a possuir: contas ligadas, `RESIDENTIAL_PLOTS_ENABLED = "true"` e a tabela `residential_plots` presente |
+| `enabled` | a bandeira: `true` só com as contas ligadas e `RESIDENTIAL_PLOTS_ENABLED = "true"`. É o mesmo valor de `residentialPlots` em `GET /config`, em qualquer esquema. Se um terreno pode ser pedido é o `state` dele |
 | `tier` | `premium`, `standard` ou `economy` (da mais perto da árvore para a mais longe) |
 | `slot` | posição dentro da faixa, a partir de 1 |
 | `x`, `z`, `facing` | centro do terreno e rotação (rad) que o vira para a rua em frente; espelham `RESIDENTIAL_PLOTS` |
-| `state` | `unavailable` enquanto a posse está desligada; com ela ligada, `available` ou `occupied` |
+| `state` | `unavailable` enquanto a posse está desligada; com a bandeira ligada, `available` para o terreno cuja linha existe em `residential_plots`. `occupied` está reservado para a fase que trouxer a posse: nada o responde hoje |
 
 112 terrenos (16 premium, 32 padrão, 64 econômico), sempre na mesma ordem. O que cada faixa exige não está aqui: é
 um requisito (um nível), guardado em `VILLAGE_PLAN` no código compartilhado, nunca um preço. Não há `POST`: nenhuma
 rota grava posse nesta versão (`405` para qualquer método além de `GET`, `HEAD` e `OPTIONS`).
 
-**Esquemas antigos.** A tabela vem com a migração 0012 e produção está na 0003. Num banco sem a tabela, ou sem
-banco, a rota responde `200` com o layout das constantes compartilhadas e todo terreno `unavailable`
-(`enabled: false`), com qualquer combinação de bandeiras. Outro erro de banco continua sendo `500`.
+**De onde vem a resposta.** A lista é sempre o layout das constantes compartilhadas (`RESIDENTIAL_PLOTS`): os 112
+terrenos, na mesma ordem, com as posições do layout. A tabela só acrescenta estado.
+
+- Com a bandeira desligada (ou as contas desligadas, ou sem banco) a resposta é uma constante e **o banco não é
+  lido**.
+- Com a bandeira ligada, a rota lê os ids de `residential_plots`: o terreno cuja linha existe responde
+  `available`; linha que falta responde `unavailable`; linha que o layout não conhece é ignorada.
+- **Esquemas antigos e erro de banco.** A tabela vem com a migração 0012 e produção está na 0003. Num banco sem a
+  tabela, ou se a leitura falhar por qualquer motivo, a rota responde `200` com o layout e todo terreno
+  `unavailable`, nunca `500` nem uma lista menor (o erro que não for "tabela ausente" vai para o log só pelo nome).
+  `enabled` continua sendo a bandeira.
 
 ### GET /ngos/:id/logo
 

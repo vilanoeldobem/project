@@ -527,22 +527,35 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 
 ### 11.1 Ordem
 
-1. **O jogo (`apps/client`) pode ser publicado antes de tudo.** Ele desenha a Vila pelas constantes
-   compartilhadas e usa a API só para o estado. Contra a API e o banco de hoje (v3): os 8 terrenos que já existem
-   aparecem na posição nova com o estado certo, os 4 novos aparecem sem aceitar candidatura, e a leitura dos
-   terrenos residenciais falha em silêncio (a API antiga responde `404`; o painel segue dizendo que a posse não
-   está aberta).
-2. **A API desta versão também não depende da 0012.** `GET /lots` continua lendo o que o banco tem e
-   `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, enquanto a tabela não existir. As
-   rotas públicas respondem igual nos schemas v3 a v12.
+1. **Com as contas desligadas (produção hoje), o jogo (`apps/client`) pode ser publicado antes de tudo.** Ele
+   desenha a Vila pelas constantes compartilhadas e usa a API só para o estado. Contra a API e o banco de hoje
+   (v3): os 8 terrenos que já existem aparecem na posição nova com o estado certo, os 4 novos aparecem como "em
+   preparação", sem aceitar candidatura, e a leitura dos terrenos residenciais falha em silêncio (a API antiga
+   responde `404`; o painel segue dizendo que os terrenos não têm dono).
+   **Com as contas ligadas (`ACCOUNTS_ENABLED = "true"`), a API vai primeiro.** A API antiga só conhece
+   `plaza-01`…`plaza-08`: quando um jogador com conta abre um dos 4 terrenos novos, o jogo novo envia o evento
+   `causes-visit-lot:plaza-09`…`plaza-12` no lote de progresso, a API antiga recusa **o lote inteiro** com
+   `400 bad_events` (os outros eventos do lote também não são gravados) e o jogo continua tentando reenviar.
+   A API desta versão aceita os 12 ids em qualquer esquema, e o jogo antigo funciona contra ela.
+2. **A API desta versão não depende da 0012.** `GET /lots` continua lendo o que o banco tem e
+   `GET /residential-plots` responde o layout das constantes, tudo `unavailable`, sem ler o banco enquanto a
+   bandeira estiver desligada (e, com ela ligada, enquanto a tabela não existir). As rotas públicas respondem igual
+   nos schemas v3 a v12.
 3. **O servidor de tempo real (`apps/server`) deve ser publicado junto com o jogo.** Ele limita a pose ao raio do
    mundo, que vem do pacote compartilhado: com o servidor antigo (34 u), quem anda além disso aparece para os
    outros preso na borda antiga.
+   **As salas não carregam versão do mundo: é um limite conhecido, documentado e não corrigido** (IMPL-0024,
+   "Consequências"). Uma aba aberta antes da publicação continua com o jogo antigo (mundo
+   de 34 u, terrenos de ONG nas posições antigas) e fica na mesma sala de quem já carregou o novo: ela vê os
+   visitantes novos andando fora do mundo dela, por cima do que para ela é floresta, e os novos veem os antigos
+   atravessando lojas e casas. Dura até a aba recarregar; nada é gravado errado (a presença é só pose e visual,
+   IMPL-0008). Não há aviso de "recarregue" no jogo.
 4. **Migration 0012**, quando autorizada (`pnpm --filter @vila/api db:migrate:remote`; num banco na v3 ela leva
    junto as 0004–0011, inclusive as tabelas de doação da 0011, que ficam vazias e sem uso com `DONATIONS_ENABLED`
    desligada). É aditiva e não toca nas tabelas da 0011: muda só as colunas `x` e `z` de 8 linhas de `lots`,
    insere 4 linhas e cria
-   `residential_plots` com 112. **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
+   `residential_plots` com 112 (id, faixa e posição; **sem colunas de posse**: elas entram com a migration da rota
+   de posse, se a OQ-17 for aprovada). **Antes de aplicá-la em produção**, confirmar com o dono do produto que os números
    do plano são os definitivos ([OQ-19](../decisions/open-questions.md)): depois de aplicada, a migration não se
    edita, e um plano novo pede outra migration.
 
@@ -552,12 +565,19 @@ ativação de bandeira: cada passo exige autorização humana explícita (AGENTS
 |---|---|---|---|---|
 | `RESIDENTIAL_PLOTS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | desligada | resposta do dono do produto à [OQ-17](../decisions/open-questions.md); contas ligadas; migration 0012; **a rota de posse, que ainda não existe** |
 
-Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable`: ninguém consegue ter
-um terreno, e o jogo continua dizendo que a posse não está aberta. Não ligar.
+Ligá-la hoje só faz `GET /residential-plots` responder `available` em vez de `unavailable` (para os terrenos cuja
+linha existe na tabela) e `residentialPlots: true` em `/config`: ninguém consegue ter um terreno, porque não há
+rota nem esquema de posse. No jogo, o painel do terreno passaria a mostrar o requisito proposto da faixa. Não
+ligar.
 
 ### 11.3 Reverter
 
-- Jogo, API e servidor: `wrangler rollback` de cada um; nenhum deles grava nada novo.
+- Jogo, API e servidor: `wrangler rollback` de cada um, na ordem inversa da publicação com as contas ligadas (o
+  jogo antes da API, pelo motivo do §11.1). **O que fica gravado depois de reverter:** com as contas ligadas, a
+  API desta versão grava em `progress_events` as visitas a `plaza-09`…`plaza-12`; essas linhas ficam no banco e a
+  API anterior não as apaga (ela só valida ids na gravação). No navegador de um visitante sem conta, o progresso
+  local (`localStorage`) pode guardar os mesmos ids. Nada mais é gravado de novo: os terrenos residenciais, as
+  lojas e as placas não gravam nada.
 - A migration 0012 não é revertida. Com ela aplicada e o jogo antigo no ar, os 8 terrenos continuam funcionando (o
   jogo antigo usa as posições das próprias constantes); as 4 linhas novas e `residential_plots` ficam sem uso.
 

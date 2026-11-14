@@ -18,7 +18,7 @@ export type Panel =
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
   | { kind: "npc"; npcId: NpcId }
-  // The expanded village (IMPL-0024, PROPOSTA): honest "not open yet" panels, no purchase and no claim.
+  // The expanded village (IMPL-0024, PROPOSTA): panels that say what is there today, no purchase and no claim.
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
   | { kind: "billboard"; billboardId: string };

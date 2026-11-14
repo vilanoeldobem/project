@@ -14,15 +14,26 @@ Cada versão indica o schema D1 que entrega.
 - **A Vila cresceu em volta da praça.** A árvore continua no centro; dela saem 8 avenidas e 8 travessas. Em volta
   da praça ficam 12 terrenos reservados a ONGs (os 8 que existiam, com os mesmos ids, e mais 4) e 4 lojas de Natal;
   depois, três anéis de terrenos residenciais: 16 premium, 32 padrão e 64 econômico. O raio do mundo foi de 34 para
-  82,5 u. Do terreno mais distante até a árvore são 8,8 s a pé. Tudo é derivado de um plano só (`VILLAGE_PLAN`).
+  82,5 u. Do terreno mais distante até a árvore são 8,2 s a pé (68,5 u de caminho). O layout é derivado de um
+  plano só (`VILLAGE_PLAN`); o cenário da praça é posto à mão para esse plano, e `assertPlan` recusa o plano que
+  não dá para desenhar. Os ids de terreno são posicionais: depois da migration 0012 aplicada, mudar o plano exige
+  uma migration nova.
 - **Terrenos residenciais visíveis, posse desligada.** Chegar perto de um terreno e usar a ação (E, Enter ou toque)
-  mostra o id, a faixa, o que a faixa exige e "A posse de terrenos ainda não está aberta.". O que a faixa exige é
-  um requisito (um nível, alcançado jogando), nunca um preço: não há moeda, valor nem botão de compra. Nenhuma
-  decisão de produto permite que um jogador tenha um terreno (DEC-028): fica como pergunta aberta (OQ-17), atrás de
-  `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação.
-- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o que ela vai oferecer e
-  que ainda não abriu. Cada loja tem uma placa no telhado com um aviso da própria Vila; o painel da placa mostra o
-  aviso em texto, o id e que o espaço não está disponível para aluguel (OQ-18).
+  mostra o terreno e o bairro ("Terreno 12 · Bairro da Floresta") e uma frase neutra: "Os terrenos residenciais não
+  têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi decidida." Sem "em breve", sem requisito
+  e sem nível: nenhuma decisão de produto permite que um jogador tenha um terreno (DEC-028), e isso fica como
+  pergunta aberta (OQ-17), atrás de `RESIDENTIAL_PLOTS_ENABLED`, `"false"` em produção e homologação. As faixas
+  aparecem na tela como bairros ("Bairro do Centro", "Bairro do Meio", "Bairro da Floresta"), nomes sem sentido de
+  preço; `premium`, `standard` e `economy` são ids internos. O requisito de uma faixa (um nível alcançado jogando,
+  nunca um preço: não há moeda, valor nem botão de compra) só aparece com a bandeira ligada, e o painel diz quando
+  as missões abertas não chegam a esse nível.
+- **Lojas e placas, como marcadores.** Cada loja é uma construção com porta; o painel diz o nome, o tema e que
+  ela está fechada, sem prometer venda nem abertura ("Esta loja está fechada. Se e como ela vai funcionar ainda
+  não foi decidido. Nada é vendido na Vila."). Cada loja tem uma placa no telhado com um aviso da própria Vila; o
+  painel da placa mostra o aviso em texto e "As placas mostram avisos da própria Vila." (OQ-18).
+- **Terreno de ONG que a API ainda não lista** (banco antes da migration 0012: produção tem 8 dos 12): o rótulo 3D,
+  o painel e a lista "Explorar ONGs" dizem "Terreno em preparação", sem convite para candidatura, e a visita a ele
+  não conta como missão.
 - **Um botão de ação para tudo o que está perto.** Terreno residencial, porta de loja e placa usam o botão de ação
   contextual do HUD e as mesmas regras de casa, terreno de ONG, árvore e morador (IMPL-0022): E abre com qualquer
   foco, Enter só com o foco fora de um controle, tecla mantida pressionada abre uma vez, o botão some com um painel
@@ -31,9 +42,12 @@ Cada versão indica o schema D1 que entrega.
   com portão e lanternas, cerca de ripas, lanterna numa estaca), o que fica entre vizinhos (jardim com arbustos,
   cerca-viva, lenha empilhada), tamanho da casa e postes de rua.
 - API: `GET /residential-plots` (pública; estado de cada terreno, nunca o dono) e `residentialPlots` em
-  `GET /config`. Num banco sem a tabela nova a rota responde o layout com tudo "indisponível".
+  `GET /config` (o mesmo valor do `enabled` da rota). A resposta é sempre o layout inteiro: com a bandeira
+  desligada o banco nem é lido; ligada, tabela ausente, linha ausente ou erro de banco respondem "indisponível",
+  nunca `500`.
 - Migration `0012_village_expansion.sql`: move os 8 terrenos de ONG (mesmo estado, mesma ONG), acrescenta 4 e cria
-  `residential_plots` (colunas de posse vazias, sem coluna de preço).
+  `residential_plots` (id, faixa e posição; sem coluna de preço e **sem colunas de posse**, que só entram com a
+  migration que trouxer a rota de posse, [OQ-17](docs/decisions/open-questions.md)).
 - Prontos para as próximas fases: rede de ruas (`PATH_GRAPH`), lugar do lojista em cada loja, pátio da lenha, lugar
   da lareira em cada casa.
 
@@ -42,17 +56,50 @@ Cada versão indica o schema D1 que entrega.
 - O lago, o trenó com as renas, o trenó pequeno, duas lanternas e dois NPCs das quests mudaram de lugar, para
   dentro da faixa festiva da praça; um morador decorativo saiu de onde passa uma avenida. Os terrenos de ONG
   ficam agora a cerca de 31 u da árvore (eram 22 u).
-- Quando uma construção fica entre a câmera e o avatar, ele aparece como um contorno translúcido.
+- Enquanto a câmera não vê o peito ou a cabeça do avatar (uma construção, a árvore ou um pinheiro no caminho), ele
+  é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é uma reta da câmera
+  ao avatar contra o mapa de colunas de cada construção (antes: a pegada de uma construção ao sul e um contorno
+  vermelho chapado, que aparecia com o avatar à vista e faltava atrás de esquinas e da árvore). O desenho aparece
+  na hora e fica por 250 ms depois que o avatar volta a ser visto, para não piscar nos vãos entre os chalés de
+  uma fileira. Só o próprio avatar; os outros visitantes não têm esse desenho.
+- "Olhar o céu" sobe a câmera por cima dos telhados onde uma construção ficaria na vista (ruas residenciais); na
+  praça a vista é a de sempre.
+- O botão de ação de um terreno residencial só aparece com o avatar parado, e o alvo oferecido tem histerese: numa
+  rua econômica o botão ficava na tela em 83 % do trajeto, trocando 15 vezes; agora, 0 %.
+- Desempenho: a floresta e as montanhas são desenhadas em pedaços que a câmera descarta um a um (os mesmos
+  triângulos de antes): o quadro mais caro de um roteiro a pé com o zoom todo afastado foi de ~252 mil para ~196 mil
+  triângulos (orçamento: 250 mil), e o ganho é parecido no zoom padrão.
+- Verificação: `verify.mjs` abre o painel de uma loja, de uma placa e de um terreno residencial e confere o texto,
+  e falha se o spawn passar de 150 chamadas ou 250 mil triângulos (zoom padrão e todo afastado, preset Média).
+  Também clica numa loja com o mouse, na própria cena (de longe: nada anda enquanto o botão está apertado, e o
+  clique anda até a porta; da porta: o painel abre e nada anda depois do Esc), e confere que o avatar é desenhado
+  por cima da loja atrás da qual está e deixa de ser no spawn.
+  Os colisores da cena vêm de `scene/sceneColliders.ts`, que a auditoria de colisores confere: tirar os dos chalés
+  residenciais agora falha num teste unitário.
+- Testes: os testes que percorrem a Vila inteira (auditoria de colisores, rotas, sombras) têm limite de tempo
+  explícito, de pelo menos dez vezes o tempo numa máquina ociosa; a auditoria de `sceneColliders` estourava os 5 s
+  padrão no CI (5,6 s). A regra do toque na cena passou a ter teste que falha (`pressScene`,
+  `scene/Ground.test.tsx`).
+- Celular: os botões "Ir até lá" da lista "Explorar ONGs" têm 44 px de altura (eram 36 px, em 12 linhas); um
+  rótulo 3D que cairia embaixo de um botão ou aviso do HUD fica escondido até sair de lá.
+- Menu → Controles e Ajuda dizem o que um clique faz em cada coisa: árvore, casa de ONG e terreno abrem o painel;
+  loja, placa e casa residencial levam o avatar até lá e, de perto, abrem o painel.
+- Um clique, uma intenção: clicar numa construção não deixa mais uma caminhada esperando o painel fechar; de longe,
+  o avatar anda até o ponto de uso e o marcador do toque fica lá; um toque num telhado que cobre a rua anda até o
+  ponto da rua. No modo moderação (PROPOSTA, IMPL-0021), o toque sobre outro visitante o seleciona esteja ele
+  onde estiver (campo aberto, piso de um terreno, porta de loja, frente de um chalé ou da árvore), e esse toque
+  não anda nem abre painel.
 - Painel do terreno de ONG: com dois terrenos vizinhos ao alcance, abre o mais próximo. Um terreno que a API ainda
-  não lista (banco antes da 0012) não oferece candidatura, e a lista "Explorar ONGs" o mostra como "Ainda não
-  recebe candidaturas" (os 12 terrenos aparecem na lista, cada um com "Ir até lá").
+  não lista (banco antes da 0012) não oferece candidatura e aparece como "Terreno em preparação" (os 12 terrenos
+  aparecem na lista "Explorar ONGs", cada um com "Ir até lá").
 - Desempenho: o chão é desenhado em faixas de mesma cor e a floresta em oito setores. Os blocos residenciais e os
   setores da floresta só entram na passada de sombra enquanto a sombra de alguma peça deles aparece na tela, e as
   janelas e lanternas dos blocos são duas malhas para a Vila inteira; a imagem não muda. A cena no spawn foi de 70
   chamadas e ~122 mil triângulos para 102 e ~165 mil (preset Média, 12:00 com neve); com o zoom todo afastado
   sobre a praça (15:30, céu limpo) são 116 chamadas e ~211 mil triângulos, dentro do orçamento de 150 e 250 mil
-  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; a pior rota medida
-  leva 4,8 ms para planejar.
+  (eram 152 e ~274 mil). A grade de navegação cobre o mundo novo com a mesma célula de 0,25 u; o rascunho da busca
+  ocupa 4,4 MB (10 bytes por célula) e o plano que mais expande, numa amostra de 18 mil pares aleatórios, leva
+  6,5 ms (83 mil células).
 - Painel administrativo: a bandeira nova aparece em "Sistema" como "Posse de terrenos residenciais (PROPOSTA)".
 - Verificação: `verify-accounts.mjs` chega à casa publicada por "Explorar ONGs" → "Ir até lá" (antes andava até a
   posição antiga do terreno e, com os arquivos ligados, como roda no CI, não chegava) e confere os 12 terrenos na

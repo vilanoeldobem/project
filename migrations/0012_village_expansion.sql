@@ -3,10 +3,11 @@
 --
 -- 1. `lots` keeps its meaning (plots reserved for approved NGOs, DEC-028): the eight existing lots move to the
 --    square's new frontage, keeping their ids, state and NGO, and 4 more are added, all available.
--- 2. `residential_plots` is new: the three residential tiers (PROPOSTA, OQ-17). Ownership is switched off
---    (RESIDENTIAL_PLOTS_ENABLED = "false"): `owner_id` and `claimed_at` exist so that a later phase needs no
---    rebuild, and nothing writes them yet. A tier has no price: what it requires lives in the code
---    (VILLAGE_PLAN), never in a currency column.
+-- 2. `residential_plots` is new: the three residential tiers (PROPOSTA, OQ-17), as world structure only: an
+--    id, a tier and a position. Who may hold a plot, how many and what happens to it when an account is
+--    deleted are undecided (OQ-17), so this table has no ownership column: they come with the migration that
+--    brings a claim route (SQLite adds a nullable column with ALTER TABLE, no rebuild). A tier has no price:
+--    what it would require lives in the code (VILLAGE_PLAN), never in a currency column.
 --
 -- Positions mirror packages/shared/src/game/world.ts (LOTS, RESIDENTIAL_PLOTS); tests keep them in sync.
 
@@ -32,12 +33,8 @@ CREATE TABLE residential_plots (
   x          REAL NOT NULL,                       -- centre of the plot (voxel units)
   z          REAL NOT NULL,
   facing     REAL NOT NULL,                       -- rotation (rad) towards the street in front of the plot
-  owner_id   TEXT REFERENCES users(id) ON DELETE SET NULL,  -- never written while ownership is off
-  claimed_at TEXT,
   UNIQUE (tier, slot)
 );
-
-CREATE INDEX idx_residential_plots_owner ON residential_plots(owner_id);
 
 INSERT INTO residential_plots (id, tier, slot, x, z, facing) VALUES
   ('premium-01', 'premium', 1, 44.5, -7.5, -1.5708),

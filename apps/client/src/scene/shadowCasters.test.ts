@@ -67,7 +67,7 @@ describe("reaching the shadow box", () => {
     // The sample really has both answers, many times over.
     expect(inside).toBeGreaterThan(2000);
     expect(outside).toBeGreaterThan(2000);
-  });
+  }, 30_000); // thousands of spheres against the renderer's own frustum: 0.5 s idle, 1.4 s on a busy machine
 
   it("with its slack, never drops a sphere the renderer would draw, also one frame of walking late", () => {
     const rnd = mulberry32(0xca57);
@@ -195,7 +195,7 @@ describe("the shadow of a part and the view", () => {
     // The sample has both answers many times over (most parts 90 u around a view shade nothing on screen).
     expect(dropped).toBeGreaterThan(2000);
     expect(kept).toBeGreaterThan(1000);
-  });
+  }, 30_000); // a sampled shadow volume per part and view: 0.8 s idle, 1.8 s on a busy machine
 
   it("keeps a part that is on screen itself, and one whose shadow alone comes into view", () => {
     const light: KeyShadow = { on: true, x: 0, z: 9, ...SUNS[1] };

@@ -1,21 +1,29 @@
 /**
- * The village plan (IMPL-0024, PROPOSTA): everything is derived from `VILLAGE_PLAN`, and these are the rules
- * the derived layout must keep, for the plan in force and for other plans (counts and sizes changed).
+ * The village plan (IMPL-0024, PROPOSTA). `layoutVillage` derives the layout from `VILLAGE_PLAN`; these are the
+ * rules it must keep. The plan in force is checked whole: geometry, ids pinned to their places, the seed of
+ * migration 0012, colliders and navigation. Other plans are checked for the layout's own geometry only: the
+ * scenery of the square, the colliders and the navigation grid exist for the plan in force and no other.
  */
 import { describe, expect, it } from "vitest";
 
 import seed from "../../../../migrations/0012_village_expansion.sql?raw";
 
-import { type Collider, distanceTo, footprint } from "./collision";
+import { AVATAR_RADIUS, clearance, type Collider, distanceTo, footprint } from "./collision";
 import { createBody, MOTION, STEP } from "./motion";
+import { attainableLevel } from "./progress";
 import { createNavField, createRoute, isOpen, lineClear, planRoute, stepWalk } from "./navigation";
 import {
+  assertPlan,
   BILLBOARDS,
+  GIFTS,
   HOUSE_ENVELOPE,
   houseEnvelope,
+  INTERACT_DISTANCE,
   layoutVillage,
   lotColliders,
+  lotFront,
   LOTS,
+  NPCS,
   OBSTACLES,
   PATH_GRAPH,
   pineAt,
@@ -24,8 +32,12 @@ import {
   PLOT_FRONT_STEP,
   PLOT_TIERS,
   plotColliders,
+  QUEST_INTERACTIONS,
+  QUEST_OBSTACLES,
+  QUEST_SPAWNS,
   RESIDENTIAL_DRESSING,
   RESIDENTIAL_PLOTS,
+  SCENERY_SIDES,
   SHOP_SOLID,
   SHOPS,
   SIGHTLINE,
@@ -36,6 +48,7 @@ import {
   VILLAGE_PLAN,
   type VillageLayout,
   type VillagePlan,
+  sideFrame,
   WOOD_YARD,
   WORLD_RADIUS,
 } from "./world";
@@ -113,6 +126,14 @@ function invariants(v: VillageLayout, pines: boolean, maxWalk: number = SIGHTLIN
   const bands = [reach([...v.lots, ...v.shops]), ...PLOT_TIERS.map((t) => reach(v.plots.filter((p) => p.tier === t)))];
   for (let i = 1; i < bands.length; i++) if (bands[i][0] <= bands[i - 1][1]) wrong.push(`ring ${i} starts at ${bands[i][0].toFixed(1)}, inside ring ${i - 1} (${bands[i - 1][1].toFixed(1)})`);
   for (let i = 1; i < v.rings.length; i++) if (v.rings[i].front < v.rings[i - 1].back + plan.backYard + plan.streetWidth - 1e-9) wrong.push(`ring ${i} leaves no room for its street`);
+  // A tier without plots reserves nothing: one ring (and one street) per tier that has plots, after the frontage.
+  const zones = ["frontage", ...PLOT_TIERS.filter((t) => plan.tiers[t].perHalf > 0)];
+  if (v.rings.map((r) => r.zone).join() !== zones.join()) wrong.push(`rings ${v.rings.map((r) => r.zone).join()}, expected ${zones.join()}`);
+  // Ids of a kind share one width, so they sort and match `<kind>-<digits>` whatever the count.
+  for (const kind of ["plaza", "shop", "billboard", ...PLOT_TIERS]) {
+    const widths = new Set(ids.filter((id) => new RegExp(`^${kind}-\\d+$`).test(id)).map((id) => id.length));
+    if (widths.size > 1) wrong.push(`${kind} ids have ${widths.size} different widths`);
+  }
 
   // Nothing overlaps: no plot, lot or shop over another one.
   const all = parcels(v);
@@ -171,7 +192,9 @@ function invariants(v: VillageLayout, pines: boolean, maxWalk: number = SIGHTLIN
     if (distanceTo(walls[0], p.hearth.x, p.hearth.z) > -0.5) wrong.push(`${p.id}: fireplace outside the walls`);
   }
 
-  // Sightlines (SIGHTLINE): the avenues are open to the tree, and every plot sees one down its street.
+  // Sightlines (SIGHTLINE), each rule as stated there: rule 1 is the avenue corridors; rules 2 and 3 cannot be
+  // broken by a tall thing as long as the layout keeps its streets and the band of the square free (checked
+  // above), so for them the length limit of rule 2 is what tells plans apart.
   const blockers = tall(v, pines);
   const { corridors, fronts } = sightlines(v);
   if (corridors.length !== plan.sides || fronts.length !== all.length) wrong.push("a sightline is missing");
@@ -208,6 +231,64 @@ describe("village plan in force (IMPL-0024, PROPOSTA)", () => {
     expect([length("plaza"), length("avenue"), length("street"), length("lane")]).toEqual([92, 532, 1041, 424]);
   });
 
+  /** Said by the two tests below when they fail. */
+  const POSITIONAL =
+    "ids are positional and stored in D1 (lots.id, ngos.requested_lot_id, progress_events, quest objectives, ngo_withdrawals.lot_ids, audit details, residential_plots.id): " +
+    "a plan that moves or renumbers a lot or a plot needs, once migration 0012 is applied, a new migration that moves or renames those rows (IMPL-0024, OQ-19). Do not update this table without one.";
+  /** Side of the village a point is on, and the half of that side (+1 = counter-clockwise of the lane). */
+  const placeOf = (p: { x: number; z: number }) => {
+    const side = ((Math.round(Math.atan2(p.z, p.x) / ((2 * Math.PI) / VILLAGE_PLAN.sides)) % VILLAGE_PLAN.sides) + VILLAGE_PLAN.sides) % VILLAGE_PLAN.sides;
+    const f = sideFrame(VILLAGE_PLAN, side);
+    return [side, Math.sign(p.x * f.tx + p.z * f.tz)];
+  };
+
+  it("pins every lot of the square to its side, its half and its coordinates", () => {
+    expect(LOTS.map((l) => [l.id, ...placeOf(l), l.x, l.z]), POSITIONAL).toEqual([
+      ["plaza-01", 0, 1, 30.5, 5],
+      ["plaza-02", 1, 1, 18.03, 25.1],
+      ["plaza-03", 2, 1, -5, 30.5],
+      ["plaza-04", 3, 1, -25.1, 18.03],
+      ["plaza-05", 4, 1, -30.5, -5],
+      ["plaza-06", 5, 1, -18.03, -25.1],
+      ["plaza-07", 6, 1, 5, -30.5],
+      ["plaza-08", 7, 1, 25.1, -18.03],
+      ["plaza-09", 1, -1, 25.1, 18.03],
+      ["plaza-10", 3, -1, -18.03, 25.1],
+      ["plaza-11", 5, -1, -25.1, -18.03],
+      ["plaza-12", 7, -1, 18.03, -25.1],
+    ]);
+    expect(SHOPS.map((shop) => [shop.id, ...placeOf(shop), shop.x, shop.z]), POSITIONAL).toEqual([
+      ["shop-01", 0, -1, 30.5, -5],
+      ["shop-02", 2, -1, 5, 30.5],
+      ["shop-03", 4, -1, -30.5, 5],
+      ["shop-04", 6, -1, -5, -30.5],
+    ]);
+  });
+
+  it("pins the first and the last plot of every residential tier to their coordinates", () => {
+    const ends = PLOT_TIERS.map((tier) => {
+      const plots = RESIDENTIAL_PLOTS.filter((p) => p.tier === tier);
+      return [plots[0], plots[plots.length - 1]].map((p) => [p.id, ...placeOf(p), p.x, p.z]);
+    });
+    expect(ends, POSITIONAL).toEqual([
+      [["premium-01", 0, -1, 44.5, -7.5], ["premium-16", 7, 1, 36.77, -26.16]],
+      [["standard-01", 0, -1, 59, -15.75], ["standard-32", 7, 1, 52.86, -30.58]],
+      [["economy-01", 0, -1, 72, -22.5], ["economy-64", 7, 1, 66.82, -35]],
+    ]);
+  });
+
+  it("numbers ids with two digits today, and with as many as the largest count needs", () => {
+    for (const id of [...LOTS, ...SHOPS, ...BILLBOARDS, ...RESIDENTIAL_PLOTS].map((x) => x.id)) expect(id).toMatch(/^[a-z]+-\d\d$/);
+    const plan = JSON.parse(JSON.stringify(VILLAGE_PLAN)) as VillagePlan;
+    plan.tiers.economy.perHalf = 7;
+    const economy = layoutVillage(plan).plots.filter((p) => p.tier === "economy").map((p) => p.id);
+    expect([economy.length, economy[0], economy[98], economy[99], economy[111]]).toEqual([112, "economy-001", "economy-099", "economy-100", "economy-112"]);
+    // One width: the ids sort in slot order and keep the `<tier>-<digits>` form.
+    expect([...economy].sort()).toEqual(economy);
+    // The other tiers of that plan keep their two digits.
+    expect(layoutVillage(plan).plots.filter((p) => p.tier === "premium").map((p) => p.id)).toEqual(RESIDENTIAL_PLOTS.filter((p) => p.tier === "premium").map((p) => p.id));
+  });
+
   it("asks a requirement of each tier, never a price (PROPOSTA, OQ-17)", () => {
     for (const tier of PLOT_TIERS) {
       const t = VILLAGE_PLAN.tiers[tier];
@@ -219,6 +300,13 @@ describe("village plan in force (IMPL-0024, PROPOSTA)", () => {
     const [premium, standard, economy] = PLOT_TIERS.map((t) => VILLAGE_PLAN.tiers[t].requirement.level);
     expect(premium).toBeGreaterThan(standard);
     expect(standard).toBeGreaterThan(economy);
+    // Every level asked can be reached by playing, with nothing bought: all three with the quest catalog on,
+    // only the outer tier with the four missions that are open in production today (the plot panel says so).
+    expect([attainableLevel(false), attainableLevel(true)]).toEqual([2, 6]);
+    expect(premium).toBeLessThanOrEqual(attainableLevel(true));
+    expect([premium, standard, economy].map((level) => level <= attainableLevel(false))).toEqual([false, false, true]);
+    // The names the UI shows are places, not classes.
+    expect(PLOT_TIERS.map((t) => VILLAGE_PLAN.tiers[t].label)).toEqual(["Bairro do Centro", "Bairro do Meio", "Bairro da Floresta"]);
   });
 
   it("matches the seed of migration 0012: the moved lots, the new lots and every residential plot", () => {
@@ -253,6 +341,74 @@ describe("village on foot (IMPL-0016 over the plan in force)", () => {
     }
   });
 
+  it("passes the full collider and navigation audit, with empty lots and with every chalet and the quests", () => {
+    const homes = RESIDENTIAL_PLOTS.flatMap((p) => plotColliders(p));
+    const configs: Array<[string, Collider[]]> = [
+      ["every lot available, quests off", [...OBSTACLES, ...homes, ...LOTS.flatMap((l) => lotColliders(l, null))]],
+      ["every lot with a chalet, quests on", [...OBSTACLES, ...QUEST_OBSTACLES, ...homes, ...LOTS.flatMap((l) => lotColliders(l, HOUSE_ENVELOPE))]],
+    ];
+    /** Where the avatar stands: each must be open ground the planner reaches exactly. */
+    const stands = [
+      { id: "spawn", x: SPAWN.x, z: SPAWN.z },
+      ...places,
+      ...SHOPS.map((shop) => ({ id: `${shop.id} keeper`, x: shop.keeper.x, z: shop.keeper.z })),
+      ...LOTS.map((l) => ({ id: `${l.id} front`, ...lotFront(l) })),
+      ...PATH_GRAPH.nodes,
+    ];
+    /** What the avatar walks up to: a walkable point within reach of each. */
+    const reaches = [
+      ...GIFTS.map((g) => ({ id: g.id, x: g.x, z: g.z, reach: 1 })),
+      ...QUEST_SPAWNS.map((q) => ({ id: q.id, x: q.x, z: q.z, reach: 1 })),
+      ...QUEST_INTERACTIONS.map((q) => ({ id: q.id, x: q.x, z: q.z, reach: q.radius })),
+      ...NPCS.map((n) => ({ id: n.id, x: n.x, z: n.z, reach: INTERACT_DISTANCE })),
+    ];
+    const node = new Map(PATH_GRAPH.nodes.map((n) => [n.id, n]));
+    for (const [name, set] of configs) {
+      const nav = createNavField(set);
+      const route = createRoute();
+      const wrong: string[] = [];
+      for (const p of stands) {
+        if (!isOpen(nav, p.x, p.z)) wrong.push(`${p.id}: not open ground (clearance ${clearance(set, p.x, p.z).toFixed(2)})`);
+        planRoute(nav, route, -57, 57, p.x, p.z);
+        if (route.direct || route.x !== p.x || route.z !== p.z) wrong.push(`${p.id}: not reached exactly`);
+      }
+      for (const p of reaches) {
+        planRoute(nav, route, SPAWN.x, SPAWN.z, p.x, p.z);
+        if (route.direct || Math.hypot(route.x - p.x, route.z - p.z) >= p.reach) wrong.push(`${p.id}: no walkable point within ${p.reach} u`);
+      }
+      // Streets: the axis of every avenue, street and lane is a clear walk, and nothing solid stands on its
+      // paving: the avatar's body fits from edge to edge, but for the 0.25 u a fence on a plot's boundary takes
+      // (half a dressing voxel). Positions are stored with two decimals: 0.02 forgives that.
+      for (const e of PATH_GRAPH.edges) {
+        if (e.kind === "plaza") continue;
+        const a = node.get(e.a)!, b = node.get(e.b)!;
+        if (!lineClear(nav, a.x, a.z, b.x, b.z)) wrong.push(`${e.a} → ${e.b}: the axis is not a clear walk`);
+        const len = Math.hypot(b.x - a.x, b.z - a.z), px = -(b.z - a.z) / len, pz = (b.x - a.x) / len;
+        const half = e.width / 2 - 0.25 - AVATAR_RADIUS;
+        const hit = along(a, b).flatMap(([x, z]) => [-1, -0.5, 0.5, 1].map((side) => [x + side * half * px, z + side * half * pz])).find(([x, z]) => clearance(set, x, z) < -0.02);
+        if (hit) wrong.push(`${e.a} → ${e.b}: something solid stands on the paving at (${hit[0].toFixed(1)}, ${hit[1].toFixed(1)})`);
+      }
+      // No walkable pocket is cut off: what is left outside the walkable region is a few stray cells.
+      const pockets = nav.regionSizes.filter((_, id) => id !== nav.main);
+      if (Math.max(0, ...pockets) > 4) wrong.push(`a pocket of ${Math.max(...pockets)} cells is cut off from the village`);
+      expect(wrong, name).toEqual([]);
+    }
+  }, 30_000); // two navigation fields and a walk to every place: 0.5 s idle, 1.3 s on a busy machine
+
+  it("plants the belt of tall pines the same on every side: mirrored east–west, north–south and across the diagonal", () => {
+    // `Math.round` sends 80.5 to 81 and -80.5 to -80: the belt stood one unit nearer on the west and on the north.
+    const belt = PINES.filter((_, i) => pineIsTall(i));
+    expect(belt).toHaveLength(2 * VILLAGE_PLAN.sides);
+    const key = ([x, z]: readonly [number, number]) => `${x},${z}`;
+    const set = new Set(belt.map(key));
+    for (const [x, z] of belt) {
+      expect(set.has(key([-x, z])), `mirror of (${x}, ${z}) across x`).toBe(true);
+      expect(set.has(key([x, -z])), `mirror of (${x}, ${z}) across z`).toBe(true);
+      expect(set.has(key([z, x])), `mirror of (${x}, ${z}) across the diagonal`).toBe(true);
+    }
+    expect(new Set(belt.map(([x, z]) => Math.max(Math.abs(x), Math.abs(z))))).toEqual(new Set([81, 63]));
+  });
+
   it("keeps the shopkeepers' spots, the shop doors and the billboard points free", () => {
     for (const s of SHOPS) {
       expect(isOpen(field, s.door.x, s.door.z), `${s.id} door`).toBe(true);
@@ -282,23 +438,31 @@ describe("village on foot (IMPL-0016 over the plan in force)", () => {
     }
   });
 
-  it("walks from the farthest economy plot to the tree in about 10 seconds", () => {
-    const far = RESIDENTIAL_PLOTS.filter((p) => p.tier === "economy").reduce((a, b) => (Math.hypot(b.front.x, b.front.z) > Math.hypot(a.front.x, a.front.z) ? b : a));
-    const b = createBody(far.front.x, far.front.z), route = createRoute();
-    planRoute(field, route, b.x, b.z, 0, 0);
-    const length = Math.hypot(route.xs[0] - b.x, route.zs[0] - b.z) + route.rest[0];
-    let steps = 0, arrived = false;
-    for (; steps < 60 / STEP && !arrived; steps++) arrived = stepWalk(b, route, field, colliders).arrived;
-    expect(arrived).toBe(true);
-    expect(Math.hypot(b.x, b.z)).toBeLessThan(TREE_KEEP_OUT + 0.6);
-    // 72 u as the crow flies; the walk follows the economy street to the avenue and the avenue to the square.
-    expect(Math.hypot(far.front.x, far.front.z)).toBeGreaterThan(70);
-    expect(length).toBeLessThan(90);
-    expect(steps * STEP).toBeLessThan(length / MOTION.maxSpeed + 2);
-    expect(steps * STEP).toBeLessThan(12);
+  it("walks from the farthest plot of each tier to the tree in the documented time", () => {
+    // The numbers of the ADR (IMPL-0024 §1): the farthest front of each tier, a planned walk to the tree at
+    // 8.5 u/s on the fixed 60 Hz step, every lot with a chalet. Length = planned route; time = steps walked.
+    const measured = PLOT_TIERS.map((tier) => {
+      const far = RESIDENTIAL_PLOTS.filter((p) => p.tier === tier).reduce((a, b) => (Math.hypot(b.front.x, b.front.z) > Math.hypot(a.front.x, a.front.z) + 1e-9 ? b : a));
+      const b = createBody(far.front.x, far.front.z), route = createRoute();
+      planRoute(field, route, b.x, b.z, 0, 0);
+      const length = Math.hypot(route.xs[0] - b.x, route.zs[0] - b.z) + route.rest[0];
+      let steps = 0, arrived = false;
+      for (; steps < 60 / STEP && !arrived; steps++) arrived = stepWalk(b, route, field, colliders).arrived;
+      expect(arrived, tier).toBe(true);
+      expect(Math.hypot(b.x, b.z), tier).toBeLessThan(TREE_KEEP_OUT + 0.6);
+      expect(steps * STEP, tier).toBeLessThan(length / MOTION.maxSpeed + 2);
+      return [far.id, Math.round(Math.hypot(far.front.x, far.front.z) * 10) / 10, Math.round(length * 10) / 10, Math.round(steps * STEP * 10) / 10];
+    });
+    // [plot, straight distance to the tree's axis, planned walk (it ends at the boughs), seconds]
+    expect(measured).toEqual([
+      ["premium-01", 39.5, 35.5, 4.4],
+      ["standard-05", 56.5, 52.8, 6.3],
+      ["economy-09", 71.4, 68.5, 8.2],
+    ]);
     // The avatar is spawned beside the tree: the same walk the other way starts at the spawn.
-    const back = createBody(SPAWN.x, SPAWN.z);
-    planRoute(field, route, back.x, back.z, far.front.x, far.front.z);
+    const far = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-09")!;
+    const route = createRoute();
+    planRoute(field, route, SPAWN.x, SPAWN.z, far.front.x, far.front.z);
     expect([route.x, route.z, route.direct]).toEqual([far.front.x, far.front.z, false]);
   });
 
@@ -315,28 +479,37 @@ describe("village on foot (IMPL-0016 over the plan in force)", () => {
   });
 });
 
-describe("village plan variants (property-style: change the plan, the rules still hold)", () => {
+describe("village plan variants (the layout's own geometry; scenery, colliders and navigation are not part of it)", () => {
   const variant = (change: (p: VillagePlan) => void): VillagePlan => {
     const plan = JSON.parse(JSON.stringify(VILLAGE_PLAN)) as VillagePlan;
     change(plan);
     return plan;
   };
+  // The knobs that are safe to turn (see the note above `VILLAGE_PLAN`): counts and sizes of the tiers, the
+  // street width, the back yard and the edge.
   const plans: Array<[string, VillagePlan]> = [
     ["more plots per row", variant((p) => ((p.tiers.premium.perHalf = 2), (p.tiers.standard.perHalf = 3), (p.tiers.economy.perHalf = 6)))],
     ["fewer plots per row", variant((p) => ((p.tiers.standard.perHalf = 1), (p.tiers.economy.perHalf = 2)))],
-    ["two lots on each half of the frontage", variant((p) => (p.frontage.perHalf = 2))],
-    ["six sides", variant((p) => (p.sides = 6))],
-    ["ten sides, a shop on every side", variant((p) => ((p.sides = 10), (p.shopEvery = 1)))],
-    ["no shops", variant((p) => (p.shopEvery = 0))],
-    ["wider streets and lanes", variant((p) => ((p.avenueWidth = 6), (p.streetWidth = 5), (p.laneWidth = 4), (p.backYard = 2)))],
+    ["no economy tier", variant((p) => (p.tiers.economy.perHalf = 0))],
+    ["no standard tier", variant((p) => (p.tiers.standard.perHalf = 0))],
+    ["no residential tier at all", variant((p) => PLOT_TIERS.forEach((t) => (p.tiers[t].perHalf = 0)))],
+    ["wider streets, back yard and edge", variant((p) => ((p.streetWidth = 5), (p.backYard = 2), (p.edge = 4)))],
     ["larger plots", variant((p) => ((p.tiers.premium.width = 14), (p.tiers.standard.depth = 9), (p.tiers.economy.width = 6.5)))],
-    ["a square pushed out", variant((p) => (p.squareApothem = 34))],
   ];
+  // The knobs that need the scenery of the square reviewed. The geometry of the layout still holds for them, and
+  // that is all this says: nothing here looks at the market, the sleigh, the NPCs or the navigation grid.
+  plans.push(
+    ["geometry only: two lots on each half of the frontage", variant((p) => (p.frontage.perHalf = 2))],
+    ["geometry only: a shop on every side", variant((p) => (p.shopEvery = 1))],
+    ["geometry only: no shops", variant((p) => (p.shopEvery = 0))],
+    ["geometry only: wider avenues and lanes", variant((p) => ((p.avenueWidth = 6), (p.laneWidth = 4)))],
+    ["geometry only: a square pushed out", variant((p) => (p.squareApothem = 34))]
+  );
   // And a sweep: every combination of a few counts.
-  for (const sides of [5, 8, 12])
+  for (const premium of [1, 2])
     for (const economy of [1, 3, 5])
       for (const frontage of [1, 3])
-        plans.push([`sweep: ${sides} sides, ${economy} economy plots and ${frontage} lots per half`, variant((p) => ((p.sides = sides), (p.tiers.economy.perHalf = economy), (p.frontage.perHalf = frontage)))]);
+        plans.push([`sweep: ${premium} premium, ${economy} economy plots and ${frontage} lots per half`, variant((p) => ((p.tiers.premium.perHalf = premium), (p.tiers.economy.perHalf = economy), (p.frontage.perHalf = frontage)))]);
 
   it.each(plans)("%s", (_, plan) => {
     const v = layoutVillage(plan);
@@ -346,11 +519,62 @@ describe("village plan variants (property-style: change the plan, the rules stil
     expect(layoutVillage(plan)).toEqual(v);
   });
 
+  it("reserves no ring and no street for a tier without plots", () => {
+    const without = layoutVillage(variant((p) => (p.tiers.economy.perHalf = 0)));
+    expect(without.rings.map((r) => r.zone)).toEqual(["frontage", "premium", "standard"]);
+    expect(without.plots.some((p) => p.tier === "economy")).toBe(false);
+    expect(without.graph.nodes.some((n) => n.id.endsWith("-street-3"))).toBe(false);
+    // The world ends behind the standard ring: smaller than with one economy plot per half row, which needs its street.
+    const standard = without.rings[2];
+    expect(without.worldRadius).toBe(Math.ceil((Math.hypot(standard.back, standard.reach) + VILLAGE_PLAN.edge) * 2 - 1e-9) / 2);
+    expect(without.worldRadius).toBeLessThan(layoutVillage(variant((p) => (p.tiers.economy.perHalf = 1))).worldRadius);
+    // A tier in the middle: the next one moves in to take its place.
+    const noStandard = layoutVillage(variant((p) => (p.tiers.standard.perHalf = 0)));
+    expect(noStandard.rings.map((r) => r.zone)).toEqual(["frontage", "premium", "economy"]);
+    expect(noStandard.rings[2].front).toBeLessThan(VILLAGE.rings[3].front);
+  });
+
+  it("refuses a plan it cannot draw, naming the field, instead of laying out NaN", () => {
+    const refused: Array<[string, (p: VillagePlan) => void, RegExp]> = [
+      ["no sides", (p) => (p.sides = 0), /sides must be 8, got 0/],
+      ["a negative number of sides", (p) => (p.sides = -3), /sides must be 8, got -3/],
+      ["half a side", (p) => (p.sides = 2.5), /sides must be a whole number, got 2\.5/],
+      ["six sides (an avenue would run over the scenery of the square)", (p) => (p.sides = 6), /sides must be 8, got 6: the scenery of the square/],
+      ["ten sides", (p) => (p.sides = 10), /sides must be 8, got 10/],
+      ["a negative lane", (p) => (p.laneWidth = -4), /laneWidth must be a positive number, got -4/],
+      ["a street of no width", (p) => (p.streetWidth = 0), /streetWidth must be a positive number, got 0/],
+      ["an avenue of no width", (p) => (p.avenueWidth = 0), /avenueWidth must be a positive number, got 0/],
+      ["a size that is not a number", (p) => (p.squareApothem = Number.NaN), /squareApothem must be beyond the round street/],
+      ["a square inside the round street", (p) => (p.squareApothem = 15), /squareApothem must be beyond the round street \(17\), got 15/],
+      ["a negative back yard", (p) => (p.backYard = -1), /backYard must be zero or more, got -1/],
+      ["half a plot", (p) => (p.tiers.economy.perHalf = 1.5), /tiers\.economy\.perHalf must be a whole number, zero or more, got 1\.5/],
+      ["a negative count", (p) => (p.tiers.premium.perHalf = -1), /tiers\.premium\.perHalf must be a whole number, zero or more, got -1/],
+      ["a plot of no width", (p) => (p.tiers.standard.width = 0), /tiers\.standard\.width must be a positive number, got 0/],
+      ["a frontage narrower than the pad of a lot", (p) => (p.frontage.width = 6), /frontage\.width must be at least 7/],
+      ["a frontage too shallow for a porch", (p) => (p.frontage.depth = 6), /frontage\.depth must be at least 8/],
+      ["half a shop spacing", (p) => (p.shopEvery = 1.5), /shopEvery must be a whole number/],
+      ["a level that is not one", (p) => (p.tiers.economy.requirement.level = 0), /tiers\.economy\.requirement\.level must be a whole number from 1, got 0/],
+    ];
+    for (const [name, change, message] of refused) {
+      expect(() => assertPlan(variant(change)), name).toThrow(RangeError);
+      expect(() => layoutVillage(variant(change)), name).toThrow(message);
+    }
+    expect(SCENERY_SIDES).toBe(VILLAGE_PLAN.sides);
+    expect(() => assertPlan(VILLAGE_PLAN)).not.toThrow();
+  });
+
   it("flags a plan whose rows put a plot too far from its avenue (rule 2 of SIGHTLINE)", () => {
     const long = layoutVillage(variant((p) => (p.tiers.economy.perHalf = 7)));
     const wrong = invariants(long, false);
     expect(wrong.length).toBeGreaterThan(0);
     expect(wrong.every((w) => /^economy-\d+: the avenue is more than 30 u away$/.test(w))).toBe(true);
+  });
+
+  it("flags a tall thing on an avenue (rule 1 of SIGHTLINE): the pines of the plan in force count", () => {
+    // The corridors are open with the pines where they are, and a chalet on an avenue's line is caught.
+    expect(invariants(VILLAGE, true)).toEqual([]);
+    const blocked = { ...VILLAGE, lots: [...VILLAGE.lots, { id: "plaza-99", slot: 99, x: 46.19, z: 19.13, facing: 0 }] };
+    expect(invariants(blocked, true).some((w) => /^avenue-01: view blocked/.test(w))).toBe(true);
   });
 
   it("grows or shrinks the world with the plan, and never moves the tree", () => {

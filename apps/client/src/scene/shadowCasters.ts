@@ -84,7 +84,11 @@ export function viewPlanes(viewProjection: ArrayLike<number>, out: ViewPlanes = 
     const row = p >> 1, sign = p & 1 ? 1 : -1;
     const x = m[3] + sign * m[row], y = m[7] + sign * m[4 + row], z = m[11] + sign * m[8 + row], d = m[15] + sign * m[12 + row];
     const n = Math.hypot(x, y, z) || 1;
-    out.set([x / n, y / n, z / n, d / n], p * 4);
+    // Written one by one: this runs every frame, and an array literal here was six allocations a frame.
+    out[p * 4] = x / n;
+    out[p * 4 + 1] = y / n;
+    out[p * 4 + 2] = z / n;
+    out[p * 4 + 3] = d / n;
   }
   return out;
 }

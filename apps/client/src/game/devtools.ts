@@ -25,6 +25,9 @@ declare global {
   }
 }
 
+/** Filled by the scene while it is mounted: world point → page pixel (the verify scripts click on things by where they are). */
+export const probe: { project: ((x: number, y: number, z: number) => { x: number; y: number }) | null } = { project: null };
+
 export function installDevtools() {
   if (typeof window === "undefined" || !debugAllowed()) return;
   const log: string[] = [];
@@ -42,6 +45,24 @@ export function installDevtools() {
       target: () => useVila.getState().target,
       /** Cost of the last planned walk: waypoints, grid nodes expanded and replans after getting stuck. */
       route: () => ({ waypoints: sim.route.count, expanded: sim.route.expanded, replans: sim.route.replans, direct: sim.route.direct }),
+      /**
+       * Puts the avatar at a point, standing still, with no walk and no panel (verify scripts: a state to
+       * check from, without the walk there). The point must be walkable: nothing is resolved.
+       */
+      teleport: (x, z) => {
+        const { body, pose, route } = sim;
+        body.x = pose.x = Number(x);
+        body.z = pose.z = Number(z);
+        body.vx = body.vz = 0;
+        route.active = false;
+        useVila.setState({ target: null, panel: { kind: "none" }, skyView: false });
+      },
+      /** The target of the contextual action (verify.mjs). */
+      nearby: () => useVila.getState().nearby,
+      /** What the camera is doing: whether the avatar is drawn see-through, the height of the sky camera (verify.mjs). */
+      view: () => ({ ...sim.view }),
+      /** Where a point of the world is on the page, or null before the scene is up (verify.mjs clicks on things by where they are). */
+      project: (x, y, z) => probe.project?.(Number(x), Number(y), Number(z)) ?? null,
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
     },

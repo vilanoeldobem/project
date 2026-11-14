@@ -7,6 +7,7 @@ import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type LotInfo, type NgoDonationInfo } from "../lib/api";
+import { UNLISTED_LABEL } from "../lib/lots";
 import { BlobImage } from "./BlobImage";
 import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
@@ -20,13 +21,16 @@ import { PixDonation } from "./PixDonation";
  * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
  *
- * `unlisted`: the API answered its lots and this one is not among them (a database before migration 0012, which
- * adds the lots of the expanded village, IMPL-0024): the lot is drawn, but it cannot take an application yet.
+ * `unlisted`: the API answered its lots and this one is not among them (`lib/lots.ts`): the lot is drawn, but
+ * it cannot take an application yet. Its panel says it is being prepared, with no invitation to apply, and the
+ * visit is not recorded as progress.
  */
 export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { lotId: string; info?: LotInfo; unlisted?: boolean; onChanged?: () => void }) {
   const record = useVila((s) => s.record);
   const open = useVila((s) => s.open);
-  useEffect(() => record("causes-visit-lot", lotId), [record, lotId]);
+  useEffect(() => {
+    if (!unlisted) record("causes-visit-lot", lotId);
+  }, [record, lotId, unlisted]);
   // newest-house-visit (PROPOSTA quests-v1): only a published house with a real NGO counts.
   useEffect(() => {
     if (!questsEnabled() || info?.state !== "published" || !info.ngo_name) return;
@@ -153,6 +157,15 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
     );
   }
 
+  if (unlisted) {
+    return (
+      <Panel kicker={`Terreno ${n}`} title={UNLISTED_LABEL}>
+        <p className="lead">Este terreno ainda não recebe candidaturas.</p>
+        <p className="note">Os terrenos que já recebem candidaturas aparecem em “Explorar ONGs” como “Terreno disponível”.</p>
+      </Panel>
+    );
+  }
+
   const inReview = info && info.state !== "available";
   return (
     // The key sends the focus back to the dialog when a withdrawal (IMPL-0021) takes the house off this panel.
@@ -171,9 +184,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
         <li>Meio confiável de confirmar os valores destinados à organização.</li>
       </ol>
       <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      {unlisted ? (
-        <p className="note">Este terreno ainda não recebe candidaturas.</p>
-      ) : accounts ? (
+      {accounts ? (
         <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
           Candidatar minha ONG
         </button>

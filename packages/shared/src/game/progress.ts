@@ -56,6 +56,14 @@ export const XP_PER_LEVEL = 100;
 
 export const levelOf = (xp: number) => Math.floor(xp / XP_PER_LEVEL) + 1;
 
+/**
+ * The highest level a player can reach with everything that is open: the four missions, plus the quest
+ * catalog when the quests are on (they are off in production). What asks for a higher level asks for
+ * something nobody can do yet, and must say so.
+ */
+export const attainableLevel = (quests: boolean): number =>
+  levelOf(MISSIONS.reduce((xp, m) => xp + m.xp, 0) + (quests ? QUESTS.reduce((xp, q) => xp + q.xp, 0) : 0));
+
 export interface ApplyResult {
   progress: Progress;
   /** Mission completed by this event, if any. */

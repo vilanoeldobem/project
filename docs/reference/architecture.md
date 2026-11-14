@@ -129,8 +129,9 @@ voxel sólido fica mais de 0,3 u fora de um colisor e nenhum contorno de colisor
   bandeira das quests): ≈ 8 ms com os ≈ 550 colisores da Vila.
 - `planRoute`: resolve o destino (o clique, ou o ponto caminhável mais próximo, do lado de quem chega), vai em linha
   reta se ele está à vista, senão A* na grade e "puxar a corda" para sobrarem poucos trechos retos. Limite: as
-  células caminháveis (≈ 200 000); medido: mediana de 0,5 ms entre frentes de terreno, 4,8 ms na pior rota (166 u).
-  O rascunho da busca usa custos de 32 bits (≈ 10,5 MB, alocado na primeira busca).
+  células caminháveis (≈ 200 000); medido em 18 000 pares aleatórios de pontos livres (IMPL-0024): mediana de
+  0,45 ms, e 6,5 ms no par que mais expande (83 mil células, 183 u).
+  O rascunho da busca guarda 10 bytes por célula (≈ 4,4 MB, alocado na primeira busca que precisa dele).
 - `stepWalk`: segue a rota no passo fixo, sem alocar; replaneja se o avatar parar de progredir.
 - O alvo guardado no estado (`target`) é o destino resolvido: o marcador e o brilho do clique aparecem onde o avatar
   vai parar.
@@ -202,8 +203,13 @@ na OQ-16).
 
 ### 2.4 Plano da Vila (IMPL-0024, PROPOSTA)
 
-Tudo vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas, placas,
-ruas e o raio do mundo. Decisão, números e o que fica para depois em
+O layout vem de `VILLAGE_PLAN` (`shared/game/world.ts`): `layoutVillage(plano)` deriva anéis, terrenos, lojas,
+placas, ruas e o raio do mundo, e `assertPlan` recusa o plano que não dá para desenhar. O cenário da praça
+(postes, feira, trenó, lago, NPCs, itens de quest) é posto à mão para o plano em vigor e **não** acompanha o plano:
+os números de cada faixa, a largura das ruas, o quintal e a borda podem mudar sozinhos; lados, tamanho da praça,
+largura de avenida e de travessa, fachada e espaçamento das lojas pedem revisar esse cenário. Os ids são
+posicionais: só são estáveis enquanto o plano não muda, e depois da migration 0012 aplicada mudar o plano exige
+uma migration nova. Decisão, números e o que fica para depois em
 [IMPL-0024](../decisions/0024-village-expansion-and-zoning.md).
 
 | Peça | Onde | Constante |
@@ -211,27 +217,58 @@ ruas e o raio do mundo. Decisão, números e o que fica para depois em
 | 8 avenidas (a 22,5° + 45°·k) e 8 travessas (no meio de cada lado) | da praça à borda | `PATH_GRAPH` (80 nós, 120 arestas) |
 | Fachada da praça: 12 terrenos de ONG e 4 lojas | 26 a 34 u do centro, ao longo de cada lado | `LOTS`, `SHOPS` |
 | Placas (uma por loja, no telhado) | sobre as lojas | `BILLBOARDS`, `VILLAGE_NOTICES` |
-| Anéis residenciais: 16 premium, 32 padrão, 64 econômico | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS` |
+| Anéis residenciais: 16 `premium`, 32 `standard`, 64 `economy` (ids internos; na tela, "Bairro do Centro", "Bairro do Meio" e "Bairro da Floresta") | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS`, `plotLabel()` |
 | O que distingue as faixas | junto a cada casa | `RESIDENTIAL_DRESSING` (peças), `groundAt()` (calçamento), `STREET_LAMPS` |
 | Pátio da lenha, lugar do lojista, lugar da lareira | ponta da travessa norte; ao lado de cada porta; dentro de cada casa | `WOOD_YARD`, `ShopDef.keeper`, `ResidentialPlot.hearth` |
 
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
-  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 272 peças
+  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 256 peças
   assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
   para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
   setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
-- **Interação:** `Player` escolhe, a cada quadro, o que está ao alcance e grava um único alvo em `nearby`: árvore,
-  NPC, atril e terreno de ONG primeiro; terreno residencial, porta de loja ou placa só quando nenhum daqueles está
-  ao alcance. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
+- **Interação:** `Player` pergunta, a cada quadro, o que está ao alcance (`game/nearby.ts`, pura) e grava um único
+  alvo em `nearby`: árvore, NPC, atril e terreno de ONG primeiro; porta de loja ou placa só quando nenhum daqueles
+  está ao alcance; **terreno residencial só com o avatar parado** (andar por uma rua não é uma faixa de avisos). O
+  alvo oferecido tem histerese: fica até 0,6 u além do próprio alcance e só troca por outro do mesmo tipo que
+  esteja 0,5 u mais perto. O HUD tem **um** botão de ação contextual para todos (`actionLabel` e `activate`, `ui/Hud.tsx`), com
   as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
   mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
   ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
-  em espera) e não têm botão além de fechar.
-- **Contorno do avatar:** a câmera olha do sul, de cima; quando uma construção fica entre ela e o avatar (até 6 u
-  ao sul dele), o avatar é desenhado mais uma vez, chapado e translúcido, por cima de tudo.
-- **Regra de vista** (`SIGHTLINE`, `sightlines()`): avenidas livres de coisa alta até a árvore; de todo terreno, a
-  avenida fica a no máximo 30 u pela rua em frente. Conferida em `shared/game/village.test.ts`, também para
-  variações do plano.
+  em espera) e não têm botão além de fechar. O texto deles é neutro (IMPL-0024 §4 e §6): o terreno e o bairro e
+  "não têm dono… proposta em estudo e ainda não foi decidida"; a loja "está fechada"; a placa "mostra avisos da
+  própria Vila". Nenhum diz "em breve", requisito, venda ou aluguel enquanto `/config.residentialPlots` é falso, e
+  nenhum mostra id cru (os ids ficam em atributos `data-`). Um terreno de ONG que a API não lista é "Terreno em
+  preparação" no rótulo 3D, no painel e na lista (`lib/lots.ts`).
+- **Clique na cena** (`game/clicks.ts`, pura): o chão fica embaixo de todo toque e chama `pressScene`, que
+  decide nesta ordem. (1) No modo moderação com a remoção de visitantes ligada (IMPL-0021, PROPOSTA), o toque
+  sobre outro visitante o seleciona, o que quer que esteja atrás dele (chão, piso de terreno, loja, chalé, árvore,
+  NPC), e esse toque não faz mais nada: não anda, e o clique seguinte não abre painel; para todos os outros a
+  escolha nunca acontece. (2) O chão só anda quando é a primeira coisa sob o ponteiro que responde a clique;
+  com outra coisa na frente, quem decide é o clique nela. Testes: `game/clicks.test.ts` e
+  `scene/Ground.test.tsx` (o manipulador montado na cena). Clique em loja, placa ou chalé residencial abre o painel do alcance do botão de ação e, de
+  longe, anda até o ponto de uso, com o marcador do toque lá; num chalé cujo telhado cobre a rua na tela, vale o
+  chão sob o ponteiro (calçamento: anda até o ponto tocado). Terreno de ONG, árvore e atril abrem o painel. Um
+  painel aberto por clique na cena descarta a caminhada em curso.
+- **Avatar visto através das construções:** a câmera olha do sul, de cima; enquanto ela não vê o peito ou a cabeça
+  do avatar, ele é desenhado mais uma vez, nas próprias cores e meio transparente, por cima de tudo. O teste é
+  uma reta de verdade (`scene/occlusion.ts`: da câmera aos dois pontos, contra o mapa de colunas dos chalés, das
+  lojas, da árvore e dos pinheiros de `scene/sceneColliders.ts`), refeito só quando o avatar andou 0,2 u ou a
+  câmera se mexeu (nunca com os dois parados, nem em "Olhar o céu"). O desenho aparece na hora e fica por 250 ms
+  depois que o avatar volta a ser visto (`seeThroughShown`, por tempo), para não piscar nos vãos entre os chalés
+  de uma fileira. Só o próprio avatar: os outros visitantes não têm esse desenho. "Olhar o céu" usa as mesmas colunas para
+  subir a câmera por cima dos telhados onde uma construção ficaria na vista.
+- **Rótulos 3D e o HUD** (`Label` em `scene/Props.tsx`, `lib/hud-chrome.ts`): um rótulo só existe na página com o
+  objeto a até 28 u do avatar, e fica escondido enquanto cairia sobre um botão, a linha de como andar ou um aviso
+  do HUD (comparado a cada 6 quadros com as caixas do HUD, relidas no máximo a cada 400 ms). Num celular o HUD
+  ocupa o alto e o pé da tela, e o rótulo da árvore caía embaixo dele no spawn.
+- **Colisores da cena:** `scene/sceneColliders.ts` monta a lista que o avatar contorna (obstáculos fixos, NPCs e
+  atril com as quests, terrenos de ONG e os 112 chalés residenciais); `scene/colliders.test.ts` audita essa mesma
+  lista contra os voxels desenhados, então tirar um tipo de colisor dela falha num teste unitário.
+- **Regra de vista** (`SIGHTLINE`, `sightlines()`): (1) toda avenida é um corredor livre de coisa alta (chalé,
+  loja, pinheiro) até as ramas da árvore; (2) da frente de todo terreno residencial, a avenida fica a no máximo
+  30 u pela rua; (3) nada alto entre a linha das varandas da fachada e a rua redonda. As regras 2 e 3 decorrem do
+  layout, salvo o comprimento da 2. A regra não diz que a árvore é vista de todo terreno. Conferida em
+  `shared/game/village.test.ts` para o plano em vigor; nas variações do plano, só a geometria.
 
 ## 3. API (`apps/api/src`)
 
@@ -457,8 +494,9 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | `PostFx` (bloom, sob demanda) | ~20 kB / 5 kB gzip |
 | Chamadas de desenho (medido, `verify.mjs`, Média, "dia-neve") | 56 (antes da malha de voxels: 96), sombra incluída |
 | Triângulos por quadro (mesma cena) | ~108 mil (antes: ~362 mil) |
-| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Orçamento: 150 chamadas e 250 mil triângulos no zoom padrão ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
-| Passada de sombra | Blocos residenciais (24) e setores da floresta (8) só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
+| Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Depois da revisão (floresta e montanhas desenhadas em pedaços): no spawn, 101 chamadas e ~113 mil triângulos; com o zoom todo afastado às 15:30, 113 e ~155 mil; o quadro mais caro de um roteiro a pé com o zoom todo afastado caiu de ~252 mil para ~196 mil triângulos, com no máximo 141 chamadas. Orçamento: 150 chamadas e 250 mil triângulos, que o `verify.mjs` confere no spawn com o zoom padrão e com o zoom todo afastado ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
+| Floresta e montanhas | Cada setor da floresta (8) é malhado como um modelo e desenhado em até 4 pedaços (pinheiros da praça, do cinturão, floresta em duas metades); as montanhas, em 8 setores. Cada pedaço é descartado pela câmera sozinho; os triângulos são os mesmos da malha inteira (`scene/voxelParts.test.ts`) |
+| Passada de sombra | Blocos residenciais (24) e pedaços da floresta só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 
 Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;

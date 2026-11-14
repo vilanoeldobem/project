@@ -1,9 +1,9 @@
+import type { ThreeEvent } from "@react-three/fiber";
 import { useEffect, useMemo } from "react";
 import { BufferAttribute, BufferGeometry, Color } from "three";
 
 import { WORLD_RADIUS } from "@vila/shared/game/world";
-import { events } from "../game/events";
-import { useVila } from "../game/store";
+import { pressScene, startPress } from "../game/clicks";
 import { WALK } from "../lib/controls";
 import { selectVisitorAt } from "../lib/moderation";
 import { solidMaterial } from "./environment/materials";
@@ -14,7 +14,6 @@ import { groundRuns } from "./groundRuns";
  * in the shared world is the layout). One draw call.
  */
 export function Ground() {
-  const setTarget = useVila((s) => s.setTarget);
   const geometry = useMemo(() => {
     const runs = groundRuns(Math.ceil(WORLD_RADIUS) + 3);
     const positions = new Float32Array(runs.length * 12), normals = new Float32Array(runs.length * 12), colors = new Float32Array(runs.length * 12);
@@ -43,28 +42,50 @@ export function Ground() {
     return g;
   }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
+  // A new press starts with nothing picked, also one that never reaches the ground (a roof against the sky):
+  // the listener runs before the scene's own, so a visitor picked by an earlier press never mutes this one.
+  useEffect(() => {
+    window.addEventListener("pointerdown", startPress, true);
+    return () => window.removeEventListener("pointerdown", startPress, true);
+  }, []);
   return (
     <group>
       <mesh geometry={geometry} material={solidMaterial} receiveShadow />
-      <mesh
-        rotation-x={-Math.PI / 2}
-        position-y={0.01}
-        onPointerDown={(e) => {
-          // Only the first finger walks: a second one starts a pinch zoom (Player).
-          if (!WALK.accepts({ button: e.button, isPrimary: e.nativeEvent.isPrimary })) return;
-          e.stopPropagation();
-          // Moderation mode only (PROPOSTA, IMPL-0021): a click on another visitor selects it instead of walking.
-          // The removal itself is flat HTML on the HUD; for everybody else this is always false.
-          if (selectVisitorAt(e.ray.origin, e.ray.direction)) return;
-          setTarget({ x: e.point.x, z: e.point.z });
-          // Feedback goes where the avatar will end up, which is not always where the click landed.
-          const to = useVila.getState().target;
-          if (to) events.emit({ type: "tap", x: to.x, z: to.z });
-        }}
-      >
-        <circleGeometry args={[WORLD_RADIUS + 3, 64]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-      </mesh>
+      <PressDisc />
     </group>
+  );
+}
+
+/**
+ * A press on the scene. The ground lies under everything, so every press comes through here, and
+ * `pressScene` (`game/clicks.ts`) decides what it does: pick a visitor (moderation mode), leave it to what
+ * stands in front of the ground, or walk.
+ */
+function press(e: ThreeEvent<PointerEvent>) {
+  // Only the first finger walks: a second one starts a pinch zoom (Player).
+  if (!WALK.accepts({ button: e.button, isPrimary: e.nativeEvent.isPrimary })) return;
+  const outcome = pressScene({
+    intersections: e.intersections,
+    own: e.eventObject,
+    // Feedback goes where the avatar will end up, which is not always where the click landed (`walkTo`).
+    x: e.point.x,
+    z: e.point.z,
+    // Moderation mode only (PROPOSTA, IMPL-0021): a press on another visitor selects it, whatever is behind it.
+    // The removal itself is flat HTML on the HUD; for everybody else this is always false.
+    pick: () => selectVisitorAt(e.ray.origin, e.ray.direction),
+  });
+  if (outcome !== "left") e.stopPropagation();
+}
+
+/**
+ * The invisible disc that takes the presses, a little above the drawn ground. No hooks, on purpose: the test
+ * calls it and presses the very handler the scene mounts (`Ground.test.tsx`).
+ */
+export function PressDisc() {
+  return (
+    <mesh rotation-x={-Math.PI / 2} position-y={0.01} onPointerDown={press}>
+      <circleGeometry args={[WORLD_RADIUS + 3, 64]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+    </mesh>
   );
 }

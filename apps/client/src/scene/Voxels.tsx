@@ -58,22 +58,30 @@ const dummy = new Object3D();
 /**
  * Meshes a voxel model into one geometry per material role (`ROLES` order; null = role unused).
  * The caller owns (and disposes) the geometries.
+ *
+ * `partOf` / `parts`: the model is meshed once (its voxels hide each other's faces and shade each other's
+ * corners exactly as in one piece) but its triangles are handed out in `parts` pieces, the geometries of piece
+ * `p` at `[p * ROLES.length + role]` (`splitParts`). A model that spans the horizon (the forest, the mountains)
+ * is then drawn piece by piece, each culled by its own bounding sphere, and looks exactly as it did in one mesh.
  */
 export function voxelGeometries(
   voxels: Voxel[],
   size: number,
-  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; noFloor?: boolean } = {}
+  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; noFloor?: boolean; partOf?: (v: Voxel) => number; parts?: number } = {}
 ): Array<BufferGeometry | null> {
   const lower = (a: string[] = []) => new Set(a.map((c) => c.toLowerCase()));
   const sets: Array<[number, Set<string>]> = [[1, lower(roles.emissive)], [2, lower(roles.glow)], [3, lower(roles.sway)]];
+  const parts = roles.partOf ? Math.max(1, roles.parts ?? 1) : 1;
+  const partOf = roles.partOf;
+  const roleOf = (v: Voxel) => {
+    const c = v[3].toLowerCase();
+    return sets.find(([, s]) => s.has(c))?.[0] ?? 0;
+  };
   const meshes = meshVoxels(voxels, {
     size,
-    groups: ROLES.length,
-    groupOf: (v) => {
-      const c = v[3].toLowerCase();
-      return sets.find(([, s]) => s.has(c))?.[0] ?? 0;
-    },
-    noAo: NO_AO,
+    groups: ROLES.length * parts,
+    groupOf: partOf ? (v) => partOf(v) * ROLES.length + roleOf(v) : roleOf,
+    noAo: parts === 1 ? NO_AO : new Set(Array.from({ length: parts }, (_, p) => [...NO_AO].map((role) => p * ROLES.length + role)).flat()),
     noFloor: roles.noFloor,
     toLinear,
   });
@@ -146,6 +154,11 @@ function Instanced({
     mesh.computeBoundingSphere();
   }, [geometry, placements]);
   return <instancedMesh ref={ref} args={[geometry, material, placements.length]} castShadow={castShadow} receiveShadow />;
+}
+
+/** The geometries of `voxelGeometries` with `parts`, one list per piece (each in `ROLES` order, as `MergedVoxels` takes them). */
+export function splitParts(geometries: Array<BufferGeometry | null>, parts: number): Array<Array<BufferGeometry | null>> {
+  return Array.from({ length: parts }, (_, p) => geometries.slice(p * ROLES.length, (p + 1) * ROLES.length));
 }
 
 /** A model and the world transforms of its copies, for `mergeVoxelModels`. */

@@ -36,10 +36,10 @@ registrou o que vale para esta e para as próximas fases:
 - **Economia: desbloqueio jogando.** Nada é comprado com dinheiro e não existe moeda no jogo (DEC-042, IMPL-0002).
   O "preço" de uma faixa é um **requisito** configurável (por exemplo um nível mínimo), nunca um valor.
 - **Comércio:** lojas de Natal como construções de verdade na área central, cada uma com ponto de interação e lugar
-  para um lojista. Nesta fase o painel só diz o que a loja vai oferecer e que ainda não abriu.
+  para um lojista. Nesta fase o painel só diz o nome, o tema e que a loja está fechada.
 - **Placas:** molduras de sinalização nas lojas, cada uma com id próprio. Nesta fase mostram só avisos da própria
-  Vila; alugá-las é proposta posterior e desligada (patrocínio é PEN-008; publicidade que alcança crianças pede
-  cuidado extra).
+  Vila; qualquer outro uso é proposta posterior, não decidida e sem código (patrocínio é PEN-008; publicidade que
+  alcança crianças pede cuidado extra).
 - **Sem veículos:** tudo a pé.
 - **Fora desta fase** (não construir nem deixar esboço): NPCs e animais que andam, diálogo por IA, chat, voz,
   inventário, API de posse de terreno, lareiras e a quest da lenha, catálogos de loja. O mundo fica pronto para
@@ -47,12 +47,39 @@ registrou o que vale para esta e para as próximas fases:
 
 ## Decisão
 
-### 1. Um plano, tudo derivado
+### 1. Um plano, e o que segue dele
 
 `VILLAGE_PLAN` (`packages/shared/src/game/world.ts`, PROPOSTA) é o único lugar com contagens, larguras, recuos e
 requisitos. `layoutVillage(plano)` deriva dele os anéis, os terrenos, as lojas, as placas, a rede de ruas e o raio
-do mundo; `VILLAGE` é o resultado para o plano em vigor. Mudar um número no plano muda as posições, a semente
-conferida pelos testes e a cena.
+do mundo; `VILLAGE` é o resultado para o plano em vigor. O cinturão de pinheiros altos, os postes de rua, as
+lanternas das travessas, o pátio da lenha, as peças das fileiras, o chão e a grade de navegação seguem o plano em
+vigor.
+
+**O que não segue o plano.** O cenário da praça é posto à mão para o plano em vigor (8 avenidas, praça de 26 u,
+uma loja a cada dois lados): postes e bancos da praça, os três pinheiros pequenos, a feira, o trenó, o lago, os
+bonecos de neve, os moradores e bichos, os NPCs e os itens das quests e os presentes não se mexem quando o plano
+muda. Por isso os números do plano são de dois tipos:
+
+| | Números | O que acontece ao mudar |
+|---|---|---|
+| **Seguros** | de cada faixa: `perHalf` (0 tira o anel e a rua), `width`, `depth`, `house`; `streetWidth`, `backYard`, `edge` | o layout, o cenário derivado e a navegação acompanham; os testes do layout e da caminhada conferem o resultado |
+| **Pedem revisão do cenário da praça** | `sides`, `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage`, `shopEvery` | o layout continua geometricamente válido, mas nada confere o cenário posto à mão: com 6 lados, por exemplo, uma avenida passa por cima de um NPC. `sides` diferente de 8 é recusado por `assertPlan` |
+
+`assertPlan(plano)`, chamada por `layoutVillage`, recusa com uma mensagem que nomeia o campo o plano que não dá para
+desenhar (lados diferentes de 8, tamanho não positivo, contagem fracionária, fachada menor que o piso de 7 × 7 de
+um terreno), em vez de devolver posições `NaN`. Em `village.test.ts`, o plano em vigor passa pela auditoria
+completa (geometria, ids, semente da migração, colisores e navegação com os terrenos vazios e com todos os chalés
+e as quests); as variações do plano conferem **só a geometria do layout**.
+
+**Ids são posicionais.** `plaza-NN`, `shop-NN` e `<faixa>-NN` são "o enésimo, contando em volta da Vila": só são
+estáveis enquanto o plano não muda. Outro `shopEvery`, `frontage.perHalf` ou `perHalf` de uma faixa renumera ou
+move terrenos, inclusive os que estão no D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, objetivos de
+quest, `ngo_withdrawals.lot_ids`, detalhes de auditoria, `residential_plots.id`). **Depois de aplicada a migration
+0012, mudar o plano exige uma migration nova que mova ou renomeie essas linhas.** Dois testes fixam `plaza-01`…
+`plaza-12`, as lojas e o primeiro e o último terreno de cada faixa ao seu lado, à sua metade e às suas
+coordenadas, e dizem isso quando falham. A parte numérica tem dois dígitos hoje e a largura que a maior contagem
+pedir (`economy-001`…`economy-112` num plano com 112 terrenos econômicos), para que os ids de um tipo tenham
+sempre a mesma forma.
 
 O modelo é uma **roda em volta da árvore**:
 
@@ -79,14 +106,22 @@ O modelo é uma **roda em volta da árvore**:
 
 **Em números:** raio do mundo 82,5 u (era 34: 5,9 vezes a área); 12 terrenos de ONG, 4 lojas, 4 placas, 112
 terrenos residenciais (16 + 32 + 64); 2 089 u de ruas (92 na rua da praça, 532 em avenidas, 1 041 nas três ruas
-dos anéis, 424 em travessas). A pé, a 8,5 u/s: do terreno econômico mais distante até a árvore **8,8 s** (72 u de
-caminho); do padrão mais distante, 6,7 s; do premium, 4,6 s.
+dos anéis, 424 em travessas). A pé, a 8,5 u/s, da frente do terreno mais distante de cada faixa até a árvore:
+econômico (`economy-09`) **8,2 s** e 68,5 u de caminho; padrão (`standard-05`) 6,3 s e 52,8 u; premium
+(`premium-01`) 4,4 s e 35,5 u. Método: `planRoute` até o centro (o caminho termina nas ramas da árvore) e
+`stepWalk` no passo fixo de 60 Hz, com todo terreno de ONG com chalé; `village.test.ts` fixa esses números.
 
-Cada terreno (de ONG ou residencial) tem id único e estável, zona ou faixa, posição, orientação e limites
-explícitos (largura e profundidade). Ids: `plaza-01`…`plaza-12`, `shop-01`…`shop-04`, `billboard-01`…`billboard-04`,
+Cada terreno (de ONG ou residencial) tem id único, zona ou faixa, posição, orientação e limites explícitos
+(largura e profundidade). Os ids são estáveis enquanto o plano não muda (ver acima). Ids: `plaza-01`…`plaza-12`, `shop-01`…`shop-04`, `billboard-01`…`billboard-04`,
 `premium-01`…`premium-16`, `standard-01`…`standard-32`, `economy-01`…`economy-64`.
 
 ### 2. Faixas reconhecíveis pelo ambiente, não por selo
+
+`premium`, `standard` e `economy` são **ids internos** (código, ids de terreno, coluna `tier`): lidos como classes de
+preço, nunca aparecem na tela. Para quem joga, cada faixa é um bairro (`TierPlan.label`, PROPOSTA): **Bairro do
+Centro**, **Bairro do Meio** e **Bairro da Floresta**. Painéis mostram um rótulo amigável (`plotLabel`: "Terreno
+12 · Bairro da Floresta") em vez do id; o id fica em atributos `data-` para testes e scripts. A tabela abaixo usa os
+ids internos.
 
 | | Premium | Padrão | Econômico |
 |---|---|---|---|
@@ -102,51 +137,79 @@ solta fumaça. As casas têm um andar e cumeeira paralela à rua (ver "Consequê
 
 ### 3. Regra de vista para a árvore (`SIGHTLINE`)
 
-1. Toda avenida é um corredor reto e aberto até a árvore: nada com mais de 3 u de altura a menos de 0,25 u das suas
-   bordas, da ponta até as ramas da árvore.
-2. Todo terreno residencial dá para uma rua que chega a uma avenida em linha reta: da rua em frente ao terreno, o
-   trecho até a avenida da sua meia fileira não passa por nada alto, e tem no máximo 30 u. De qualquer terreno, a
-   árvore está a uma esquina de distância.
-3. Todo terreno e toda loja da fachada dá para a praça: nada alto entre a linha das varandas e a rua redonda, na
-   reta até a árvore.
+Cada regra está escrita como exatamente o que o teste confere. "Alto" são os chalés (de ONG e residenciais), as
+lojas e os pinheiros; postes, lanternas, barracas, o trenó, cercas e cercas-vivas não contam.
 
-"Alto" são os chalés (de ONG e residenciais), as lojas e os pinheiros. Postes, lanternas, barracas, cercas e
-cercas-vivas são finos ou baixos e não contam. Os pinheiros altos ficam só no cinturão atrás do último anel.
-`packages/shared/src/game/village.test.ts` confere a regra para o plano em vigor e para variações dele.
+1. **Avenidas.** Toda avenida é um corredor reto até a árvore: nada alto a menos de 0,25 u das suas bordas, da
+   ponta até as ramas da árvore. É a regra que pode falhar: um pinheiro, um terreno ou uma fileira posta na linha
+   de uma avenida a quebra (há um teste que põe um chalé numa avenida e confere que a regra acusa).
+2. **Terrenos residenciais.** O trecho de rua entre a frente do terreno e a avenida da sua meia fileira tem no
+   máximo 30 u. O teste também confere que esse trecho não tem nada alto, mas isso decorre do layout (nada é
+   posto sobre uma rua): o que distingue um plano de outro é só o comprimento.
+3. **Fachada da praça.** Nada alto entre a linha das varandas de um terreno ou de uma loja e a rua redonda, na
+   direção da árvore. Também decorre do layout (essa faixa só tem cenário baixo); o teste protege contra uma
+   coisa alta posta ali depois.
+
+**O que a regra não diz:** que a árvore é vista de todo terreno. De um terreno residencial vê-se a própria rua,
+não a árvore; e a reta de um terreno da fachada até a árvore pode cruzar cenário baixo da praça (hoje: o trenó em
+frente ao `plaza-03`, um pinheiro pequeno em frente ao `plaza-04` e a barraca de panetone em frente à `shop-03`).
+A primeira versão deste ADR dizia "de qualquer terreno, a árvore está a uma esquina de distância"; nenhum teste
+prova isso e a frase foi retirada. Os pinheiros altos ficam só no cinturão atrás do último anel.
 
 ### 4. Requisitos, nunca preços
 
 Cada faixa tem um `requirement` em `VILLAGE_PLAN.tiers` (PROPOSTA, [OQ-17](open-questions.md)): hoje um nível mínimo
 (premium 5, padrão 3, econômico 2). Os níveis vêm só de missões e quests (DEC-042); o nível 3 em diante depende das
-quests, que estão desligadas em produção. Não há valor em reais, moeda, coluna de preço nem botão de compra em
+quests, que estão desligadas em produção (`attainableLevel` em `shared/game/progress.ts`: nível 2 só com as quatro
+missões, nível 6 com o catálogo de quests). Não há valor em reais, moeda, coluna de preço nem botão de compra em
 nenhum lugar: o teste da migração e o dos painéis conferem isso.
+
+**O que o painel do terreno diz** (`ui/Village.tsx`, conferido em `ui/Village.test.tsx`):
+
+- com `/config.residentialPlots` falso (produção, homologação e o padrão local): o terreno e o bairro e uma frase
+  neutra, "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi
+  decidida.", mais a nota de que a casa é cenário. **Nada que apresente a proposta como algo que vem aí:** sem "em
+  breve", sem "será liberado", sem linha de requisito e sem "você está no nível N". A primeira versão mostrava
+  tudo isso com a bandeira desligada, pedindo níveis (3 e 5) que ninguém alcança em produção;
+- com a bandeira ligada: aparecem o requisito em estudo e a situação, e o painel diz "Com as missões abertas hoje
+  ainda não dá para chegar a esse nível." quando o nível pedido está acima do alcançável naquela configuração, e
+  "Ainda não é possível pedir um terreno." (não existe rota de posse).
 
 ### 5. Dados e API
 
 - **Migração 0012** (aditiva; chamava-se 0011 até a integração com as doações, cuja migration ficou com esse
   número; nunca tinha sido aplicada em lugar nenhum): move os 8 terrenos que existiam (mesmos ids, mesmo estado, mesma ONG), acrescenta 4
-  na tabela `lots`, que continua sendo só de terrenos de ONG, e cria `residential_plots` (id, faixa, posição,
-  orientação, `owner_id` e `claimed_at` nulos, que nada grava ainda). Sem coluna de preço.
+  na tabela `lots`, que continua sendo só de terrenos de ONG, e cria `residential_plots` (id, faixa, posição e
+  orientação). Sem coluna de preço e **sem colunas de posse**: quem pode ter um terreno, quantos por conta e o que
+  acontece com ele quando a conta é excluída não estão decididos (OQ-17), e uma migration aplicada não se edita.
+  A primeira versão criava `owner_id`, `claimed_at` e um índice "para não precisar recriar a tabela depois"; o
+  argumento não vale (o SQLite acrescenta coluna anulável com `ALTER TABLE`) e as colunas já nasciam
+  inconsistentes (excluir a conta limpava `owner_id` e deixava `claimed_at`; uma conta podia ter vários
+  terrenos). Elas entram com a migration que trouxer a rota de posse.
 - **`GET /lots`** não muda de forma nem de comportamento: 8 linhas num banco antes da 0012, 12 depois.
-- **`GET /residential-plots`** (pública, sempre ligada): id, faixa, posição e estado de cada terreno, **nunca quem
-  é o dono**. Com a bandeira desligada, todo terreno responde `"unavailable"`. Num banco sem a tabela (produção
-  está na migração 0003) ou sem banco, responde o layout das constantes compartilhadas, tudo `"unavailable"`, nunca
-  um 500.
+- **`GET /residential-plots`** (pública, sempre ligada): id, faixa, posição e estado de cada terreno. A lista é
+  sempre o layout das constantes compartilhadas (os 112 terrenos); a tabela só acrescenta estado. Com a bandeira
+  desligada todo terreno responde `"unavailable"` e **o banco não é lido**. Com ela ligada, responde
+  `"available"` o terreno cuja linha existe na tabela; tabela ausente (produção está na migração 0003), linha
+  ausente ou erro de banco respondem `"unavailable"`, nunca um 500 nem uma lista menor.
 - **`RESIDENTIAL_PLOTS_ENABLED`** (`"false"` em produção e homologação) aparece em `/config` como
-  `residentialPlots` e só vale com as contas ligadas. Hoje só muda o que a leitura responde: **não existe rota de
-  posse**.
+  `residentialPlots` e só vale com as contas ligadas; o campo `enabled` da rota é o mesmo valor, em qualquer
+  esquema. Hoje só muda o que a leitura responde: **não existe rota de posse**.
 
 ### 6. Lojas e placas
 
 Quatro lojas na fachada da praça, uma a cada dois lados: construção gerada por semente (sem texto nem marca no
 modelo), ponto de interação na porta e um ponto nomeado para o lojista (`ShopDef.keeper`, nada desenhado ainda). O
-painel diz o nome, o que a loja vai oferecer e que ainda não abriu. Nomes e ofertas são da própria Vila e são
-PROPOSTA (`SHOP_COPY`).
+painel diz o nome, o tema ("Tema: enfeites de Natal.") e "Esta loja está fechada. Se e como ela vai funcionar
+ainda não foi decidido. Nada é vendido na Vila.": nada que prometa venda, catálogo, abertura ou data ("ainda não
+abriu" anunciaria uma abertura que ninguém decidiu). Nomes e temas são da
+própria Vila e são PROPOSTA (`SHOP_COPY`).
 
 Cada loja tem uma moldura de placa no telhado, sempre virada para a câmera. O texto vem de `VILLAGE_NOTICES`:
 avisos fixos da Vila, em pt-BR, escritos no repositório. Nenhum conteúdo de terceiros, nenhuma marca. Inspecionar a
-placa mostra o aviso em texto, o id e que o espaço ainda não está disponível para aluguel
-([OQ-18](open-questions.md)).
+placa mostra o aviso em texto, onde ela fica e uma frase só: "As placas mostram avisos da própria Vila." Nenhuma
+palavra sobre aluguel, nem para negar: se as placas podem um dia mostrar outra coisa é pergunta aberta
+([OQ-18](open-questions.md)), e dizer "ainda não" seria anunciar.
 
 ### 7. Interação
 
@@ -161,11 +224,55 @@ Na primeira versão desta fase o botão ficava num componente à parte (`ui/Vill
 própria), porque `Hud.tsx` estava sendo refeito em paralelo. Ele foi incorporado ao HUD e removido na integração
 com a IMPL-0022 (2026-11-13).
 
+**O botão de ação nas ruas residenciais** (`game/nearby.ts`, pura e testada; revisão da fase, issue #41). Cada
+terreno residencial é um alvo e os alcances se sobrepõem ao longo da rua: oferecido em movimento, o botão virava uma
+faixa de avisos trocando de frente em frente e piscando entre as fileiras. Duas regras:
+
+- **um terreno residencial só é oferecido com o avatar parado** (abaixo de 0,2 u/s; some acima de 0,6 u/s). Lojas,
+  placas, terrenos de ONG, a árvore e os NPCs continuam oferecidos em movimento, como antes;
+- **histerese:** o alvo oferecido fica enquanto o avatar está a até 0,6 u além do alcance dele, a menos que entre
+  no alcance algo de um tipo que vem antes na ordem, ou que outro alvo do mesmo tipo esteja 0,5 u mais perto.
+
+Medido com o planejador e o passo do próprio jogo, andando um lado inteiro da rua econômica (da avenida 1 à avenida
+2, 6,7 s): **antes, botão na tela em 83 % do trajeto, com 15 trocas e 5 sumiços de menos de 0,25 s; depois, 0 %,
+0 e 0**, e o botão do terreno aparece quando o avatar para em frente a ele (`game/nearby.test.ts` fixa esses
+números). A linha de como andar da primeira visita só cede o lugar a um botão de ação: andando por uma rua
+residencial não há botão, e ela continua na tela.
+
+**Um clique, uma intenção** (`game/clicks.ts`, pura e testada). O chão andava no `pointerdown` e a construção agia
+no `click` seguinte: abrir o painel de um terreno, de uma loja ou de uma placa do próprio ponto de uso deixava uma
+caminhada de 7 a 9 u esperando o painel fechar, e de longe o marcador do toque caía atrás da construção. Agora:
+
+- o chão só anda quando é a primeira coisa sob o ponteiro que responde a clique; com um chalé, uma loja, a árvore
+  ou um terreno na frente, quem decide é o clique nessa coisa. A regra é uma função só (`pressScene`), chamada
+  pelo chão, que fica embaixo de todo toque: tirar a chamada ou inverter a regra falha em `game/clicks.test.ts` e
+  em `scene/Ground.test.tsx` (que aperta o próprio manipulador montado na cena), e `verify.mjs` clica numa loja
+  com o mouse (de longe: nada anda enquanto o botão está apertado, e o clique anda até a porta, com um marcador
+  só; da porta: o painel abre e nada anda depois do Esc);
+- **no modo moderação (IMPL-0021, PROPOSTA) a escolha de um visitante vem antes de tudo isso:** o toque sobre outro
+  visitante o seleciona, esteja ele em campo aberto, sobre o piso de um terreno, na porta de uma loja, na frente
+  de um chalé ou da árvore, e esse toque não faz mais nada (não anda e não abre painel: o clique que vem em
+  seguida é ignorado). A primeira versão desta regra só tentava a escolha quando o chão era a primeira coisa sob
+  o ponteiro, e um administrador deixava de conseguir selecionar com o mouse quem estivesse na frente de qualquer
+  coisa clicável (pelo teclado continuava possível). Fora do modo moderação a escolha nunca acontece e nada muda;
+- clique numa loja, numa placa ou num chalé residencial: do alcance do botão de ação abre o painel; de longe,
+  anda até o ponto de uso, com o marcador lá. Clique num NPC: igual, com o alcance de conversa;
+- clique num terreno de ONG, na árvore ou no atril abre o painel, como antes;
+- **um painel aberto por clique na cena descarta a caminhada que estava em curso** (o clique é a intenção nova).
+  O painel aberto pelo botão de ação ou pelo menu mantém a caminhada, que continua ao fechar (IMPL-0022);
+- numa rua, os telhados da fileira ao sul cobrem a rua na tela, e um toque destinado à rua caía num telhado (na
+  rua econômica do lado sul, cerca de metade dos toques na tela ia para a frente de um terreno). Vale o chão sob
+  o ponteiro: se ele é calçamento de rua, avenida, travessa ou praça, o avatar anda até esse ponto; só o toque
+  cujo chão é o próprio terreno (o chalé, o quintal) vai para a frente do terreno.
+
 ### 8. Navegação
 
 A grade de 0,25 u foi mantida (as rotas em volta da praça ficam exatamente como eram), agora sobre o disco de
-82,5 u. O que mudou foi o rascunho da busca: custos em 32 bits e o caminho escrito sobre a fila já usada. `planRoute`
-e `stepWalk` não mudaram de contrato; os testes existentes valem com os números novos.
+82,5 u. O que mudou foi o rascunho da busca, alocado só na primeira busca que precisa dele (um destino à vista
+não precisa): 10 bytes por célula (custo em 32 bits, o lugar da célula na lista aberta, um byte para o passo que
+chegou a ela e um para a marca de visita), com a lista aberta e o caminho crescendo com a busca.
+`releaseSearchScratch()` devolve a memória. `planRoute` e `stepWalk` não mudaram de contrato; os testes existentes
+valem com os números novos.
 
 ## Desempenho
 
@@ -193,22 +300,37 @@ a cena chegou a 150 chamadas e 271 mil triângulos: acima do orçamento de triâ
 Os números desta tabela são os da primeira versão da fase; os de hoje estão em
 [Acompanhamento: a vista com o zoom todo afastado](#acompanhamento-a-vista-com-o-zoom-todo-afastado).
 
-| Navegação (Node, mesma máquina, todo terreno de ONG com chalé) | Antes | Depois |
+| Navegação: o campo (Node, mesma máquina, todo terreno de ONG com chalé, quests ligadas) | Antes (`main`, raio 34 u) | Depois |
 |---|---|---|
-| Células da grade / caminháveis | 74 529 / 37 379 | 436 921 / 200 600 |
+| Células da grade / caminháveis | 74 529 / 37 379 | 436 921 / 201 050 |
 | Colisores | 70 | 546 |
-| Construir o campo (mediana) | 1,45 ms | 8,2 ms |
-| `planRoute`, mediana de 816 rotas entre frentes de terreno e a árvore | 0,29 ms | 0,51 ms |
-| `planRoute`, pior rota | 1,77 ms (77 u, 19 708 nós) | 4,84 ms (166 u, 40 720 nós) |
-| Memória do campo + rascunho da busca | 0,4 MB + 2,7 MB | 2,2 MB + 10,5 MB |
+| Construir o campo (mediana de 31 construções seguidas) | 1,45 ms | 8,1 ms (a mais lenta, 14,9 ms) |
+| Memória do campo (`blocked` + `region`) | 0,4 MB | 2,2 MB |
+| Memória do rascunho da busca | 2,7 MB (24 bytes por célula) | 4,4 MB (10 bytes por célula, mais a lista aberta, que cresce com a busca); a primeira versão desta fase guardava 24 bytes por célula: 10,5 MB |
+
+| Navegação: `planRoute` no mundo novo (mesmas condições; tempo por `performance.now()` em volta de cada chamada, última de 3 a 5 passadas sobre a mesma amostra) | Pares | Mediana | p99 | Par que mais expande |
+|---|---|---|---|---|
+| Amostra fixa de lugares: todos os pares de 18 pontos (spawn, 11 pontos em volta da praça, 4 frentes de terreno residencial em lados opostos, o pátio da lenha e a borda), a que `navigation.test.ts` confere (menos de 60 000 células) | 324 | 0,25 ms | 2,0 ms | 31 124 células, 2,4 ms (147 u) |
+| Pares aleatórios de pontos livres no disco inteiro, `mulberry32(40)`, a que `navigation.test.ts` confere (menos de 100 000 células) | 3 000 | 0,45 ms | 3,7 ms | 72 464 células, 5,7 ms (158 u) |
+| Os mesmos, `mulberry32(2026)` | 18 000 | 0,45 ms | 4,1 ms | 82 895 células, 6,5 ms (183 u) |
+
+Um clique pode cair em qualquer lugar: o pior caso que vale é o dos pares aleatórios (cerca de 83 mil células, 41 %
+das caminháveis; 6,5 ms nesta máquina, e a chamada mais lenta da amostra levou 8,0 ms). A primeira versão deste ADR
+dava "pior rota 4,84 ms, 40 720 nós": era a pior de uma amostra fixa de 816 rotas entre frentes de terreno e a
+árvore, não o pior caso. Com `main` (raio de 34 u), naquela amostra: mediana 0,29 ms e pior 1,77 ms (77 u, 19 708
+nós). O rascunho menor não mudou nenhuma rota: a implementação anterior e a nova foram comparadas lado a lado em
+28 000 planos sorteados por semente (pontos livres, pontos quaisquer, inclusive fora do mundo, e pontos colados em
+colisores; dois conjuntos de colisores) e em 300 caminhadas passo a passo, com resultado idêntico (pontos de
+passagem, células expandidas e trajetória), e o tempo total dos planos não aumentou (22,7 s contra 27,7 s).
 
 O que foi feito para caber no orçamento:
 
 - chão em faixas de mesma cor (um quad por faixa, só a face de cima): 23 mil células em menos de 11,5 mil quads;
-- 112 chalés e 272 peças assados em 24 blocos (um por faixa de cada lado), descartados um a um pela câmera e pela
+- 112 chalés e 256 peças assados em 24 blocos (um por faixa de cada lado), descartados um a um pela câmera e pela
   sombra;
 - modelos assados sem a face de baixo da camada do chão; chalés preenchidos por dentro (as faces internas somem);
-- a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores.
+- a floresta decorativa, que era uma malha só desenhada inteira nas duas passadas, virou 8 setores (e depois, na
+  revisão, pedaços menores: ver o último acompanhamento).
 
 ### Acompanhamento: a vista com o zoom todo afastado
 
@@ -272,8 +394,8 @@ antes.
 A vista que estourava o orçamento (primeira linha) ficou em 116 chamadas e 210 944 triângulos; a pior das 18 vistas
 medidas é a praça com o zoom todo afastado às 17:50 no preset Alta: 133 chamadas e 225 838 triângulos. Os "antes"
 desta tabela são da árvore integrada e, em duas vistas, ficam acima dos da tabela anterior: na porta da loja, as 5
-chamadas e os 340 triângulos a mais são o contorno do avatar, que é desenhado ali (uma loja fica entre ele e a
-câmera) e entrou depois daquela medição.
+chamadas e os 340 triângulos a mais são o avatar desenhado uma segunda vez, visto através da loja que fica entre
+ele e a câmera (na época, um contorno vermelho), e entrou depois daquela medição.
 
 **Como foi conferido que a imagem não muda:**
 
@@ -289,8 +411,63 @@ câmera) e entrou depois daquela medição.
   item 3 não entra nessa comparação: são os mesmos triângulos, com o mesmo material, em outra malha.
 
 **O que continua como estava:** a passada principal desenha inteiro todo bloco cuja esfera toca a tela, mesmo ao
-longe (não há nível de detalhe por distância); o chão (15 mil triângulos) e as montanhas (12 mil) são desenhados
-sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em celular**.
+longe (não há nível de detalhe por distância); o chão (15 mil triângulos) é desenhado sempre; o tempo de quadro
+medido segue preso aos 60 Hz e **não foi medido em celular**. (As montanhas, 12 mil triângulos desenhados sempre,
+e a floresta entraram no acompanhamento seguinte.)
+
+### Acompanhamento: folga com o zoom todo afastado (revisão, issue #41)
+
+A revisão da fase andou um roteiro pela Vila com o zoom todo afastado e achou o quadro mais caro em cerca de 252 mil
+triângulos, acima do orçamento. O orçamento não mudou e, de novo, **nada foi tirado da cena nem simplificado**.
+
+**De onde vinha.** Contando malha a malha na vista mais cara do roteiro (avatar em `(14, 4)`, zoom 1,6, 06:20, céu
+limpo, Média: 251 816 triângulos, 156 mil na passada principal e 92 mil na de sombra), a passada principal
+desenhava seis dos oito setores da floresta (35 mil triângulos) e as montanhas (12 mil) **sem nenhum pinheiro da
+floresta nem montanha na tela**. Cada setor juntava numa malha só os pinheiros da praça, os do cinturão e a
+floresta decorativa a 100 u dali: a esfera de um setor (54 a 67 u de raio) chegava ao meio da Vila, e a câmera,
+que olha a Vila de cima, quase nunca o descartava. As montanhas eram uma malha só em volta do mundo.
+
+**O que foi feito** (`scene/Scenery.tsx`, `voxelGeometries` com `partOf` em `scene/Voxels.tsx`):
+
+- cada setor da floresta continua sendo **malhado como um modelo só** (os mesmos voxels escondem as mesmas faces e
+  sombreiam os mesmos cantos), mas os triângulos são entregues em quatro pedaços, cada um com a sua esfera: os
+  pinheiros pequenos da praça, os pinheiros altos do cinturão e a floresta decorativa do setor em duas metades do
+  horizonte. O renderizador descarta pedaço por pedaço; a esfera de cada pedaço tem 0,5 u de folga para o balanço
+  da folhagem;
+- as montanhas, do mesmo jeito: um modelo, oito setores do horizonte.
+
+`scene/voxelParts.test.ts` confere que os pedaços são, triângulo por triângulo (posição, cor e centro do voxel),
+os da malha inteira. No navegador, sete vistas com a floresta ou as montanhas na imagem (céu a partir da praça, das
+bordas sul e norte; zoom todo afastado nas bordas oeste, norte e nordeste; spawn) foram capturadas antes e depois,
+com partículas desligadas e movimento reduzido. Entre antes e depois, de 3 a 4 812 dos 1 024 000 pixels de uma
+vista diferem em mais de 6/255 (até 0,47 %); entre dois quadros do mesmo build tirados com 0,7 s de intervalo, de
+565 a 17 655 (até 1,7 %: nuvens, luzes e a respiração dos moradores seguem animadas). A célula de 32 × 32 pixels
+com mais mudança forte (acima de 24/255) tem no máximo 320 dos 1 024 pixels alterados entre antes e depois, e 408
+entre dois quadros do mesmo build: nenhum pinheiro ou montanha sumiu de uma imagem. A comparação não separa pixel
+a pixel o que é animação; a garantia de que os triângulos são os mesmos é o teste unitário.
+
+**Medido** em 2026-11-13 com o roteiro da revisão (15 trechos a pé: praça, rua premium, as três ruas dos anéis nos
+quatro lados, de volta ao spawn; uma leitura dos contadores a cada 90 ms, cerca de 735 leituras por linha), build
+local, Chrome com GPU (Apple M5, Metal), 1280 × 800, céu limpo, `plaza-03` publicado. "Antes" é o `main` da fase:
+
+| Preset, zoom, hora | Mais triângulos num quadro, antes → depois | Média de triângulos | Mais chamadas, antes → depois | Leituras acima do orçamento |
+|---|---|---|---|---|
+| **Média, 1,6, 06:20** | **251 896 → 195 908** | 194 762 → 161 303 | 127 → 130 | 5 → 0 |
+| Alta, 1,6, 17:50 | 247 462 → 195 974 | 198 048 → 163 643 | 140 → 141 | 0 → 0 |
+| Média, 1,6, 15:30 | 231 784 → 181 686 | 187 269 → 154 054 | 122 → 121 | 0 → 0 |
+| Alta, 1, 17:50 | 194 204 → 153 494 | 164 070 → 132 095 | 127 → 125 | 0 → 0 |
+| Média, 1, 15:30 | 186 520 → 146 084 | 157 127 → 126 065 | 111 → 107 | 0 → 0 |
+
+Parado no spawn (Média), antes → depois: zoom padrão, 12:00 com neve, 102 chamadas e 164 504 triângulos → 101 e
+112 786; zoom todo afastado, 15:30 com céu limpo, 116 e 210 944 → 113 e 154 630; zoom todo afastado, 06:20, 119 e
+223 584 → 116 e 167 270; no preset Alta, zoom todo afastado, 17:50, 133 e 225 838 → 130 e 169 524.
+
+O quadro mais caro do roteiro com o zoom todo afastado ficou em 196 mil triângulos: **22 % abaixo de antes e 22 %
+de folga sob o orçamento** (eram 252 mil, 0,8 % acima). As chamadas sobem até 3 onde a floresta aparece (mais
+pedaços na tela) e ficam em no máximo 141. O ganho vale também no zoom padrão (cerca de 21 %), porque o desperdício
+não dependia do zoom. `apps/client/scripts/verify.mjs` passou a falhar se o spawn, no preset Média, passar de 150
+chamadas ou 250 mil triângulos no zoom padrão ou com o zoom todo afastado (inclusive às 06:20, a hora das sombras
+compridas).
 
 ## Alternativas consideradas
 
@@ -306,24 +483,59 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
 
 ## Consequências
 
-- **Positivas:** a Vila tem para onde crescer sem mexer no código de layout; todo ponto novo é alcançável a pé e
-  conferido por teste; nada sólido é atravessado e nada invisível bloqueia (auditoria nos dois sentidos, agora com
-  lojas, postes de rua, 272 peças e 112 chalés); produção (esquema v3) continua respondendo todas as rotas públicas.
+- **Positivas:** os anéis residenciais crescem ou encolhem mudando números do plano (os da coluna "seguros" do
+  §1); todo ponto novo é alcançável a pé e conferido por teste; nada sólido é atravessado e nada invisível bloqueia
+  (auditoria nos dois sentidos, agora com lojas, postes de rua, 256 peças e 112 chalés); produção (esquema v3)
+  continua respondendo todas as rotas públicas.
 - **Pior para quem joga hoje:**
   - a câmera olha do sul, de cima: uma casa ao sul de uma rua esconde quem anda rente a ela. As casas residenciais
-    têm um andar e cumeeira paralela à rua, e o avatar ganha um contorno vermelho translúcido quando há uma
-    construção entre ele e a câmera; ainda assim, nas ruas do lado sul parte do caminho é vista só pelo contorno. Chalés de ONG de
-    dois andares (gerador existente) escondem mais;
+    têm um andar e cumeeira paralela à rua, e **o avatar é desenhado uma segunda vez, nas próprias cores e meio
+    transparente, por cima de tudo, enquanto a câmera não vê o peito ou a cabeça dele** (`scene/occlusion.ts`,
+    pura e testada: uma reta da câmera a cada um dos dois pontos, contra o mapa de colunas dos chalés, das lojas,
+    da árvore e dos pinheiros, refeita só quando o avatar andou 0,2 u ou a câmera se mexeu; nunca com os dois
+    parados, e nunca em "Olhar o céu", que não usa o desenho). O desenho aparece na hora e **fica por 250 ms
+    depois que a câmera volta a ver o avatar** (`seeThroughShown`, por tempo e não por quadros): andando rente a
+    uma fileira, o avatar fica à vista por um décimo de segundo em cada vão entre dois chalés, e sem essa espera
+    o desenho piscava (14 trocas numa rua, com seis apagões de cerca de 100 ms). Ainda assim, nas ruas do lado
+    sul parte do caminho é vista só assim. Chalés de ONG de dois andares (gerador existente) escondem mais.
+    A primeira versão usava a pegada de uma construção até 6 u ao sul do avatar e um contorno vermelho chapado:
+    nos 1 440 pontos de rua medidos na revisão com raios na cena real, ela concordava com os raios em 1 230
+    (85 %), pintava de vermelho um avatar à vista em até um terço dos pontos de uma rua e não aparecia em
+    esquinas, atrás da árvore e nas fileiras em diagonal; a regra nova concorda em 1 430 (99 %; nos outros 10 ela
+    diz "à vista" e os raios acharam algo no caminho: postes, barracas, o trenó e as peças das fileiras não
+    entram na conta da regra). **Os outros visitantes não têm esse desenho:** só o
+    próprio avatar;
+  - "Olhar o céu" punha a câmera 10 u ao sul do avatar, a 3,6 u do chão: numa rua residencial isso é dentro de um
+    chalé ou de cara para a parede dos fundos dele. Onde há uma construção nessa vista, a câmera agora sobe por
+    cima dos telhados (`clearSkyOffset`: a primeira de cinco posições, cada uma mais alta, sem construção a menos
+    de 20 u em 13 direções da imagem); na praça a vista baixa de sempre é mantida;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
+  - **as salas de presença não carregam versão do mundo** (IMPL-0008). **É um limite conhecido, documentado aqui
+    e no [guia de publicação](../guides/deploy.md), e não corrigido:** nenhum código desta fase o resolve (não há
+    versão no protocolo, nem aviso de "recarregue" no jogo). Uma aba aberta antes da publicação segue
+    com o mundo antigo e, na mesma sala, vê os visitantes novos andando fora do mundo dela até recarregar (e os
+    novos a veem atravessar construções). Só a pose e o visual trafegam, então nada é gravado errado;
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador
     decorativo saiu de onde passa uma avenida;
   - mais triângulos por quadro (no spawn, cerca de 1,35 vez o `main` anterior à expansão: 164,5 mil contra 121,6
-    mil; eram 1,8 vez antes do acompanhamento de desempenho) e cerca de 10 MB a mais de memória para a navegação;
-  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha e o painel
-    diz que ainda não recebem candidaturas.
-- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições; a migração 0012, depois de aplicada
-  em produção, não se edita: um plano novo é uma migração nova. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
+    mil; eram 1,8 vez antes do acompanhamento de desempenho; depois da revisão, 112,8 mil no mesmo quadro, 0,93 vez
+    o de antes da expansão, com 101 chamadas contra 70) e **mais
+    memória**. Heap de JavaScript no Chrome (`performance.memory.usedJSHeapSize` depois de forçar a coleta, Chrome
+    com `--enable-precise-memory-info`, preset Média, 1280 × 800, mediana de 5 cargas): depois de carregar,
+    **34,5 MB** (a revisão mediu 18,4 MB no `main` anterior à expansão e 34,8 MB na primeira versão desta fase;
+    hoje o mesmo método dá 34,9 MB para aquela versão); depois de três caminhadas longas, **39,7 MB** (21,7 MB
+    antes da expansão; 45,9 MB na primeira versão desta fase, que guardava 10,5 MB de rascunho da busca contra os
+    4,4 MB de hoje). Ou seja, cerca de 16 MB a mais ao carregar e 18 MB a mais depois de andar, e não os "cerca de
+    10 MB para a navegação" que este ADR dizia: a navegação responde por 2,2 MB (campo) mais 4,4 MB (rascunho), e
+    o resto são as malhas, os modelos e os mapas de colunas do mundo maior. Memória de GPU não foi medida;
+  - dos 12 terrenos de ONG, 4 só existem no banco depois da migração 0012: antes dela o jogo os desenha como
+    "Terreno em preparação" (rótulo 3D, título do painel e lista "Explorar ONGs"), sem convite para candidatura, e
+    a visita a eles não conta para a missão de visitar um terreno.
+- **Riscos:** o plano final (PEN-017/PEN-023) pode mudar contagens e posições, e os ids são posicionais (§1): a
+  migração 0012, depois de aplicada em produção, não se edita, e um plano novo é uma migração nova que move ou
+  renomeia as linhas de `lots` e `residential_plots` e tudo o que guarda um id de terreno. Mudar um número da
+  praça (lados, tamanho da praça, espaçamento das lojas) pede revisar à mão o cenário dela. Ligar `RESIDENTIAL_PLOTS_ENABLED` sem a rota de
   posse só muda o estado respondido para `"available"`; não ligar antes da resposta à OQ-17.
 
 ## Pronto para as próximas fases
@@ -334,8 +546,8 @@ sempre; o tempo de quadro medido segue preso aos 60 Hz e **não foi medido em ce
 | Lenhador e quest da lenha | `WOOD_YARD` (ponta da travessa norte, junto à floresta), com uma pilha de lenha |
 | Lareiras | `ResidentialPlot.hearth` (dentro das paredes de cada casa) e `chimneyOf()` (topo da chaminé do modelo; a fumaça de `Smoke` já aceita essas origens) |
 | NPCs e animais que andam, entregas, minimapa | `PATH_GRAPH`: 80 nós (avenidas, travessas e esquinas com as três ruas) e 120 arestas com tipo, largura e comprimento, todas em chão livre |
-| Posse de terreno | `residential_plots.owner_id` / `claimed_at`, a bandeira, o estado na leitura pública |
-| Catálogo de loja, aluguel de placa | ids estáveis (`shop-NN`, `billboard-NN`) e os painéis |
+| Posse de terreno | a bandeira e o estado na leitura pública. O esquema de posse **não** existe: entra com a migration da rota de posse, depois da resposta à OQ-17 |
+| Catálogo de loja | ids (`shop-NN`, `billboard-NN`; estáveis enquanto o plano não muda) e os painéis |
 
 ## Relacionados
 

@@ -3,74 +3,57 @@ import { useEffect, useMemo, useRef } from "react";
 import { CircleGeometry, type Group, type Mesh, MeshBasicMaterial, ShaderMaterial, Vector3 } from "three";
 
 import { U } from "./environment/materials";
+import { probe } from "../game/devtools";
 import { events } from "../game/events";
-import { distanceTo } from "@vila/shared/game/collision";
-import { type Collider, MOTION, STEP } from "@vila/shared/game/motion";
+import { MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim, walkRoute } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
+import { pickNearby } from "../game/nearby";
 import { type Nearby, useVila } from "../game/store";
 import { attachZoomGestures } from "../lib/zoom-gestures";
-import {
-  BILLBOARDS,
-  DONATION_PANEL,
-  GIFTS,
-  INTERACT_DISTANCE,
-  LOT_INTERACT_DISTANCE,
-  LOTS,
-  NPCS,
-  OBSTACLES,
-  PLACE_INTERACT_DISTANCE,
-  QUEST_INTERACTIONS,
-  QUEST_OBSTACLES,
-  QUEST_SPAWNS,
-  RESIDENTIAL_PLOTS,
-  SHOPS,
-  surfaceAt,
-  TREE_RADIUS,
-} from "@vila/shared/game/world";
+import { GIFTS, INTERACT_DISTANCE, QUEST_SPAWNS, surfaceAt, TREE_RADIUS } from "@vila/shared/game/world";
 import { usePreset } from "../environment/settings";
 import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
+import { avatarHidden, clearSkyOffset, type Offset, seeThroughShown } from "./occlusion";
+import { sceneBuildings, sceneColliders, sceneOccluders } from "./sceneColliders";
 import { Voxels } from "./Voxels";
 
 /** Top-down diagonal camera (study; final angle is card G12). */
 const CAMERA_OFFSET = new Vector3(0, 24, 21);
-/** "Look at the sky" view: low behind the avatar, looking up over the village (PROPOSAL). */
-const SKY_OFFSET = new Vector3(0, 2.6, 10);
-const SKY_LOOK = new Vector3(0, 30, -40);
+/**
+ * "Look at the sky" view (PROPOSAL): low behind the avatar, looking up over the village. The first offset is
+ * that view; the others rise over the roofs and are used only where a building stands on the first one's view
+ * (a residential street: `clearSkyOffset`), so the sky is seen from every street.
+ */
+const SKY_OFFSETS: readonly Offset[] = [
+  { x: 0, y: 2.6, z: 10 },
+  { x: 0, y: 5.5, z: 10 },
+  { x: 0, y: 8.5, z: 10 },
+  { x: 0, y: 11.5, z: 10 },
+  { x: 0, y: 14.5, z: 7 },
+];
+const SKY_LOOK = { x: 0, y: 30, z: -40 } as const;
 /** The camera leads the avatar slightly in the walking direction (seconds of velocity). */
 const LOOK_AHEAD = 0.22;
 const GIFT_RADIUS = 1.4;
-/** Interaction targets, built once: the frame loop only picks one of them (no per-frame allocation). */
-const NEAR_NPC: Nearby[] = NPCS.map((n) => ({ kind: "npc", npcId: n.id }));
-const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", interactionId: i.id }));
-const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
-const NEAR_PANEL: Nearby = { kind: "donation-panel" };
 /**
- * Places of the expanded village (IMPL-0024): where each one is used from, and the target handed to the store
- * while the avatar stands there. Built once, like the targets above.
+ * See-through tint of the avatar (IMPL-0024): the camera looks north from above, so a chalet south of a street
+ * hides whoever walks behind it. While the camera cannot see the avatar's chest or its head (`avatarHidden`:
+ * a real line from the camera to each, against the chalets, the shops, the tree and the pines), the avatar is
+ * drawn once more over everything, in its own colours and half transparent, so it stays readable as itself.
+ * Never shown in the open, and not when only the feet are behind something. It appears at once and stays for
+ * a quarter of a second after the avatar is seen again (`seeThroughShown`), so the gaps of a row do not blink.
  */
-const PLACES: Array<{ x: number; z: number; near: NonNullable<Nearby> }> = [
-  ...SHOPS.map((s) => ({ x: s.door.x, z: s.door.z, near: { kind: "shop" as const, shopId: s.id } })),
-  ...BILLBOARDS.map((b) => ({ x: b.point.x, z: b.point.z, near: { kind: "billboard" as const, billboardId: b.id } })),
-  ...RESIDENTIAL_PLOTS.map((p) => ({ x: p.front.x, z: p.front.z, near: { kind: "plot" as const, plotId: p.id } })),
-];
-const NEAR_TREE: Nearby = { kind: "tree" };
-/** Smallest centre distance wins; targets within 0.5 of each other fall back to the priority order. */
-const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestPrio: number) =>
-  !best || dist < bestDist - 0.5 || (dist - bestDist <= 0.5 && prio < bestPrio);
+const SEE_THROUGH = new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthTest: false, depthWrite: false, fog: false });
+/** The avatar moved this far (u) since the last look: look again. */
+const LOOK_AGAIN = 0.2;
 /**
- * See-through outline of the avatar (IMPL-0024): the camera looks north from above, so a chalet south of a
- * street hides whoever walks right behind it. While a building stands between the avatar and the camera, the
- * avatar is drawn once more, flat and translucent, over everything. Never shown in the open.
+ * …or the camera moved at all (it eases to its place for a second after the avatar stops, and the answer must
+ * be the one for where it comes to rest). One look costs about 10 to 16 µs (measured in the review, in Chrome).
  */
-// Red like the default coat: it reads on snow, which covers most roofs, and on the darker walls.
-const OUTLINE = new MeshBasicMaterial({ color: "#D8443C", transparent: true, opacity: 0.8, depthTest: false, depthWrite: false, fog: false });
-/** How far towards the camera (south) a building can stand and still hide the avatar: its height over the camera's slope. */
-const HIDES = [1.2, 2.4, 3.6, 4.8, 6];
-/** A collider this large is a building (chalet or shop); lamp posts, fences and villagers hide nobody. */
-const isBuilding = (c: Collider) => (c.hx ?? 0) >= 2 && (c.hz ?? 0) >= 2;
+const CAMERA_MOVED = 0.01;
 
 const blobVertex = /* glsl */ `
 varying vec2 vUv;
@@ -92,10 +75,10 @@ void main() {
 /**
  * The avatar: click/tap target → route around the colliders (`navigation.ts`, planned once per click) →
  * fixed-step simulation (`motion.ts`, 60 Hz) → interpolated render pose → walk animation, contact shadow and
- * camera. Gameplay facts (footsteps, gifts) go out on the event bus. `lots` = colliders of the lots and of the
- * chalets of the residential plots.
+ * camera. Gameplay facts (footsteps, gifts) go out on the event bus. `published` = ids of the lots with a
+ * published chalet, joined by commas: with the quests flag it decides the colliders (`sceneColliders`).
  */
-export function Player({ lots }: { lots: Collider[] }) {
+export function Player({ published }: { published: string }) {
   const root = useRef<Group>(null);
   const rig = useRef<Group>(null);
   const torso = useRef<Group>(null);
@@ -115,10 +98,21 @@ export function Player({ lots }: { lots: Collider[] }) {
   const { shadows } = usePreset();
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
-  const colliders = useMemo(() => [...OBSTACLES, ...(questsOn ? QUEST_OBSTACLES : []), ...lots], [lots, questsOn]);
-  const buildings = useMemo(() => colliders.filter(isBuilding), [colliders]);
+  const houses = useMemo(() => new Set(published.split(",").filter(Boolean)), [published]);
+  const colliders = useMemo(() => sceneColliders(houses, questsOn), [houses, questsOn]);
+  // What can hide the avatar from the camera. A new set is looked at afresh (`x: Infinity`).
+  const occluders = useMemo(() => sceneOccluders(houses), [houses]);
+  // The sky camera minds the buildings only: the tree and the pines belong in its picture.
+  const buildings = useMemo(() => sceneBuildings(houses), [houses]);
   const outline = useRef<Array<Group | null>>([]);
-  const hidden = useRef({ x: Infinity, z: Infinity, on: false });
+  // `at`: the last instant the avatar was hidden (ms on the frame clock), for the hold of the drawing.
+  const hidden = useRef({ x: Infinity, z: Infinity, cx: 0, cy: 0, cz: 0, on: false, at: -Infinity });
+  const sky = useRef<{ x: number; z: number; offset: Offset }>({ x: Infinity, z: Infinity, offset: SKY_OFFSETS[0] });
+  useEffect(() => {
+    hidden.current.x = Infinity;
+    sky.current.x = Infinity;
+  }, [occluders]);
+  const near = useRef<Nearby>(null);
   // The navigation field follows the collider set (rebuilt only when a house or the quests flag changes).
   const field = useMemo(() => createNavField(colliders), [colliders]);
   useEffect(() => {
@@ -137,6 +131,17 @@ export function Player({ lots }: { lots: Collider[] }) {
   );
   const blobGeometry = useMemo(() => new CircleGeometry(0.55, 20).rotateX(-Math.PI / 2), []);
   useEffect(() => () => (blobMaterial.dispose(), blobGeometry.dispose()), [blobMaterial, blobGeometry]);
+
+  // Dev hooks only (`game/devtools.ts`): where a point of the world is on the screen, for the verify scripts.
+  useEffect(() => {
+    const v = new Vector3();
+    probe.project = (x, y, z) => {
+      v.set(x, y, z).project(camera);
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + ((v.x + 1) / 2) * r.width, y: r.top + ((1 - v.y) / 2) * r.height };
+    };
+    return () => void (probe.project = null);
+  }, [camera, canvas]);
 
   // Zoom: mouse wheel and two-finger pinch on the canvas (`lib/zoom-gestures.ts`), only while nothing is open
   // over the village. The scene is ready from here on: the line that says how to walk starts counting.
@@ -243,94 +248,63 @@ export function Player({ lots }: { lots: Collider[] }) {
       blobMaterial.uniforms.uOpacity.value = (shadows ? 0.2 : 0.34) * (1 - lift * 2);
     }
 
-    // ---- closest interaction: NPC, quest interaction, donation lectern, tree, then lot (see `beats`); a shop,
-    // a billboard or a residential plot only when none of those is in reach. One target, one action button.
-    let best: Nearby = null;
-    let bestDist = 0;
-    let bestPrio = 0;
-    if (quests) {
-      const live = useVila.getState().progress;
-      for (let i = 0; i < NPCS.length; i++) {
-        const dist = Math.hypot(NPCS[i].x - pose.x, NPCS[i].z - pose.z);
-        if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) {
-          best = NEAR_NPC[i];
-          bestDist = dist;
-          bestPrio = 1;
-        }
-      }
-      for (let i = 0; i < QUEST_INTERACTIONS.length; i++) {
-        const ia = QUEST_INTERACTIONS[i];
-        if (live.seen[`${ia.questId}:${ia.id}`] || questState(live, ia.questId) !== "active") continue;
-        const dist = Math.hypot(ia.x - pose.x, ia.z - pose.z);
-        if (dist < ia.radius && beats(dist, 2, best, bestDist, bestPrio)) {
-          best = NEAR_QUEST[i];
-          bestDist = dist;
-          bestPrio = 2;
-        }
-      }
-      const panelDist = Math.hypot(DONATION_PANEL.x - pose.x, DONATION_PANEL.z - pose.z);
-      if (panelDist < INTERACT_DISTANCE && beats(panelDist, 3, best, bestDist, bestPrio)) {
-        best = NEAR_PANEL;
-        bestDist = panelDist;
-        bestPrio = 3;
-      }
-    }
-    const treeDist = Math.hypot(pose.x, pose.z);
-    if (treeDist < TREE_RADIUS + INTERACT_DISTANCE && beats(treeDist, 4, best, bestDist, bestPrio)) {
-      best = NEAR_TREE;
-      bestDist = treeDist;
-      bestPrio = 4;
-    }
-    // Lots: two neighbours of the frontage can be within reach at once, and the nearest one wins.
-    let lot = -1, lotDist = LOT_INTERACT_DISTANCE;
-    for (let i = 0; i < LOTS.length; i++) {
-      const dist = Math.hypot(LOTS[i].x - pose.x, LOTS[i].z - pose.z);
-      if (dist < lotDist) (lot = i), (lotDist = dist);
-    }
-    if (lot >= 0 && beats(lotDist, 5, best, bestDist, bestPrio)) best = NEAR_LOT[lot];
-    // Shops, billboards and residential plots (IMPL-0024): only when nothing above is in reach.
-    if (!best) {
-      let placeDist = PLACE_INTERACT_DISTANCE;
-      for (let i = 0; i < PLACES.length; i++) {
-        const dist = Math.hypot(PLACES[i].x - pose.x, PLACES[i].z - pose.z);
-        if (dist < placeDist) (best = PLACES[i].near), (placeDist = dist);
-      }
-    }
-    s.setNearby(best);
+    // ---- closest interaction (`game/nearby.ts`): one target, one action button. A residential plot is offered
+    // only standing still, and the target on offer is held across the edge of its reach.
+    near.current = pickNearby(pose.x, pose.z, pose.speed, quests, useVila.getState().progress, near.current);
+    s.setNearby(near.current);
 
-    // ---- outline: shown while a building stands between the avatar and the camera (checked when the avatar moved).
+    // ---- see-through tint: shown while the camera cannot see the avatar's chest or head, and held for a moment
+    // after it is seen again. Looked at again only when the avatar or the camera has moved: never while both are
+    // at rest, and never in the sky view, which does not draw it (the next frame out of that view looks afresh).
     const h = hidden.current;
-    if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > 0.2) {
+    const eye = camera.position;
+    if (s.skyView) {
+      h.x = Infinity;
+      h.on = false;
+      h.at = -Infinity;
+    } else if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > LOOK_AGAIN || Math.abs(eye.x - h.cx) + Math.abs(eye.y - h.cy) + Math.abs(eye.z - h.cz) > CAMERA_MOVED) {
       h.x = pose.x;
       h.z = pose.z;
-      let on = false;
-      for (let i = 0; i < buildings.length && !on; i++) {
-        const c = buildings[i];
-        if (Math.abs(c.x - pose.x) > 12 || Math.abs(c.z - pose.z) > 12) continue;
-        for (let k = 0; k < HIDES.length && !on; k++) on = distanceTo(c, pose.x, pose.z + HIDES[k]) < 0;
-      }
-      h.on = on;
+      h.cx = eye.x;
+      h.cy = eye.y;
+      h.cz = eye.z;
+      h.on = avatarHidden(occluders, eye.x, eye.y, eye.z, pose.x, pose.z);
     }
-    const show = h.on && !s.skyView;
+    const now = three.elapsedTime * 1000;
+    if (h.on) h.at = now;
+    const show = seeThroughShown(h.on, now, h.at);
     for (const o of outline.current) if (o && o.visible !== show) o.visible = show;
+    sim.view.seeThrough = show;
 
     // ---- camera: eased follow with a small look-ahead along the velocity.
     ahead.lerp(goal.set(b.vx, 0, b.vz).multiplyScalar(LOOK_AHEAD * U.uMotion.value), 1 - Math.exp(-3 * dt));
     look.set(pose.x, 1, pose.z).add(ahead);
     const k = 1 - Math.exp(-(s.skyView ? 2 : 4) * dt);
-    if (s.skyView) goal.copy(look).add(SKY_OFFSET);
-    else goal.copy(look).addScaledVector(CAMERA_OFFSET, fit * s.zoom);
+    if (s.skyView) {
+      // Where a building stands on the low view, the camera rises over the roofs (looked at once per spot).
+      const v = sky.current;
+      if (Math.abs(pose.x - v.x) + Math.abs(pose.z - v.z) > LOOK_AGAIN) {
+        v.x = pose.x;
+        v.z = pose.z;
+        v.offset = clearSkyOffset(buildings, pose.x, pose.z, SKY_OFFSETS, SKY_LOOK);
+      }
+      goal.set(look.x + v.offset.x, look.y + v.offset.y, look.z + v.offset.z);
+      sim.view.skyHeight = v.offset.y;
+    } else {
+      goal.copy(look).addScaledVector(CAMERA_OFFSET, fit * s.zoom);
+      sim.view.skyHeight = 0;
+    }
     camera.position.lerp(goal, k);
     // The aim point eases too, so switching views pans smoothly instead of snapping.
-    aim.lerp(s.skyView ? goal.copy(look).add(SKY_LOOK) : look, k);
+    aim.lerp(s.skyView ? goal.set(look.x + SKY_LOOK.x, look.y + SKY_LOOK.y, look.z + SKY_LOOK.z) : look, k);
     camera.lookAt(aim);
   });
 
   const limb = (i: number) => (el: Group | null) => void (limbs.current[i] = el);
-  /** The outline of one part: a second drawing of the same voxels, inside the part's own animated group. */
+  /** The see-through tint of one part: a second drawing of the same voxels, inside the part's own animated group. */
   const ghost = (i: number, voxels: typeof parts.body) => (
     <group ref={(el) => void (outline.current[i] = el)} visible={false}>
-      <Voxels voxels={voxels} size={AVATAR_SIZE} material={OUTLINE} castShadow={false} />
+      <Voxels voxels={voxels} size={AVATAR_SIZE} material={SEE_THROUGH} castShadow={false} />
     </group>
   );
   return (

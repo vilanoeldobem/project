@@ -6,9 +6,12 @@ import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, 
 import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
+import { openFromScene, visit } from "../game/clicks";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
+import { hudChrome, underChrome } from "../lib/hud-chrome";
+import { lotLabel } from "../lib/lots";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
 import { villager } from "./gen/characters";
@@ -22,9 +25,8 @@ const GLOW = [P.gold];
 
 export function ChristmasTree() {
   const v = useMemo(tree, []);
-  const open = useVila((s) => s.open);
   return (
-    <group onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
+    <group onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "donation" }))}>
       <Voxels voxels={v} emissive={BULBS} />
       <Label y={14.5} text="Doação global" />
     </group>
@@ -58,7 +60,6 @@ const padDummy = new Object3D();
  */
 export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const marker = useMemo(lotMarker, []);
-  const open = useVila((s) => s.open);
   const isPublished = (id: string) => info[id]?.state === "published" && !!info[id]?.ngo_name;
   const published = useMemo(() => LOTS.filter((l) => isPublished(l.id)), [info]);
   const available = useMemo(() => LOTS.filter((l) => !isPublished(l.id)), [info]);
@@ -93,7 +94,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
     const lot = e.instanceId === undefined ? undefined : list[e.instanceId];
     if (!lot) return;
     e.stopPropagation();
-    open({ kind: "lot", lotId: lot.id });
+    openFromScene({ kind: "lot", lotId: lot.id });
   };
   return (
     <>
@@ -104,7 +105,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
           key={lot.id}
           position={[lot.x, 0, lot.z]}
           rotation-y={lot.facing}
-          onClick={(e) => (e.stopPropagation(), open({ kind: "lot", lotId: lot.id }))}
+          onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "lot", lotId: lot.id }))}
         >
           <Voxels voxels={model.voxels} size={model.size} glow={model.glow} />
         </group>
@@ -119,7 +120,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]}>
             {/* Twelve lots now: a label is mounted only near the avatar, like the villagers' (see `Label`). */}
-            <Label y={pub ? 7.5 : 5} text={pub ? String(info[lot.id]?.ngo_name) : "Terreno disponível"} x={lot.x} z={lot.z} />
+            <Label y={pub ? 7.5 : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} />
           </group>
         );
       })}
@@ -155,12 +156,16 @@ function Gift({ id, x, z }: { id: string; x: number; z: number }) {
 }
 
 /**
- * Distance limit (world units) for NPC and lectern DOM labels: `@react-three/drei`'s `Html` projects every
- * mounted label on the main thread each frame, so labels on the far side of the village are pure DOM cost.
- * 24 u covers the plaza (radius 12) plus the camera's 21 u reach and the 4.5 u interaction distance; from the
- * tree it reaches the porches of the square's frontage (26 u), so the lots around the square read from there.
+ * Distance limit (world units) for the DOM labels of lots, shops, NPCs and the lectern: `@react-three/drei`'s
+ * `Html` projects every mounted label on the main thread each frame, so labels on the far side of the village
+ * are pure DOM cost. A label is on the page only while its prop is within 28 u of the avatar: more than the
+ * 21 u the camera sits south of the avatar at the default zoom, so whatever is near the middle of the screen is
+ * labelled. The lots and the shops stand about 31 u from the tree: from the spawn the south ones are labelled,
+ * from the tree's axis none is. (The tree's own label has no limit.)
  */
 const LABEL_RADIUS = 28;
+/** A mounted label is compared with the HUD every this many frames. */
+const CHROME_EVERY = 6;
 
 /**
  * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within
@@ -169,7 +174,16 @@ const LABEL_RADIUS = 28;
 export function Label({ y, text, x, z }: { y: number; text: string; x?: number; z?: number }) {
   const [near, setNear] = useState(() => x === undefined || z === undefined || Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS);
   const prev = useRef(near);
+  const box = useRef<HTMLDivElement>(null);
+  const tick = useRef(0);
   useFrame(() => {
+    // A label that would sit under a button, the hint or a notice of the HUD is hidden until it is clear of it
+    // (`lib/hud-chrome.ts`): on a phone the HUD covers the top and the bottom of a small screen.
+    const el = box.current;
+    if (el && tick.current++ % CHROME_EVERY === 0) {
+      const hide = underChrome(el.getBoundingClientRect(), hudChrome(performance.now()));
+      if ((el.style.visibility === "hidden") !== hide) el.style.visibility = hide ? "hidden" : "";
+    }
     if (x === undefined || z === undefined) return;
     const next = Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS;
     if (next === prev.current) return;
@@ -178,7 +192,7 @@ export function Label({ y, text, x, z }: { y: number; text: string; x?: number; 
   });
   if (!near) return null;
   return (
-    <Html position={[0, y, 0]} center distanceFactor={28} zIndexRange={[10, 0]} className="label3d">
+    <Html ref={box} position={[0, y, 0]} center distanceFactor={28} zIndexRange={[10, 0]} className="label3d">
       {text}
     </Html>
   );
@@ -200,8 +214,6 @@ function npcMarker(npc: NpcPlacement, progress: Progress): string {
  */
 export function QuestNpcs() {
   const progress = useVila((s) => s.progress);
-  const open = useVila((s) => s.open);
-  const setTarget = useVila((s) => s.setTarget);
   const models = useMemo(() => NPCS.map((npc) => ({ npc, m: villager(npc.seed) })), []);
   return (
     <>
@@ -212,9 +224,8 @@ export function QuestNpcs() {
           rotation-y={npc.rot}
           onClick={(e) => {
             e.stopPropagation();
-            if (Math.hypot(npc.x - sim.pose.x, npc.z - sim.pose.z) < INTERACT_DISTANCE) open({ kind: "npc", npcId: npc.id });
             // Too far to talk: walk there instead. The walk ends next to the NPC, on the avatar's side.
-            else setTarget({ x: npc.x, z: npc.z });
+            visit(npc, { kind: "npc", npcId: npc.id }, INTERACT_DISTANCE);
           }}
         >
           <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow />
@@ -265,10 +276,9 @@ export function QuestItems() {
  * both open the same donation modal. A proposal like the NPCs, so it is mounted only with the quests flag.
  */
 export function DonationLectern() {
-  const open = useVila((s) => s.open);
   const m = useMemo(() => donationPanel("donation-panel"), []);
   return (
-    <group position={[DONATION_PANEL.x, 0, DONATION_PANEL.z]} rotation-y={DONATION_PANEL.rot} onClick={(e) => (e.stopPropagation(), open({ kind: "donation" }))}>
+    <group position={[DONATION_PANEL.x, 0, DONATION_PANEL.z]} rotation-y={DONATION_PANEL.rot} onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "donation" }))}>
       <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} castShadow />
       <Label y={2.2} text="Doação global" x={DONATION_PANEL.x} z={DONATION_PANEL.z} />
     </group>

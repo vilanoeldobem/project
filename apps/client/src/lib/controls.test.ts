@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { controls, OPEN, WALK } from "./controls";
+import { controls, OPEN, VISIT, WALK } from "./controls";
 import { boundAction, KEY_BINDINGS } from "./hud-keys";
 import { ZOOM_GESTURES } from "./zoom-gestures";
 
@@ -41,11 +41,25 @@ describe("controls list", () => {
 
   it("lists walking and opening for the mouse and for touch", () => {
     for (const device of ["mouse", "touch"] as const) {
-      expect(group(device).rows.slice(0, 2)).toEqual([
+      expect(group(device).rows.slice(0, 3)).toEqual([
         { input: [WALK.input[device]], does: WALK.does },
         { input: [OPEN.input[device]], does: OPEN.does },
+        { input: [VISIT.input[device]], does: VISIT.does },
       ]);
     }
+  });
+
+  it("says what a click on a shop, a sign or a residential house does, which is not what a click on the tree does", () => {
+    // The tree, an NGO's house and a lot open at once; the places of the expanded village are walked to first.
+    for (const device of ["mouse", "touch"] as const) {
+      expect(OPEN.input[device]).toMatch(/árvore.*casa de ONG.*terreno/);
+      expect(VISIT.input[device]).toMatch(/loja.*placa.*casa residencial/);
+    }
+    expect(OPEN.does).toMatch(/^Abrir/);
+    expect(VISIT.does).toMatch(/^Ir até lá; de perto, abrir/);
+    // The key that opens what is near names the new places too.
+    const activate = group("keyboard").rows.find((r) => r.input.includes("E"))!;
+    expect(activate.does).toMatch(/uma loja, uma placa/);
   });
 
   it("has no empty row and no row twice", () => {

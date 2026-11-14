@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
 import { fetchLots, type LotInfo } from "./lib/api";
+import { isUnlisted } from "./lib/lots";
 import { Account } from "./ui/Account";
 import { Donation } from "./ui/Donation";
 import { EnvironmentDebug, EnvironmentPanel, GameSound, Presence } from "./ui/Environment";
@@ -52,7 +53,7 @@ export function App() {
       <ModerationFlag />
       <GameMenu />
       {panel.kind === "donation" && <Donation />}
-      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} unlisted={Object.keys(lots).length > 0 && !lots[panel.lotId]} onChanged={loadLots} />}
+      {panel.kind === "lot" && <Lot lotId={panel.lotId} info={lots[panel.lotId]} unlisted={isUnlisted(lots, panel.lotId)} onChanged={loadLots} />}
       {panel.kind === "plot" && <PlotPanel plotId={panel.plotId} />}
       {panel.kind === "shop" && <ShopPanel shopId={panel.shopId} />}
       {panel.kind === "billboard" && <BillboardPanel billboardId={panel.billboardId} />}

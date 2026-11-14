@@ -1,101 +1,124 @@
 import { useEffect, useState } from "react";
 
-import { levelOf } from "@vila/shared/game/progress";
-import { billboardNotice, BILLBOARDS, RESIDENTIAL_PLOTS, shopCopy, SHOPS, type TierRequirement, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { attainableLevel, levelOf } from "@vila/shared/game/progress";
+import { billboardNotice, BILLBOARDS, plotLabel, RESIDENTIAL_PLOTS, type ResidentialPlot, shopCopy, SHOPS, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { fetchResidentialPlots, type PlotState } from "../lib/api";
-import { Panel, Status } from "./Panel";
+import { Panel } from "./Panel";
 
 /**
  * Panels of the expanded village (IMPL-0024, PROPOSTA): a residential plot, a shop and a billboard. Each one
- * says what is there and that it is not open yet. There is nothing to buy, to claim or to rent on any of
- * them: no price, no currency, no button that would pretend otherwise (IMPL-0002, DEC-042).
+ * says what is there, in neutral words. Whether players may ever hold a plot, what a shop would do and what
+ * else a sign could show are not decided (OQ-17, OQ-18), so no panel says that any of it is coming: no "em
+ * breve", no requirement while ownership is off, no word about renting. There is nothing to buy, to claim or
+ * to rent on any of them: no price, no currency, no button (IMPL-0002, DEC-042).
+ *
+ * The visitor reads friendly labels ("Terreno 12 · Bairro da Floresta"); the ids stay in `data-` attributes
+ * for the tests and the verify scripts.
  */
 
-/** What a tier asks, in words. A requirement is a level reached by playing, never an amount. */
-const requirementText = (r: TierRequirement): string => `Chegar ao nível ${r.level} jogando`;
+/** What the API says about the plots, read once per visit to the page: it only changes with a deploy or a flag. */
+interface PlotsAnswer {
+  /** `RESIDENTIAL_PLOTS_ENABLED` with accounts on (the same value as `/config.residentialPlots`). */
+  enabled: boolean;
+  states: Map<string, PlotState>;
+}
+const OFF: PlotsAnswer = { enabled: false, states: new Map() };
+let plotsAnswer: Promise<PlotsAnswer> | null = null;
+const loadPlots = () => (plotsAnswer ??= fetchResidentialPlots().then((r) => (r ? { enabled: r.enabled === true, states: new Map(r.plots.map((p) => [p.id, p.state])) } : OFF)));
 
-/** State of every plot, read once per visit to the page: the answer only changes with a deploy or a flag. */
-let plotStates: Promise<Map<string, PlotState>> | null = null;
-const loadPlotStates = () => (plotStates ??= fetchResidentialPlots().then((r) => new Map((r?.plots ?? []).map((p) => [p.id, p.state]))));
+const STATE_LABEL: Record<PlotState, string> = { unavailable: "Indisponível", available: "Livre", occupied: "Ocupado" };
 
-/** Residential plot: its id, its tier, what the tier requires, and that ownership is not open. */
+/** Residential plot: which one it is, its neighbourhood, and that nobody holds it. */
 export function PlotPanel({ plotId }: { plotId: string }) {
   const plot = RESIDENTIAL_PLOTS.find((p) => p.id === plotId);
   const level = useVila((s) => levelOf(s.progress.xp));
-  // "unavailable" until the API says otherwise: ownership is off, and an API that cannot be read opens nothing.
-  const [state, setState] = useState<PlotState>("unavailable");
+  const quests = useQuestsEnabled();
+  // Off until the API says otherwise: ownership is off, and an API that cannot be read opens nothing.
+  const [answer, setAnswer] = useState<PlotsAnswer>(OFF);
   useEffect(() => {
     let alive = true;
-    void loadPlotStates().then((states) => alive && setState(states.get(plotId) ?? "unavailable"));
+    void loadPlots().then((a) => alive && setAnswer(a));
     return () => void (alive = false);
-  }, [plotId]);
+  }, []);
   if (!plot) return null;
+  return <PlotPanelView plot={plot} enabled={answer.enabled} state={answer.states.get(plotId) ?? "unavailable"} level={level} quests={quests} />;
+}
+
+/**
+ * What the plot panel shows. With ownership off (production and staging) it is the plot, its neighbourhood and
+ * one neutral statement. The proposed requirement of the tier appears only with the flag on, and then it says
+ * whether the missions that are open can reach it at all.
+ */
+export function PlotPanelView({ plot, enabled, state, level, quests }: { plot: ResidentialPlot; enabled: boolean; state: PlotState; level: number; quests: boolean }) {
   const tier = VILLAGE_PLAN.tiers[plot.tier];
+  const required = tier.requirement.level;
   return (
-    <Panel kicker="Terreno residencial" title={`Terreno ${tier.label} ${plot.slot}`} contentKey={state}>
-      <p className="lead">
-        A posse de terrenos ainda não está aberta. <Status>Em breve</Status>
-      </p>
-      <dl className="facts">
-        <dt>Identificação</dt>
-        <dd>
-          <code>{plot.id}</code>
-        </dd>
-        <dt>Categoria</dt>
-        <dd>{tier.label}</dd>
-        <dt>Requisito</dt>
-        <dd>
-          {requirementText(tier.requirement)} (você está no nível {level}).
-        </dd>
-        {state !== "unavailable" && (
-          <>
-            <dt>Situação</dt>
-            <dd>{state === "occupied" ? "Ocupado" : "Livre"}</dd>
-          </>
-        )}
-      </dl>
-      <p>Nada aqui é vendido: um terreno será liberado jogando, pelas missões da Vila. O requisito acima é uma proposta em estudo e pode mudar.</p>
-      <p className="note">A casa neste terreno é cenário: ninguém mora nela.</p>
+    <Panel kicker="Terreno residencial" title={plotLabel(plot)} contentKey={enabled ? state : "off"}>
+      <div data-plot-id={plot.id}>
+        <p className="lead">
+          {enabled
+            ? "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo. Ainda não é possível pedir um terreno."
+            : "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi decidida."}
+        </p>
+        <dl className="facts">
+          <dt>Terreno</dt>
+          <dd>{plot.slot}</dd>
+          <dt>Bairro</dt>
+          <dd>{tier.label}</dd>
+          {enabled && (
+            <>
+              <dt>Requisito em estudo</dt>
+              <dd>
+                Chegar ao nível {required} jogando.{" "}
+                {required > attainableLevel(quests) ? "Com as missões abertas hoje ainda não dá para chegar a esse nível." : `Você está no nível ${level}.`}
+              </dd>
+              <dt>Situação</dt>
+              <dd>{STATE_LABEL[state]}</dd>
+            </>
+          )}
+        </dl>
+        {enabled && <p>Nada aqui é vendido. O requisito é uma proposta em estudo e pode mudar.</p>}
+        <p className="note">A casa neste terreno é cenário: ninguém mora nela.</p>
+      </div>
     </Panel>
   );
 }
 
-/** Shop: what it will offer and that it has not opened. No catalogue, no purchase. */
+/**
+ * Shop: its name, its theme and that it is closed. No catalogue, and no promise of one: "ainda não abriu" would
+ * announce an opening that nobody decided.
+ */
 export function ShopPanel({ shopId }: { shopId: string }) {
   if (!SHOPS.some((s) => s.id === shopId)) return null;
-  const { name, offer } = shopCopy(shopId);
+  const { name, theme } = shopCopy(shopId);
   return (
     <Panel kicker="Loja de Natal" title={name}>
-      <p className="lead">
-        Esta loja ainda não abriu. <Status>Em breve</Status>
-      </p>
-      <p>Quando abrir, aqui você vai encontrar {offer}.</p>
-      <p>Nada será vendido por dinheiro: o que a loja oferecer será liberado jogando, pelas missões da Vila.</p>
-      <p className="note">
-        Proposta em estudo: o que cada loja oferece ainda pode mudar. Identificação: <code>{shopId}</code>
-      </p>
+      <div data-shop-id={shopId}>
+        <p className="lead">Esta loja está fechada.</p>
+        <p>Tema: {theme}. Se e como ela vai funcionar ainda não foi decidido.</p>
+        <p className="note">Nada é vendido na Vila.</p>
+      </div>
     </Panel>
   );
 }
 
-/** Billboard: its notice as flat text, its id, and that the space is not for rent. */
+/** Billboard: its notice as flat text and where it stands. The signs carry the village's own notices. */
 export function BillboardPanel({ billboardId }: { billboardId: string }) {
   const index = BILLBOARDS.findIndex((b) => b.id === billboardId);
   if (index < 0) return null;
   const shop = shopCopy(BILLBOARDS[index].shopId).name;
   return (
     <Panel kicker="Placa da Vila" title={`Placa ${index + 1}`}>
-      <p className="lead">“{billboardNotice(billboardId)}”</p>
-      <dl className="facts">
-        <dt>Identificação</dt>
-        <dd>
-          <code>{billboardId}</code>
-        </dd>
-        <dt>Onde fica</dt>
-        <dd>No telhado da loja {shop}</dd>
-      </dl>
-      <p>Este espaço ainda não está disponível para aluguel. Por enquanto, as placas mostram só avisos da própria Vila.</p>
+      <div data-billboard-id={billboardId}>
+        <p className="lead">“{billboardNotice(billboardId)}”</p>
+        <dl className="facts">
+          <dt>Onde fica</dt>
+          <dd>No telhado da loja {shop}</dd>
+        </dl>
+        <p>As placas mostram avisos da própria Vila.</p>
+      </div>
     </Panel>
   );
 }
