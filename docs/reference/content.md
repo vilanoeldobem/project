@@ -119,7 +119,7 @@ ou contagem regressiva. Ao concluir uma missão que libera algo, o aviso diz "No
 Missões" mostra "Visual do avatar", com cadeado e o requisito exato nos itens ainda fechados.
 
 O visual viaja pela presença (IMPL-0008) como ids do catálogo: os outros visitantes veem seu chapéu, cachecol, suéter
-e cores. Avatares remotos com o mesmo visual são desenhados juntos (5 chamadas por visual diferente presente).
+e cores. Todos os avatares remotos são desenhados numa malha só: 3 chamadas no total (cena, sombra e sombra de contato), com qualquer combinação de visuais na sala.
 
 ## 5. Testes (contrato de todo gerador)
 
