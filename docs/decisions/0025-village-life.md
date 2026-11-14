@@ -132,8 +132,8 @@ personagens, para quatro sementes) e **por amostragem** (24 h de 2,7 em 2,7 s; q
 - **Grupos diferentes nunca se encontram.** As polilinhas e os pontos de dois grupos nunca chegam a menos da soma
   dos dois corpos um do outro.
 
-Na amostragem, a menor folga entre dois personagens é positiva em todas as combinações; nenhuma posição cai em
-colisor.
+Na amostragem, a folga entre dois personagens nunca é negativa em nenhuma combinação (ninguém entra no corpo de
+ninguém) e nenhuma posição cai em colisor.
 
 ### 4. O avatar nunca fica preso: personagens não são obstáculos
 
@@ -181,6 +181,8 @@ Em vez de bloquear, o personagem **dá passagem**, numa camada local e só visua
   chamada de desenho; só pessoas têm caixa.
 - **Moderação.** No modo de moderação (IMPL-0021) um clique que cai sobre o avatar de outro visitante seleciona o
   visitante, mesmo com um personagem na frente; um personagem nunca é selecionável (não está na lista de presença).
+  Isso segue do código (a caixa do personagem chama primeiro a mesma `selectVisitorAt` do chão) e **não foi
+  conferido em navegador** com um personagem na frente de um visitante.
 - **Sem rótulo.** Personagens do elenco não têm nome flutuando. Só os NPCs de quest, que têm nome, seguem com o
   rótulo curto de sempre.
 - **Oclusão.** Personagens não entram no teste que decide se o avatar está escondido (IMPL-0024): têm pouco mais
