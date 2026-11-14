@@ -104,7 +104,8 @@ const stride = (i: number) => (PERSON[i] ? 1.1 : KIND[i] === "reindeer" ? 1.3 : 
 export function tickLife(epochMs: number, seconds: number, dt: number, quality: keyof typeof LIFE_DRAW, calm: boolean): void {
   const s = life.shared, r = life.reactions;
   s.epochMs = epochMs;
-  evaluateLife(simulation(), s);
+  const lifeSim = simulation();
+  evaluateLife(lifeSim, s);
   const px = sim.pose.x, pz = sim.pose.z;
   // Avatars in the village: this visitor's first, then the others'.
   let visitors = 1;
@@ -134,20 +135,28 @@ export function tickLife(epochMs: number, seconds: number, dt: number, quality: 
     }
     drawn++;
     const kind = KIND[i], moving = s.moving[i] === 1;
-    react(r, i, kind, simulation().chars[i].radius, s.x[i], s.z[i], s.y[i], moving, visitorX, visitorZ, visitors, dt, calm);
+    const radius = lifeSim.chars[i].radius;
+    react(r, i, kind, radius, s.x[i], s.z[i], s.y[i], moving, visitorX, visitorZ, visitors, dt, calm);
     let ox = r.ox[i], oz = r.oz[i];
-    // A step aside never ends inside something solid (a bench behind the character, a fence): the step turns
-    // to the first side that is clear, and is given up only when every side is taken.
-    if (colliders && (ox !== 0 || oz !== 0) && s.y[i] < 1 && clearance(colliders, s.x[i] + ox, s.z[i] + oz) < 0) {
-      let k = 0;
-      for (; k < TURNS.length; k += 2) {
-        const tx = ox * TURNS[k] - oz * TURNS[k + 1], tz = ox * TURNS[k + 1] + oz * TURNS[k];
-        if (clearance(colliders, s.x[i] + tx, s.z[i] + tz) < 0) continue;
-        ox = tx;
-        oz = tz;
-        break;
+    // A step aside never ends with the character's own body (Santa's and a reindeer's are wider than an avatar's)
+    // inside something solid (a bench behind it, a fence): the step turns to the first side that is clear, and is
+    // given up only when every side is taken. Spots and paths keep room for an avatar-sized body only
+    // (`LIFE.clearance`), so a wider character may already touch something where the simulation puts it: then a
+    // step is refused only when it overlaps more than the shared position does, never for the overlap it had.
+    const room = colliders && (ox !== 0 || oz !== 0) && s.y[i] < 1 ? clearance(colliders, s.x[i] + ox, s.z[i] + oz, radius) : 0;
+    if (colliders && room < 0) {
+      const floor = Math.min(0, clearance(colliders, s.x[i], s.z[i], radius));
+      if (room < floor) {
+        let k = 0;
+        for (; k < TURNS.length; k += 2) {
+          const tx = ox * TURNS[k] - oz * TURNS[k + 1], tz = ox * TURNS[k + 1] + oz * TURNS[k];
+          if (clearance(colliders, s.x[i] + tx, s.z[i] + tz, radius) < floor) continue;
+          ox = tx;
+          oz = tz;
+          break;
+        }
+        if (k >= TURNS.length) ox = oz = 0;
       }
-      if (k >= TURNS.length) ox = oz = 0;
     }
     life.x[i] = s.x[i] + ox;
     life.z[i] = s.z[i] + oz;
@@ -231,9 +240,10 @@ export function lifePanel(charId: string): Panel | null {
   const def = LIFE_CAST[i];
   if (!def) return null;
   const s = life.shared;
-  const spot = def.spots[s.spot[i]] ?? def.spots[0];
+  // Where it stands now, not where its next trip goes: before it sets off, `spot` already names the destination.
+  const spot = def.spots[s.at[i]];
   const hour = env.frame.hour;
-  const talk = lifeTalk({ kind: def.kind, place: s.moving[i] ? "street" : spot.place, activity: LIFE_ACTIVITIES[s.activity[i]] ?? "stand", hour, snow: env.frame.weather.snowfall, shopId: def.shopId, turn: i + Math.floor(hour) });
+  const talk = lifeTalk({ kind: def.kind, place: s.moving[i] || !spot ? "street" : spot.place, activity: LIFE_ACTIVITIES[s.activity[i]] ?? "stand", hour, snow: env.frame.weather.snowfall, shopId: def.shopId, turn: i + Math.floor(hour) });
   return talk ? { kind: "life", charId, name: talk.name, role: talk.role, lines: talk.lines } : null;
 }
 
@@ -272,7 +282,7 @@ export function lifeReport() {
     radius: life.radius,
     chars: LIFE_CAST.map((c, i) => ({
       id: c.id, kind: c.kind, x: s.x[i], z: s.z[i], y: s.y[i], presence: s.presence[i], moving: s.moving[i] === 1,
-      activity: LIFE_ACTIVITIES[s.activity[i]], spot: s.spot[i], visible: life.visible[i] === 1,
+      activity: LIFE_ACTIVITIES[s.activity[i]], spot: s.spot[i], at: s.at[i], visible: life.visible[i] === 1,
       shownX: life.x[i], shownZ: life.z[i], offset: Math.hypot(life.reactions.ox[i], life.reactions.oz[i]),
     })),
   };

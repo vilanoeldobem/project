@@ -58,14 +58,15 @@ export function distanceTo(c: Collider, x: number, z: number): number {
 export const boundingRadius = (c: Collider): number => c.r + (c.hx === undefined ? 0 : Math.hypot(c.hx, c.hz ?? 0));
 
 /**
- * Free room around an avatar centred on the point: distance from its body circle to the nearest collider
- * (negative = overlapping). Linear in the number of colliders; not for per-cell loops.
+ * Free room around a body centred on the point: distance from its circle (an avatar's unless `radius` says
+ * otherwise, e.g. a village character's) to the nearest collider (negative = overlapping). Linear in the number
+ * of colliders; not for per-cell loops.
  */
-export function clearance(colliders: readonly Collider[], x: number, z: number): number {
+export function clearance(colliders: readonly Collider[], x: number, z: number, radius: number = AVATAR_RADIUS): number {
   let min = Infinity;
   for (let i = 0; i < colliders.length; i++) {
     const d = distanceTo(colliders[i], x, z);
     if (d < min) min = d;
   }
-  return min - AVATAR_RADIUS;
+  return min - radius;
 }

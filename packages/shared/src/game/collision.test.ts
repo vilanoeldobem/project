@@ -51,5 +51,9 @@ describe("colliders (IMPL-0016)", () => {
     expect(clearance(colliders, 3.2, 0)).toBeCloseTo(0.8 - AVATAR_RADIUS);
     expect(clearance(colliders, 0.5, 0)).toBeLessThan(0);
     expect(clearance([], 0, 0)).toBe(Infinity);
+    // A wider or narrower body (a village character's) at the same point.
+    expect(clearance(colliders, 2, 0, 1.2)).toBeCloseTo(1 - 1.2);
+    expect(clearance(colliders, 2, 0, 0.2)).toBeCloseTo(1 - 0.2);
+    expect(clearance(colliders, 2, 0, AVATAR_RADIUS)).toBe(clearance(colliders, 2, 0));
   });
 });

@@ -149,6 +149,38 @@ describe("a step aside next to something solid", () => {
     expect(r).toBeGreaterThan(8);
     expect(turned).toBeGreaterThan(0);
   });
+
+  it("validates the step with the character's own body: a reindeer and Santa never end overlapping more than where they stand, a cat never inside", () => {
+    const colliders = sceneColliders(new Set(), false);
+    sim.nav = createNavField(colliders);
+    const cases: Array<[string, (c: { moving: boolean; presence: number }) => boolean]> = [
+      ["reindeer-1", (c) => !c.moving && c.presence === 1],
+      ["santa", (c) => !c.moving && c.presence === 1],
+      ["cat-1", (c) => !c.moving && c.presence === 1],
+    ];
+    let wider = 0;
+    for (const [id, test] of cases) {
+      const ms = when(id, test, 9, 6);
+      const i = lifeIndex(id), at = here(id), radius = life.sim!.chars[i].radius;
+      // Where the simulation puts it may already touch something for a body wider than an avatar's: a step never
+      // makes that worse, and a step from a free spot never ends in an overlap.
+      const floor = Math.min(0, clearance(colliders, at.x, at.z, radius));
+      for (let a = 0; a < 16; a++) {
+        const angle = (a / 16) * Math.PI * 2;
+        const from = { x: at.x + Math.cos(angle) * 0.5, z: at.z + Math.sin(angle) * 0.5 };
+        if (clearance(colliders, from.x, from.z) < 0) continue;
+        stand(from.x, from.z);
+        life.visible.fill(0);
+        for (let f = 0; f < 90; f++) frame(ms + f * 16);
+        const shown = { x: life.x[i], z: life.z[i] };
+        expect(clearance(colliders, shown.x, shown.z, radius), `${id}, avatar at ${a}/16: drawn overlapping something`).toBeGreaterThanOrEqual(floor - 1e-9);
+        // The avatar-sized check alone would have let this step through.
+        const straight = { x: at.x + life.reactions.ox[i], z: at.z + life.reactions.oz[i] };
+        if (radius > 0.45 && clearance(colliders, straight.x, straight.z) >= 0 && clearance(colliders, straight.x, straight.z, radius) < floor) wider++;
+      }
+    }
+    expect(wider, "no step was refused for the wider body only: the test does not reach the case").toBeGreaterThan(0);
+  });
 });
 
 describe("who is drawn", () => {
@@ -496,5 +528,30 @@ describe("what each one says where it is", () => {
     // Animals and unknown ids have no dialogue.
     expect(lifePanel("dog-1")).toBeNull();
     expect(lifePanel("nobody")).toBeNull();
+  });
+
+  it("talks about the place it stands at, not the one its next trip goes to: before it sets off, on the way, once there", () => {
+    const i = lifeIndex("santa"), s = life.shared;
+    const SLEIGH_LINE = "Estou cuidando do trenó e das renas.", TREE_LINE = "A árvore da praça é o coração da Vila.";
+    // Santa still at the sleigh (spot 1) in a slot whose trip takes him to the tree (spot 2), before he sets off.
+    let ms = DAY + 10 * HOUR;
+    const end = DAY + 21 * HOUR;
+    for (; ms < end; ms += 5_000) {
+      frame(ms);
+      // Still standing on the sleigh's point (read from the position, not from `at`).
+      const c = life.sim!.chars[i];
+      if (s.origin[i] === 1 && s.spot[i] === 2 && s.moving[i] === 0 && s.x[i] === c.sx[1] && s.z[i] === c.sz[1]) break;
+    }
+    expect(ms, "no slot found with Santa about to leave the sleigh for the tree").toBeLessThan(end);
+    expect(s.at[i]).toBe(1);
+    expect(lines("santa").lines[1]).toBe(SLEIGH_LINE);
+    // On the way: neither place.
+    while (s.moving[i] === 0) frame((ms += 1_000));
+    expect(s.at[i]).toBe(-1);
+    expect(lines("santa").lines[1]).toBe(SLEIGH_LINE);
+    // Arrived: the tree.
+    while (s.moving[i] === 1) frame((ms += 1_000));
+    expect([s.at[i], s.spot[i]]).toEqual([2, 2]);
+    expect(lines("santa").lines[1]).toBe(TREE_LINE);
   });
 });
