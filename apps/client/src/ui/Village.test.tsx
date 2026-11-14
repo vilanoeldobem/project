@@ -101,13 +101,15 @@ describe("residential plot panel", () => {
 });
 
 describe("shop panel", () => {
-  it.each(SHOPS.map((s) => s.id))("says the name and the theme of %s and that it has not opened, with no promise of sales", (id) => {
+  it.each(SHOPS.map((s) => s.id))("says the name and the theme of %s and that it is closed, with no promise of sales or of an opening", (id) => {
     const html = renderToStaticMarkup(<ShopPanel shopId={id} />);
     const read = text(html);
     const copy = SHOP_COPY[SHOPS.findIndex((s) => s.id === id)];
     expect(read).toContain(copy.name);
     expect(read).toContain(`Tema: ${copy.theme}.`);
-    expect(read).toContain("Esta loja ainda não abriu.");
+    expect(read).toContain("Esta loja está fechada.");
+    // "Ainda não abriu" would announce an opening: whether a shop ever opens is not decided.
+    expect(read).not.toMatch(/ainda não abri|não abriu|vai abrir|abre em/i);
     expect(read).toContain("Se e como ela vai funcionar ainda não foi decidido.");
     expect(read).toContain("Nada é vendido na Vila.");
     expect(html).toContain(`data-shop-id="${id}"`);

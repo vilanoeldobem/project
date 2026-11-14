@@ -86,14 +86,17 @@ export function PlotPanelView({ plot, enabled, state, level, quests }: { plot: R
   );
 }
 
-/** Shop: its name, its theme and that it has not opened. No catalogue, and no promise of one. */
+/**
+ * Shop: its name, its theme and that it is closed. No catalogue, and no promise of one: "ainda não abriu" would
+ * announce an opening that nobody decided.
+ */
 export function ShopPanel({ shopId }: { shopId: string }) {
   if (!SHOPS.some((s) => s.id === shopId)) return null;
   const { name, theme } = shopCopy(shopId);
   return (
     <Panel kicker="Loja de Natal" title={name}>
       <div data-shop-id={shopId}>
-        <p className="lead">Esta loja ainda não abriu.</p>
+        <p className="lead">Esta loja está fechada.</p>
         <p>Tema: {theme}. Se e como ela vai funcionar ainda não foi decidido.</p>
         <p className="note">Nada é vendido na Vila.</p>
       </div>

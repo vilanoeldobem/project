@@ -168,11 +168,11 @@ for (const [name, time, weather, zoom] of [
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "village");
-  const PROMISE = /em breve|será liberad|quando abrir|alug|R\$|comprar|preço/i;
+  const PROMISE = /em breve|será liberad|quando abrir|ainda não abri|alug|R\$|comprar|preço/i;
   // [what, where the avatar stands (the south shop's door, its billboard's point, the front of economy-21),
   //  the action, the panel's title, sentences the panel must show]
   const places = [
-    ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja ainda não abriu.", "Se e como ela vai funcionar ainda não foi decidido.", "Nada é vendido na Vila."]],
+    ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja está fechada.", "Se e como ela vai funcionar ainda não foi decidido.", "Nada é vendido na Vila."]],
     ["billboard", 8.4, 25.5, /Ler placa/, "Placa 2", ["As placas mostram avisos da própria Vila.", "No telhado da loja Oficina de Brinquedos"]],
     ["plot", -4.5, 67.75, /Ver terreno residencial/, "Terreno 21 · Bairro da Floresta", ["Os terrenos residenciais não têm dono.", "A casa neste terreno é cenário: ninguém mora nela."]],
   ];
