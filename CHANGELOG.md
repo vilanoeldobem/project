@@ -9,6 +9,22 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — fase 1 da auditoria técnica de 14/11/2026 (sem mudança de schema; rota alterada só atrás de `ACCOUNTS_ENABLED`)
+
+- **Sala cheia dentro do orçamento de desenho.** Os avatares remotos eram 5 malhas instanciadas por visual
+  diferente, todas com sombra: 39 visuais distintos custavam até 391 chamadas, mais que o orçamento inteiro (150).
+  Agora todos os remotos são uma malha só, com as matrizes das partes numa textura de floats: 3 chamadas no total.
+  Medido no navegador com 40 pessoas na sala (39 visuais distintos): 95 chamadas e 171 502 triângulos no preset
+  médio, 109 e 175 124 no alto.
+- **Bloom acompanha a resolução adaptativa.** `PostFx` passa a seguir a mudança de DPR (antes só seguia o tamanho
+  em CSS) e libera os passes que cria (render, bloom e saída), não só o compositor.
+- **Conta trocada em outra aba.** `POST /me` (correção) e `DELETE /me` (exclusão) exigem a conta que a página
+  mostra (`accountId` no corpo; `X-Vila-Account` na exclusão) e respondem `409 account_changed` antes de qualquer
+  escrita, como as demais escritas da conta. Contas seguem desligadas em produção.
+- **Personagens da Vila.** A fala de um personagem parado usa o lugar onde ele está (`at`), não o destino para
+  onde vai sair; o desvio local de um personagem largo (Papai Noel, renas) é validado com o raio do próprio corpo,
+  não com o do avatar.
+
 ### Added — as pranchas P01–P15 na interface do jogo (IMPL-0026, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
 
 - **A barra do topo tem a marca e quatro caminhos.** A tela de jogo volta a mostrar a marca provisória e ganha
