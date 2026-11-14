@@ -5,6 +5,7 @@
 import { debugAllowed } from "../environment/runtime";
 import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
+import { questsEnabled } from "./questsFlag";
 import { sim } from "./sim";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { type Panel, useVila } from "./store";
@@ -84,6 +85,8 @@ export function installDevtools() {
       lifeClock: () => lifeClock(),
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
+      /** Whether quests are on for this page: `?quests=1` and the API's `/config` both say so. */
+      questsOn: () => questsEnabled(),
       /** Opens a board panel by name (verify-boards.mjs); "lot" and "ngo" take an id as the second argument. */
       panel: (...args: never[]) => {
         const [kind, arg] = args as unknown as [string, string | undefined];

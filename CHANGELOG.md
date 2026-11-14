@@ -19,6 +19,9 @@ Cada versão indica o schema D1 que entrega.
 - **Sala cheia verificada.** `verify-fullroom.mjs` põe 40 pessoas numa sala (39 visuais distintos, depois trocas de
   visual e reconexões, depois um visual só) e falha acima de 150 chamadas ou 250 000 triângulos, ou se o número de
   chamadas mudar com os visuais. Depende da correção dos avatares remotos (fase 1).
+- **`verify-life.mjs` diz quando as missões estão desligadas.** A checagem do NPC de missão passa a ler a mesma
+  bandeira que o jogo lê (`?quests=1` e o `/config` da API, exposta como `extra.questsOn`). Com a API local parada,
+  ela falha com "quests are off" em vez de "no action button next to Seu Nivaldo", que parecia defeito do jogo.
 
 ### Security
 
