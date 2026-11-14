@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-12 · **Versão atual:** 0.4.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-14 · **Versão atual:** 0.5.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -29,7 +29,8 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Decisões e publicação de teste | 0.3.x | — | G11, G12, M01 | **Em andamento** | 09–10/11 |
 | Infraestrutura de entrega | 0.3.x | — | D01 (complemento) | **Em andamento** (CI entregue) | 09–10/11 |
 | Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | **Implementado** (desligado em produção até revisão LGPD/ECA) | 11–17/11 |
-| HUD da ONG e segundo jogo | 0.5.0 | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
+| Moderação, entrada direta, expansão e vida na Vila (IMPL-0021..0025) | 0.5.0 | — | — | **Entregue** 2026-11-14 (propostas desligadas em produção) | 13–14/11 |
+| HUD da ONG e segundo jogo | 0.5.x | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
 | Doação e badges | 0.6.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
 | Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
 | QA e release candidate | 1.0.0-rc | todas entregues | Q01–Q09, M04 | Planejado | 24–27/11 |

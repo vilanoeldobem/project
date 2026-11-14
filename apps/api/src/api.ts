@@ -130,7 +130,7 @@ export interface Env {
   MODERATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
-export const VERSION = "0.4.0";
+export const VERSION = "0.5.0";
 
 export interface LotRow {
   id: string;
