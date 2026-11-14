@@ -36,7 +36,7 @@ registrou o que vale para esta e para as próximas fases:
 - **Economia: desbloqueio jogando.** Nada é comprado com dinheiro e não existe moeda no jogo (DEC-042, IMPL-0002).
   O "preço" de uma faixa é um **requisito** configurável (por exemplo um nível mínimo), nunca um valor.
 - **Comércio:** lojas de Natal como construções de verdade na área central, cada uma com ponto de interação e lugar
-  para um lojista. Nesta fase o painel só diz o nome, o tema e que a loja ainda não abriu.
+  para um lojista. Nesta fase o painel só diz o nome, o tema e que a loja está fechada.
 - **Placas:** molduras de sinalização nas lojas, cada uma com id próprio. Nesta fase mostram só avisos da própria
   Vila; qualquer outro uso é proposta posterior, não decidida e sem código (patrocínio é PEN-008; publicidade que
   alcança crianças pede cuidado extra).
@@ -200,8 +200,9 @@ nenhum lugar: o teste da migração e o dos painéis conferem isso.
 
 Quatro lojas na fachada da praça, uma a cada dois lados: construção gerada por semente (sem texto nem marca no
 modelo), ponto de interação na porta e um ponto nomeado para o lojista (`ShopDef.keeper`, nada desenhado ainda). O
-painel diz o nome, o tema ("Tema: enfeites de Natal.") e "Esta loja ainda não abriu. Se e como ela vai funcionar
-ainda não foi decidido. Nada é vendido na Vila.": nada que prometa venda, catálogo ou data. Nomes e temas são da
+painel diz o nome, o tema ("Tema: enfeites de Natal.") e "Esta loja está fechada. Se e como ela vai funcionar
+ainda não foi decidido. Nada é vendido na Vila.": nada que prometa venda, catálogo, abertura ou data ("ainda não
+abriu" anunciaria uma abertura que ninguém decidiu). Nomes e temas são da
 própria Vila e são PROPOSTA (`SHOP_COPY`).
 
 Cada loja tem uma moldura de placa no telhado, sempre virada para a câmera. O texto vem de `VILLAGE_NOTICES`:
@@ -243,7 +244,17 @@ no `click` seguinte: abrir o painel de um terreno, de uma loja ou de uma placa d
 caminhada de 7 a 9 u esperando o painel fechar, e de longe o marcador do toque caía atrás da construção. Agora:
 
 - o chão só anda quando é a primeira coisa sob o ponteiro que responde a clique; com um chalé, uma loja, a árvore
-  ou um terreno na frente, quem decide é o clique nessa coisa;
+  ou um terreno na frente, quem decide é o clique nessa coisa. A regra é uma função só (`pressScene`), chamada
+  pelo chão, que fica embaixo de todo toque: tirar a chamada ou inverter a regra falha em `game/clicks.test.ts` e
+  em `scene/Ground.test.tsx` (que aperta o próprio manipulador montado na cena), e `verify.mjs` clica numa loja
+  com o mouse (de longe: nada anda enquanto o botão está apertado, e o clique anda até a porta, com um marcador
+  só; da porta: o painel abre e nada anda depois do Esc);
+- **no modo moderação (IMPL-0021, PROPOSTA) a escolha de um visitante vem antes de tudo isso:** o toque sobre outro
+  visitante o seleciona, esteja ele em campo aberto, sobre o piso de um terreno, na porta de uma loja, na frente
+  de um chalé ou da árvore, e esse toque não faz mais nada (não anda e não abre painel: o clique que vem em
+  seguida é ignorado). A primeira versão desta regra só tentava a escolha quando o chão era a primeira coisa sob
+  o ponteiro, e um administrador deixava de conseguir selecionar com o mouse quem estivesse na frente de qualquer
+  coisa clicável (pelo teclado continuava possível). Fora do modo moderação a escolha nunca acontece e nada muda;
 - clique numa loja, numa placa ou num chalé residencial: do alcance do botão de ação abre o painel; de longe,
   anda até o ponto de uso, com o marcador lá. Clique num NPC: igual, com o alcance de conversa;
 - clique num terreno de ONG, na árvore ou no atril abre o painel, como antes;
@@ -482,7 +493,10 @@ compridas).
     transparente, por cima de tudo, enquanto a câmera não vê o peito ou a cabeça dele** (`scene/occlusion.ts`,
     pura e testada: uma reta da câmera a cada um dos dois pontos, contra o mapa de colunas dos chalés, das lojas,
     da árvore e dos pinheiros, refeita só quando o avatar andou 0,2 u ou a câmera se mexeu; nunca com os dois
-    parados). Ainda assim, nas ruas do lado
+    parados, e nunca em "Olhar o céu", que não usa o desenho). O desenho aparece na hora e **fica por 250 ms
+    depois que a câmera volta a ver o avatar** (`seeThroughShown`, por tempo e não por quadros): andando rente a
+    uma fileira, o avatar fica à vista por um décimo de segundo em cada vão entre dois chalés, e sem essa espera
+    o desenho piscava (14 trocas numa rua, com seis apagões de cerca de 100 ms). Ainda assim, nas ruas do lado
     sul parte do caminho é vista só assim. Chalés de ONG de dois andares (gerador existente) escondem mais.
     A primeira versão usava a pegada de uma construção até 6 u ao sul do avatar e um contorno vermelho chapado:
     nos 1 440 pontos de rua medidos na revisão com raios na cena real, ela concordava com os raios em 1 230
@@ -497,7 +511,9 @@ compridas).
     de 20 u em 13 direções da imagem); na praça a vista baixa de sempre é mantida;
   - os terrenos de ONG ficaram mais longe da árvore (cerca de 31 u do centro; eram 22 u) e a rua redonda deixou
     de passar na porta deles;
-  - **as salas de presença não carregam versão do mundo** (IMPL-0008): uma aba aberta antes da publicação segue
+  - **as salas de presença não carregam versão do mundo** (IMPL-0008). **É um limite conhecido, documentado aqui
+    e no [guia de publicação](../guides/deploy.md), e não corrigido:** nenhum código desta fase o resolve (não há
+    versão no protocolo, nem aviso de "recarregue" no jogo). Uma aba aberta antes da publicação segue
     com o mundo antigo e, na mesma sala, vê os visitantes novos andando fora do mundo dela até recarregar (e os
     novos a veem atravessar construções). Só a pose e o visual trafegam, então nada é gravado errado;
   - o lago, o trenó, o trenó pequeno, dois itens de quest e dois NPCs de quest mudaram de lugar; um morador
