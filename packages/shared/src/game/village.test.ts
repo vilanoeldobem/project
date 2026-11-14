@@ -393,7 +393,7 @@ describe("village on foot (IMPL-0016 over the plan in force)", () => {
       if (Math.max(0, ...pockets) > 4) wrong.push(`a pocket of ${Math.max(...pockets)} cells is cut off from the village`);
       expect(wrong, name).toEqual([]);
     }
-  });
+  }, 30_000); // two navigation fields and a walk to every place: 0.5 s idle, 1.3 s on a busy machine
 
   it("plants the belt of tall pines the same on every side: mirrored east–west, north–south and across the diagonal", () => {
     // `Math.round` sends 80.5 to 81 and -80.5 to -80: the belt stood one unit nearer on the west and on the north.
