@@ -1,7 +1,7 @@
 {
   "name": "@vila/api",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "license": "MIT",
   "type": "module",
   "description": "Vila Noel do Bem — public HTTP API Worker (api.vilanoeldobem.com.br) with D1",
