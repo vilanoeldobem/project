@@ -403,7 +403,7 @@ describe("review of an application", () => {
     const page = review({});
     expect(page).toContain('<span class="status" data-status="submitted">Candidatura enviada</span>');
     expect(page).toContain("Terreno 3 · versão 2 · enviada por @ong_teste");
-    for (const text of ["11222333000181", "2020-03-10", "Crianças, Educação", "Leitura em roda", "Verificação dos 3 requisitos (DEC-015)"]) expect(page).toContain(text);
+    for (const text of ["11222333000181", "10/03/2020", "Crianças, Educação", "Leitura em roda", "Verificação dos 3 requisitos (DEC-015)"]) expect(page).toContain(text);
     expect(count(page, 'type="checkbox"')).toBe(3);
     for (const label of ["CNPJ ativo (consultado na Receita Federal)", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos"]) expect(page).toContain(label);
     expect(page).toContain("Candidatura enviada · @ong_teste");

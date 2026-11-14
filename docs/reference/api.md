@@ -463,6 +463,10 @@ vazio enquanto o envio estiver desligado).
 | | `projects` | até 3 (`[{title, description}]`, título 3–80, descrição até 400; extras ignorados) |
 | 4. Revisão e envio | `lotId` | `plaza-NN`, terreno `available` (ou o que a candidatura já ocupa) |
 
+O CNPJ é numérico. A AbacatePay, que cria as subcontas de doação, não documenta o formato alfanumérico em vigor
+desde julho de 2026 (IN RFB 2.229/2024, 12 caracteres alfanuméricos + 2 dígitos); até o provedor confirmar o
+suporte, a candidatura recusa letras. A verificação local segue o algoritmo numérico.
+
 `application` = os campos acima + `{id, status, revision, reviewNote, createdAt, updatedAt}`. Depois de uma
 [retirada administrativa](#retirada-administrativa-de-ong-publicada-impl-0020-proposta) (PROPOSTA), o status
 efetivo é `withdrawn` e há `withdrawal: {reason, at}`: `reason` é a mensagem que a administração escreveu para a

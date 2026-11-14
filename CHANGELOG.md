@@ -9,6 +9,36 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — as pranchas P01–P15 na interface do jogo (IMPL-0026, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
+
+- **A barra do topo tem a marca e quatro caminhos.** A tela de jogo volta a mostrar a marca provisória e ganha
+  "Indicar uma ONG" ao lado de "Explorar ONGs", "Jogar" e "Doação global"; no celular são duas linhas, com os
+  quatro caminhos em duas colunas. Isso substitui em parte a IMPL-0022 (OQ-16 continua aberta) e está registrado
+  na IMPL-0026.
+- **Uma linguagem visual só, a das pranchas.** Paleta verde-pinho/creme/vermelho/dourado, folhas de tela com
+  seções numeradas, etapas, abas em pílula, avisos e faixa de fluxo (`ui/sheet.tsx`); no celular a folha ancora
+  no pé da tela. Indicadores, terreno e casa, conta, candidatura e missões foram refeitos nessa linguagem sem
+  mudar nenhuma regra de dado.
+- **Telas novas.** Convite a uma ONG (mensagem editável, link, WhatsApp, e-mail), catálogo de minijogos (só o Jogo
+  da Memória), mapa esquemático da Vila com o estado dos terrenos e "Voltar à praça", aparência do personagem
+  (base, cabelo, cores, altura, barba e bigode) com retrato em SVG e os visuais gratuitos, e os badges do doador
+  com as faixas de `TITLE_TIERS` e a faixa da conta.
+- **Aparência é local ao navegador** (`vila.appearance.v1`): o avatar do próprio visitante e o retrato a usam; os
+  demais continuam vendo o visual sincronizado. Enviá-la pela presença estouraria o orçamento de chamadas por
+  quadro; a razão e o caminho ficam na IMPL-0026.
+- **O que ficou de fora, com a razão registrada:** chat (P05) e emoji sobre avatar (P06) — o protocolo de presença
+  não carrega texto livre; itens pagos (P08) — sem provedor de pagamento; projetos/áreas públicas (P04), convite a
+  empresa (P11), outros jogos (P09) e "Exibir na Vila" (P15). Nenhuma bandeira foi ligada.
+- **Verificação de navegador:** `scripts/verify.mjs` passa a exigir a marca e os quatro caminhos;
+  `scripts/verify-boards.mjs` abre cada prancha em 1440×900 e 390×844 e guarda as capturas em `verify-output/`.
+
+### Fixed — datas em dd/mm/aaaa e o texto dos badges
+
+- **A data de abertura do CNPJ é digitada em dd/mm/aaaa.** O campo nativo do navegador mostrava `mm/dd/yyyy`
+  quando o sistema estava em inglês; agora é um campo de texto com máscara `dd/mm/aaaa`, convertido para o
+  `YYYY-MM-DD` que a API guarda (o mesmo formato aparece na revisão da candidatura e no painel administrativo).
+- O painel de badges passou a dizer **"Suas badges"** (antes "Meus badges").
+
 ### Added — vida na Vila (IMPL-0025, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
 
 - **A Vila ganhou gente e bichos que andam.** Trinta personagens numa tabela só: Papai Noel, 3 duendes, 4 lojistas,

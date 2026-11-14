@@ -6,12 +6,13 @@ import { questState } from "@vila/shared/game/quests";
 import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import { fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type LotInfo, type NgoDonationInfo } from "../lib/api";
+import { fetchGallery, fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type GalleryPhoto, type LotInfo, type NgoDonationInfo } from "../lib/api";
 import { UNLISTED_LABEL } from "../lib/lots";
 import { BlobImage } from "./BlobImage";
 import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
 import { PixDonation } from "./PixDonation";
+import { SheetFlow, SheetNotice, SheetSection } from "./sheet";
 
 /**
  * Lot / NGO house (P03, DEC-028) and NGO HUD (P04, DEC-029). An administrator in moderation mode also gets the
@@ -20,6 +21,9 @@ import { PixDonation } from "./PixDonation";
  * Donations (IMPL-0023; PROPOSTA, only when `/config` says `donations`): a published house offers the NGO's own
  * Pix (AbacatePay sub-account) or its validated payment page. A redirected payment happens outside the Vila and
  * credits nothing by itself; the note says so. With the flag off the honest disabled state stays (IMPL-0002).
+ *
+ * The public gallery (IMPL-0018, PROPOSTA) is drawn only when the API already answers photos (the flag is off in
+ * production); a failure or an empty list simply leaves the section out.
  *
  * `unlisted`: the API answered its lots and this one is not among them (`lib/lots.ts`): the lot is drawn, but
  * it cannot take an application yet. Its panel says it is being prepared, with no invitation to apply, and the
@@ -46,13 +50,17 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   const [donationInfo, setDonationInfo] = useState<NgoDonationInfo | null | undefined>(undefined);
   const [donationError, setDonationError] = useState("");
   const [opening, setOpening] = useState(false);
+  /** The public gallery: `undefined` while loading, `null` when unreadable, `[]` when the API has photos off. */
+  const [photos, setPhotos] = useState<GalleryPhoto[] | null | undefined>(undefined);
   useEffect(() => {
     // Another house reuses this component: never show the previous NGO's name, split or stats while loading.
     setDonationInfo(undefined);
     setDonationError("");
-    if (!donations || !ngoId) return;
+    setPhotos(undefined);
+    if (!ngoId) return;
     let live = true;
-    fetchNgoDonationInfo(ngoId).then((result) => live && setDonationInfo(result));
+    if (donations) fetchNgoDonationInfo(ngoId).then((result) => live && setDonationInfo(result));
+    fetchGallery(ngoId).then((result) => live && setPhotos(result));
     return () => {
       live = false;
     };
@@ -76,82 +84,95 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   const moderation = useLotModerating();
 
   if (info?.state === "published" && info.ngo_name) {
+    const withPhotos = Boolean(photos && photos.length > 0);
     return (
       <Panel
         kicker={`Terreno ${n}`}
         title={info.ngo_name}
+        subtitle="ONG aprovada"
         // The NGO's public logo (IMPL-0017), when it has one and it loads.
-        mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : undefined}
-        wide
+        mark={info.ngo_logo ? <BlobImage className="logo panel__mark" source={info.ngo_logo} load={fetchLogo} alt={`Logo de ${info.ngo_name}`} /> : <span className="panel__icon" aria-hidden="true">🏡</span>}
+        sheet
+        board="P04"
         // The key changes when the moderation section leaves (role lost, mode off, signed out): the focus that
         // was in it goes back to the dialog.
         contentKey={moderation ? "published:moderation" : "published"}
       >
-        <div className="ngo-hud">
-          <section>
-            <p>{info.ngo_summary}</p>
-            <p className="note">Destinatário: esta ONG</p>
-            {donations && ngoId ? (
-              donationInfo === undefined ? (
-                <p className="note">Carregando as doações desta ONG…</p>
-              ) : donationInfo === null ? (
-                <>
-                  <button className="btn btn--primary" disabled>
-                    Doar para esta ONG
-                  </button>
-                  <p className="note">Não foi possível carregar o recebimento desta ONG agora. Tente reabrir a casa.</p>
-                </>
-              ) : !donationInfo.enabled ? (
-                <>
-                  <button className="btn btn--primary" disabled>
-                    Doar para esta ONG
-                  </button>
-                  <p className="note">O recebimento de doações desta casa ainda não foi configurado pela administração.</p>
-                </>
-              ) : donationInfo.method === "external_link" ? (
-                <>
-                  <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
-                  <button className="btn btn--primary" disabled={opening} onClick={() => void openExternal()}>
-                    {opening ? "Abrindo…" : "Abrir página de pagamento da ONG"}
-                  </button>
-                  <p className="note">
-                    O pagamento ocorre no meio próprio da ONG. Redirecionamentos não geram crédito automático de doação nem de Título sem
-                    comprovação.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
-                  <PixDonation
-                    targetKind="ngo"
-                    ngoId={ngoId}
-                    recipientName={donationInfo.name}
-                    ngoPercentBps={donationInfo.ngoPercentBps}
-                    fixedFeeCents={donationInfo.fixedFeeCents}
-                    minAmountCents={donationInfo.minAmountCents}
-                  />
-                </>
-              )
-            ) : (
+        <SheetSection n={1} icon="📖" title="Sobre a ONG">
+          <p>{info.ngo_summary}</p>
+        </SheetSection>
+        {photos && photos.length > 0 && (
+          <SheetSection n={2} icon="🖼️" title="Fotos">
+            <div className="sheet-photos">
+              {photos.map((photo) => (
+                <BlobImage key={photo.id} source={photo.url} load={fetchLogo} alt={photo.caption || "Foto da ONG"} />
+              ))}
+            </div>
+          </SheetSection>
+        )}
+        <SheetSection n={withPhotos ? 3 : 2} icon="❤️" title="Doação voluntária">
+          <p className="note">Destinatário: esta ONG</p>
+          {donations && ngoId ? (
+            donationInfo === undefined ? (
+              <p className="note">Carregando as doações desta ONG…</p>
+            ) : donationInfo === null ? (
               <>
                 <button className="btn btn--primary" disabled>
                   Doar para esta ONG
                 </button>
-                <p className="note">Pagamento ainda não habilitado (PEN-006).</p>
+                <p className="note">Não foi possível carregar o recebimento desta ONG agora. Tente reabrir a casa.</p>
               </>
-            )}
-            {donationError && (
-              <p className="form__error" role="alert">
-                {donationError}
-              </p>
-            )}
-          </section>
-          <section>
-            <button className="btn" onClick={() => open({ kind: "memory" })}>
-              Jogar gratuitamente
-            </button>
-          </section>
-        </div>
+            ) : !donationInfo.enabled ? (
+              <>
+                <button className="btn btn--primary" disabled>
+                  Doar para esta ONG
+                </button>
+                <p className="note">O recebimento de doações desta casa ainda não foi configurado pela administração.</p>
+              </>
+            ) : donationInfo.method === "external_link" ? (
+              <>
+                <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
+                <button className="btn btn--primary" disabled={opening} onClick={() => void openExternal()}>
+                  {opening ? "Abrindo…" : "Abrir página de pagamento da ONG"}
+                </button>
+                <p className="note">
+                  O pagamento ocorre no meio próprio da ONG. Redirecionamentos não geram crédito automático de doação nem de Título sem
+                  comprovação.
+                </p>
+              </>
+            ) : (
+              <>
+                <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
+                <PixDonation
+                  targetKind="ngo"
+                  ngoId={ngoId}
+                  recipientName={donationInfo.name}
+                  ngoPercentBps={donationInfo.ngoPercentBps}
+                  fixedFeeCents={donationInfo.fixedFeeCents}
+                  minAmountCents={donationInfo.minAmountCents}
+                />
+              </>
+            )
+          ) : (
+            <>
+              <button className="btn btn--primary" disabled>
+                Doar para esta ONG
+              </button>
+              <p className="note">Pagamento ainda não habilitado (PEN-006).</p>
+            </>
+          )}
+          {donationError && (
+            <p className="form__error" role="alert">
+              {donationError}
+            </p>
+          )}
+          <p className="note">Doar é voluntário. Jogar nunca é uma doação.</p>
+        </SheetSection>
+        <SheetSection n={withPhotos ? 4 : 3} icon="🎮" title="Jogue gratuitamente">
+          <button className="btn btn--primary" onClick={() => open({ kind: "memory" })}>
+            Jogar gratuitamente
+          </button>
+        </SheetSection>
         {info.ngo_id && <LotModeration ngoId={info.ngo_id} name={info.ngo_name} onChanged={onChanged} />}
       </Panel>
     );
@@ -159,7 +180,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
 
   if (unlisted) {
     return (
-      <Panel kicker={`Terreno ${n}`} title={UNLISTED_LABEL}>
+      <Panel board="P03" sheet icon="🏡" title={UNLISTED_LABEL} subtitle={`Terreno ${n}`}>
         <p className="lead">Este terreno ainda não recebe candidaturas.</p>
         <p className="note">Os terrenos que já recebem candidaturas aparecem em “Explorar ONGs” como “Terreno disponível”.</p>
       </Panel>
@@ -169,33 +190,54 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   const inReview = info && info.state !== "available";
   return (
     // The key sends the focus back to the dialog when a withdrawal (IMPL-0021) takes the house off this panel.
-    <Panel kicker={`Terreno ${n}`} title={inReview ? "Candidatura em análise" : "Sua ONG pode estar aqui"} contentKey={info?.state ?? "unknown"}>
-      {inReview ? (
-        <p>
-          Casa ainda não publicada. <Status>Em análise</Status>
-        </p>
-      ) : (
-        <p className="lead">Terreno disponível para uma organização social aprovada.</p>
+    <Panel
+      board="P03"
+      sheet
+      icon="🏡"
+      title={inReview ? "Em análise — casa ainda não publicada" : "Terreno disponível"}
+      subtitle={`Terreno ${n}`}
+      contentKey={info?.state ?? "unknown"}
+    >
+      {inReview && (
+        <SheetNotice tone="pending" icon="⏳">
+          Candidatura em análise
+        </SheetNotice>
       )}
-      <h3>Critérios para participar</h3>
-      <ol className="bullets">
-        <li>CNPJ ativo.</li>
-        <li>Pelo menos 1 ano de existência.</li>
-        <li>Meio confiável de confirmar os valores destinados à organização.</li>
-      </ol>
-      <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
-      {accounts ? (
-        <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
-          Candidatar minha ONG
-        </button>
-      ) : (
-        <>
-          <button className="btn" disabled>
-            Conheça o cadastro
+      <SheetSection n={1} icon="📋" title="Candidatura da ONG">
+        {inReview ? (
+          <p>
+            Casa ainda não publicada. <Status>Em análise</Status>
+          </p>
+        ) : (
+          <p className="lead">Terreno disponível para uma organização social aprovada.</p>
+        )}
+        <h4>Critérios para participar</h4>
+        <ol className="bullets">
+          <li>CNPJ ativo.</li>
+          <li>Pelo menos 1 ano de existência.</li>
+          <li>Meio confiável de confirmar os valores destinados à organização.</li>
+        </ol>
+        <p>Toda candidatura passa por análise da administração. Só a aprovação publica a casa na Vila.</p>
+        <div className="actions">
+          {accounts ? (
+            <button className="btn btn--primary" disabled={Boolean(inReview)} onClick={() => open({ kind: "ngo", lotId })}>
+              {inReview ? "Candidatura em análise" : "Candidatar minha ONG"}
+            </button>
+          ) : (
+            <button className="btn" disabled>
+              Conheça o cadastro
+            </button>
+          )}
+          <button className="btn" onClick={() => open({ kind: "invite" })}>
+            Indicar uma ONG
           </button>
-          <p className="note">O cadastro de ONGs abre em breve.</p>
-        </>
-      )}
+        </div>
+        {!accounts && <p className="note">O cadastro de ONGs abre em breve.</p>}
+      </SheetSection>
+      <SheetFlow
+        steps={["Terreno disponível", "Análise administrativa", "Casa publicada após aprovação"]}
+        current={inReview ? 1 : 0}
+      />
     </Panel>
   );
 }

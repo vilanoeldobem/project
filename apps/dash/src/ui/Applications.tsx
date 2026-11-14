@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { APPLICATION_STATUSES, type ApplicationDetail, type ApplicationStatus, type ApplicationSummary, lotNumber, type ReviewAction, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
-import { NGO_TAGS, type NgoTag } from "@vila/shared/accounts/validate";
+import { NGO_TAGS, formatBrDate, type NgoTag } from "@vila/shared/accounts/validate";
 
 import { downloadDocument } from "../lib/files";
 import { actionText, dateTime, FILE_TYPE_LABEL, fileSize } from "../lib/format";
@@ -273,7 +273,7 @@ export function Review({
         <dt>CNPJ</dt>
         <dd>{a.cnpj}</dd>
         <dt>Abertura</dt>
-        <dd>{a.openedOn}</dd>
+        <dd>{formatBrDate(a.openedOn) || a.openedOn}</dd>
         <dt>Cidade</dt>
         <dd>{a.city}</dd>
         <dt>Confirmação dos recursos</dt>

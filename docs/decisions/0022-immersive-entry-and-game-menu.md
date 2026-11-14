@@ -2,7 +2,8 @@
 
 **Status:** Proposta — implementada, a validar. É uma **PROPOSTA** do responsável técnico: a chegada sem tela de
 boas-vindas, a marca fora da tela de jogo e o menu do jogo só viram decisão quando o responsável pelo produto
-ratificar ([OQ-16](open-questions.md))
+ratificar ([OQ-16](open-questions.md)). Substituída em parte por [IMPL-0026](0026-boards-ui-and-character-appearance.md):
+a marca volta ao topo da tela de jogo e os caminhos passam a quatro; o restante continua valendo
 **Data:** 2026-11-12 (itens 11 a 13 e ajustes dos itens 3 e 5 em 2026-11-13, depois da revisão)
 **Fontes:** pedido do responsável técnico em 2026-11-12 (entrar direto na Vila, tirar os botões de zoom e a marca
 da tela de jogo, menu no Esc); `vilanoeldobem/docs`: DEC-008 (solidariedade presente desde a chegada), DEC-022
