@@ -7,8 +7,22 @@ import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
 import { sim } from "./sim";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
-import { useVila } from "./store";
+import { type Panel, useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
+
+/** The panels the board screenshots open by name (`extra.panel`); the ones that need an id are built at call time. */
+const BOARD_PANELS: Record<string, Panel> = {
+  donation: { kind: "donation" },
+  indicators: { kind: "indicators" },
+  avatar: { kind: "avatar" },
+  games: { kind: "games" },
+  map: { kind: "map" },
+  invite: { kind: "invite" },
+  account: { kind: "account" },
+  missions: { kind: "missions" },
+  badges: { kind: "badges" },
+  explore: { kind: "explore" },
+};
 
 export interface VilaDevtools {
   walkTo: (x: number, z: number) => void;
@@ -70,6 +84,17 @@ export function installDevtools() {
       lifeClock: () => lifeClock(),
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
+      /** Opens a board panel by name (verify-boards.mjs); "lot" and "ngo" take an id as the second argument. */
+      panel: (...args: never[]) => {
+        const [kind, arg] = args as unknown as [string, string | undefined];
+        const panel =
+          kind === "lot"
+            ? ({ kind: "lot", lotId: String(arg) } as Panel)
+            : kind === "ngo"
+              ? ({ kind: "ngo", lotId: arg === undefined ? undefined : String(arg) } as Panel)
+              : BOARD_PANELS[kind];
+        if (panel) useVila.getState().open(panel);
+      },
     },
   };
 }

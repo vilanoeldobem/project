@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { APPLICATION_STEP, isAtLeastOneYearOld, isValidCnpj, validateApplication, validateRegistration } from "./validate";
+import { APPLICATION_STEP, formatBrDate, isAtLeastOneYearOld, isValidCnpj, maskBrDate, parseBrDate, validateApplication, validateRegistration } from "./validate";
 
 const TODAY = new Date("2026-11-11T12:00:00Z");
 const VALID_APP = {
@@ -58,6 +58,30 @@ describe("NGO application (P12; DEC-015)", () => {
     expect(isAtLeastOneYearOld("not-a-date", TODAY)).toBe(false);
     for (const impossible of ["2020-02-30", "2021-02-29", "2020-04-31", "2020-13-01"]) expect(isAtLeastOneYearOld(impossible, TODAY)).toBe(false);
     expect(isAtLeastOneYearOld("2020-02-29", TODAY)).toBe(true);
+  });
+
+  it("reads and writes dates in the Brazilian order", () => {
+    expect(parseBrDate("14/11/2026")).toBe("2026-11-14");
+    expect(parseBrDate("14112026")).toBe("2026-11-14");
+    expect(parseBrDate("29/02/2024")).toBe("2024-02-29");
+    expect(parseBrDate("29/02/2025")).toBeNull();
+    expect(parseBrDate("31/02/2026")).toBeNull();
+    expect(parseBrDate("14/11")).toBeNull();
+    expect(parseBrDate("")).toBeNull();
+    expect(formatBrDate("2026-11-14")).toBe("14/11/2026");
+    expect(formatBrDate("14/11/2026")).toBe("");
+    expect(formatBrDate("")).toBe("");
+  });
+
+  it("groups the typed digits as dd/mm/aaaa and ignores the rest", () => {
+    expect(maskBrDate("14112026")).toBe("14/11/2026");
+    expect(maskBrDate("14/11/2026")).toBe("14/11/2026");
+    expect(maskBrDate("141")).toBe("14/1");
+    expect(maskBrDate("1411")).toBe("14/11");
+    expect(maskBrDate("14112")).toBe("14/11/2");
+    expect(maskBrDate("123456789")).toBe("12/34/5678");
+    expect(maskBrDate("abc")).toBe("");
+    expect(maskBrDate("")).toBe("");
   });
 
   it("accepts a complete application and drops unknown tags", () => {

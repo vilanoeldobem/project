@@ -47,6 +47,14 @@ export function Explore({ lots }: { lots: Record<string, LotInfo> }) {
           );
         })}
       </ul>
+      <div className="actions">
+        <button className="btn" onClick={() => useVila.getState().open({ kind: "map" })}>
+          Ver a Vila no mapa
+        </button>
+        <button className="btn" onClick={() => useVila.getState().open({ kind: "invite" })}>
+          Indicar uma ONG
+        </button>
+      </div>
     </Panel>
   );
 }

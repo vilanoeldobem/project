@@ -106,12 +106,44 @@ export function isValidCnpj(raw: string): boolean {
   return digit(12) === Number(d[12]) && digit(13) === Number(d[13]);
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The UTC day an ISO date names, or null when the text is not a real calendar day. */
+function utcDay(iso: string): Date | null {
+  if (!ISO_DAY.test(iso)) return null;
+  const date = new Date(`${iso}T00:00:00Z`);
+  // Impossible dates (2021-02-29, 2020-04-31) would silently roll over to the next month.
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === iso ? date : null;
+}
+
+/**
+ * A date typed in the Brazilian order ("dd/mm/aaaa", or the eight digits alone) as the ISO day the API stores.
+ * Null when the text is not a real calendar date.
+ */
+export function parseBrDate(text: string): string | null {
+  const digits = text.replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+  const iso = `${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`;
+  return utcDay(iso) ? iso : null;
+}
+
+/** Groups up to eight typed digits as dd/mm/aaaa, without deciding whether the day exists. */
+export function maskBrDate(text: string): string {
+  const digits = text.replace(/\D/g, "").slice(0, 8);
+  if (digits.length > 4) return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  if (digits.length > 2) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return digits;
+}
+
+/** An ISO day from the API ("aaaa-mm-dd") the way the UI writes dates ("dd/mm/aaaa"); empty when incomplete. */
+export function formatBrDate(iso: string): string {
+  return ISO_DAY.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "";
+}
+
 /** DEC-015 criterion 2 (≥ 1 year of existence), measured from the CNPJ opening date (PEN-013: PROPOSTA). */
 export function isAtLeastOneYearOld(openedOn: string, today: Date): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(openedOn)) return false;
-  const opened = new Date(`${openedOn}T00:00:00Z`);
-  // Impossible dates (2021-02-29, 2020-04-31) would silently roll over to the next month.
-  if (Number.isNaN(opened.getTime()) || opened.toISOString().slice(0, 10) !== openedOn) return false;
+  const opened = utcDay(openedOn);
+  if (!opened) return false;
   const limit = new Date(Date.UTC(today.getUTCFullYear() - 1, today.getUTCMonth(), today.getUTCDate()));
   return opened <= limit;
 }

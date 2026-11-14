@@ -23,6 +23,11 @@ export function Panel({
   contentKey,
   variant,
   onClose,
+  icon,
+  subtitle,
+  sheet,
+  footer,
+  board,
 }: {
   title: string;
   kicker?: string;
@@ -33,6 +38,16 @@ export function Panel({
   variant?: "menu";
   /** What the close button and a press on the veil do; by default they close the open panel. */
   onClose?: () => void;
+  /** Symbol shown on a gold tile at the head (never with a `mark`). */
+  icon?: string;
+  /** One line under the title. */
+  subtitle?: string;
+  /** The board sheet: wider, tan rim, bottom-anchored on a phone. */
+  sheet?: boolean;
+  /** A strip under the body that does not scroll (a flow of steps, a closing note). */
+  footer?: ReactNode;
+  /** Board id of the design (P01…P15) for the browser checks; not drawn. */
+  board?: string;
 }) {
   const closePanel = useVila((s) => s.close);
   const close = onClose ?? closePanel;
@@ -44,24 +59,27 @@ export function Panel({
   return (
     <Veil variant={variant} onClose={close}>
       <div
-        className={`panel${wide ? " panel--wide" : ""}${variant ? ` panel--${variant}` : ""}`}
+        className={`panel${wide ? " panel--wide" : ""}${sheet ? " panel--sheet" : ""}${variant ? ` panel--${variant}` : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
         ref={ref}
+        data-board={board}
       >
         <header className="panel__head">
-          {mark}
+          {mark ?? (icon ? <span className="panel__icon" aria-hidden="true">{icon}</span> : null)}
           <div>
             {kicker && <p className="kicker">{kicker}</p>}
             <h2>{title}</h2>
+            {subtitle && <p className="panel__sub">{subtitle}</p>}
           </div>
           <button className="icon-btn" onClick={close} aria-label="Fechar">
             ×
           </button>
         </header>
         <div className="panel__body">{children}</div>
+        {footer && <div className="panel__foot">{footer}</div>}
       </div>
     </Veil>
   );

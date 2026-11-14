@@ -65,16 +65,17 @@ describe("arrival", () => {
     expect(page).not.toMatch(/Entrar na Vila|Boas-vindas|welcome/);
   });
 
-  it("keeps the three paths one press away, with their names, inside the navigation", async () => {
+  it("keeps the four paths one press away, with their names, inside the navigation", async () => {
     const { hud, PATHS, useVila } = await load();
     const paths = buttons(nav(hud())).filter((b) => b.attributes.includes("data-path="));
-    expect(paths.map((b) => b.text)).toEqual(["🏡Explorar ONGs", "🎲Jogar", "🎄Doação global"]);
+    expect(paths.map((b) => b.text)).toEqual(["🏡Explorar ONGs", "🎲Jogar", "🎄Doação global", "👥Indicar uma ONG"]);
     expect(nav(hud())).toMatch(/role="group" aria-label="Caminhos da Vila"/);
     // Each opens the panel it always opened, straight from the village.
     expect(PATHS.map((p) => [p.label, p.panel.kind])).toEqual([
       ["Explorar ONGs", "explore"],
-      ["Jogar", "memory"],
+      ["Jogar", "games"],
       ["Doação global", "donation"],
+      ["Indicar uma ONG", "invite"],
     ]);
     for (const path of PATHS) {
       useVila.getState().open(path.panel);
@@ -90,7 +91,14 @@ describe("arrival", () => {
 
   it("has one coherent navigation: paths, then indicators and the menu", async () => {
     const { hud } = await load();
-    expect(buttons(nav(hud())).slice(-5).map((b) => b.text)).toEqual(["🏡Explorar ONGs", "🎲Jogar", "🎄Doação global", "📊Indicadores", "☰Menu"]);
+    expect(buttons(nav(hud())).slice(-6).map((b) => b.text)).toEqual([
+      "🏡Explorar ONGs",
+      "🎲Jogar",
+      "🎄Doação global",
+      "👥Indicar uma ONG",
+      "📊Indicadores",
+      "☰Menu",
+    ]);
   });
 
   it("adds the account and, for an administrator, the moderation switch to the same group", async () => {
@@ -110,10 +118,16 @@ describe("what left the gameplay screen", () => {
     expect(buttons(page).map((b) => b.text).filter((t) => /^[+\-−]$/.test(t))).toEqual([]);
   });
 
-  it("has no wordmark or logo, and no button back to a welcome screen", async () => {
+  it("shows the temporary wordmark in the header, as an image with its name and no control", async () => {
     const { hud } = await load();
     const page = hud();
-    expect(page).not.toMatch(/wordmark|VILA NOEL|DO BEM|hud__brand|aria-label="Início"|<img|<h1/);
+    const start = page.indexOf('<div class="hud__brand">');
+    expect(start).toBeGreaterThan(-1);
+    const brand = page.slice(start, page.indexOf("</div>", start));
+    expect(brand).toContain("wordmark wordmark--compact");
+    expect(brand).toContain('role="img" aria-label="Vila Noel do Bem"');
+    expect(brand).not.toContain("<button");
+    expect(page).not.toMatch(/<img|<h1/);
   });
 });
 

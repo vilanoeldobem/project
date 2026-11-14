@@ -49,3 +49,37 @@ describe("the veil of a dialog", () => {
     expect(log).toEqual([]);
   });
 });
+
+describe("the head and the sheet of a dialog", () => {
+  it("draws an icon tile that readers skip, the subtitle and the board id", () => {
+    const html = renderToStaticMarkup(
+      <Panel title="Indicadores da Vila" icon="📊" subtitle="Transparência" board="P02">
+        x
+      </Panel>
+    );
+    expect(html).toContain('<span class="panel__icon" aria-hidden="true">📊</span>');
+    expect(html).toContain('<p class="panel__sub">Transparência</p>');
+    expect(html).toContain('data-board="P02"');
+  });
+
+  it("keeps the footer inside the dialog, after the body, and the sheet class on the panel", () => {
+    const html = renderToStaticMarkup(
+      <Panel title="Terreno disponível" sheet footer={<span>fluxo</span>}>
+        corpo
+      </Panel>
+    );
+    expect(html).toContain("panel panel--sheet");
+    expect(html.indexOf("fluxo")).toBeGreaterThan(html.indexOf("corpo"));
+    expect(html.indexOf("fluxo")).toBeLessThan(html.indexOf("</div></div>"));
+  });
+
+  it("shows the mark instead of the icon when both are given", () => {
+    const html = renderToStaticMarkup(
+      <Panel title="ONG" icon="🏡" mark={<img alt="Logo" />}>
+        x
+      </Panel>
+    );
+    expect(html).toContain('<img alt="Logo"/>');
+    expect(html).not.toContain("panel__icon");
+  });
+});

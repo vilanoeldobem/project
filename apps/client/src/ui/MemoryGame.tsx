@@ -19,6 +19,7 @@ export function shuffle<T>(xs: T[], rand = Math.random): T[] {
 
 export function MemoryGame() {
   const record = useVila((s) => s.record);
+  const open = useVila((s) => s.open);
   const [round, setRound] = useState(0);
   const deck = useMemo(() => shuffle([...SYMBOLS, ...SYMBOLS]), [round]);
   const [flipped, setFlipped] = useState<number[]>([]);
@@ -63,7 +64,7 @@ export function MemoryGame() {
   };
 
   return (
-    <Panel kicker="Jogar gratuitamente" title="Jogo da Memória">
+    <Panel kicker="Jogar gratuitamente" title="Jogo da Memória" subtitle="Jogar nunca é uma doação.">
       <p className="note">
         Jogadas: {moves} · Pares: {matched.size / 2}/{SYMBOLS.length}
       </p>
@@ -83,9 +84,14 @@ export function MemoryGame() {
         })}
       </div>
       {won && <p className="lead">Muito bem! Você encontrou todos os pares em {moves} jogadas.</p>}
-      <button className="btn" onClick={restart}>
-        {won ? "Jogar de novo" : "Recomeçar"}
-      </button>
+      <div className="actions">
+        <button className="btn" onClick={restart}>
+          {won ? "Jogar de novo" : "Recomeçar"}
+        </button>
+        <button className="btn" onClick={() => open({ kind: "games" })}>
+          Voltar aos minijogos
+        </button>
+      </div>
     </Panel>
   );
 }

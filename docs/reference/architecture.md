@@ -160,16 +160,21 @@ na OQ-16).
 
   | Onde | O quê | Abre |
   |---|---|---|
+  | Topo, esquerda (`hud__brand`) | Marca provisória (`Wordmark`; DEC-024/PEN-016), como imagem para leitores de tela | — |
   | Topo, esquerda (`EnvironmentChip`) | Hora de São Paulo e clima; "👥 N" (presença); 🌌 olhar o céu | Painel "Ambiente"; alterna a vista |
-  | Topo, direita: caminhos (`PATHS`) | "🏡 Explorar ONGs", "🎲 Jogar", "🎄 Doação global", sempre com o nome (no celular, numa linha própria) | Painéis `explore`, `memory`, `donation` |
+  | Topo, direita: caminhos (`PATHS`) | "🏡 Explorar ONGs", "🎲 Jogar", "🎄 Doação global" e "👥 Indicar uma ONG" (vermelho), sempre com o nome (no celular, em duas colunas) | Painéis `explore`, `games`, `donation`, `invite` |
   | Topo, direita: sistema | 📊 Indicadores; 👤 conta (só com contas ligadas); 🛡️ Moderação (só administradores); ☰ Menu | Painéis `indicators`, `account`; modo moderação; menu do jogo |
   | Abaixo do topo | Bolsa de missão, aviso de remoção da sala, bloco de moderação, aviso passageiro (`toast`) | — |
-  | Pé | Dica de como andar ou botão de ação contextual (tecla **E**); "★ Missões" | Painel do que está perto; Caderno de Missões |
+  | Pé | Dica de como andar ou botão de ação contextual (tecla **E**); "★ Missões" | Painel do que está perto; Missões |
 
-  O HUD não tem a marca nem botões de zoom. Rótulos: os caminhos mostram o nome sempre; a conta e o menu, a
-  partir de 641 px; "Indicadores" e "Moderação", a partir de 1360 px. Abaixo disso o controle vira ícone com dica
-  flutuante (`data-tip`, só onde ele fica sem nome visível) e `aria-label`. No botão da conta, só o apelido é
-  abreviado (mais de 12 caracteres, `chipName`; aí a dica aparece em qualquer largura com o texto completo);
+  A barra do topo é a das pranchas P01–P15 ([IMPL-0026](../decisions/0026-boards-ui-and-character-appearance.md)):
+  fundo verde-pinho, marca à esquerda e os quatro caminhos; a folha de tela (`.panel--sheet`) e as peças de
+  `ui/sheet.tsx` são a mesma linguagem dos painéis. A IMPL-0026 substitui em parte a IMPL-0022: a marca voltou ao
+  topo e os caminhos passaram de três a quatro. O HUD continua sem botões de zoom. Rótulos: os caminhos mostram o
+  nome sempre; a conta e o menu, a partir de 641 px; "Indicadores" e "Moderação", a partir de 1360 px. Abaixo
+  disso o controle vira ícone com dica flutuante (`data-tip`, só onde ele fica sem nome visível) e `aria-label`.
+  No botão da conta, só o apelido é abreviado (mais de 12 caracteres, `chipName`; aí a dica aparece em qualquer
+  largura com o texto completo);
   "(bloqueada)" fica num `span` próprio, sempre inteiro. A dica é posicionada pelo grupo do controle, a partir da
   borda externa do grupo, e nunca é mais larga que o HUD: fica dentro da tela e quebra de linha se for longa. Os
   chips têm 44 px de altura; em telas de até 360 px de largura (`@media (max-width: 360px)`) a largura mínima cai

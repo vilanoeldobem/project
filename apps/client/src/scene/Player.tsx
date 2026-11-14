@@ -5,6 +5,7 @@ import { CircleGeometry, type Group, type Mesh, MeshBasicMaterial, ShaderMateria
 import { U } from "./environment/materials";
 import { probe } from "../game/devtools";
 import { events } from "../game/events";
+import { HEIGHT_SCALE } from "@vila/shared/game/appearance";
 import { MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
@@ -95,7 +96,8 @@ export function Player({ published }: { published: string }) {
   // Portrait (phones): pull the camera back so the same plaza width fits.
   const fit = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
   const avatarLook = useVila((s) => s.look);
-  const parts = useMemo(() => avatarParts(avatarLook), [avatarLook]);
+  const appearance = useVila((s) => s.appearance);
+  const parts = useMemo(() => avatarParts(avatarLook, appearance), [avatarLook, appearance]);
   const { shadows } = usePreset();
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
@@ -312,7 +314,7 @@ export function Player({ published }: { published: string }) {
   return (
     <>
       <group ref={root} position={[sim.pose.x, 0, sim.pose.z]}>
-        <group ref={rig}>
+        <group ref={rig} scale={HEIGHT_SCALE[appearance.height]}>
         <group ref={torso}>
           <Voxels voxels={parts.body} size={AVATAR_SIZE} />
           {ghost(0, parts.body)}

@@ -21,20 +21,27 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const errors = [];
 const stats = {};
+/**
+ * Google Tag Manager is not under test here (OQ-13): its collection hosts are outside the game's CSP, so a
+ * machine with network answers with CSP console errors that have nothing to do with the UI. They are skipped;
+ * every other console error still fails the run.
+ */
+const analyticsNoise = (text) => /googletagmanager|google-analytics|doubleclick|google\.com\/g\/collect|google\.com\.br\/ads/.test(text);
 for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(1500);
   await arrive(page, errors, name);
-  // The three paths are on the HUD from the first second, by name (P01), and nothing covers the village.
-  for (const path of ["Explorar ONGs", "Jogar", "Doação global"]) {
+  // The four paths are on the HUD from the first second, by name (P01), and nothing covers the village.
+  for (const path of ["Explorar ONGs", "Jogar", "Doação global", "Indicar uma ONG"]) {
     if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`${name}: path "${path}" is not on the HUD at arrival`);
   }
   if (await page.getByRole("button", { name: /Aproximar|Afastar/ }).count()) errors.push(`${name}: zoom buttons on the HUD`);
-  if (await page.locator(".wordmark").count()) errors.push(`${name}: the wordmark is on the gameplay screen`);
+  // The boards (P01) put the temporary wordmark back in the top bar, with no control of its own.
+  if (!(await page.locator(".hud__brand .wordmark").isVisible())) errors.push(`${name}: the header does not show the wordmark`);
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > viewport.width) errors.push(`${name}: the page scrolls sideways`);
   await page.screenshot({ path: `${out}${name}-1-chegada.png` });
   // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar, with nothing to close
@@ -68,6 +75,8 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.screenshot({ path: `${out}${name}-3-indicadores.png` });
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /Jogar/ }).first().click();
+  await page.getByRole("dialog", { name: "Minijogos da Vila" }).getByRole("button", { name: "Jogar", exact: true }).click();
+  await page.getByRole("dialog", { name: "Jogo da Memória" }).waitFor({ timeout: 10000 });
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${out}${name}-4-memoria.png` });
   await page.keyboard.press("Escape");
@@ -108,7 +117,7 @@ const scenes = [
 for (const [name, time, weather, sky, quality] of scenes) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await page.addInitScript((q) => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: q })), quality);
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
@@ -165,7 +174,7 @@ for (const [name, time, weather, zoom] of [
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`village: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`village: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`village: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "village");
@@ -276,7 +285,7 @@ for (const [name, time, weather, zoom] of [
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`gifts: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`gifts: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`gifts: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "gifts");
@@ -290,10 +299,12 @@ for (const [name, time, weather, zoom] of [
   if (!ev.includes("gift") || !ev.includes("mission")) errors.push(`gifts: expected gift + mission events, got "${ev}"`);
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${out}gameplay-gifts.png` });
-  // Cosmetics (PROPOSTA): the gifts mission unlocks the knit beanie; equip it from the Missions panel.
+  // Cosmetics (PROPOSTA): the gifts mission unlocks the knit beanie; equip it from "Aparência" → "Visuais".
   const toast = (await page.locator(".toast").textContent().catch(() => "")) ?? "";
   if (!toast.includes("Novo visual")) errors.push(`cosmetics: mission toast without unlock: "${toast}"`);
   await page.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
+  await page.getByRole("button", { name: "Abrir aparência" }).first().dispatchEvent("click");
+  await page.getByRole("dialog", { name: "Aparência do personagem" }).getByRole("tab", { name: "Visuais", exact: true }).click();
   const beanie = page.getByRole("button", { name: "Gorro de tricô" });
   if (await beanie.isDisabled()) errors.push("cosmetics: beanie still locked after the gifts mission");
   await beanie.dispatchEvent("click");
@@ -313,7 +324,7 @@ for (const [name, time, weather, zoom] of [
   const [a, b] = [await ctxA.newPage(), await ctxB.newPage()];
   for (const [p, n] of [[a, "mp-a"], [b, "mp-b"]]) {
     p.on("pageerror", (e) => errors.push(`${n}: ${e.message}`));
-    p.on("console", (m) => m.type() === "error" && errors.push(`${n}: ${m.text()}`));
+    p.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${n}: ${m.text()}`));
     await p.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low" })));
     await p.goto(url, { waitUntil: "load" });
     await arrive(p, errors, n);
@@ -340,7 +351,7 @@ stats.gallery = {};
 for (const cat of ["props", "houses", "characters", "animals", "cosmetics"]) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`gallery-${cat}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`gallery-${cat}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`gallery-${cat}: ${m.text()}`));
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });

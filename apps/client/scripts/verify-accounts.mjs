@@ -375,7 +375,7 @@ await click(a.getByRole("button", { name: `Sua conta: ${nick}` }));
 await click(a.getByRole("button", { name: "Minha candidatura de ONG" }));
 await a.getByLabel("Nome da organização *").fill(`Associação Teste ${run}`);
 await a.getByLabel(/^CNPJ \*/).fill(cnpj());
-await a.getByLabel("Data de abertura do CNPJ *").fill("2019-05-20");
+await a.getByLabel("Data de abertura do CNPJ *").fill("20/05/2019");
 await a.getByLabel("Cidade da sede *").fill("Olinda");
 if (!(await visible(a.getByText("Usada na análise da candidatura; não aparece no perfil público."), API_WAIT))) errors.push("applicant: private-city explanation missing");
 await click(a.getByRole("button", { name: "Continuar" }));

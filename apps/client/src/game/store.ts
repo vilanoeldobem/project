@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { COSMETICS, type Look, sanitizeLook, unlockedIds } from "@vila/shared/game/cosmetics";
+import { DEFAULT_APPEARANCE, sanitizeAppearance, type Appearance } from "@vila/shared/game/appearance";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
 import type { NpcId } from "@vila/shared/game/quests";
 import { events } from "./events";
@@ -11,6 +12,11 @@ export type Panel =
   | { kind: "donation" }
   | { kind: "lot"; lotId: string }
   | { kind: "explore" }
+  | { kind: "invite" }
+  | { kind: "avatar" }
+  | { kind: "games" }
+  | { kind: "map" }
+  | { kind: "badges" }
   | { kind: "memory" }
   | { kind: "missions" }
   | { kind: "indicators" }
@@ -108,6 +114,18 @@ function loadLook(p: Progress): Look {
   }
 }
 
+// Chosen character appearance (P07, "não são dados da conta"): a visual preference of this browser only, never
+// sent to the presence room. Always re-checked field by field.
+const APPEARANCE_KEY = "vila.appearance.v1";
+
+function loadAppearance(): Appearance {
+  try {
+    return sanitizeAppearance(JSON.parse(localStorage.getItem(APPEARANCE_KEY) ?? "null"));
+  } catch {
+    return { ...DEFAULT_APPEARANCE };
+  }
+}
+
 // Camera zoom (OQ-05 study): a per-browser convenience, never progress.
 const ZOOM_KEY = "vila.zoom.v1";
 export const ZOOM_MIN = 0.55;
@@ -179,6 +197,9 @@ interface VilaState {
   progressOwner: string | null;
   look: Look;
   setLook: (patch: Partial<Look>) => void;
+  /** The character's appearance (P07): local to this browser, used by the player's own avatar and portrait. */
+  appearance: Appearance;
+  setAppearance: (patch: Partial<Appearance>) => void;
   toast: { id: number; text: string } | null;
   /** Optional camera tilt to look at the sky (PROPOSAL; the gameplay camera is OQ-05). Moving ends it. */
   skyView: boolean;
@@ -254,6 +275,16 @@ export const useVila = create<VilaState>((set, get) => ({
       /* storage unavailable: the look lasts for this session */
     }
     set({ look });
+  },
+  appearance: loadAppearance(),
+  setAppearance: (patch) => {
+    const appearance = sanitizeAppearance({ ...get().appearance, ...patch });
+    try {
+      localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance));
+    } catch {
+      /* storage unavailable: the appearance lasts for this session */
+    }
+    set({ appearance });
   },
   toast: null,
   skyView: false,

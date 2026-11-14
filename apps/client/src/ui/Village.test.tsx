@@ -189,8 +189,8 @@ describe("lot the API does not list yet", () => {
     expect(read).toContain("Este terreno ainda não recebe candidaturas.");
     for (const invitation of ["Sua ONG pode estar aqui", "Terreno disponível para", "Critérios para participar", "Candidatar minha ONG", "Conheça o cadastro", "abre em breve"]) expect(read, invitation).not.toContain(invitation);
     expect(buttons(html)).toEqual([]);
-    // A lot the API lists keeps the invitation.
-    expect(text(renderToStaticMarkup(<Lot lotId="plaza-01" info={eight["plaza-01"]} />))).toContain("Sua ONG pode estar aqui");
+    // A lot the API lists keeps the invitation (P03: "Terreno disponível").
+    expect(text(renderToStaticMarkup(<Lot lotId="plaza-01" info={eight["plaza-01"]} />))).toContain("Terreno disponível");
   });
 
   it("labels it the same way in 3D: never as available", () => {

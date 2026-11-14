@@ -14,6 +14,7 @@ import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
 import { ModerationBar, ModerationChip } from "./Moderation";
+import { Wordmark } from "./Wordmark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
@@ -94,10 +95,11 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
  * The three paths of the arrival (P01, DEC-008): on the HUD from the first second, with their names, one press
  * away and with no modal in front of them (PROPOSTA, IMPL-0022). Each opens the panel it always opened.
  */
-export const PATHS: ReadonlyArray<{ id: string; icon: string; label: string; panel: Panel }> = [
+export const PATHS: ReadonlyArray<{ id: string; icon: string; label: string; panel: Panel; primary?: boolean }> = [
   { id: "explore", icon: "🏡", label: "Explorar ONGs", panel: { kind: "explore" } },
-  { id: "play", icon: "🎲", label: "Jogar", panel: { kind: "memory" } },
+  { id: "play", icon: "🎲", label: "Jogar", panel: { kind: "games" } },
   { id: "donation", icon: "🎄", label: "Doação global", panel: { kind: "donation" } },
+  { id: "invite", icon: "👥", label: "Indicar uma ONG", panel: { kind: "invite" }, primary: true },
 ];
 
 /** One zoom key press: 15% closer or farther. */
@@ -153,12 +155,15 @@ export function Hud() {
 
   return (
     <div className="hud">
-      <nav className="hud__top" aria-label="Vila">
+      <nav className="hud__top" aria-label="Vila" data-board="P01">
+        <div className="hud__brand">
+          <Wordmark compact />
+        </div>
         <EnvironmentChip />
         <div className="hud__nav">
           <div className="hud__group hud__paths" role="group" aria-label="Caminhos da Vila">
             {PATHS.map((path) => (
-              <button key={path.id} className="btn btn--chip" data-path={path.id} onClick={() => open(path.panel)}>
+              <button key={path.id} className={`btn btn--chip${path.primary ? " btn--primary" : ""}`} data-path={path.id} onClick={() => open(path.panel)}>
                 <span className="chip__icon" aria-hidden="true">
                   {path.icon}
                 </span>

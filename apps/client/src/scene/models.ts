@@ -1,8 +1,10 @@
 /** Code-generated voxel models: [x, y, z, colour]. Origin on the ground, model centred. */
+import { darkenHex, type Appearance } from "@vila/shared/game/appearance";
 import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
 import { PALETTE as P } from "@vila/shared/game/world";
 
 import { applyLayer, ITEMS, PALETTES } from "./gen/cosmetics";
+import { dedupe } from "./gen/parts";
 
 export type Voxel = [number, number, number, string];
 
@@ -173,16 +175,53 @@ export interface AvatarParts {
  * Avatar split into body and four limbs so it can walk (draw with AVATAR_SIZE). Front = +z. The look
  * (palette, sweater, scarf, hat) is a set of cosmetic layers painted onto the base body (IMPL-0010;
  * catalogue PROPOSTA). The default look is the original red coat and Santa hat. Avatar editor: P07 (DEC-032).
+ *
+ * Without `appearance` the body is exactly the original one (remote visitors and the geometry tests call it
+ * that way). With it, the base head, hair, skin, eyes and facial hair are drawn before the cosmetic layers:
+ * this is the player's own appearance, stored in this browser only.
  */
-export function avatarParts(look: Look = DEFAULT_LOOK): AvatarParts {
+export function avatarParts(look: Look = DEFAULT_LOOK, appearance?: Appearance): AvatarParts {
   const pal = PALETTES[look.palette] ?? PALETTES["palette-classic"];
   let body: Voxel[] = [];
   box(body, -1, 1, 3, 5, 0, 0, pal.coat); // torso
   box(body, -1, 1, 3, 3, 0, 0, pal.trim); // belt trim
-  box(body, -1, 1, 6, 8, -1, 1, P.skin); // head
-  body.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes
+  if (appearance) body = dedupe([...body, ...appearanceVoxels(appearance)]);
+  else {
+    box(body, -1, 1, 6, 8, -1, 1, P.skin); // head
+    body.push([-1, 7, 1.5, "#1D2B27"], [1, 7, 1.5, "#1D2B27"]); // eyes
+  }
   for (const slot of ["sweater", "scarf", "hat"] as const) body = applyLayer(body, ITEMS[look[slot]]?.() ?? null);
+  const skin = appearance?.skin ?? P.skin;
   const leg = (): Voxel[] => [[0, -3, 0, pal.pants], [0, -2, 0, pal.pants], [0, -1, 0, pal.pants]];
-  const arm = (): Voxel[] => [[0, -3, 0, P.skin], [0, -2, 0, pal.coat], [0, -1, 0, pal.coat]];
+  const arm = (): Voxel[] => [[0, -3, 0, skin], [0, -2, 0, pal.coat], [0, -1, 0, pal.coat]];
   return { body, legL: leg(), legR: leg(), armL: arm(), armR: arm() };
+}
+
+/** Head, hair, eyes, beard and mustache of one appearance, in avatar voxels (before the cosmetic layers). */
+function appearanceVoxels(a: Appearance): Voxel[] {
+  const v: Voxel[] = [];
+  for (let x = -1; x <= 1; x++)
+    for (let y = 6; y <= 8; y++)
+      for (let z = -1; z <= 1; z++) {
+        // "Redondo" cuts the four vertical corners of the head; the other bases keep the full cube.
+        if (a.base === "round" && Math.abs(x) === 1 && Math.abs(z) === 1) continue;
+        v.push([x, y, z, a.skin]);
+      }
+  if (a.base === "jaw") for (let x = -1; x <= 1; x++) v.push([x, 6, 2, a.skin]); // chin slab
+  v.push([-1, 7, 1.5, a.eyes], [1, 7, 1.5, a.eyes]);
+  // Hair: a top layer and the back of the head, below a hat and visible at its sides.
+  for (let x = -1; x <= 1; x++) for (let z = -1; z <= 1; z++) v.push([x, 9, z, a.hairColor]);
+  for (let x = -1; x <= 1; x++) for (let y = 7; y <= 8; y++) v.push([x, y, -2, a.hairColor]);
+  if (a.hair === "curly") {
+    const shade = darkenHex(a.hairColor);
+    for (const x of [-2, 2]) for (let y = 7; y <= 8; y++) for (let z = -1; z <= 1; z++) v.push([x, y, z, (y + z) % 2 === 0 ? a.hairColor : shade]);
+  }
+  if (a.hair === "long") for (let x = -1; x <= 1; x++) for (let y = 4; y <= 6; y++) v.push([x, y, -2, a.hairColor]);
+  // Facial hair, painted over the lower face (the mustache last, so both read when both are on).
+  if (a.beard) {
+    for (let x = -1; x <= 1; x++) v.push([x, 5, 1.5, a.hairColor]);
+    for (const x of [-1, 1]) v.push([x, 6, 1.5, a.hairColor]);
+  }
+  if (a.mustache) for (let x = -1; x <= 1; x++) v.push([x, 6, 1.5, a.hairColor]);
+  return v;
 }
