@@ -209,6 +209,14 @@ export function EnvironmentSettings() {
           Sem nomes e sem conversa: só bonecos anônimos andando. {NET_NOTE[net.status]}
         </p>
       </fieldset>
+      <fieldset className="env-fieldset">
+        <legend>Personagens da Vila</legend>
+        <label className="env-check">
+          <input type="checkbox" checked={s.characters} onChange={(e) => s.set({ characters: e.target.checked })} data-setting="characters" />
+          Mostrar os moradores e os animais da Vila
+        </label>
+        <p className="note">São personagens da própria Vila, com rotinas fixas. Não são outras pessoas e não guardam nada sobre você.</p>
+      </fieldset>
       <p className="note">Essas opções mudam só a aparência e o som neste aparelho, nunca o jogo.</p>
     </>
   );

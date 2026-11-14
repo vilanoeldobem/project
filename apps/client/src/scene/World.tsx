@@ -12,13 +12,14 @@ import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { ClickMarker } from "./ClickMarker";
 import { Ground } from "./Ground";
+import { VillageLife } from "./Life";
 import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
 import { RenderStats } from "./RenderStats";
 import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
-import { Critters, LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
+import { LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
 import { Billboards, Residences, Shops } from "./Village";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
@@ -61,8 +62,9 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <Lamps />
         <LightStrings />
         <Snowmen />
-        <Critters />
         <PlacedProps />
+        {/* The village's characters and animals (IMPL-0025): before the avatar, which asks who stands near. */}
+        <VillageLife />
         <Sleigh />
         <Lots info={lots} />
         <Shops />

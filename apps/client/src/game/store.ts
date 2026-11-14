@@ -21,7 +21,9 @@ export type Panel =
   // The expanded village (IMPL-0024, PROPOSTA): panels that say what is there today, no purchase and no claim.
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
-  | { kind: "billboard"; billboardId: string };
+  | { kind: "billboard"; billboardId: string }
+  // A character of the village (IMPL-0025, PROPOSTA): the fixed lines chosen when the dialogue opened.
+  | { kind: "life"; charId: string; name: string; role: string; lines: string[] };
 
 /**
  * The game menu (PROPOSTA, IMPL-0022): null = closed, otherwise the view on screen. It is not a `Panel` on
@@ -43,6 +45,8 @@ export type Nearby =
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
   | { kind: "billboard"; billboardId: string }
+  // A character of the village that stands near (IMPL-0025, PROPOSTA): offered only when nothing above is in reach.
+  | { kind: "life"; charId: string }
   | null;
 
 /** Two targets are the same thing: same kind and, where a kind has many, same id. Allocates nothing. */
@@ -62,6 +66,8 @@ export function sameNearby(a: Nearby, b: Nearby): boolean {
       return b.kind === "shop" && a.shopId === b.shopId;
     case "billboard":
       return b.kind === "billboard" && a.billboardId === b.billboardId;
+    case "life":
+      return b.kind === "life" && a.charId === b.charId;
     case "tree":
     case "donation-panel":
       return a.kind === b.kind;

@@ -270,6 +270,42 @@ uma migration nova. Decisão, números e o que fica para depois em
   layout, salvo o comprimento da 2. A regra não diz que a árvore é vista de todo terreno. Conferida em
   `shared/game/village.test.ts` para o plano em vigor; nas variações do plano, só a geometria.
 
+### 2.5 Vida na Vila (IMPL-0025, PROPOSTA)
+
+Trinta personagens e animais andam pela Vila. Nada disso passa pelo servidor: cada cliente calcula onde cada um
+está a partir do relógio sincronizado e da semente do mundo, que já tinha.
+
+- **Simulação compartilhada** (`shared/game/life.ts`, pura): `LIFE_CAST` é a tabela (quem, pontos, rotina por
+  horário, grupo); `compileLife(semente)` sorteia o que é de cada um (passo, quanto fica, pontos preferidos, faixa
+  na rua, fase do grupo); `sampleLife(vida, t)` devolve posição, direção, presença (0 = fora de cena), atividade,
+  ponto e distância andada de todos. O tempo de cada grupo é cortado em fatias; na fatia `k` o personagem vai de
+  `escolha(k − 1)` a `escolha(k)` (hash de semente, personagem e número da decisão, com os pesos da hora, da neve
+  e dos eventos do minuto em que a fatia começa) por uma polilinha fixa, em passo constante: forma fechada,
+  contínua no tempo, sem estado. Custa cerca de 0,5 µs por quadro para o elenco inteiro e não aloca.
+- **Caminhos** (`LIFE_PATHS`): o `PATH_GRAPH` sem as cordas da rua redonda e sem o nó sobre o lago, mais trilhas
+  em chão livre. Todo ponto e toda rota ficam em chão livre nos dois conjuntos de colisores; personagens cujos
+  caminhos se encontram formam um grupo e andam um de cada vez; grupos diferentes nunca chegam a menos de dois
+  corpos um do outro (`shared/game/life.test.ts`, estático e por amostragem de 24 h).
+- **No cliente** (`game/village-life.ts`): `tickLife` roda uma vez por quadro, antes do quadro do avatar: avalia a
+  simulação para a hora do quadro, decide quem é desenhado (distância ao avatar por preset, com histerese) e
+  calcula a pose. `game/life-reactions.ts` (pura) é a camada **local e só visual**: o personagem dá passagem aos
+  avatares, e reage ao do próprio visitante conforme o tipo. O desvio nunca passa de 1 u, volta a zero sozinho e
+  nunca é escrito na simulação; cada visitante vê a sua.
+- **Sem colisor.** Personagens não estão em `sceneColliders` nem na grade de navegação: o avatar atravessa o
+  lugar deles e eles saem da frente. É a exceção à regra do §2.2.
+- **Desenho** (`scene/Life.tsx`): uma malha para o elenco (`scene/life/castGeometry.ts`, 12 516 triângulos com
+  os 30), um passo no shader de vértice que lê uma textura de dados com uma linha por personagem
+  (`scene/life/lifeMaterial.ts`) e um buffer de índices só com quem está perto: uma chamada de desenho, duas com
+  a sombra. Os bonecos vêm de `scene/gen/cast.ts`.
+- **Conversar.** `Nearby` tem o tipo `life`; `pickNearby` recebe o personagem parado mais próximo (até 2,4 u) e o
+  oferece por último: nunca no lugar de um NPC de quest, de uma interação de quest, do atril, da árvore ou de um
+  terreno de ONG; contra porta de loja, placa ou terreno residencial ganha o mais próximo, e o empate é do lugar.
+  A ação abre `LifeDialog` (`ui/NpcDialog.tsx`) com as linhas de `lifeTalk` (`shared/game/life-dialogue.ts`)
+  escolhidas naquele momento. Um clique no personagem abre a fala de perto ou leva o avatar até ele
+  (`visitCharacter`, `game/clicks.ts`).
+- **Opção:** "Mostrar os moradores e os animais da Vila" (`environment/settings.ts`, `characters`), só neste
+  aparelho.
+
 ## 3. API (`apps/api/src`)
 
 | Módulo | Responsabilidade |
@@ -374,6 +410,7 @@ Cloudflare.
 | Pasta | Módulos | Usado por |
 |---|---|---|
 | `game/` | `world.ts`, `collision.ts`, `motion.ts`, `navigation.ts`, `progress.ts`, `quests.ts` | client, server (limites do mundo e velocidade na sala), api (`progress.ts`: XP no servidor e eventos de quest) |
+| `game/` | `life.ts`, `life-dialogue.ts` | client: onde está cada personagem da Vila num instante (`sampleLife`, função pura de semente, hora e plano) e as falas fixas de cada um (IMPL-0025). **O servidor de tempo real e a API não os importam** |
 | `accounts/` | `validate.ts` | client (formulários), api (mesmas regras e mensagens pt-BR do cadastro e da candidatura), dash (rótulos das áreas) |
 | `accounts/` | `files.ts` | api (autoridade), client e dash: tipos de arquivo da candidatura, limites, detecção do formato pelos bytes, limpeza de metadados de imagem e frases de erro (IMPL-0017) |
 | `accounts/` | `contract.ts`, `errors.ts` | client e dash: formas das respostas de conta e de análise, rótulos de situação, `ApiError` e a frase em pt-BR de cada código de erro |
@@ -497,6 +534,7 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Depois da revisão (floresta e montanhas desenhadas em pedaços): no spawn, 101 chamadas e ~113 mil triângulos; com o zoom todo afastado às 15:30, 113 e ~155 mil; o quadro mais caro de um roteiro a pé com o zoom todo afastado caiu de ~252 mil para ~196 mil triângulos, com no máximo 141 chamadas. Orçamento: 150 chamadas e 250 mil triângulos, que o `verify.mjs` confere no spawn com o zoom padrão e com o zoom todo afastado ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
 | Floresta e montanhas | Cada setor da floresta (8) é malhado como um modelo e desenhado em até 4 pedaços (pinheiros da praça, do cinturão, floresta em duas metades); as montanhas, em 8 setores. Cada pedaço é descartado pela câmera sozinho; os triângulos são os mesmos da malha inteira (`scene/voxelParts.test.ts`) |
 | Passada de sombra | Blocos residenciais (24) e pedaços da floresta só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
+| Vida na Vila (2026-11-13, IMPL-0025; Chrome com GPU, Média, spawn, 12:00 com neve) | 93 chamadas e ~139 mil triângulos (antes: 103 e ~113 mil): o elenco inteiro é uma chamada, duas com a sombra, e até ~12,5 mil triângulos por passada com os 30 na tela; a pior de 18 vistas tem 124 chamadas e ~196 mil triângulos. Avaliar a simulação: ~0,5 µs por quadro, sem alocar |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 
 Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;

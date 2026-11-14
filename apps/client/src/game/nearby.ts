@@ -6,6 +6,12 @@
  * by distance, with the listed order breaking near ties (`beats`); a shop door, a billboard or a residential
  * plot is offered only when none of those is in reach.
  *
+ * A character of the village (IMPL-0025) comes last: it is offered only when none of the first five kinds is
+ * in reach, and against a shop door, a billboard or a plot only when the avatar is closer to the character
+ * than to the place's point (a tie goes to the place). So a character that stands by the tree, a lot or a quest
+ * NPC never takes their action, and a place is always offered at its own point: to talk, walk up to the
+ * character itself, or click it.
+ *
  * Two rules keep the action from flickering on the long residential streets (IMPL-0024):
  *
  * - **A residential plot is offered only to an avatar that stands still.** Every plot of a row is a target, and
@@ -38,6 +44,23 @@ import type { Nearby } from "./store";
 export const NEARBY_KEEP = 0.6;
 /** A target of the same kind replaces the one on offer only when it is this much closer. */
 export const NEARBY_SWITCH = 0.5;
+/**
+ * A character is offered instead of a place in reach only when it is more than this much closer than the place's
+ * point: 0 = the nearer of the two, and the place on a tie. (The shopkeepers stand 1.2 u from their billboard's
+ * point: with any margin the keeper could hardly be talked to.)
+ */
+export const LIFE_OVER_PLACE = 0;
+/**
+ * The character of the village nearest to the avatar that can be talked to (`game/village-life.ts` fills it
+ * every frame): `near` and its distance when one is within talking reach, and how far the character on offer is.
+ */
+export interface LifeNearby {
+  near: Nearby;
+  dist: number;
+  previousDist: number;
+}
+/** How close the avatar stands to talk to a character (the same number as `LIFE_TALK_REACH`, kept here for the hold). */
+export const LIFE_REACH = 2.4;
 /** A residential plot is offered below this speed (u/s) and stays on offer below `PLOT_KEEP_SPEED`: standing still. */
 export const PLOT_STILL_SPEED = 0.2;
 export const PLOT_KEEP_SPEED = 0.6;
@@ -68,7 +91,7 @@ const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestP
 const found = { dist: 0, prio: 0 };
 
 /** The target by the plain rules, with no memory of what was on offer. Fills `found`. */
-function strict(x: number, z: number, speed: number, quests: boolean, progress: Progress): Nearby {
+function strict(x: number, z: number, speed: number, quests: boolean, progress: Progress, life: LifeNearby | null): Nearby {
   let best: Nearby = null;
   let bestDist = 0, bestPrio = 0;
   if (quests) {
@@ -103,6 +126,8 @@ function strict(x: number, z: number, speed: number, quests: boolean, progress: 
       if (dist < placeDist) (best = PLACES[i].near), (placeDist = dist), (bestPrio = i < FIRST_PLOT ? 6 : 7);
     }
     bestDist = placeDist;
+    // A character of the village: with no place in reach, or clearly closer than the place.
+    if (life?.near && life.dist < LIFE_REACH && (!best || life.dist + LIFE_OVER_PLACE < placeDist)) (best = life.near), (bestDist = life.dist), (bestPrio = 8);
   }
   found.dist = bestDist;
   found.prio = bestPrio;
@@ -110,8 +135,11 @@ function strict(x: number, z: number, speed: number, quests: boolean, progress: 
 }
 
 /** Rank of the kind of `previous` and its distance, when it may stay on offer; `Infinity` when it may not. */
-function kept(previous: NonNullable<Nearby>, x: number, z: number, speed: number, quests: boolean, progress: Progress): number {
+function kept(previous: NonNullable<Nearby>, x: number, z: number, speed: number, quests: boolean, progress: Progress, life: LifeNearby | null): number {
   switch (previous.kind) {
+    case "life":
+      // Still there, still standing (`previousDist` is infinite once it walks off or goes off stage).
+      return life && life.previousDist < LIFE_REACH + NEARBY_KEEP ? ((found.prio = 8), life.previousDist) : Infinity;
     case "npc": {
       const n = NPCS[NPC_OF.get(previous) ?? -1];
       const dist = n && quests ? Math.hypot(n.x - x, n.z - z) : Infinity;
@@ -148,13 +176,14 @@ function kept(previous: NonNullable<Nearby>, x: number, z: number, speed: number
 
 /**
  * The target for an avatar at `(x, z)` moving at `speed` (u/s). `previous` is the target on offer (as this
- * function returned it, or `null`): it is what the hysteresis holds on to.
+ * function returned it, or `null`): it is what the hysteresis holds on to. `life`: the character of the village
+ * that can be talked to from here, if any (IMPL-0025).
  */
-export function pickNearby(x: number, z: number, speed: number, quests: boolean, progress: Progress, previous: Nearby): Nearby {
-  const best = strict(x, z, speed, quests, progress);
+export function pickNearby(x: number, z: number, speed: number, quests: boolean, progress: Progress, previous: Nearby, life: LifeNearby | null = null): Nearby {
+  const best = strict(x, z, speed, quests, progress, life);
   if (!previous || best === previous) return best;
   const bestDist = found.dist, bestPrio = found.prio;
-  const dist = kept(previous, x, z, speed, quests, progress);
+  const dist = kept(previous, x, z, speed, quests, progress, life);
   if (dist === Infinity) return best;
   if (!best) return previous;
   const prio = found.prio;

@@ -824,3 +824,52 @@ Branch `fix/village-expansion-review` (PR #43), on top of `6678b70`. Client, tes
   the click on the scene.
 - An explicit test limit is sized on a busy machine, not on an idle one: the same test ran 4× slower here with
   other work going on, more than the CI runner's 2×.
+
+# Task: village life, phase 3 of the expansion (IMPL-0025, PROPOSTA) — 2026-11-13
+
+Walking Christmas characters and animals, the same for every visitor, with nothing on the realtime server.
+
+## Plan
+
+- [x] Shared model: position = pure function of (world seed, synchronized village time, village plan), closed
+      form per slot (`packages/shared/src/game/life.ts`); no network message, no Durable Object state, no D1
+- [x] One cast table (30 characters) with routines by hour, snow and events; the nine decorative critters reused
+      with their seeds; the five quest NPCs untouched
+- [x] No overlap by construction: own spots, groups that move one at a time, groups kept apart; open ground in
+      both collider sets; static and sampled tests
+- [x] Fixed pt-BR dialogue by context (`life-dialogue.ts`) with copy tests (no sale, price, pressure, personal data)
+- [x] Client: one mesh and one draw call for the cast, data texture, rigid parts turned in the vertex shader,
+      distance culling with hysteresis, quality presets, "less motion", a setting to hide the characters
+- [x] Local reaction layer: bounded per-viewer offset, decays, never written to the simulation; characters are
+      not obstacles
+- [x] One contextual action ("Conversar com …") ranked last; click walks or talks; moderation picking kept
+- [x] Docs: ADR IMPL-0025, OQ-20, architecture §2.5/§5/§10, content, CHANGELOG, AGENTS.md
+- [x] Gates and real-browser checks (`apps/client/scripts/verify-life.mjs`)
+
+## Review
+
+- The whole evaluation costs about 0.5 µs a frame for 30 characters and allocates nothing (the time is passed in
+  a field: a number argument is boxed by the engine, 16 bytes a call).
+- The render budget has more room than before: the cast is one draw call (two with its shadow), and the nine
+  decorative critters it replaces cost one or two each.
+- Not done: a measurement on a real phone; a browser run of moderation picking with a character in front of a
+  visitor (unit-tested with the ground's own handler); characters going into buildings for real; any AI.
+- Follow-up after the merge of PR #43 (2026-11-13): the click on a character goes through `pressScene` (a press
+  that picked a visitor neither walks nor talks); the lines say "está fechada" / "está fechado" and what a
+  character does today, never "ainda não" or what "vai" be; Santa is built larger, with belly, belt, beard and
+  sack, because the default avatar also wears red and a Santa hat; explicit limits on the slow tests.
+
+### Lessons
+
+- A companion that trails its leader on the leader's own path cuts across it at a hairpin: give it a parallel
+  path of its own and keep hairpins out of the leader's routes, then test every trip of the pair in time.
+- "Allocates nothing" is about the callee: measure with the argument in a field, or the engine's boxed number
+  shows up as 16 bytes a call.
+- A background tab does not run frames: compare two visitors by their clocks, not by their last frame.
+- A new action target that sits inside the reach of an older one (the tree, a shop door) needs its rank stated
+  and tested against every older kind, or it takes their button.
+- A character's line is copy like a panel's: "not yet" and "it will come from here" announce what nobody decided.
+  Say what is there and what the character does today, and let the test list the future forms it rejects.
+- A second handler for the same press drifts from the first: give a new click target the click only and let the
+  one press rule decide, then test with that rule's real handler.
+- Check a new character against the player's own default look before calling it recognisable.

@@ -563,4 +563,6 @@ compridas).
   da 0011. Testes: `apps/api/src/residential-plots.test.ts`, `apps/client/src/ui/Village.test.tsx`.
 - Referência: [architecture.md §2.2, §2.4 e §10](../reference/architecture.md), [storage.md](../reference/storage.md),
   [api.md](../reference/api.md), [deploy.md](../guides/deploy.md).
+- [IMPL-0025](0025-village-life.md) (fase 3): os personagens e animais que andam usam o `PATH_GRAPH`, os pontos
+  `ShopDef.keeper` e o `WOOD_YARD` deixados aqui; os moradores e bichos decorativos deixaram de ser colisores.
 - Perguntas ao dono do produto: [OQ-17, OQ-18, OQ-19](open-questions.md).

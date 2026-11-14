@@ -20,7 +20,7 @@ prazo oficial **30/11/2026** (DEC-043)
 
 | Tela (doc 20) | O que é | Status |
 |---|---|---|
-| P01 Praça + doação global | Praça voxel, árvore central, três entradas (Explorar ONGs, Jogar, Doação global) | **Parcial** — doação sem pagamento |
+| P01 Praça + doação global | Praça voxel, árvore central, três entradas (Explorar ONGs, Jogar, Doação global). Moradores, Papai Noel, duendes, lojistas, o lenhador e animais andam pela Vila com rotinas fixas, iguais para todos, como PROPOSTA ([IMPL-0025](docs/decisions/0025-village-life.md)) | **Parcial** — doação sem pagamento |
 | P02 Indicadores públicos | Indicadores com "—" quando não há fonte verificável | **Parcial** |
 | P03 Terrenos | 12 terrenos de ONG na fachada da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível. Em volta, lojas, placas e 112 terrenos residenciais como PROPOSTA (posse desligada, [IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md)) | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |

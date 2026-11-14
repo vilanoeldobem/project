@@ -17,6 +17,27 @@ const GREETING: Record<NpcId, string> = {
   storyteller: "Toda história começa com alguém que para para ouvir.",
 };
 
+/**
+ * What a character of the village says (IMPL-0025, PROPOSTA): two or three fixed lines, chosen when the dialogue
+ * opened (`game/village-life.ts`, `@vila/shared/game/life-dialogue`), and one button that closes it. Nothing to
+ * accept, nothing to answer, nothing that leads to a second screen. Quest NPCs keep `NpcDialog` below.
+ */
+export function LifeDialog({ charId, name, role, lines }: { charId: string; name: string; role: string; lines: string[] }) {
+  const close = useVila((s) => s.close);
+  return (
+    <Panel kicker={role} title={name} contentKey={charId}>
+      {lines.map((line, i) => (
+        <p key={i} className={i === 0 ? "lead" : undefined} data-life-line={i}>
+          {line}
+        </p>
+      ))}
+      <button className="btn btn--primary" onClick={close}>
+        Continuar
+      </button>
+    </Panel>
+  );
+}
+
 /** Published lots only: the visit quest never names an NGO that does not exist. */
 const hasPublishedLot = (lots: Record<string, LotInfo>) => Object.values(lots).some((l) => l.state === "published" && Boolean(l.ngo_name));
 

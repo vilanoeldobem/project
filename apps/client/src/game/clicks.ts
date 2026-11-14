@@ -49,7 +49,7 @@ export type PressOutcome = "picked" | "walked" | "left";
  * 1. `pick` is tried first, whatever is under the pointer: in moderation mode it selects the visitor the press
  *    is on (`selectVisitorAt`), and for everybody else it is always false. A press that picked does nothing
  *    else: no walk now, and nothing from the click that follows (`pickedVisitor`).
- * 2. A chalet, a shop, the tree, a lot or a villager stands in front of the ground: its own click decides
+ * 2. A chalet, a shop, the tree, a lot, a villager or a character of the village stands in front of the ground: its own click decides
  *    what this press does, and the ground walks nowhere (`groundIsFirst`).
  * 3. Open ground: the avatar walks to `(x, z)`.
  */
@@ -77,6 +77,21 @@ export function visit(spot: { x: number; z: number }, panel: Panel, reach: numbe
   if (pickedVisitor) return;
   if (Math.hypot(spot.x - sim.pose.x, spot.z - sim.pose.z) < reach) openFromScene(panel);
   else walkTo(spot.x, spot.z);
+}
+
+/**
+ * A click on a character of the village (IMPL-0025): from talking distance its dialogue opens; from farther
+ * away, or while it is walking, the avatar goes to stand `stand` u short of where it is (or of where it is
+ * going), on the avatar's side, and the action button offers the talk there. One click, one intention: an open
+ * dialogue leaves no walk behind it. A press that picked a visitor (moderation mode, `pressScene`) does neither.
+ */
+export function visitCharacter(spot: { x: number; z: number; ready: boolean }, panel: Panel | null, reach: number, stand: number): void {
+  if (pickedVisitor) return;
+  const dx = sim.pose.x - spot.x, dz = sim.pose.z - spot.z;
+  const dist = Math.hypot(dx, dz);
+  if (spot.ready && panel && dist < reach) return openFromScene(panel);
+  if (dist <= stand) return;
+  walkTo(spot.x + (dx / dist) * stand, spot.z + (dz / dist) * stand);
 }
 
 /** Where a ray meets the ground, or null when it never comes down to it. */
