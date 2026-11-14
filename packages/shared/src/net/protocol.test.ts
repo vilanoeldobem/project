@@ -69,6 +69,18 @@ describe("look messages", () => {
       expect(decodeClient(bad), bad).toBeNull();
     for (const bad of ['["k",4,"000000000z"]', '["k",4,["x","y","z","w"]]', '["k",4,"000000000"]']) expect(decodeServer(bad), bad).toBeNull();
   });
+
+  it("refuses a look that wears a paid item: previews are never shown to anyone (IMPL-0027)", async () => {
+    const { COSMETICS, DEFAULT_LOOK, isPaid, SLOTS } = await import("../game/cosmetics");
+    const { decodeClient, encodeLook } = await import("./protocol");
+    const paid = COSMETICS.filter(isPaid);
+    expect(paid.length).toBeGreaterThan(0);
+    for (const item of paid) {
+      expect(SLOTS).toContain(item.slot);
+      expect(decodeClient(encodeLook({ ...DEFAULT_LOOK, [item.slot]: item.id })), item.id).toBeNull();
+      expect(decodeServer(encodeServer({ t: "k", id: 4, look: { ...DEFAULT_LOOK, [item.slot]: item.id } })), item.id).toBeNull();
+    }
+  });
 });
 
 describe("activity report", () => {

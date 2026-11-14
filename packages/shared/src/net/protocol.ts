@@ -37,7 +37,7 @@
  * minute, answered or not; beyond that the room closes the sender with 1008. A removal is not a ban: the
  * removed visitor's client shows an honest message and waits before reconnecting, nothing more.
  */
-import { COSMETICS, type Look, type Slot, SLOTS } from "../game/cosmetics";
+import { COSMETICS, isPaid, type Look, type Slot, SLOTS } from "../game/cosmetics";
 import { MOTION } from "../game/motion";
 import { WORLD_RADIUS } from "../game/world";
 
@@ -120,8 +120,10 @@ const lookCode = (l: Look) =>
   }).join("");
 
 /**
- * Validates a look code: exactly one base36 index per slot, each one a real item of that slot. (Unlocks are
- * checked on the client and, with accounts, on the server; here only "is this a real item in the right slot".)
+ * Validates a look code: exactly one base36 index per slot, each one a real item of that slot that can be worn.
+ * A paid item is a preview only and is never equipped (IMPL-0027), so a look naming one is refused here: no other
+ * visitor ever sees it, whatever a modified client sends. (Unlocks of free items are checked on the client and,
+ * with accounts, on the server; here only "is this a wearable item in the right slot".)
  */
 export function parseLook(raw: unknown): Look | null {
   if (typeof raw !== "string" || raw.length !== SLOTS.length) return null;
@@ -129,7 +131,7 @@ export function parseLook(raw: unknown): Look | null {
   for (let i = 0; i < SLOTS.length; i++) {
     const index = Number.parseInt(raw[i] as string, 36);
     const item = Number.isInteger(index) ? slotItems(SLOTS[i] as Slot)[index] : undefined;
-    if (!item) return null;
+    if (!item || isPaid(item)) return null;
     out[SLOTS[i] as Slot] = item.id;
   }
   return out;
