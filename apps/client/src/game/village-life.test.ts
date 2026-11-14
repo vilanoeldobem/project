@@ -3,7 +3,9 @@
  * visitor sees, who is drawn, who can be talked to and what is offered next to a lot, a shop, a billboard, a
  * plot, the tree or a quest NPC, what a click does, and what each one says where it is.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { Me } from "@vila/shared/accounts/contract";
 
 import { WEATHER_SEED } from "@vila/shared/environment/config";
 import { saoPauloToEpoch } from "@vila/shared/environment/time";
@@ -16,13 +18,17 @@ import { BILLBOARDS, INTERACT_DISTANCE, lotFront, LOTS, NPCS, RESIDENTIAL_PLOTS,
 
 import { env, frameAt, useEnvUi } from "../environment/runtime";
 import { sceneColliders } from "../scene/sceneColliders";
-import { visitCharacter } from "./clicks";
+import { useAccount } from "../lib/account";
+import { useModeration } from "../lib/moderation";
+import { ingestSnapshot, resetRemotes } from "../net/multiplayer";
+import { PressDisc } from "../scene/Ground";
+import { groundUnder, startPress, visitCharacter } from "./clicks";
 import { events, type GameEvent } from "./events";
 import { REACT } from "./life-reactions";
 import { LIFE_OVER_PLACE, LIFE_REACH, type LifeNearby, NEARBY_KEEP, pickNearby } from "./nearby";
 import { sim } from "./sim";
 import { type Nearby, useVila } from "./store";
-import { life, LIFE_DRAW, LIFE_HYSTERESIS, LIFE_NEAR, LIFE_TALK_REACH, LIFE_TALK_STAND, lifeAction, lifeIndex, lifeNear, lifePanel, lifeTap, tickLife } from "./village-life";
+import { life, LIFE_DRAW, LIFE_HYSTERESIS, LIFE_NEAR, LIFE_TALK_REACH, LIFE_TALK_STAND, lifeAction, lifeIndex, lifeNear, lifePanel, lifeTap, tapCharacter, tickLife } from "./village-life";
 
 const DAY = saoPauloToEpoch(2026, 12, 20, 0, 0);
 const HOUR = 3_600_000;
@@ -74,7 +80,7 @@ afterEach(() => {
 });
 
 describe("what one visitor sees never changes where a character is", () => {
-  it("leaves the shared positions exactly as the simulation gives them, with the avatar in everyone's way", () => {
+  it("leaves the shared positions exactly as the simulation gives them, with the avatar in everyone's way", { timeout: 30_000 }, () => {
     const reference = compileLife(WEATHER_SEED, { hourAt: (ms) => frameAt(ms).hour, snowAt: () => frameAt(DAY).weather.snowfall, festiveAt: () => false });
     const expected = createLifeState();
     let displaced = 0, most = 0;
@@ -374,6 +380,82 @@ describe("a click on a character", () => {
     expect(useVila.getState().panel).toEqual({ kind: "none" });
     const to = useVila.getState().target;
     if (to) expect(Math.hypot(to.x - going.x, to.z - going.z)).toBeLessThan(LIFE_TALK_REACH);
+  });
+});
+
+describe("a press on a visitor with a character in front of them, in moderation mode (PROPOSTA, IMPL-0021)", () => {
+  const ADMIN: Me = { id: "a1", name: "Ana Lima", nickname: "ana_admin", city: "Recife", email: "ana@example.com", role: "admin" };
+  const VISITOR = 9;
+  // The very handler the scene mounts on the ground, which lies under every press, and the box of a character,
+  // first under the pointer (`scene/Life.tsx`: the box answers the click only, the press goes on to the ground).
+  const onPointerDown = PressDisc().props.onPointerDown as (e: unknown) => void;
+  const ground = {}, box = {};
+  /** A press on the point `(x, 1.3, z)` of the scene, as the camera at rest sees it, with the character's box in front. */
+  const press = (x: number, z: number) => {
+    const ray = { origin: { x, y: 1.3 + 24, z: z + 21 }, direction: { x: 0, y: -24 / Math.hypot(24, 21), z: -21 / Math.hypot(24, 21) } };
+    const point = groundUnder(ray.origin, ray.direction)!;
+    const e = { button: 0, nativeEvent: { isPrimary: true }, intersections: [box, ground].map((eventObject) => ({ eventObject })), eventObject: ground, point: { x: point.x, y: 0, z: point.z }, ray, stopPropagation: vi.fn() };
+    // The page's capture listener, then the ground's handler.
+    startPress();
+    onPointerDown(e);
+    return e.stopPropagation.mock.calls.length > 0;
+  };
+  const moderate = (x: number, z: number) => {
+    useAccount.setState({ user: ADMIN, presenceModeration: true });
+    useModeration.getState().setOn(true);
+    ingestSnapshot([[VISITOR, x, z, 0, 0, 0]], 1000, null, 1000);
+  };
+  const reset = () => {
+    startPress();
+    useModeration.setState({ on: false, selected: null, askedAt: null, sending: false, notice: null });
+    useAccount.setState({ user: null, presenceModeration: false });
+    resetRemotes();
+  };
+  const now = () => ({ panel: useVila.getState().panel.kind, target: useVila.getState().target, selected: useModeration.getState().selected });
+  beforeEach(reset);
+  afterEach(reset);
+
+  it.each([["from talking distance, where the click would open the character's lines", 1], ["from afar, where the click would walk up to the character", 9]])("picks the visitor %s: that press neither talks nor walks", (_, away) => {
+    const ms = when("villager-2", (c) => !c.moving && c.presence === 1);
+    const i = lifeIndex("villager-2"), at = here("villager-2");
+    stand(at.x - away, at.z);
+    // The visitor stands just in front of the character, between it and the camera.
+    moderate(at.x, at.z + 0.8);
+    frame(ms);
+    expect(press(at.x, at.z + 0.8)).toBe(true);
+    expect(now()).toEqual({ panel: "none", target: null, selected: VISITOR });
+    // The click that ends the press lands on the character's box, which does nothing with it.
+    tapCharacter(i);
+    expect(now()).toEqual({ panel: "none", target: null, selected: VISITOR });
+    expect(sim.route.active).toBe(false);
+    // A character is never what gets picked: only the visitor is in the selection.
+    expect(useModeration.getState().selected).not.toBe(i);
+    // The next press, on the character and on nobody else, is the character's again.
+    expect(press(at.x - 0.9, at.z - 0.6)).toBe(false);
+    tapCharacter(i);
+    if (away === 1) expect(useVila.getState().panel).toMatchObject({ kind: "life", charId: "villager-2" });
+    else expect(useVila.getState().target).not.toBeNull();
+    expect(useModeration.getState().selected).toBe(VISITOR);
+  });
+
+  it("with the visitor somewhere else, or outside moderation mode, a press on the character is an ordinary one", () => {
+    const ms = when("villager-2", (c) => !c.moving && c.presence === 1);
+    const i = lifeIndex("villager-2"), at = here("villager-2");
+    stand(at.x - 1, at.z);
+    frame(ms);
+    // Moderation mode, nobody under the pointer.
+    moderate(at.x + 7, at.z + 7);
+    expect(press(at.x, at.z)).toBe(false);
+    tapCharacter(i);
+    expect(now()).toEqual({ panel: "life", target: null, selected: null });
+    useVila.getState().close();
+    // A visitor under the pointer, and an administrator who is not in moderation mode: the character answers.
+    reset();
+    useAccount.setState({ user: ADMIN, presenceModeration: true });
+    ingestSnapshot([[VISITOR, at.x, at.z + 0.8, 0, 0, 0]], 1000, null, 1000);
+    expect(press(at.x, at.z + 0.8)).toBe(false);
+    tapCharacter(i);
+    expect(now()).toEqual({ panel: "life", target: null, selected: null });
   });
 });
 

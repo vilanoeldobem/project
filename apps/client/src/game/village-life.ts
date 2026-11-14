@@ -11,6 +11,7 @@ import { ROOM_CAPACITY } from "@vila/shared/net/protocol";
 
 import { env, frameAt, useEnvUi, worldNow } from "../environment/runtime";
 import { remotes } from "../net/multiplayer";
+import { visitCharacter } from "./clicks";
 import { createReactions, forget, react, REACT, type Reactions } from "./life-reactions";
 import { sim } from "./sim";
 import type { Nearby, Panel } from "./store";
@@ -245,6 +246,16 @@ export function lifeTap(i: number): { x: number; z: number; ready: boolean } {
   const moving = s.moving[i] === 1;
   const x = moving ? c.sx[s.spot[i]] : life.x[i], z = moving ? c.sz[s.spot[i]] : life.z[i];
   return { x, z, ready: talkable(i) };
+}
+
+/**
+ * A click on character `i` (the handler `scene/Life.tsx` mounts on the boxes that take the clicks): talk from
+ * talking distance, walk up to it from farther away. The press that led to the click went through the ground
+ * first (`pressScene`): when it picked a visitor, in moderation mode, this does nothing.
+ */
+export function tapCharacter(i: number): void {
+  const def = LIFE_CAST[i];
+  if (def) visitCharacter(lifeTap(i), lifePanel(def.id), LIFE_TALK_REACH, LIFE_TALK_STAND);
 }
 
 /** Name on the action button for a character ("Conversar com …"), or null for an animal. */

@@ -6,9 +6,7 @@ import { isPerson, LIFE, LIFE_CAST } from "@vila/shared/game/life";
 
 import { env } from "../environment/runtime";
 import { useEnvSettings, usePreset, useQuality } from "../environment/settings";
-import { visitCharacter } from "../game/clicks";
-import { life, LIFE_COUNT, LIFE_TALK_REACH, LIFE_TALK_STAND, lifePanel, lifeTap, tickLife } from "../game/village-life";
-import { selectVisitorAt } from "../lib/moderation";
+import { life, LIFE_COUNT, tapCharacter, tickLife } from "../game/village-life";
 import { castRig } from "./gen/cast";
 import { buildCast, packVisible } from "./life/castGeometry";
 import { LIFE_TEXTURE_WIDTH, lifeMaterials, lifeTexture } from "./life/lifeMaterial";
@@ -34,9 +32,11 @@ const UNIT_BOX = new BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
  *   hysteresis, so nobody flickers on the edge), and holds no triangle of anyone else.
  * - Where they are comes from the shared simulation (`game/village-life.ts`); they are not obstacles and they
  *   are not in the camera's occlusion test (a villager is too small to hide the avatar).
- * - A click on a person walks the avatar to it or, from talking distance, opens its few lines. The boxes that
- *   take the click are invisible and cost no draw call. In moderation mode a click that lands on another
- *   visitor's avatar selects that visitor, never a character.
+ * - A click on a person walks the avatar to it or, from talking distance, opens its few lines (`tapCharacter`).
+ *   The boxes that take the click are invisible and cost no draw call, and they answer the click only: the
+ *   press goes on to the ground under them, which decides first (`pressScene`, `game/clicks.ts`). So in
+ *   moderation mode a press on another visitor's avatar picks that visitor, with a character in front or
+ *   behind, and that press neither walks to the character nor talks with it.
  */
 export function VillageLife() {
   const on = useEnvSettings((s) => s.characters);
@@ -45,8 +45,6 @@ export function VillageLife() {
   const mesh = useRef<Mesh>(null);
   const picks = useRef<InstancedMesh>(null);
   const version = useRef(-1);
-  /** A press that selected a visitor (moderation): the click that follows it is not for the character. */
-  const taken = useRef(false);
 
   const cast = useMemo(() => {
     const rigs = LIFE_CAST.map((c) => castRig(c.kind, c.seed));
@@ -135,17 +133,11 @@ export function VillageLife() {
         ref={picks}
         args={[UNIT_BOX, UNSEEN, LIFE.maxPopulation]}
         frustumCulled={false}
-        onPointerDown={(e) => {
-          // Moderation mode only (IMPL-0021): the visitor under the pointer is selected, as on the ground.
-          taken.current = selectVisitorAt(e.ray.origin, e.ray.direction);
-          if (taken.current) e.stopPropagation();
-        }}
         onClick={(e) => {
           const i = character(e);
           if (i < 0) return;
           e.stopPropagation();
-          if (taken.current) return void (taken.current = false);
-          visitCharacter(lifeTap(i), lifePanel(LIFE_CAST[i].id), LIFE_TALK_REACH, LIFE_TALK_STAND);
+          tapCharacter(i);
         }}
       />
     </>
