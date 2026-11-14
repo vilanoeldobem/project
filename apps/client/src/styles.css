@@ -196,7 +196,7 @@ kbd {
 }
 
 /* Panels */
-.backdrop { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(12, 53, 42, 0.35); z-index: 20; }
+.backdrop { position: fixed; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: 16px; background: rgba(12, 53, 42, 0.35); z-index: 20; }
 .panel {
   width: min(520px, 100%); max-height: calc(100dvh - 32px); display: flex; flex-direction: column;
   background: var(--cream); border: 3px solid var(--pine); border-radius: 18px; box-shadow: var(--shadow); outline: none;
@@ -443,12 +443,8 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 .gallery__stats th, .gallery__stats td { padding: 2px 6px; text-align: left; border-bottom: 1px solid rgba(255, 249, 237, 0.15); }
 .gallery__perf { margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 
-/* Avatar look picker (Aparência panel, "Visuais" tab) */
-.look__slot { border: 0; padding: 0; margin: 8px 0 0; }
-.look__slot legend { font-weight: 800; font-size: 0.9rem; margin-bottom: 4px; }
+/* Choice rows (NGO application, Pix amount). */
 .look__options { display: flex; flex-wrap: wrap; gap: 6px; }
-.look__item.is-on { outline: 2px solid var(--gold); }
-.look__item:disabled { opacity: 0.55; cursor: not-allowed; }
 
 /* Character appearance (P07): the portrait and the swatches. */
 .avatar-preview { display: flex; justify-content: center; padding: 10px 0 2px; }
@@ -533,3 +529,53 @@ body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px
 .moderation h4 { margin: 12px 0 4px; color: var(--pine); font-size: 0.95rem; }
 .moderation__photo { max-width: 100%; max-height: 180px; border-radius: 10px; border: 2px solid var(--sheet-line); }
 .hud__system .btn--chip.is-on { background: var(--red); border-color: #6e2626; color: var(--cream); box-shadow: 0 3px 0 #6e2626; }
+
+/* ------------------------------------------------ P08 provador and inventory (IMPL-0027) */
+.wardrobe { display: block; }
+.wardrobe__preview { min-width: 0; }
+.wardrobe__body { min-width: 0; }
+.wardrobe__portrait { display: flex; justify-content: center; padding: 8px 0 4px; }
+.wardrobe__portrait svg { max-width: 100%; height: auto; }
+.wardrobe__caption { margin: 0 0 6px; text-align: center; font-weight: 900; color: var(--pine); }
+.wardrobe__inventory { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 0 0 6px; }
+.wardrobe__inventory .note { margin: 0; }
+.category-tabs { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px 0 6px; }
+.category-tabs button {
+  display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-width: 88px; min-height: 64px; padding: 6px 10px;
+  border: 2px solid var(--sheet-line); border-radius: 14px; background: var(--cream);
+  color: var(--pine); font: inherit; font-size: 0.82rem; font-weight: 800; cursor: pointer;
+}
+.category-tabs button span:first-child { font-size: 1.35rem; line-height: 1; }
+.category-tabs button[aria-pressed="true"] { border-color: var(--pine); background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
+.item-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px;
+  padding: 0; margin: 0; list-style: none;
+}
+.item-card {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  padding: 10px; border: 2px solid var(--sheet-line); border-radius: 16px; background: var(--cream);
+}
+.item-card[data-state="equipped"] { border-color: var(--gold); background: color-mix(in srgb, var(--cream) 86%, var(--gold)); }
+.item-card__thumb {
+  display: grid; justify-items: center; gap: 4px; min-height: 44px; padding: 4px;
+  border: 0; border-radius: 12px; background: transparent; color: var(--pine);
+  font: inherit; font-size: 0.82rem; font-weight: 800; text-align: center; cursor: pointer;
+}
+.item-card__thumb:hover { background: color-mix(in srgb, var(--cream) 80%, var(--gold)); }
+.item-card__thumb svg { max-width: 100%; height: auto; }
+.item-card__chip { padding: 1px 8px; border-radius: 999px; background: var(--cream-2); color: var(--pine); font-size: 0.7rem; font-weight: 900; }
+.item-card__chip--paid { background: var(--red); color: var(--cream); }
+.item-card__state { min-height: 1.1em; margin: 0; font-size: 0.76rem; line-height: 1.25; color: var(--ink-2); }
+.wardrobe .btn { min-height: 44px; width: 100%; }
+@media (min-width: 760px) {
+  .wardrobe { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr); gap: 16px; align-items: start; }
+}
+@media (max-width: 759px) {
+  .category-tabs { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; }
+  .wardrobe__preview {
+    position: sticky; top: 0; z-index: 1; background: var(--cream); padding-bottom: 4px;
+    box-shadow: 0 6px 10px -8px rgba(35, 31, 26, 0.45);
+  }
+  .item-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

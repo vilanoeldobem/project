@@ -6,6 +6,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_LOOK, wear } from "@vila/shared/game/cosmetics";
+
 import css from "../styles.css?raw";
 
 let storage: Map<string, string>;
@@ -283,5 +285,48 @@ describe("zoom without buttons", () => {
     for (let i = 0; i < 20; i++) useVila.getState().zoomBy(1.15);
     expect(useVila.getState().zoom).toBe(ZOOM_MAX);
     expect((await load()).useVila.getState().zoom).toBe(ZOOM_MAX);
+  });
+});
+
+describe("the avatar look (P08, IMPL-0027)", () => {
+  const progress = (completed: Record<string, true>, xp = 0) => JSON.stringify({ xp, counters: {}, completed, seen: {} });
+
+  it("migrates the four-slot look to the ten slots and removes the old key", async () => {
+    storage.set("vila.progress.v2", progress({ "explore-gifts": true, "play-memory": true }, 110));
+    storage.set(
+      "vila.look.v1",
+      JSON.stringify({ hat: "hat-beanie", scarf: "scarf-stripes", sweater: "sweater-snowflake", palette: "palette-night" })
+    );
+    const { useVila } = await load();
+    expect(useVila.getState().look.helmet).toBe("helmet-beanie");
+    expect(useVila.getState().look.blouse).toBe("blouse-snowflake");
+    expect(useVila.getState().look.dress).toBe("dress-none");
+    expect(storage.has("vila.look.v2")).toBe(true);
+    expect(storage.has("vila.look.v1")).toBe(false);
+  });
+
+  it("falls back to the defaults when the stored look names a paid item", async () => {
+    storage.set("vila.look.v2", JSON.stringify({ ...DEFAULT_LOOK, helmet: "helmet-crown" }));
+    const { useVila } = await load();
+    expect(useVila.getState().look).toEqual(DEFAULT_LOOK);
+  });
+
+  it("equips a free item, writes v2, and lets a blouse take the dress off", async () => {
+    storage.set("vila.progress.v2", progress({ "explore-gifts": true }));
+    const { useVila } = await load();
+    useVila.getState().setLook(wear(useVila.getState().look, "dress-red"));
+    expect(useVila.getState().look.dress).toBe("dress-red");
+    expect(useVila.getState().look.blouse).toBe("blouse-plain");
+    expect(JSON.parse(storage.get("vila.look.v2")!).dress).toBe("dress-red");
+    useVila.getState().setLook(wear(useVila.getState().look, "blouse-stripes"));
+    expect(useVila.getState().look.dress).toBe("dress-none");
+    expect(useVila.getState().look.blouse).toBe("blouse-stripes");
+  });
+
+  it("summarises a wave of new items in the mission notice", async () => {
+    const { useVila } = await load();
+    useVila.getState().record("explore-gifts", "a");
+    useVila.getState().record("explore-gifts", "b");
+    expect(useVila.getState().toast?.text).toMatch(/Novo visual: .+ e mais 17$/);
   });
 });

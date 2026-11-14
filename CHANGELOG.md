@@ -44,6 +44,26 @@ Cada versão indica o schema D1 que entrega.
   onde vai sair; o desvio local de um personagem largo (Papai Noel, renas) é validado com o raio do próprio corpo,
   não com o do avatar.
 
+### Added — o provador P08: dez categorias, 100 itens, inventário e prévia (IMPL-0027, **PROPOSTA**; sem schema novo)
+
+- **O catálogo de visuais passa a ter as dez categorias da P08** (capacete, blusa, calça, vestido, sapato, costas,
+  rosto, mão esquerda, mão direita e especial), com **100 entradas**: 80 gratuitas liberadas por missão ou nível 2 e
+  20 pagas. O item "sem item" existe nas seis categorias em que faz sentido; um vestido repõe blusa e calça e vestir
+  blusa/calça tira o vestido. Os modelos de voxels são explícitos e cabem no orçamento de 40 voxels / 140 faces.
+- **As quatro lojas abrem o provador da Vila** sem deixar de estar fechadas: categorias da loja, retrato com prévia,
+  dez cartões por categoria, "Em uso", requisito dos itens fechados, "Equipar", o inventário ("No inventário: X de
+  80 visuais gratuitos") e "Só o que eu tenho". Nada é vendido e a loja continua dizendo que está fechada.
+- **O cartão pago só mostra "Pago" e "Ver compra"**, que revela "A compra de visuais não está disponível."; não há
+  preço, moeda, desconto, contagem regressiva nem pagamento simulado. A compra paga real é o D21 e continua bloqueada
+  pela PEN-022. "Visuais pagos são compras de aparência. Doações são separadas."
+- **O visual mudou para `vila.look.v2`** e migra uma vez o `vila.look.v1` (`hat`→`helmet`, `sweater`→`blouse`;
+  `scarf`/`palette` saem). A presença leva o look em `["k", código]`, um índice base36 por slot (o padrão é
+  `0000000000`), dentro dos 96 bytes da mensagem.
+- **Verificação:** `scripts/verify-shop.mjs` entra nas quatro lojas em 1440×900 e 390×844, confere 10 itens por
+  categoria, prévia sem equipar, equipar com persistência, a troca de capacete, a regra vestido ↔ blusa/calça, o
+  cartão pago sem preço e o item fechado com requisito; `verify.mjs` cobre o painel da loja e o orçamento, e
+  `verify-boards.mjs` captura a P08.
+
 ### Added — as pranchas P01–P15 na interface do jogo (IMPL-0026, **PROPOSTA**; sem mudança de schema, de rota ou de protocolo)
 
 - **A barra do topo tem a marca e quatro caminhos.** A tela de jogo volta a mostrar a marca provisória e ganha

@@ -6,6 +6,7 @@ import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { fetchResidentialPlots, type PlotState } from "../lib/api";
 import { Panel } from "./Panel";
+import { Wardrobe } from "./Wardrobe";
 
 /**
  * Panels of the expanded village (IMPL-0024, PROPOSTA): a residential plot, a shop and a billboard. Each one
@@ -87,17 +88,19 @@ export function PlotPanelView({ plot, enabled, state, level, quests }: { plot: R
 }
 
 /**
- * Shop: its name, its theme and that it is closed. No catalogue, and no promise of one: "ainda não abriu" would
- * announce an opening that nobody decided.
+ * Shop: its name, its theme and that the shop is closed. At its door the village's provador opens the free
+ * wardrobe (P08/IMPL-0027): the visitor tries and equips what they already own; paid cards only read
+ * "Ver compra" and say the purchase is not available. The store itself is still closed and nothing is sold.
  */
 export function ShopPanel({ shopId }: { shopId: string }) {
   if (!SHOPS.some((s) => s.id === shopId)) return null;
   const { name, theme } = shopCopy(shopId);
   return (
-    <Panel kicker="Loja de Natal" title={name}>
+    <Panel board="P08" sheet icon="🪞" kicker="Loja de Natal" title={name} subtitle="Provador da Vila">
       <div data-shop-id={shopId}>
-        <p className="lead">Esta loja está fechada.</p>
-        <p>Tema: {theme}. Se e como ela vai funcionar ainda não foi decidido.</p>
+        <p className="lead">Esta loja está fechada. O provador é grátis: experimente os visuais e equipe o que já é seu.</p>
+        <p className="note">Tema: {theme}.</p>
+        <Wardrobe shopId={shopId} />
         <p className="note">Nada é vendido na Vila.</p>
       </div>
     </Panel>

@@ -177,7 +177,7 @@ for (const [name, time, weather, zoom] of [
   // [what, where the avatar stands (the south shop's door, its billboard's point, the front of economy-21),
   //  the action, the panel's title, sentences the panel must show]
   const places = [
-    ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja está fechada.", "Se e como ela vai funcionar ainda não foi decidido.", "Nada é vendido na Vila."]],
+    ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja está fechada.", "O provador é grátis", "Nada é vendido na Vila."]],
     ["billboard", 8.4, 25.5, /Ler placa/, "Placa 2", ["As placas mostram avisos da própria Vila.", "No telhado da loja Oficina de Brinquedos"]],
     ["plot", -4.5, 67.75, /Ver terreno residencial/, "Terreno 21 · Bairro da Floresta", ["Os terrenos residenciais não têm dono.", "A casa neste terreno é cenário: ninguém mora nela."]],
   ];
@@ -201,7 +201,9 @@ for (const [name, time, weather, zoom] of [
       if (!flagOn && !text.includes("A posse por jogadores é uma proposta em estudo e ainda não foi decidida.")) errors.push(`village: the plot panel is not the neutral one: "${text}"`);
       if (!flagOn && /nível|requisito/i.test(text)) errors.push(`village: the plot panel shows a requirement with ownership off: "${text}"`);
     }
-    if ((await dialog.getByRole("button").count()) !== 1) errors.push(`village: the ${what} panel has a button besides "Fechar"`);
+    // The shop panel hosts the provador (P08): its categories and items are buttons. The plot and the
+    // billboard keep the single-close-button rule.
+    if (what !== "shop" && (await dialog.getByRole("button").count()) !== 1) errors.push(`village: the ${what} panel has a button besides "Fechar"`);
     await page.screenshot({ path: `${out}village-${what}.png` });
     await page.keyboard.press("Escape");
     // Opening a panel leaves no walk behind it.
@@ -300,11 +302,14 @@ for (const [name, time, weather, zoom] of [
   await page.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
   await page.getByRole("button", { name: "Abrir aparência" }).first().dispatchEvent("click");
   await page.getByRole("dialog", { name: "Aparência do personagem" }).getByRole("tab", { name: "Visuais", exact: true }).click();
-  const beanie = page.getByRole("button", { name: "Gorro de tricô" });
-  if (await beanie.isDisabled()) errors.push("cosmetics: beanie still locked after the gifts mission");
-  await beanie.dispatchEvent("click");
-  if ((await beanie.getAttribute("aria-pressed")) !== "true") errors.push("cosmetics: beanie not selected");
-  if (!(await page.getByRole("button", { name: /Coroa de azevinho/ }).isDisabled())) errors.push("cosmetics: level-2 item unlocked too early");
+  const beanie = page.locator('[data-item-id="helmet-beanie"]');
+  const equip = beanie.getByRole("button", { name: "Equipar", exact: true });
+  if (await equip.isDisabled()) errors.push("cosmetics: beanie still locked after the gifts mission");
+  await equip.click();
+  if ((await beanie.getAttribute("data-state")) !== "equipped") errors.push("cosmetics: beanie not equipped");
+  const locked = (id) => page.locator(`[data-item-id="${id}"]`).getByRole("button", { name: "Equipar", exact: true });
+  if (!(await locked("helmet-holly").isDisabled())) errors.push("cosmetics: causes-mission item unlocked too early");
+  if (!(await locked("helmet-antlers").isDisabled())) errors.push("cosmetics: level-2 item unlocked too early");
   await page.screenshot({ path: `${out}gameplay-look-panel.png` });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(1500);

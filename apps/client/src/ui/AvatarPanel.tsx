@@ -1,8 +1,9 @@
 /**
- * Appearance of the character (P07) and the free wardrobe (P08), in one sheet: the "Aparência" tab edits a
- * draft and saves it to this browser; the "Visuais" tab wears the cosmetics unlocked by missions (nothing is
- * sold, nothing here is bought). Appearance is local by design (see IMPL-0026): the presence room carries the
- * cosmetic look only, so the note under the portrait says what others see.
+ * Appearance of the character (P07) and the provador/inventory (P08), in one sheet: the "Aparência" tab edits
+ * a draft and saves it to this browser; the "Visuais" tab is the shared `Wardrobe`, with the ten categories,
+ * the free items unlocked by playing and the paid cards that show only "Ver compra" (nothing is sold here).
+ * Appearance is local by design (see IMPL-0026): the presence room carries the cosmetic look only, so the
+ * note under the portrait says what others see.
  */
 import { useState } from "react";
 
@@ -19,16 +20,14 @@ import {
   SKIN_COLORS,
   type Appearance,
 } from "@vila/shared/game/appearance";
-import { COSMETICS, isUnlocked, requirement, SLOTS, type Slot } from "@vila/shared/game/cosmetics";
 import { useVila } from "../game/store";
 import { AvatarPortrait } from "./AvatarPortrait";
+import { Wardrobe } from "./Wardrobe";
 import { Panel } from "./Panel";
 import { SheetSection, SheetTabs } from "./sheet";
 
 const TABS = ["Aparência", "Visuais"] as const;
 type Tab = (typeof TABS)[number];
-
-const SLOT_LABEL: Record<Slot, string> = { hat: "Chapéu", scarf: "Cachecol", sweater: "Suéter", palette: "Cores" };
 
 type ColorField = "hairColor" | "skin" | "eyes";
 
@@ -79,9 +78,11 @@ export function AvatarPanel() {
 
   return (
     <Panel board="P07" sheet icon="🎨" title="Aparência do personagem" subtitle="Não são dados da conta.">
-      <div className="avatar-preview">
-        <AvatarPortrait look={look} appearance={draft} size={13} label="Seu personagem" />
-      </div>
+      {tab === "Aparência" && (
+        <div className="avatar-preview">
+          <AvatarPortrait look={look} appearance={draft} size={13} label="Seu personagem" />
+        </div>
+      )}
       <p className="note">Sua aparência vale neste navegador; os outros visitantes veem o seu visual da Vila.</p>
 
       <SheetTabs label="Aparência e visuais" tabs={TABS} value={tab} onChange={setTab} />
@@ -181,42 +182,5 @@ export function AvatarPanel() {
         <Wardrobe />
       )}
     </Panel>
-  );
-}
-
-/**
- * Avatar look (PROPOSTA): items unlock only by completing missions or reaching levels — never by buying,
- * drawing lots or time online. Locked items say exactly how to get them.
- */
-function Wardrobe() {
-  const p = useVila((s) => s.progress);
-  const look = useVila((s) => s.look);
-  const setLook = useVila((s) => s.setLook);
-  return (
-    <section className="track look">
-      {SLOTS.map((slot) => (
-        <fieldset key={slot} className="look__slot">
-          <legend>{SLOT_LABEL[slot]}</legend>
-          <div className="look__options">
-            {COSMETICS.filter((c) => c.slot === slot).map((c) => {
-              const open = isUnlocked(c, p);
-              return (
-                <button
-                  key={c.id}
-                  className={`btn btn--chip look__item${look[slot] === c.id ? " is-on" : ""}`}
-                  aria-pressed={look[slot] === c.id}
-                  disabled={!open}
-                  title={open ? c.name : requirement(c)}
-                  onClick={() => setLook({ [slot]: c.id })}
-                >
-                  {open ? c.name : `🔒 ${c.name}`}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      ))}
-      <p className="note">Visuais novos chegam ao concluir missões e subir de nível. Nada aqui se compra.</p>
-    </section>
   );
 }

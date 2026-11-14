@@ -32,6 +32,7 @@ node apps/client/scripts/verify-life.mjs http://localhost:8799         # village
 node apps/client/scripts/verify-recovery.mjs http://localhost:8799     # 3D village unavailable: blocked chunk, no WebGL, lost context (local only)
 node apps/client/scripts/verify-fullroom.mjs                           # 40 people in one room, distinct/shared looks, render budget (local only; needs the server)
 node apps/client/scripts/verify-boards.mjs http://localhost:8799       # the P01–P15 screens at 1440 and 390, screenshots (local only)
+node apps/client/scripts/verify-shop.mjs http://localhost:8799         # the P08 provador: four shops, preview, equip, inventory (local only)
 # after a deploy only (not a pre-merge gate; verify.mjs above is local only):
 node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
