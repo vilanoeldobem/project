@@ -16,6 +16,7 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const url = process.argv[2] ?? "http://localhost:8799";
@@ -78,7 +79,8 @@ const errors = [];
 const report = [];
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
 page.on("pageerror", (e) => errors.push(`page: ${e.message}`));
-page.on("console", (m) => m.type() === "error" && errors.push(`console: ${m.text()}`));
+page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`console: ${m.text()}`));
+await isolateAnalytics(page);
 await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
 await page.goto(url, { waitUntil: "load" });
 await page.waitForSelector("canvas", { timeout: 20000 });
