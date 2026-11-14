@@ -15,7 +15,8 @@ function triangles(g: BufferGeometry | null): string[] {
   if (!g) return [];
   const position = g.getAttribute("position"), color = g.getAttribute("color"), center = g.getAttribute("aCenter");
   const index = g.getIndex()!;
-  const corner = (i: number) => [position.getX(i), position.getY(i), position.getZ(i), color.getX(i), color.getY(i), color.getZ(i), center.getX(i), center.getY(i), center.getZ(i)].map((n) => n.toFixed(4)).join(",");
+  // Only the animated roles carry the voxel centre (`needsCenter`); the solid trunks have none.
+  const corner = (i: number) => [position.getX(i), position.getY(i), position.getZ(i), color.getX(i), color.getY(i), color.getZ(i), ...(center ? [center.getX(i), center.getY(i), center.getZ(i)] : [])].map((n) => n.toFixed(4)).join(",");
   const out: string[] = [];
   for (let t = 0; t < index.count; t += 3) out.push([corner(index.getX(t)), corner(index.getX(t + 1)), corner(index.getX(t + 2))].join("|"));
   return out;

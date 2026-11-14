@@ -22,7 +22,7 @@ export interface CastBuffers {
 }
 
 export function buildCast(rigs: readonly Rig[], toLinear: (css: string) => [number, number, number]): CastBuffers {
-  const meshes = rigs.map((rig) => rig.parts.map((part) => ({ part, data: meshVoxels(part.voxels, { size: rig.size, toLinear })[0] })));
+  const meshes = rigs.map((rig) => rig.parts.map((part) => ({ part, data: meshVoxels(part.voxels, { size: rig.size, toLinear, centers: new Set() })[0] })));
   let vertices = 0, indexCount = 0;
   for (const parts of meshes) for (const { data } of parts) (vertices += data.faces * 4), (indexCount += data.faces * 6);
   const out: CastBuffers = {

@@ -17,6 +17,6 @@ export const BUDGETS: Record<Category, { voxels: number; faces: number }> = {
 /** Unique cells and emitted faces (after culling) of a model. */
 export function measure(voxels: readonly Voxel[]): { voxels: number; faces: number } {
   const cells = new Set(voxels.map((v) => `${v[0]},${v[1]},${v[2]}`)).size;
-  const [m] = meshVoxels(voxels, { toLinear: () => [1, 1, 1] });
+  const [m] = meshVoxels(voxels, { toLinear: () => [1, 1, 1], centers: new Set() });
   return { voxels: cells, faces: m.faces };
 }

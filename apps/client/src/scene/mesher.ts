@@ -5,8 +5,9 @@
  *   group of the model, so a bulb set into foliage also hides the foliage face behind it.
  * - **Ambient occlusion:** classic per-vertex voxel AO from the three cells around each face corner, baked
  *   into the vertex colour (no runtime cost), with the quad diagonal flipped to keep the gradient symmetric.
- * - **`center` attribute:** every vertex carries its voxel's centre, so shaders move/phase a whole voxel
- *   rigidly (wind sway, twinkle) even though the model is a single mesh.
+ * - **`center` attribute:** every vertex of a group in `centers` carries its voxel's centre, so shaders
+ *   move/phase a whole voxel rigidly (wind sway, twinkle, idle breathing) even though the model is a single
+ *   mesh. Static groups leave it out: 48 of the 204 bytes of a quad.
  *
  * Cells with non-integer coordinates (decor placed off-grid) are drawn with all six faces and occlude
  * nothing: correct, only less optimal.
@@ -18,8 +19,8 @@ export interface MeshData {
   normals: Float32Array;
   /** Linear-sRGB vertex colours with AO applied. */
   colors: Float32Array;
-  /** Voxel centre per vertex (model space). */
-  centers: Float32Array;
+  /** Voxel centre per vertex (model space); null for a group outside `MeshOptions.centers`. */
+  centers: Float32Array | null;
   indices: Uint16Array | Uint32Array;
   /** Quads emitted (2 triangles each). */
   faces: number;
@@ -33,6 +34,8 @@ export interface MeshOptions {
   groups?: number;
   /** Groups that skip AO (emissive bulbs must keep their colour). */
   noAo?: ReadonlySet<number>;
+  /** Groups whose vertices carry the voxel centre (animated in a shader). Omitted = every group. */
+  centers?: ReadonlySet<number>;
   /**
    * Skips the downward faces of the base layer (y = 0): a model that stands on the ground is never seen
    * from underneath. Faces that look down higher up (eaves, awnings) are kept: the sky view sees them.
@@ -97,13 +100,13 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
       }
   }
 
-  const out = counts.map((faces): MeshData => {
+  const out = counts.map((faces, g): MeshData => {
     const verts = faces * 4;
     return {
       positions: new Float32Array(verts * 3),
       normals: new Float32Array(verts * 3),
       colors: new Float32Array(verts * 3),
-      centers: new Float32Array(verts * 3),
+      centers: !opts.centers || opts.centers.has(g) ? new Float32Array(verts * 3) : null,
       indices: verts > 65535 ? new Uint32Array(faces * 6) : new Uint16Array(faces * 6),
       faces: 0,
     };
@@ -115,6 +118,7 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
   for (const v of cells.values()) {
     const g = groupOf(v);
     const m = out[g];
+    const centers = m.centers;
     const onGrid = grid(v);
     const useAo = onGrid && !opts.noAo?.has(g);
     const [r, gr, b] = linear(v[3]);
@@ -158,7 +162,9 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
           m.normals[o + d] = s;
           const shade = AO_CURVE[ao[i]];
           m.colors[o] = r * shade; m.colors[o + 1] = gr * shade; m.colors[o + 2] = b * shade;
-          m.centers[o] = cx; m.centers[o + 1] = cy; m.centers[o + 2] = cz;
+          if (centers) {
+            centers[o] = cx; centers[o + 1] = cy; centers[o + 2] = cz;
+          }
         }
         // Choose the diagonal so a single dark (or bright) corner stays inside one triangle: split along 1–3
         // when corners 0 and 2 are the more occluded pair, else along 0–2 (no anisotropic seam).
