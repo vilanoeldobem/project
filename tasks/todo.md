@@ -932,3 +932,27 @@ target size read back after a DPR change, GPU resource plateau over quality togg
 
 Lessons: a looped probe reused room 0 before the previous bots left (stale numbers); run probes one at a time.
 verify-life/verify-collisions do not filter analytics CSP noise, unlike verify.mjs (audit §7.2, phase 2).
+
+# Task: audit phase 2 — production controls — 2026-11-14
+
+Branch `fix/audit-phase-2` (from main; independent of PR #49).
+
+## Plan
+
+- [x] Analytics/CSP (audit 7.2): no code change. OQ-13 already recommends keeping the CSP and turning off Google
+      Signals and ad personalization in the GA property: an owner action in the GA console.
+- [x] Local browser checks isolate the Google tag (`scripts/analytics.mjs`: 204 + console filter) in verify,
+      verify-life, verify-collisions; verify-live stays strict.
+- [x] Branch protection on `main` (owner approved 2026-11-14): required check `typecheck · test · build`, PR only
+      (0 approvals), enforce admins, no force push, no deletion.
+- [x] World failure recovery (audit 7.1): `WorldBoundary` + `lib/context-watch.ts` (8 s), pt-BR copy, HUD outside.
+- [x] `scripts/verify-recovery.mjs`: blocked chunk, no WebGL, context restored, context lost — ok.
+- [x] Docs (architecture, development, CONTRIBUTING, AGENTS command list) and CHANGELOG.
+- [x] Browser gates on this build: verify ok, verify-collisions ok, verify-recovery ok; verify-life only the 3
+      quest-NPC checks known on origin/main. verify-fullroom on the pre-fix build fails as intended (483 calls in a
+      full room of distinct looks, 103 with one look); rerun after rebasing on main with phase 1.
+
+## Left for later
+
+Scheduled live synthetic (verify-live in smoke.yml) would fail daily until OQ-13 is done in GA; staging for all
+apps, restore drill, release manifest and deploy-doc reconciliation (audit 7.4, 7.5, 7.7) need owner time/approval.

@@ -65,6 +65,14 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 as luzes da Vila…") aparecem antes do Three.js. Não há tela de entrada: quando a cena chega, o visitante já está
 na praça ([§2.3](#23-chegada-hud-e-menu-do-jogo)).
 
+**Quando a Vila em 3D não abre** (auditoria de 14/11/2026, §7.1). `WorldBoundary` (`ui/WorldBoundary.tsx`) envolve o
+`World`: se o código da cena não baixa ou o navegador não cria o contexto WebGL, aparece "A Vila em 3D não abriu
+neste aparelho." com "Tentar de novo" (recarrega a página). O HUD fica fora desse limite, então os caminhos do topo
+continuam funcionando em HTML. Se o navegador tira o contexto gráfico da página (`webglcontextlost`),
+`lib/context-watch.ts` mostra "Os gráficos da Vila pararam por um instante. Voltando…"; se o contexto não volta em
+8 s, aparece a mesma tela de falha. O registro do erro guarda só o tipo (`world_unavailable`), nunca a mensagem.
+`scripts/verify-recovery.mjs` confere os quatro casos em Chrome real.
+
 ### 2.1 Loop por quadro (`Player`)
 
 1. Intenção = a rota do último clique/toque (`sim.route`; painel aberto = parado, a rota fica guardada; o menu

@@ -9,3 +9,4 @@ verify-output/
 
 # Agent worktrees (local tooling)
 .claude/worktrees/
+.vitest/

@@ -9,6 +9,22 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — fase 2 da auditoria técnica de 14/11/2026 (sem mudança de schema, de rota ou de protocolo)
+
+- **A Vila avisa quando o 3D não abre.** Se o código da cena não baixa, o navegador não tem WebGL ou o contexto
+  gráfico se perde e não volta em 8 s, aparece "A Vila em 3D não abriu neste aparelho." com "Tentar de novo"; os
+  caminhos do topo continuam funcionando. Uma perda breve mostra só um aviso e a Vila volta sozinha.
+- **Verificações locais sem ruído do Google.** `verify-life.mjs` e `verify-collisions.mjs` passam a isolar a tag do
+  Google (resposta vazia e erros de CSP ignorados), como `verify.mjs` já fazia; `verify-live.mjs` continua estrito.
+- **Sala cheia verificada.** `verify-fullroom.mjs` põe 40 pessoas numa sala (39 visuais distintos, depois trocas de
+  visual e reconexões, depois um visual só) e falha acima de 150 chamadas ou 250 000 triângulos, ou se o número de
+  chamadas mudar com os visuais. Depende da correção dos avatares remotos (fase 1).
+
+### Security
+
+- **`main` protegida.** Merge só por PR com o CI `typecheck · test · build` verde, sem push forçado nem exclusão,
+  valendo também para administradores.
+
 ### Fixed — fase 1 da auditoria técnica de 14/11/2026 (sem mudança de schema; rota alterada só atrás de `ACCOUNTS_ENABLED`)
 
 - **Sala cheia dentro do orçamento de desenho.** Os avatares remotos eram 5 malhas instanciadas por visual
