@@ -160,7 +160,8 @@ for (const [name, time, weather, zoom] of [
 
 // The expanded village (IMPL-0024, PROPOSTA): one shop, one billboard and one residential plot, each opened by
 // the contextual action from where it is used. The copy is neutral: nothing is sold, rented or promised, and
-// with ownership off (`/config.residentialPlots` false) the plot panel shows no requirement.
+// with ownership off (`/config.residentialPlots` false) the plot panel shows no requirement. Then a shop is
+// clicked in the scene, from afar and from its door, and the see-through avatar is looked at.
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`village: ${e.message}`));
@@ -203,6 +204,70 @@ for (const [name, time, weather, zoom] of [
     await page.waitForTimeout(600);
     const moved = await page.evaluate(([x, z]) => Math.hypot(window.__vila.pose().x - x, window.__vila.pose().z - z), [x, z]);
     if (moved > 0.2 || (await page.evaluate(() => window.__vila.extra.target())) !== null) errors.push(`village: closing the ${what} panel left the avatar walking (${moved.toFixed(2)} u away)`);
+  }
+
+  // One intention per click (IMPL-0024), with the mouse on the scene itself: the pointer goes to the front wall
+  // of the north shop, the one the camera sees from its front, through the dev hook that says where a point of
+  // the world is on the page. The ground lies under that wall: it must not walk on the press, from afar the
+  // click walks to the shop's door, and from the door it opens the panel and leaves no walk behind.
+  {
+    const V = (fn, ...args) => page.evaluate(([fn, args]) => window.__vila.extra[fn](...args), [fn, args]);
+    const SHOP = { title: "Empório da Lareira", wall: [-5, 2, -27], door: { x: -5, z: -25.5 } };
+    const frames = (n) => page.evaluate((n) => new Promise((done) => { const tick = () => (n-- > 0 ? requestAnimationFrame(tick) : done()); tick(); }), n);
+    const taps = () => page.evaluate(() => window.__vila.events.filter((e) => e === "tap").length);
+    const dialog = page.getByRole("dialog", { name: SHOP.title, exact: true });
+    /** Stands the avatar at a point and returns where the shop's wall is on the page once the camera is at rest. */
+    const aimFrom = async (x, z) => {
+      await V("teleport", x, z);
+      let at = null;
+      for (let i = 0; i < 200; i++) {
+        const before = await V("project", ...SHOP.wall);
+        await frames(3);
+        at = await V("project", ...SHOP.wall);
+        if (before && at && Math.hypot(at.x - before.x, at.y - before.y) < 0.3) break;
+      }
+      const under = at && (await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.tagName ?? null, [at.x, at.y]));
+      if (under !== "CANVAS") errors.push(`village: the shop's wall is not under the pointer from (${x}, ${z}): ${JSON.stringify(at)} is on ${under}`);
+      return at;
+    };
+
+    // From afar: nothing walks while the button is down; the click walks to the door, with one tap marker.
+    let at = await aimFrom(-5, -18);
+    let before = await taps();
+    if (at) {
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.down();
+      await frames(2);
+      const pressed = { target: await V("target"), taps: (await taps()) - before };
+      if (pressed.target !== null || pressed.taps !== 0) errors.push(`village: the press on a shop walked before its click (the ground under it answered): ${JSON.stringify(pressed)}`);
+      await page.mouse.up();
+      await frames(2);
+      const target = await V("target");
+      if (!target || Math.hypot(target.x - SHOP.door.x, target.z - SHOP.door.z) > 0.05) errors.push(`village: a click on a shop from afar walks to ${JSON.stringify(target)}, not to its door`);
+      if ((await taps()) - before !== 1) errors.push(`village: a click on a shop from afar left ${(await taps()) - before} tap markers, not one`);
+      if (await page.getByRole("dialog").count()) errors.push("village: a click on a shop from afar opened a panel");
+    }
+
+    // From the door: the panel opens, nothing walks, and closing it leaves the avatar where it stood.
+    at = await aimFrom(SHOP.door.x, SHOP.door.z);
+    before = await taps();
+    if (at) {
+      await page.mouse.click(at.x, at.y);
+      await dialog.waitFor({ timeout: 10000 }).catch(() => errors.push(`village: a click on the shop from its door did not open "${SHOP.title}"`));
+      if ((await taps()) !== before || (await V("target")) !== null) errors.push("village: a click on the shop from its door walked as well");
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(600);
+      const moved = await page.evaluate(([x, z]) => Math.hypot(window.__vila.pose().x - x, window.__vila.pose().z - z), [SHOP.door.x, SHOP.door.z]);
+      if ((await dialog.count()) || moved > 0.2 || (await V("target")) !== null) errors.push(`village: closing the shop panel opened by a click left the avatar walking (${moved.toFixed(2)} u away, target ${JSON.stringify(await V("target"))})`);
+    }
+
+    // The see-through drawing of the avatar: on behind the south shop, which the camera sees from its back, and
+    // off again in the open (it is held for a quarter of a second, so "off" is waited for, not read at once).
+    const seeThrough = (on) => page.waitForFunction((on) => window.__vila.extra.view().seeThrough === on, on, { timeout: 30000 }).then(() => true, () => false);
+    await V("teleport", 5, 25.5);
+    if (!(await seeThrough(true))) errors.push("village: the avatar is not drawn see-through behind the south shop");
+    await V("teleport", 0, 9);
+    if (!(await seeThrough(false))) errors.push("village: the avatar is still drawn see-through at the spawn, in plain view");
   }
   await page.close();
 }
