@@ -13,7 +13,6 @@ import { describe, expect, it } from "vitest";
 import { type Collider, distanceTo } from "@vila/shared/game/collision";
 import {
   BENCHES,
-  CRITTERS,
   DONATION_PANEL,
   HOUSE_ENVELOPE,
   LAMPS,
@@ -38,7 +37,6 @@ import {
   WORLD_RADIUS,
 } from "@vila/shared/game/world";
 
-import { bird, cat, dog, owl, rabbit } from "./gen/animals";
 import { villager } from "./gen/characters";
 import { house } from "./gen/houses";
 import { fence, lantern, logPile, mailbox, marketStall, panettoneStand, signpost, sled } from "./gen/props";
@@ -70,7 +68,6 @@ interface Drawn {
 }
 
 const PROP = { "market-stall": marketStall, "panettone-stand": panettoneStand, lantern, fence, mailbox, signpost, sled, "log-pile": logPile } as const;
-const CRITTER = { villager, dog, cat, bird, rabbit, owl } as const;
 
 /** Everything solid in the scene (gifts, quest items and the pond are walkable on purpose). */
 const SCENERY: Drawn[] = [
@@ -84,10 +81,6 @@ const SCENERY: Drawn[] = [
   ...PLACED_PROPS.flatMap((p) => {
     const m = PROP[p.kind](p.seed);
     return p.at.map((at, i) => ({ name: `${p.seed}-${i}`, voxels: m.voxels, size: m.size, ...at }));
-  }),
-  ...CRITTERS.map((c) => {
-    const m = CRITTER[c.kind](c.seed);
-    return { name: c.seed, voxels: m.voxels, size: m.size, x: c.x, z: c.z, y: c.y, rot: c.rot };
   }),
   // The expanded village (IMPL-0024): shops with their billboard frame, and the dressing of the residential rows.
   ...SHOPS.flatMap((s) => [

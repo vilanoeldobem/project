@@ -645,48 +645,10 @@ export type Solid = readonly [x0: number, x1: number, z0: number, z1: number, r:
 const solid = (at: Placed, [x0, x1, z0, z1, r]: Solid): Collider => footprint(at, x0, x1, z0, z1, r);
 
 /**
- * Generated villagers and animals placed as decor (IMPL-0010, PROPOSTA; final layout is PEN-017).
- * `kind` = generator id, `seed` fixes the variant for every visitor. `y` lifts perched animals.
- * Those within the avatar's height block it (see OBSTACLES); none affects missions or XP.
+ * Villagers face +z: arms across x, coat two voxels deep. The quest NPCs stand still and block the avatar. The
+ * villagers and animals that walk (IMPL-0025, `life.ts`) have no collider: they step aside instead.
  */
-export interface Critter {
-  kind: "villager" | "dog" | "cat" | "bird" | "rabbit" | "owl";
-  seed: string;
-  x: number;
-  z: number;
-  y?: number;
-  /** Rotation around Y (rad). */
-  rot: number;
-}
-
-export const CRITTERS: Critter[] = [
-  { kind: "villager", seed: "villager-1", x: 6, z: -6.5, rot: -2.4 },
-  { kind: "dog", seed: "dog-1", x: 4.6, z: -7.6, rot: 0.6 },
-  { kind: "villager", seed: "villager-2", x: -7, z: 2.5, rot: 1.9 },
-  // On the round street, beside the north-east avenue (it used to stand where the avenue now enters the square).
-  { kind: "villager", seed: "villager-3", x: 14.6, z: -2.6, rot: -1.1 },
-  { kind: "cat", seed: "cat-1", x: 7.6, z: 8.3, y: 1, rot: -2.3 },
-  { kind: "bird", seed: "bird-1", x: 12.2, z: 0, y: 4.5, rot: Math.PI },
-  { kind: "bird", seed: "bird-2", x: -12.2, z: 0, y: 4.5, rot: 0 },
-  { kind: "rabbit", seed: "rabbit-1", x: 23.5, z: -2.8, rot: 2.5 },
-  // Perched on the top of a tall pine of the belt (2 u of trunk and nine layers of boughs).
-  { kind: "owl", seed: "owl-1", x: PINES[PLAZA_PINES.length][0], z: PINES[PLAZA_PINES.length][1], y: 11, rot: -2.5 },
-];
-
-/** Villagers face +z: arms across x, coat two voxels deep. Shared by decor villagers and quest NPCs. */
 const VILLAGER_SOLID: Solid = [-0.75, 0.75, -0.45, 0.45, 0.45];
-/** Animals face +x. Birds and owls are too small to block anyone. */
-const CRITTER_SOLID: Record<Critter["kind"], Solid | null> = {
-  villager: VILLAGER_SOLID,
-  dog: [-0.95, 1.4, -0.4, 0.4, 0.4],
-  cat: [-0.63, 0.81, -0.27, 0.27, 0.27],
-  rabbit: [-0.49, 0.63, -0.35, 0.35, 0.35],
-  bird: null,
-  owl: null,
-};
-/** Anything standing higher than this is over the avatar's head and never blocks it. */
-const HEAD_HEIGHT = 2.2;
-
 /**
  * Generated props placed as decor (IMPL-0010, PROPOSTA; final layout is PEN-017). Copies of one entry share
  * the seed, so they are drawn as one instanced model. Faces the plaza unless `rot` says otherwise.
@@ -701,6 +663,25 @@ export interface PropPlacement {
 }
 
 const facePlaza = (x: number, z: number) => ({ x, z, rot: Math.atan2(-x, -z) });
+
+/**
+ * The reindeer pens (IMPL-0025, PROPOSTA): one on the square's band beside the lane of the south-east side and
+ * one beside the lane of the south-west side, each open towards the plaza. `apothem` and `along` are the
+ * rectangle the rails enclose, in the frame of the side (`sideFrame`): 4.5 u deep (two rails of 2.25 u) and
+ * 3.5 u wide (two of 1.75 u). The reindeer that live in them are in `life.ts`.
+ */
+export const PADDOCKS = [1, 3].map((side) => ({ side, apothem: [19.6, 24.1] as const, along: [2.3, 5.8] as const }));
+function paddockRails(p: (typeof PADDOCKS)[number]) {
+  const f = sideFrame(VILLAGE_PLAN, p.side);
+  const at = (apothem: number, along: number, rot: number) => ({ x: round2(apothem * f.nx + along * f.tx), z: round2(apothem * f.nz + along * f.tz), rot });
+  // A rail runs along its local +x, which is `(cos rot, -sin rot)` in the world.
+  const tangent = Math.atan2(-f.tz, f.tx), radial = Math.atan2(-f.nz, f.nx);
+  const [a0, a1] = p.apothem, [l0, l1] = p.along;
+  return {
+    back: [0.25, 0.75].map((t) => at(a1, l0 + (l1 - l0) * t, tangent)),
+    sides: [l0, l1].flatMap((l) => [0.25, 0.75].map((t) => at(a0 + (a1 - a0) * t, l, radial))),
+  };
+}
 /** The children's sled, by the pond (quest `kids-sled-run`, PROPOSTA quests-v1). */
 const KIDS_SLED = { x: 13.44, z: -19.8 } as const;
 
@@ -733,6 +714,9 @@ export const PLACED_PROPS: PropPlacement[] = [
   },
   // The wood yard: logs stacked by the forest (the stack runs along local x).
   { kind: "log-pile", seed: "wood-yard", solid: [-1.75, 1.75, -0.75, 0.75, 0.25], at: [WOOD_YARD] },
+  // The reindeer pens (IMPL-0025): two rails at the back and two on each side, open towards the plaza.
+  { kind: "fence", seed: "paddock-208", solid: [-0.88, 0.88, -0.13, 0.13, 0.13], at: PADDOCKS.flatMap((p) => paddockRails(p).back) },
+  { kind: "fence", seed: "paddock-233", solid: [-1.13, 1.13, -0.13, 0.13, 0.13], at: PADDOCKS.flatMap((p) => paddockRails(p).sides) },
 ];
 
 export const LAMPS: [number, number][] = Array.from({ length: 8 }, (_, i) => {
@@ -981,10 +965,6 @@ export const OBSTACLES: Obstacle[] = [
   // Reindeer: legs, body and tail; the neck and head are above the avatar.
   ...REINDEER.map((d) => solid(d, [-1.4, 1.3, -0.52, 0.52, 0.5])),
   ...PLACED_PROPS.flatMap((p) => p.at.map((at) => solid(at, p.solid))),
-  ...CRITTERS.flatMap((c) => {
-    const s = CRITTER_SOLID[c.kind];
-    return s && (c.y ?? 0) < HEAD_HEIGHT ? [solid(c, s)] : [];
-  }),
   ...SHOPS.flatMap((shop) => SHOP_SOLID.map(([x0, x1, z0, z1]) => footprint({ x: shop.x, z: shop.z, rot: shop.facing }, x0, x1, z0, z1))),
   ...RESIDENTIAL_DRESSING.map((part) => solid(part, part.solid)),
 ];
