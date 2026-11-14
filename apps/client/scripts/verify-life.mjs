@@ -265,7 +265,8 @@ await finder.close();
 // A quest NPC, with quests on: its own label and its own dialogue, as before.
 {
   const page = await open("quest NPC", { time: "15:00", quests: true });
-  await page.waitForFunction(() => window.__vila.extra.quests().some((q) => q.state === "available"), null, { timeout: 10000 }).catch(() => fail("quest NPC: quests are off (the local API needs QUESTS_V1_ENABLED=true)"));
+  // The flag the game itself reads (page flag and the API's /config): local quest data alone says nothing about it.
+  await page.waitForFunction(() => window.__vila.extra.questsOn() && window.__vila.extra.quests().some((q) => q.state === "available"), null, { timeout: 10000 }).catch(() => fail("quest NPC: quests are off (is the local API up on :8787, started with `pnpm --filter @vila/api dev`, which sets QUESTS_V1_ENABLED=true?)"));
   await page.evaluate(() => window.__vila.extra.teleport(3.3, 10.2));
   const button = page.locator(".hud__action");
   await button.waitFor({ timeout: 8000 }).catch(() => fail("quest NPC: no action button next to Seu Nivaldo"));
