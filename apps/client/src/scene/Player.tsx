@@ -16,7 +16,7 @@ import { attachZoomGestures } from "../lib/zoom-gestures";
 import { GIFTS, INTERACT_DISTANCE, QUEST_SPAWNS, surfaceAt, TREE_RADIUS } from "@vila/shared/game/world";
 import { usePreset } from "../environment/settings";
 import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
-import { avatarHidden, clearSkyOffset, type Offset } from "./occlusion";
+import { avatarHidden, clearSkyOffset, type Offset, seeThroughShown } from "./occlusion";
 import { sceneBuildings, sceneColliders, sceneOccluders } from "./sceneColliders";
 import { Voxels } from "./Voxels";
 
@@ -43,14 +43,15 @@ const GIFT_RADIUS = 1.4;
  * hides whoever walks behind it. While the camera cannot see the avatar's chest or its head (`avatarHidden`:
  * a real line from the camera to each, against the chalets, the shops, the tree and the pines), the avatar is
  * drawn once more over everything, in its own colours and half transparent, so it stays readable as itself.
- * Never shown in the open, and not when only the feet are behind something.
+ * Never shown in the open, and not when only the feet are behind something. It appears at once and stays for
+ * a quarter of a second after the avatar is seen again (`seeThroughShown`), so the gaps of a row do not blink.
  */
 const SEE_THROUGH = new MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthTest: false, depthWrite: false, fog: false });
 /** The avatar moved this far (u) since the last look: look again. */
 const LOOK_AGAIN = 0.2;
 /**
  * …or the camera moved at all (it eases to its place for a second after the avatar stops, and the answer must
- * be the one for where it comes to rest). One look is a couple of microseconds.
+ * be the one for where it comes to rest). One look costs about 10 to 16 µs (measured in the review, in Chrome).
  */
 const CAMERA_MOVED = 0.01;
 
@@ -104,7 +105,8 @@ export function Player({ published }: { published: string }) {
   // The sky camera minds the buildings only: the tree and the pines belong in its picture.
   const buildings = useMemo(() => sceneBuildings(houses), [houses]);
   const outline = useRef<Array<Group | null>>([]);
-  const hidden = useRef({ x: Infinity, z: Infinity, cx: 0, cy: 0, cz: 0, on: false });
+  // `at`: the last instant the avatar was hidden (ms on the frame clock), for the hold of the drawing.
+  const hidden = useRef({ x: Infinity, z: Infinity, cx: 0, cy: 0, cz: 0, on: false, at: -Infinity });
   const sky = useRef<{ x: number; z: number; offset: Offset }>({ x: Infinity, z: Infinity, offset: SKY_OFFSETS[0] });
   useEffect(() => {
     hidden.current.x = Infinity;
@@ -251,11 +253,16 @@ export function Player({ published }: { published: string }) {
     near.current = pickNearby(pose.x, pose.z, pose.speed, quests, useVila.getState().progress, near.current);
     s.setNearby(near.current);
 
-    // ---- see-through tint: shown while the camera cannot see the avatar's chest or head. Looked at again only
-    // when the avatar or the camera has moved: never while both are at rest.
+    // ---- see-through tint: shown while the camera cannot see the avatar's chest or head, and held for a moment
+    // after it is seen again. Looked at again only when the avatar or the camera has moved: never while both are
+    // at rest, and never in the sky view, which does not draw it (the next frame out of that view looks afresh).
     const h = hidden.current;
     const eye = camera.position;
-    if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > LOOK_AGAIN || Math.abs(eye.x - h.cx) + Math.abs(eye.y - h.cy) + Math.abs(eye.z - h.cz) > CAMERA_MOVED) {
+    if (s.skyView) {
+      h.x = Infinity;
+      h.on = false;
+      h.at = -Infinity;
+    } else if (Math.abs(pose.x - h.x) + Math.abs(pose.z - h.z) > LOOK_AGAIN || Math.abs(eye.x - h.cx) + Math.abs(eye.y - h.cy) + Math.abs(eye.z - h.cz) > CAMERA_MOVED) {
       h.x = pose.x;
       h.z = pose.z;
       h.cx = eye.x;
@@ -263,7 +270,9 @@ export function Player({ published }: { published: string }) {
       h.cz = eye.z;
       h.on = avatarHidden(occluders, eye.x, eye.y, eye.z, pose.x, pose.z);
     }
-    const show = h.on && !s.skyView;
+    const now = three.elapsedTime * 1000;
+    if (h.on) h.at = now;
+    const show = seeThroughShown(h.on, now, h.at);
     for (const o of outline.current) if (o && o.visible !== show) o.visible = show;
     sim.view.seeThrough = show;
 

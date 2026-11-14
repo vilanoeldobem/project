@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 
 import { PATH_GRAPH, RESIDENTIAL_PLOTS, SHOPS, SPAWN } from "@vila/shared/game/world";
 
-import { AVATAR_CHEST, AVATAR_HEAD, avatarHidden, blocksSegment, clearSkyOffset, columnsOf, type Offset, occluderAt, segmentBlocked } from "./occlusion";
+import { AVATAR_CHEST, AVATAR_HEAD, avatarHidden, blocksSegment, clearSkyOffset, columnsOf, type Offset, occluderAt, SEE_THROUGH_HOLD, seeThroughShown, segmentBlocked } from "./occlusion";
 import { sceneBuildings, sceneOccluders } from "./sceneColliders";
 
 const OCCLUDERS = sceneOccluders(new Set(["plaza-03"]));
@@ -164,6 +164,82 @@ describe("the avatar and the camera", () => {
   });
 });
 
+describe("the hold of the see-through drawing", () => {
+  /**
+   * The drawing frame by frame, as `Player` keeps it: `hiddenAt(t)` is what the look answers at `t` ms, and
+   * the last instant it answered "hidden" is carried from frame to frame. Returns the instants the drawing
+   * changed, as `[t, shown]`.
+   */
+  function run(fps: number, until: number, hiddenAt: (t: number) => boolean): Array<[number, boolean]> {
+    const changes: Array<[number, boolean]> = [];
+    let lastHidden = -Infinity, shown = false;
+    for (let frame = 0; (frame * 1000) / fps <= until; frame++) {
+      const t = (frame * 1000) / fps;
+      const hidden = hiddenAt(t);
+      if (hidden) lastHidden = t;
+      const next = seeThroughShown(hidden, t, lastHidden);
+      if (next !== shown) changes.push([t, (shown = next)]);
+    }
+    return changes;
+  }
+  /** Walking past a row: hidden behind each chalet, in plain view for 100 ms in each of the six gaps. */
+  const row = (t: number) => t >= 1000 && t < 8000 && (t - 1000) % 1000 < 900;
+
+  it("is about a quarter of a second", () => {
+    expect(SEE_THROUGH_HOLD).toBeGreaterThanOrEqual(200);
+    expect(SEE_THROUGH_HOLD).toBeLessThanOrEqual(300);
+  });
+
+  it("appears at once when the avatar becomes hidden, with no delay at all", () => {
+    expect(seeThroughShown(true, 5000, -Infinity)).toBe(true);
+    expect(seeThroughShown(true, 5000, 5000)).toBe(true);
+    expect(seeThroughShown(true, 5000, 0, 0)).toBe(true);
+  });
+
+  it("stays for the hold after the avatar is seen again, and not longer", () => {
+    expect(seeThroughShown(false, 1000, 1000)).toBe(true);
+    expect(seeThroughShown(false, 1000 + SEE_THROUGH_HOLD - 1, 1000)).toBe(true);
+    expect(seeThroughShown(false, 1000 + SEE_THROUGH_HOLD, 1000)).toBe(false);
+    expect(seeThroughShown(false, 60_000, 1000)).toBe(false);
+    // Another hold, for whoever asks for one.
+    expect(seeThroughShown(false, 1040, 1000, 50)).toBe(true);
+    expect(seeThroughShown(false, 1050, 1000, 50)).toBe(false);
+  });
+
+  it("is never shown for an avatar that was never hidden", () => {
+    expect(seeThroughShown(false, 0, -Infinity)).toBe(false);
+    expect(seeThroughShown(false, 100, -Infinity)).toBe(false);
+    expect(run(60, 3000, () => false)).toEqual([]);
+  });
+
+  it.each([24, 30, 60, 120, 144])("does not blink in the gaps of a row at %i frames a second: on once, off once", (fps) => {
+    const changes = run(fps, 10_000, row);
+    expect(changes.map(([, shown]) => shown)).toEqual([true, false]);
+    const frame = 1000 / fps;
+    // On with the first frame that finds the avatar hidden…
+    expect(changes[0][0]).toBeGreaterThanOrEqual(1000);
+    expect(changes[0][0]).toBeLessThan(1000 + frame);
+    // …and off one hold after the last frame that did (the row ends at 7 900 ms), whatever the frame rate.
+    expect(changes[1][0]).toBeGreaterThanOrEqual(7900 - frame + SEE_THROUGH_HOLD);
+    expect(changes[1][0]).toBeLessThan(7900 + SEE_THROUGH_HOLD + frame);
+  });
+
+  it("without the hold the same walk blinks: 14 changes, six spells off of a tenth of a second", () => {
+    // What the review measured on one street, here as the reason the hold exists.
+    const raw: boolean[] = [];
+    for (let t = 0; t <= 10_000; t += 1000 / 60) raw.push(seeThroughShown(row(t), t, -Infinity, 0));
+    expect(raw.filter((shown, i) => i > 0 && shown !== raw[i - 1])).toHaveLength(14);
+  });
+
+  it("lets go when the avatar stays in view for longer than the hold", () => {
+    // Two rows with a lane of 400 ms between them: the drawing goes off in the lane and comes back at once.
+    const changes = run(60, 4000, (t) => (t >= 500 && t < 1500) || (t >= 1900 && t < 3000));
+    expect(changes.map(([, shown]) => shown)).toEqual([true, false, true, false]);
+    expect(changes[1][0]).toBeGreaterThanOrEqual(1500 - 1000 / 60 + SEE_THROUGH_HOLD);
+    expect(changes[2][0]).toBeLessThan(1900 + 1000 / 60);
+  });
+});
+
 describe("the look-at-the-sky camera", () => {
   const OFFSETS: Offset[] = [{ x: 0, y: 2.6, z: 10 }, { x: 0, y: 5.5, z: 10 }, { x: 0, y: 8.5, z: 10 }, { x: 0, y: 11.5, z: 10 }, { x: 0, y: 14.5, z: 7 }];
   const LOOK = { x: 0, y: 30, z: -40 };
@@ -184,6 +260,19 @@ describe("the look-at-the-sky camera", () => {
       expect(chosen, `(${x}, ${z})`).not.toBe(OFFSETS[0]);
       expect(clear(x, z, chosen), `chosen view at (${x}, ${z})`).toBe(true);
     }
+  });
+
+  it("takes the last, highest position when none is clear, never the first", () => {
+    // A solid block 40 u tall right where every position of the camera would be: no view is clear.
+    const block: Array<readonly [number, number, number]> = [];
+    for (let x = -4; x <= 4; x++) for (let z = 4; z <= 13; z++) for (let y = 0; y < 40; y++) block.push([x, y, z]);
+    const boxedIn = [occluderAt(columnsOf(block, 1), { x: 0, z: 0 })];
+    for (const o of OFFSETS) expect(clearSkyOffset(boxedIn, 0, 0, [o, { x: 0, y: -99, z: 0 }], LOOK), `offset ${o.y}`).not.toBe(o);
+    expect(clearSkyOffset(boxedIn, 0, 0, OFFSETS, LOOK)).toBe(OFFSETS[OFFSETS.length - 1]);
+    // The same block somewhere else is nobody's business: the low view is kept.
+    expect(clearSkyOffset(boxedIn, 60, 60, OFFSETS, LOOK)).toBe(OFFSETS[0]);
+    // One position to choose from: that one, clear or not.
+    expect(clearSkyOffset(boxedIn, 0, 0, [OFFSETS[1]], LOOK)).toBe(OFFSETS[1]);
   });
 
   it("finds a clear view from every point of every street, lane and avenue", () => {
