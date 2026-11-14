@@ -5,15 +5,17 @@
 import { describe, expect, it } from "vitest";
 
 import { isPerson, LIFE_CAST } from "@vila/shared/game/life";
+import { PALETTE as P } from "@vila/shared/game/world";
 
 import { bird, cat, dog, owl, rabbit } from "../gen/animals";
 import { castRig } from "../gen/cast";
 import { villager } from "../gen/characters";
+import { AVATAR_SIZE, avatarParts, HIP_Y } from "../models";
 import { buildCast, packVisible } from "./castGeometry";
 
 const RIGS = LIFE_CAST.map((c) => castRig(c.kind, c.seed));
 const CAST = buildCast(RIGS, () => [1, 1, 1]);
-const TRIANGLES = 12_388;
+const TRIANGLES = 12_516;
 const cells = (voxels: ReadonlyArray<readonly [number, number, number, string]>) => new Set(voxels.map(([x, y, z, c]) => `${x},${y},${z},${c}`));
 
 describe("the rigs of the cast", () => {
@@ -47,7 +49,8 @@ describe("the rigs of the cast", () => {
         expect(Math.min(...armR.voxels.map((v) => v[0]))).toBeGreaterThan(0);
         expect(rig.shadow).toBe(true);
         expect(rig.height).toBeGreaterThan(1.8);
-        expect(rig.height).toBeLessThan(4);
+        // Everyone is under 4 u but Santa, who is built larger on purpose.
+        expect(rig.height).toBeLessThan(c.kind === "santa" ? 4.6 : 4);
       }
     });
     const parts = (id: string) => RIGS[LIFE_CAST.findIndex((c) => c.id === id)].parts;
@@ -64,6 +67,36 @@ describe("the rigs of the cast", () => {
     }
     // Tiny animals cast no shadow, as the tiny decor did not.
     for (const id of ["cat-1", "bird-1", "rabbit-1", "owl-1"]) expect(RIGS[LIFE_CAST.findIndex((c) => c.id === id)].shadow, id).toBe(false);
+  });
+
+  it("makes Santa unmistakable next to the visitor's default avatar, which also wears a red coat and a Santa hat", () => {
+    const santa = RIGS[LIFE_CAST.findIndex((c) => c.id === "santa")];
+    const body = santa.parts[0].voxels;
+    const avatar = avatarParts();
+    const span = (voxels: ReadonlyArray<readonly [number, number, number, string]>, axis: 0 | 1 | 2) => Math.max(...voxels.map((v) => v[axis])) - Math.min(...voxels.map((v) => v[axis])) + 1;
+    /** The widest row of the coat: the torso, without the arms (which are parts of their own). */
+    const torso = (voxels: ReadonlyArray<readonly [number, number, number, string]>, rows: [number, number]) => voxels.filter((v) => v[1] >= rows[0] && v[1] <= rows[1]);
+    // Silhouette: a third taller than the avatar in its hat, a body more than twice as wide and four times as
+    // deep (belly in front, sack behind).
+    const top = (voxels: ReadonlyArray<readonly [number, number, number, string]>) => Math.max(...voxels.map((v) => v[1])) + 1;
+    expect(HIP_Y).toBe(3 * AVATAR_SIZE);
+    expect((top(body) * santa.size) / (top(avatar.body) * AVATAR_SIZE)).toBeGreaterThan(1.3);
+    const coat = torso(body, [3, 4]), avatarCoat = torso(avatar.body, [3, 5]);
+    expect((span(coat, 0) * santa.size) / (span(avatarCoat, 0) * AVATAR_SIZE)).toBeGreaterThan(2);
+    expect((span(coat, 2) * santa.size) / (span(avatarCoat, 2) * AVATAR_SIZE)).toBeGreaterThan(4);
+    // What no avatar has: a white beard over the chest, a black belt all the way round with a gold buckle,
+    // white fur at the hem, and the sack of gifts on the back.
+    const at = (test: (v: readonly [number, number, number, string]) => boolean, color: string) => body.filter((v) => test(v) && v[3] === color).length;
+    expect(at((v) => v[2] >= 2 && v[1] >= 5 && v[1] <= 7, P.cream)).toBeGreaterThanOrEqual(8);
+    expect(at((v) => v[1] === 3, P.coal)).toBeGreaterThanOrEqual(12);
+    expect(at((v) => v[1] === 3 && v[2] === 2, P.gold)).toBe(1);
+    expect(at((v) => v[1] === 2, P.cream)).toBeGreaterThanOrEqual(10);
+    expect(at((v) => v[2] <= -2 && v[1] >= 3 && v[1] <= 6, P.wood)).toBeGreaterThanOrEqual(20);
+    expect(avatar.body.some((v) => v[2] <= -2 || v[2] >= 2)).toBe(false);
+    // And he is the largest person of the cast.
+    LIFE_CAST.forEach((c, i) => {
+      if (isPerson(c.kind) && c.id !== "santa") expect(RIGS[i].size, c.id).toBeLessThan(santa.size);
+    });
   });
 
   it("gives each character of a kind a look of its own", () => {
@@ -103,7 +136,7 @@ describe("the cast as one mesh", () => {
 
   it("costs a small, fixed number of triangles: the whole cast is lighter than one residential block", () => {
     const triangles = CAST.indices.length / 3;
-    // 12 388 triangles for the 30 characters, all drawn (the number is pinned so that a heavier cast is a decision).
+    // 12 516 triangles for the 30 characters, all drawn (the number is pinned so that a heavier cast is a decision).
     expect(triangles).toBe(TRIANGLES);
     expect(triangles).toBeLessThan(14_000);
     for (const [i, range] of CAST.ranges.entries()) expect(range.count / 3, LIFE_CAST[i].id).toBeLessThan(1_200);

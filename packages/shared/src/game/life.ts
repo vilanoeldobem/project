@@ -83,7 +83,7 @@ export type LifePlace = "home" | "street" | "square" | "tree" | "sleigh" | "benc
 
 /** Body radius (u) by kind: two characters never stand closer than the sum of theirs. */
 export const LIFE_RADIUS: Record<LifeKind, number> = {
-  santa: 0.5, elf: 0.4, shopkeeper: 0.45, lumberjack: 0.45, villager: 0.45, visitor: 0.45,
+  santa: 0.75, elf: 0.4, shopkeeper: 0.45, lumberjack: 0.45, villager: 0.45, visitor: 0.45,
   reindeer: 1.2, dog: 0.55, cat: 0.35, bird: 0.2, rabbit: 0.3, owl: 0.2,
 };
 /** Walking pace (u/s) by kind, before the personal factor (`paceFactor`). The avatar runs at 8.5 u/s. */

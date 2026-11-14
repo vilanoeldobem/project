@@ -51,16 +51,24 @@ function dress(kind: LifeKind, seed: Seed, rig: ReturnType<typeof villagerRig>):
   const y1 = shoulder - 1, top = hy + 3;
   const held: Voxel[] = [];
   if (kind === "santa") {
-    // White fur trim, black belt with a gold buckle, the beard, and the hat with its pompom.
-    box(v, -w, w, y0, y0, 1, 1, P.cream);
-    box(v, -w, w, y0 + 1, y0 + 1, 1, 1, P.coal);
-    v.push([0, y0 + 1, 1, P.gold]);
-    for (let y = y0 + 2; y <= y1; y++) v.push([0, y, 1, P.cream]);
-    box(v, -1, 1, hy, hy, 2, 2, P.cream);
-    v.push([0, hy - 1, 2, P.cream], [-1, hy + 1, 2, P.cream], [1, hy + 1, 2, P.cream]);
+    // Unmistakable at a glance, with no label (the visitor's own default avatar also wears a red coat and a
+    // Santa hat): a round belly two voxels out, a black belt with a gold buckle all the way round, white fur at
+    // the hem, down the front and at the cuffs, a beard that covers the chest, a wide fur brim under a drooping
+    // cap with its pompom, and the sack of gifts on his back. He is also built larger (`person`).
+    box(v, -w, w, y0, y1, 1, 1, P.red);
+    box(v, -1, 1, y0 + 1, y1 - 1, 2, 2, P.red);
+    box(v, -w, w, y0, y0, -1, 1, P.cream);
+    box(v, -w, w, y0 + 1, y0 + 1, -1, 1, P.coal);
+    box(v, -1, 1, y0 + 1, y0 + 1, 2, 2, P.coal);
+    v.push([0, y0 + 1, 2, P.gold], [0, y1 - 1, 2, P.cream]);
+    box(v, -1, 1, y1, hy, 2, 2, P.cream);
+    v.push([0, y1 - 1, 3, P.cream], [-2, hy, 1, P.cream], [2, hy, 1, P.cream], [-1, hy + 1, 2, P.cream], [1, hy + 1, 2, P.cream], [0, hy + 1, 2, P.red]);
     box(v, -2, 2, top, top, -2, 2, P.cream);
     box(v, -1, 1, top + 1, top + 1, -1, 1, P.red);
-    v.push([0, top + 2, -1, P.red], [0, top + 2, -2, P.red], [0, top + 1, -2, P.cream]);
+    v.push([0, top + 2, 0, P.red], [0, top + 2, -1, P.red], [0, top + 1, -2, P.red], [0, top, -3, P.cream]);
+    box(v, -2, 2, y0 + 1, y1, -3, -2, P.wood);
+    box(v, -1, 1, y1 + 1, y1 + 1, -3, -2, P.wood);
+    v.push([0, y1 + 2, -2, P.gold], [-1, y1 + 2, -3, P.pineLight], [1, y1 + 2, -3, P.bulbBlue], [-2, y1 - 1, -4, P.trunk], [2, y0 + 2, -4, P.trunk]);
   } else if (kind === "elf") {
     // Pointed hat with a bell, pointed ears, a red collar, and the gift it carries to the tree.
     const hat = r.pick([P.pine, P.red, P.pineLight]);
@@ -103,7 +111,9 @@ function person(kind: LifeKind, seed: Seed): Rig {
     armR.push([x, y, 1, P.wood], [x, y, 2, P.wood], [x, y, 3, P.stoneDark], [x, y + 1, 3, P.stoneDark], [x, y - 1, 3, P.stoneDark]);
   }
   const limb = (voxels: Voxel[], pivotY: number, swing: number, first: number, second: number): RigPart => ({ voxels, pivot: [pivotY, 0], swing, first, second });
-  const size = kind === "elf" ? 0.24 : kind === "santa" ? 0.32 : 0.3;
+  // Santa is built larger than anyone (the avatar and the villagers are 0.3): a third taller than the avatar in
+  // its hat, with a body more than twice as wide and four times as deep. Elves are small.
+  const size = kind === "elf" ? 0.24 : kind === "santa" ? 0.4 : 0.3;
   const parts = [
     body(of("body")),
     limb(of("legL"), rig.hip, 1, 0, 0),
