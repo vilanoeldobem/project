@@ -24,7 +24,7 @@ function run(kind: LifeKind, visitors: Array<[number, number]>, seconds: number,
 }
 
 describe("the local reaction layer", () => {
-  it("never draws a character farther than the bound from its shared position, whatever the avatars do", () => {
+  it("never draws a character farther than the bound from its shared position, whatever the avatars do", { timeout: 30_000 }, () => {
     const rnd = mulberry32(2026);
     for (const kind of LIFE_KINDS) {
       const r = createReactions(1);

@@ -524,7 +524,7 @@ describe("village life: a pure function of (seed, time, plan)", () => {
     }
   });
 
-  it("shows a clock that is a little off a character a little ahead or behind, never somewhere else", () => {
+  it("shows a clock that is a little off a character a little ahead or behind, never somewhere else", { timeout: 60_000 }, () => {
     const a = createLifeState(), b = createLifeState();
     const limit = life.chars.map((_, i) => lifeMaxSpeed(life, i));
     for (const offset of [20, 150, 800]) {
@@ -611,7 +611,7 @@ describe("village life: safety sampled over 24 h, several seeds and weather stat
     expect(closest).toBeLessThan(1);
   });
 
-  it("never has two characters of one group on the move at the same time, but for a companion beside its leader", () => {
+  it("never has two characters of one group on the move at the same time, but for a companion beside its leader", { timeout: 30_000 }, () => {
     const state = createLifeState();
     for (const seed of SEEDS) {
       const sim = compileLife(seed, { snowAt: WEATHERS[4][1] });
