@@ -6,7 +6,7 @@
  * - 39 distinct looks, then the same room after half the visitors change look and five reconnect;
  * - 39 visitors wearing one look.
  * The scripted visitors speak the presence protocol directly (`["k", …]` look, `["p", …]` pose) with the game's
- * Origin; the looks are read from the catalogue in `packages/shared/src/game/cosmetics.ts`. Local only.
+ * Origin; the looks are read from the catalogue in `packages/shared/src/game/cosmetics.ts` (free items only). Local only.
  *
  * Usage: node scripts/verify-fullroom.mjs [game url] [realtime url]
  *        (defaults http://localhost:8799 and ws://localhost:8788: `pnpm --filter @vila/server dev` and `dev:worker`)
@@ -21,16 +21,26 @@ const url = process.argv[2] ?? "http://localhost:8799";
 const realtime = process.argv[3] ?? "ws://localhost:8788";
 const BUDGET = { calls: 150, triangles: 250000 };
 const REMOTES = 39;
-const SLOTS = ["hat", "scarf", "sweater", "palette"];
 const errors = [];
 const stats = {};
 
-// Every combination of the catalogue, in a fixed order.
+// Wearable looks from the catalogue in `packages/shared/src/game/cosmetics.ts`, as the presence protocol sends them:
+// one base36 catalogue index per slot, in `SLOTS` order (index 0 = the slot's default). Paid items are previews,
+// never worn, and the room refuses them, so they are left out. Look `i` is `i` in mixed radix over the free items.
 const catalogue = readFileSync(new URL("../../../packages/shared/src/game/cosmetics.ts", import.meta.url), "utf8");
-const items = [...catalogue.matchAll(/id: "([a-z-]+)", slot: "([a-z]+)"/g)].map(([, id, slot]) => ({ id, slot }));
-let looks = [[]];
-for (const slot of SLOTS) looks = looks.flatMap((l) => items.filter((c) => c.slot === slot).map((c) => [...l, c.id]));
-if (looks.length < REMOTES) throw new Error(`only ${looks.length} looks in the catalogue (parsed ${items.length} items)`);
+const SLOTS = JSON.parse(/export const SLOTS: Slot\[\] = (\[[^\]]*\]);/.exec(catalogue)[1]);
+const items = [...catalogue.matchAll(/\{ id: "([a-z0-9-]+)", slot: "([a-zA-Z]+)",[^\n]*?unlock: ([A-Za-z]+)/g)].map(([, id, slot, unlock]) => ({ id, slot, paid: unlock === "PAID" }));
+const free = SLOTS.map((slot) => items.filter((c) => c.slot === slot).map((c, index) => ({ ...c, index })).filter((c) => !c.paid));
+if (free.some((list) => list.length === 0)) throw new Error(`could not read the catalogue (parsed ${items.length} items over ${SLOTS.length} slots)`);
+const lookCode = (i) => {
+  let n = i;
+  return free.map((list) => {
+    const item = list[n % list.length];
+    n = Math.floor(n / list.length);
+    return item.index.toString(36);
+  }).join("");
+};
+const looks = Array.from({ length: REMOTES }, (_, i) => lookCode(i));
 
 /** One scripted visitor: joins room 0, wears `look`, stands (or paces) at its place on a ring around the spawn. */
 function visitor(i, look) {
@@ -50,7 +60,7 @@ function visitor(i, look) {
     });
   v.wear = (l) => {
     v.look = l;
-    if (v.ws?.readyState === 1) v.ws.send(JSON.stringify(["k", ...l]));
+    if (v.ws?.readyState === 1) v.ws.send(JSON.stringify(["k", l]));
   };
   v.step = (t) => {
     if (v.ws?.readyState !== 1) return;
@@ -110,7 +120,7 @@ async function open(name) {
   const crowd = await room((i) => looks[(i * 7) % looks.length]);
   const page = await open("distinct");
   const distinct = await measure(page, "39 distinct looks");
-  crowd.crowd.forEach((v, i) => i % 2 && v.wear(looks[(i * 11 + 3) % looks.length]));
+  crowd.crowd.forEach((v, i) => i % 2 && v.wear(lookCode(REMOTES + i)));
   for (const v of crowd.crowd.slice(0, 5)) {
     v.ws.close();
     await new Promise((r) => setTimeout(r, 300));
