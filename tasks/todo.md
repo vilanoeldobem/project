@@ -853,7 +853,11 @@ Walking Christmas characters and animals, the same for every visitor, with nothi
 - The render budget has more room than before: the cast is one draw call (two with its shadow), and the nine
   decorative critters it replaces cost one or two each.
 - Not done: a measurement on a real phone; a browser run of moderation picking with a character in front of a
-  visitor (the code path is the ground's, called first); characters going into buildings for real; any AI.
+  visitor (unit-tested with the ground's own handler); characters going into buildings for real; any AI.
+- Follow-up after the merge of PR #43 (2026-11-13): the click on a character goes through `pressScene` (a press
+  that picked a visitor neither walks nor talks); the lines say "está fechada" / "está fechado" and what a
+  character does today, never "ainda não" or what "vai" be; Santa is built larger, with belly, belt, beard and
+  sack, because the default avatar also wears red and a Santa hat; explicit limits on the slow tests.
 
 ### Lessons
 
@@ -864,3 +868,8 @@ Walking Christmas characters and animals, the same for every visitor, with nothi
 - A background tab does not run frames: compare two visitors by their clocks, not by their last frame.
 - A new action target that sits inside the reach of an older one (the tree, a shop door) needs its rank stated
   and tested against every older kind, or it takes their button.
+- A character's line is copy like a panel's: "not yet" and "it will come from here" announce what nobody decided.
+  Say what is there and what the character does today, and let the test list the future forms it rejects.
+- A second handler for the same press drifts from the first: give a new click target the click only and let the
+  one press rule decide, then test with that rule's real handler.
+- Check a new character against the player's own default look before calling it recognisable.

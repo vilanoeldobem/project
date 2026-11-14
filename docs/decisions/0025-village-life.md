@@ -83,7 +83,7 @@ personagens.
 
 | Quem | Quantos | Onde e o que faz |
 |---|---|---|
-| Papai Noel | 1 | junto ao trenó e à vista da árvore, das 10:00 às 21:30; descansa no trenó (fora de cena) |
+| Papai Noel | 1 | junto ao trenó e à vista da árvore, das 10:00 às 21:30; descansa no trenó (fora de cena). Sem rótulo, é reconhecido pela silhueta: é o maior boneco da Vila (voxel de 0,4 u contra 0,3: um terço mais alto que o avatar de gorro, corpo com mais que o dobro da largura), barrigudo, com cinto preto de fivela dourada, pelo branco na barra, na frente e nos punhos, barba branca sobre o peito, gorro de aba larga com pompom e o saco de presentes nas costas. O avatar padrão também usa casaco vermelho e gorro de Noel, e a primeira versão do Papai Noel se confundia com ele |
 | Duendes | 3 | arrumam o trenó e levam enfeites até perto da árvore, das 8:00 às 21:00 |
 | Lojistas | 4 | um por loja (as lojas estão fechadas), no ponto `ShopDef.keeper` das 9:00 às 19:00 (`LIFE.shopHours`), às vezes varrendo a porta; vão de casa à loja um quarto de hora antes e voltam ao fechar |
 | Lenhador | 1 | racha e empilha lenha no pátio (`WOOD_YARD`), leva achas pela travessa norte até perto do Empório da Lareira, descansa no caminho; mora no Bairro da Floresta |
@@ -185,9 +185,13 @@ Em vez de bloquear, o personagem **dá passagem**, numa camada local e só visua
   diálogo aberto por clique descarta a caminhada. As caixas que recebem o clique são invisíveis e não custam
   chamada de desenho; só pessoas têm caixa.
 - **Moderação.** No modo de moderação (IMPL-0021) um clique que cai sobre o avatar de outro visitante seleciona o
-  visitante, mesmo com um personagem na frente; um personagem nunca é selecionável (não está na lista de presença).
-  Isso segue do código (a caixa do personagem chama primeiro a mesma `selectVisitorAt` do chão) e **não foi
-  conferido em navegador** com um personagem na frente de um visitante.
+  visitante, com um personagem na frente ou atrás, e esse toque não anda até o personagem nem conversa com ele;
+  um personagem nunca é selecionável (não está na lista de presença). O clique no personagem passa pela regra de
+  toque da cena (`pressScene`, `game/clicks.ts`): a caixa do personagem responde só ao clique, todo toque chega
+  ao chão que está por baixo, e o chão tenta primeiro a seleção de visitante; `visitCharacter` lê o mesmo
+  `pickedVisitor` que `visit` e `tapResidence`. Conferido por teste com o próprio manipulador do chão e a caixa de
+  um personagem em primeiro lugar sob o ponteiro (`game/village-life.test.ts`); **não foi conferido em navegador**
+  (pede um administrador em modo de moderação e um segundo visitante parado na frente de um personagem).
 - **Sem rótulo.** Personagens do elenco não têm nome flutuando. Só os NPCs de quest, que têm nome, seguem com o
   rótulo curto de sempre.
 - **Oclusão.** Personagens não entram no teste que decide se o avatar está escondido (IMPL-0024): têm pouco mais
@@ -196,7 +200,7 @@ Em vez de bloquear, o personagem **dá passagem**, numa camada local e só visua
 
 ### 6. Desenho: o elenco inteiro numa chamada
 
-- Uma malha contém todos os personagens (`scene/life/castGeometry.ts`: 12 388 triângulos para os 30). Cada vértice
+- Uma malha contém todos os personagens (`scene/life/castGeometry.ts`: 12 516 triângulos para os 30). Cada vértice
   leva o índice do personagem e o pivô e os pesos da sua parte; um passo no shader de vértice
   (`scene/life/lifeMaterial.ts`) lê uma linha de uma textura de dados (4 texels por personagem, escrita uma vez
   por quadro) e põe o personagem no lugar. **Uma chamada de desenho para o elenco, duas com a sombra**, com 1 ou
@@ -217,7 +221,8 @@ Em vez de bloquear, o personagem **dá passagem**, numa camada local e só visua
 ## Medido
 
 Tudo em 2026-11-13, na máquina de desenvolvimento (Apple M5), com o build local (`vite build --mode workers`) e
-os Workers locais. "Antes" é o commit de onde este ramo partiu (`6678b70`).
+os Workers locais. "Antes" é o `main` em que este ramo foi integrado (`ab3c4d1`, depois do PR #43); "depois" é o
+ramo com esse `main` integrado.
 
 **Custo da simulação** (Node, `life.test.ts`): **0,53 µs por quadro para os 30 personagens (0,018 µs por
 personagem)**, 552 bytes de heap em 800 mil quadros (nenhuma alocação por quadro). O teste falha acima de 1 µs por
@@ -228,8 +233,8 @@ personagem ou de 2 bytes por quadro.
 | O que foi comparado | Relógios | Posições comparadas | Idênticas | Maior diferença | Diferença média |
 |---|---|---|---|---|---|
 | Mesma hora pedida aos dois (48 horas ao longo de um dia) | — | 1 440 | **todas, bit a bit** | 0 | 0 |
-| Relógio sincronizado de cada um (os dois sincronizam com a API local), nos mesmos 1 416 instantes reais ao longo de 24 h | 0,45 ms de diferença | 42 480 | 41 819 | **0,0024 u** (um passarinho em voo) | 0,000013 u |
-| Relógios propositalmente desencontrados (duas páginas com o relógio de desenvolvimento, abertas uma depois da outra) | 1,79 s de diferença | 42 480 | 40 923 | 9,2 u (o mesmo passarinho, que voa a mais de 5 u/s) | 0,057 u |
+| Relógio sincronizado de cada um (os dois sincronizam com a API local), nos mesmos 1 416 instantes reais ao longo de 24 h | 2,2 ms de diferença (0,45 ms noutra execução) | 42 480 | 41 840 | **0,012 u** (um passarinho em voo; 0,0024 u na outra execução) | 0,00006 u |
+| Relógios propositalmente desencontrados (duas páginas com o relógio de desenvolvimento, abertas uma depois da outra) | 1,52 s de diferença | 42 480 | 41 046 | 8,3 u (o mesmo passarinho, que voa a mais de 5 u/s) | 0,049 u |
 
 O relógio de cada página é lido ao lado do relógio do aparelho, que as duas compartilham; a diferença entre os
 dois é a diferença de relógio, e cada página diz onde está cada personagem nos mesmos instantes reais pelo seu
@@ -243,36 +248,37 @@ vistas do acompanhamento da IMPL-0024; contadores de todas as passadas, sombra i
 
 | Câmera fixa (avatar) | Zoom | Hora, clima | Preset | Chamadas antes → depois | Triângulos antes → depois |
 |---|---|---|---|---|---|
-| Spawn `(0, 9)` | 1 | 12:00, neve | Média | 101 → 91 | 112 786 → 138 354 |
-| Spawn `(0, 9)` | 1 | 12:00, neve | Alta | 115 → 105 | 115 424 → 140 992 |
-| Spawn `(0, 9)` | 1 | 15:30, céu limpo | Média | 102 → 92 | 114 870 → 139 454 |
-| Spawn `(0, 9)` | 1 | 17:50, céu limpo | Alta | 118 → 108 | 126 964 → 151 476 |
-| Spawn `(0, 9)` | 0,55 | 12:00, neve | Média | 78 → 73 | 80 008 → 106 828 |
-| Praça, spawn `(0, 9)` | 1,6 | 12:00, neve | Média | 111 → 101 | 147 650 → 173 218 |
-| Praça, spawn `(0, 9)` | 1,6 | 15:30, céu limpo | Média | 113 → 103 | 154 630 → 179 214 |
-| Praça, spawn `(0, 9)` | 1,6 | 15:30, céu limpo | Alta | 127 → 117 | 157 268 → 182 836 |
-| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Média | 116 → 106 | 166 886 → 191 398 |
-| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Alta | 130 → 120 | 169 524 → 194 036 |
-| Praça, spawn `(0, 9)` | 1,6 | 08:00, céu limpo | Média | 114 → 104 | 159 466 → 173 074 |
-| Praça, spawn `(0, 9)` | 1,6 | 23:00, céu limpo | Alta | 126 → 116 | 152 604 → 158 852 |
-| Porta da loja `(5, 25,5)` | 1 | 12:00, neve | Média | 89 → 85 | 101 518 → 126 590 |
-| Rua premium `(37,5, 6)` | 1 | 12:00, neve | Média | 73 → 71 | 127 832 → 149 524 |
-| Rua premium `(37,5, 6)` | 1,6 | 15:30, céu limpo | Média | 105 → 98 | 171 764 → 191 200 |
-| Rua econômica `(68, −22,5)` | 1 | 12:00, neve | Média | 63 → 66 | 120 360 → 127 380 |
-| Rua econômica `(68, −22,5)` | 1,6 | 15:30, céu limpo | Média | 73 → 75 | 138 840 → 145 824 |
-| Rua padrão norte `(0, −60)` | 1 | 12:00, neve | Média | 60 → 62 | 117 802 → 124 986 |
+| Spawn `(0, 9)` | 1 | 12:00, neve | Média | 103 → 93 | 113 450 → 139 274 |
+| Spawn `(0, 9)` | 1 | 12:00, neve | Alta | 117 → 107 | 116 088 → 141 912 |
+| Spawn `(0, 9)` | 1 | 15:30, céu limpo | Média | 104 → 94 | 115 534 → 140 374 |
+| Spawn `(0, 9)` | 1 | 17:50, céu limpo | Alta | 120 → 110 | 127 628 → 152 396 |
+| Spawn `(0, 9)` | 0,55 | 12:00, neve | Média | 80 → 75 | 80 672 → 107 748 |
+| Praça, spawn `(0, 9)` | 1,6 | 12:00, neve | Média | 115 → 105 | 149 282 → 175 106 |
+| Praça, spawn `(0, 9)` | 1,6 | 15:30, céu limpo | Média | 117 → 107 | 156 262 → 181 102 |
+| Praça, spawn `(0, 9)` | 1,6 | 15:30, céu limpo | Alta | 131 → 121 | 158 900 → 184 724 |
+| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Média | 120 → 110 | 168 518 → 193 286 |
+| Praça, spawn `(0, 9)` | 1,6 | 17:50, céu limpo | Alta | 134 → 124 | 171 156 → 195 924 |
+| Praça, spawn `(0, 9)` | 1,6 | 08:00, céu limpo | Média | 118 → 108 | 161 098 → 174 706 |
+| Praça, spawn `(0, 9)` | 1,6 | 23:00, céu limpo | Alta | 130 → 120 | 154 236 → 160 484 |
+| Porta da loja `(5, 25,5)` | 1 | 12:00, neve | Média | 93 → 89 | 103 150 → 128 478 |
+| Rua premium `(37,5, 6)` | 1 | 12:00, neve | Média | 77 → 75 | 129 464 → 151 412 |
+| Rua premium `(37,5, 6)` | 1,6 | 15:30, céu limpo | Média | 109 → 102 | 173 396 → 193 088 |
+| Rua econômica `(68, −22,5)` | 1 | 12:00, neve | Média | 64 → 67 | 120 232 → 127 252 |
+| Rua econômica `(68, −22,5)` | 1,6 | 15:30, céu limpo | Média | 74 → 76 | 137 876 → 144 860 |
+| Rua padrão norte `(0, −60)` | 1 | 12:00, neve | Média | 61 → 63 | 117 674 → 124 858 |
 
 - **Chamadas:** caem cerca de 10 na praça (as nove peças de decoração saíram; o elenco inteiro é uma chamada, duas
   com a sombra) e sobem 2 ou 3 nas ruas onde antes não havia nenhum personagem. A pior das 18 vistas tem
-  120 chamadas (eram 130).
+  124 chamadas (eram 134).
 - **Triângulos:** sobem de 6 mil a 27 mil conforme quantos personagens estão perto (na praça à tarde, 28 dos 30:
-  cerca de 12 mil na passada principal e outro tanto na de sombra). No spawn, Média, 12:00 com neve: de 112 786
-  para 138 354 (+23 %). A pior vista tem 194 036 triângulos, **22 % abaixo do orçamento** (era 169 524).
+  cerca de 12 mil na passada principal e outro tanto na de sombra). No spawn, Média, 12:00 com neve: de
+  113 450 para 139 274 (+23 %). A pior vista tem 195 924 triângulos, **22 % abaixo do
+  orçamento** (era 173 396).
 - O tempo de quadro nessa máquina fica preso aos 60 Hz antes e depois e não mostra o custo em aparelho fraco.
   **Não foi medido em celular.**
 - `verify-life.mjs` confere o orçamento em seis vistas com os personagens na tela (as quatro do `verify.mjs`, a
-  porta da loja e a rua premium), em renderização por software: de 75 a 106 chamadas e de 127 mil a 179 mil
-  triângulos; `verify.mjs` segue conferindo as suas quatro.
+  porta da loja e a rua premium), em renderização por software: de 88 a 110 chamadas e de 128 mil a 181 mil
+  triângulos; `verify.mjs` segue conferindo as suas quatro (93 a 110 chamadas, 139 mil a 181 mil triângulos).
 
 ## Alternativas consideradas
 

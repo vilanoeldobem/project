@@ -22,13 +22,14 @@ Cada versão indica o schema D1 que entrega.
 - **Iguais para todos, sem servidor.** Onde cada personagem está é uma função pura da semente do mundo, da hora
   sincronizada e do plano da Vila (`sampleLife`, `packages/shared/src/game/life.ts`): cada navegador calcula, e
   todos veem o mesmo. Nenhuma mensagem nova, nenhum estado no Durable Object, nada no D1. Medido com dois
-  navegadores na mesma máquina: relógios a 0,45 ms um do outro, maior diferença de posição 0,0024 u em 42 480
+  navegadores na mesma máquina: relógios a 2,2 ms um do outro, maior diferença de posição 0,012 u em 42 480
   comparações; para a mesma hora, posições idênticas bit a bit.
 - **Não atravessam nada e não se sobrepõem.** Todo ponto e todo caminho ficam em chão livre, nas ruas e trilhas;
   cada personagem tem os seus pontos, grupos andam um de cada vez e grupos diferentes nunca se encontram
   (conferido por teste, estático e por amostragem de 24 h).
 - **Conversar.** Perto de um personagem parado, o botão de ação oferece "Conversar com …" (E, Enter ou toque;
-  clicar no personagem leva o avatar até ele). A fala são duas ou três linhas fixas, escolhidas por quem é, onde
+  clicar no personagem leva o avatar até ele; no modo de moderação, o toque que seleciona um visitante não anda
+  até o personagem nem conversa com ele). A fala são duas ou três linhas fixas, escolhidas por quem é, onde
   está, a hora e o clima, e um botão "Continuar". Lojista e lenhador dizem o que o lugar é, que está fechado e
   "Nada é vendido na Vila." (nenhuma fala diz "ainda não abriu" nem o que um lugar "vai" ser: isso anunciaria o
   que ninguém decidiu); Papai Noel e os duendes apontam a árvore e as casas das ONGs; um morador comenta o
@@ -37,6 +38,9 @@ Cada versão indica o schema D1 que entrega.
 - **Reações.** Um personagem dá passagem ao avatar (o seu e o dos outros visitantes); o cachorro chega perto e
   abana o rabo, o gato e o coelho mantêm distância, o passarinho pula para longe, a rena levanta a cabeça, a
   pessoa parada vira e acena. É só no seu aparelho, até 1 u do lugar do personagem, e volta sozinho.
+- **Papai Noel reconhecível sem rótulo.** O avatar padrão também usa casaco vermelho e gorro de Noel; o Papai
+  Noel é o maior boneco da Vila, barrigudo, de cinto preto com fivela, barba branca sobre o peito e saco de
+  presentes nas costas.
 - **Dois cercados de renas** na faixa da praça, ao lado das travessas do sudeste e do sudoeste.
 - **Configurações:** "Mostrar os moradores e os animais da Vila" (ligado por padrão; "Menos movimento" tira o
   balanço dos personagens).
@@ -48,9 +52,9 @@ Cada versão indica o schema D1 que entrega.
   ficavam parados como decoração agora andam e saem da frente; o gato desceu do banco para o chão ao lado dele.
   É a única exceção à regra dos colisores (IMPL-0016), registrada no `AGENTS.md`. `CRITTERS` saiu de `world.ts`.
 - **Desenho.** O elenco inteiro custa uma chamada de desenho (duas com a sombra), no lugar das nove peças de
-  decoração, que custavam uma ou duas cada. No spawn (Média, 12:00 com neve): de 101 para 91 chamadas e de
-  112 786 para 138 354 triângulos (personagens e a sombra deles); a pior das 18 vistas medidas tem 120 chamadas e
-  194 mil triângulos, dentro do orçamento de 150 e 250 mil. Não medido em celular.
+  decoração, que custavam uma ou duas cada. No spawn (Média, 12:00 com neve): de 103 para 93 chamadas e de
+  113 450 para 139 274 triângulos (personagens e a sombra deles); a pior das 18 vistas medidas tem 124 chamadas e
+  196 mil triângulos, dentro do orçamento de 150 e 250 mil. Não medido em celular.
 
 ### Added — expansão da Vila (IMPL-0024, **PROPOSTA**; schema D1 v12)
 

@@ -293,7 +293,7 @@ está a partir do relógio sincronizado e da semente do mundo, que já tinha.
   nunca é escrito na simulação; cada visitante vê a sua.
 - **Sem colisor.** Personagens não estão em `sceneColliders` nem na grade de navegação: o avatar atravessa o
   lugar deles e eles saem da frente. É a exceção à regra do §2.2.
-- **Desenho** (`scene/Life.tsx`): uma malha para o elenco (`scene/life/castGeometry.ts`, 12 388 triângulos com
+- **Desenho** (`scene/Life.tsx`): uma malha para o elenco (`scene/life/castGeometry.ts`, 12 516 triângulos com
   os 30), um passo no shader de vértice que lê uma textura de dados com uma linha por personagem
   (`scene/life/lifeMaterial.ts`) e um buffer de índices só com quem está perto: uma chamada de desenho, duas com
   a sombra. Os bonecos vêm de `scene/gen/cast.ts`.
@@ -534,7 +534,7 @@ Medido em `pnpm build` (2026-11-10). O HTML só pré-carrega `react` e `index`; 
 | Vila expandida (2026-11-13, Média, spawn, 12:00 com neve, Chrome com GPU) | 102 chamadas e ~165 mil triângulos (antes da expansão: 70 e ~122 mil); com o zoom todo afastado sobre a praça, às 15:30 com céu limpo: 116 e ~211 mil. Depois da revisão (floresta e montanhas desenhadas em pedaços): no spawn, 101 chamadas e ~113 mil triângulos; com o zoom todo afastado às 15:30, 113 e ~155 mil; o quadro mais caro de um roteiro a pé com o zoom todo afastado caiu de ~252 mil para ~196 mil triângulos, com no máximo 141 chamadas. Orçamento: 150 chamadas e 250 mil triângulos, que o `verify.mjs` confere no spawn com o zoom padrão e com o zoom todo afastado ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md#desempenho)) |
 | Floresta e montanhas | Cada setor da floresta (8) é malhado como um modelo e desenhado em até 4 pedaços (pinheiros da praça, do cinturão, floresta em duas metades); as montanhas, em 8 setores. Cada pedaço é descartado pela câmera sozinho; os triângulos são os mesmos da malha inteira (`scene/voxelParts.test.ts`) |
 | Passada de sombra | Blocos residenciais (24) e pedaços da floresta só entram enquanto a sombra de alguma peça deles aparece na tela (`scene/shadowCasters.ts`, `scene/ShadowCulling.tsx`): uma esfera por chalé, peça e pinheiro, testada contra a caixa do mapa de sombra e contra a câmera, no `onBeforeRender` da cena. A imagem não muda |
-| Vida na Vila (2026-11-13, IMPL-0025; Chrome com GPU, Média, spawn, 12:00 com neve) | 91 chamadas e ~138 mil triângulos (antes: 101 e ~113 mil): o elenco inteiro é uma chamada, duas com a sombra, e até ~12 mil triângulos por passada com os 30 na tela; a pior de 18 vistas tem 120 chamadas e ~194 mil triângulos. Avaliar a simulação: ~0,5 µs por quadro, sem alocar |
+| Vida na Vila (2026-11-13, IMPL-0025; Chrome com GPU, Média, spawn, 12:00 com neve) | 93 chamadas e ~139 mil triângulos (antes: 103 e ~113 mil): o elenco inteiro é uma chamada, duas com a sombra, e até ~12,5 mil triângulos por passada com os 30 na tela; a pior de 18 vistas tem 124 chamadas e ~196 mil triângulos. Avaliar a simulação: ~0,5 µs por quadro, sem alocar |
 | `dpr` | adaptativo: começa no do aparelho (até o máximo do preset, 1–2); cai 0,25 por vez até 0,75 se o p95 do quadro passar de 22 ms e volta a subir com folga |
 
 Números de tempo do `verify.mjs` vêm de renderização por software (swiftshader) e não valem como desempenho real;
