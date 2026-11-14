@@ -2,8 +2,17 @@
  * Room presence logic (pure; the Durable Object in `room-do.ts` only wires sockets to it).
  *
  * The room is authoritative for what other visitors see: it sanitises every pose, refuses teleports
- * (a pose may only move as far as the avatar's top speed allows since the last accepted one), rate-limits
- * each connection with a token bucket and batches changed poses into one broadcast per tick.
+ * (see "Movement allowance" below), rate-limits each connection with a token bucket and batches changed poses
+ * into one broadcast per tick.
+ *
+ * Movement allowance: each member has a distance budget that refills with elapsed time at `WALK_RATE`
+ * (25 % above the avatar's top speed), is capped at `MOVE_ALLOWANCE_CAP` (one second of that walking) and is
+ * spent by the distance each pose actually moves; a pose that asks for more is cut short along its direction.
+ * Over any window of T seconds a member moves at most `MOVE_ALLOWANCE_CAP + WALK_RATE * T`, however many poses
+ * it sends: sending more often buys no extra distance. The cap is the jitter tolerance: poses that arrive
+ * bunched after a network stall spend what the stall refilled, and a delay of up to about a second is absorbed
+ * without a clamp. The first pose places the visitor anywhere (and fills the budget, which gives nothing a free
+ * placement did not already give). O(1) per message, in memory only.
  *
  * Idle bookkeeping (IMPL-0014): every member carries the time of its last real activity (a pose that moves
  * or turns the avatar, a look, or the client's ["a"] report of a click, tap or key). The keep-alive "ping"
@@ -32,8 +41,10 @@ const RATE = 20;
 const BURST = 40;
 /** Dropped messages tolerated before the connection is closed as abusive. */
 const ABUSE_LIMIT = 200;
-/** Slack for network jitter on the speed check (units). */
-const SLACK = 0.75;
+/** Refill rate of the movement allowance (units per second): the avatar's top speed plus 25 %. */
+export const WALK_RATE = MOTION.maxSpeed * 1.25;
+/** Most distance a member may have in hand (units): one second at `WALK_RATE`, the tolerated jitter. */
+export const MOVE_ALLOWANCE_CAP = WALK_RATE * 1;
 /** Window of the "requests per minute" limit on ["m", …]. */
 const REMOVE_WINDOW_MS = 60_000;
 
@@ -46,6 +57,8 @@ interface Member {
   dropped: number;
   /** False until the first pose: a (re)connecting visitor may start anywhere, once. */
   placed: boolean;
+  /** Distance (units) this member may still move; refilled from `acceptedAt` (see the module comment). */
+  allowance: number;
   look: Look;
   lookDirty: boolean;
   /** Time of the last real activity (see the module comment). */
@@ -97,6 +110,7 @@ export class RoomState {
       refilledAt: now,
       dropped: 0,
       placed: false,
+      allowance: MOVE_ALLOWANCE_CAP,
       look: DEFAULT_LOOK,
       lookDirty: false,
       activeAt: Math.min(activeAt, now),
@@ -160,14 +174,19 @@ export class RoomState {
       return "ok";
     }
     const pose = msg.pose;
-    // Anti-teleport: clamp the step to what the avatar could have walked since the last pose.
-    const dt = Math.min((now - m.acceptedAt) / 1000, 2);
-    const max = MOTION.maxSpeed * 1.25 * dt + SLACK;
-    const dx = pose.x - m.pose.x, dz = pose.z - m.pose.z;
-    const d = Math.hypot(dx, dz);
-    if (m.placed && d > max) {
-      pose.x = m.pose.x + (dx / d) * max;
-      pose.z = m.pose.z + (dz / d) * max;
+    // Anti-teleport: refill the allowance for the time elapsed since the last pose, then spend the step on it.
+    if (m.placed) {
+      const dt = Math.max(0, now - m.acceptedAt) / 1000;
+      const budget = Math.min(MOVE_ALLOWANCE_CAP, m.allowance + dt * WALK_RATE);
+      const dx = pose.x - m.pose.x, dz = pose.z - m.pose.z;
+      const d = Math.hypot(dx, dz);
+      if (d > budget) {
+        pose.x = m.pose.x + (dx / d) * budget;
+        pose.z = m.pose.z + (dz / d) * budget;
+      }
+      m.allowance = d > budget ? 0 : budget - d;
+    } else {
+      m.allowance = MOVE_ALLOWANCE_CAP;
     }
     // Only a pose that moves or turns the avatar is activity: repeating the same pose keeps nobody "present".
     if (!m.placed || pose.x !== m.pose.x || pose.z !== m.pose.z || pose.yaw !== m.pose.yaw) m.activeAt = now;
