@@ -19,6 +19,8 @@ export interface EnvironmentSettings {
   sound: boolean;
   /** See other visitors (anonymous avatars, no names, no chat) and be seen (IMPL-0008). */
   multiplayer: boolean;
+  /** Draw the village's characters and animals (IMPL-0025). Off = an empty village: nothing else changes. */
+  characters: boolean;
 }
 
 export interface QualityPreset {
@@ -63,6 +65,7 @@ function load(): EnvironmentSettings {
     particles: true,
     sound: false,
     multiplayer: true,
+    characters: true,
   };
   try {
     const raw = localStorage.getItem(KEY);
@@ -77,6 +80,7 @@ function load(): EnvironmentSettings {
         particles: bool(saved.particles, defaults.particles),
         sound: false,
         multiplayer: bool(saved.multiplayer, defaults.multiplayer),
+        characters: bool(saved.characters, defaults.characters),
       };
     }
   } catch {
@@ -95,10 +99,10 @@ export const useEnvSettings = create<SettingsState>((set, get) => ({
   detected: detectQuality(),
   set: (patch) => {
     set(patch);
-    const { quality, reduceMotion, reduceFlicker, particles, multiplayer } = get();
+    const { quality, reduceMotion, reduceFlicker, particles, multiplayer, characters } = get();
     try {
       // Sound is never persisted on: audio must start from a fresh, explicit gesture.
-      localStorage.setItem(KEY, JSON.stringify({ quality, reduceMotion, reduceFlicker, particles, multiplayer }));
+      localStorage.setItem(KEY, JSON.stringify({ quality, reduceMotion, reduceFlicker, particles, multiplayer, characters }));
     } catch {
       /* same as above */
     }

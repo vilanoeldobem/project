@@ -16,7 +16,7 @@ import { GameMenu } from "./ui/Menu";
 import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
-import { NpcDialog } from "./ui/NpcDialog";
+import { LifeDialog, NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
 import { Wordmark } from "./ui/Wordmark";
 
@@ -61,6 +61,7 @@ export function App() {
       {panel.kind === "memory" && <MemoryGame />}
       {panel.kind === "missions" && <Missions lots={lots} />}
       {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} />}
+      {panel.kind === "life" && <LifeDialog charId={panel.charId} name={panel.name} role={panel.role} lines={panel.lines} />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
       {panel.kind === "account" && <Account then={panel.then} />}

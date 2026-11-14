@@ -12,6 +12,7 @@ import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { ClickMarker } from "./ClickMarker";
 import { Ground } from "./Ground";
+import { VillageLife } from "./Life";
 import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
 import { RemotePlayers } from "./RemotePlayers";
@@ -62,6 +63,8 @@ export function World({ lots }: { lots: Record<string, LotInfo> }) {
         <LightStrings />
         <Snowmen />
         <PlacedProps />
+        {/* The village's characters and animals (IMPL-0025): before the avatar, which asks who stands near. */}
+        <VillageLife />
         <Sleigh />
         <Lots info={lots} />
         <Shops />

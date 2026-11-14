@@ -125,7 +125,7 @@ describe("Configurações", () => {
     const settings = menu("settings");
     expect(elements(settings.tree).filter((e) => e.type === EnvironmentSettings)).toHaveLength(1);
     const options = html(<EnvironmentSettings />);
-    expect(legends(options)).toEqual(["Qualidade gráfica", "Conforto", "Outros visitantes"]);
+    expect(legends(options)).toEqual(["Qualidade gráfica", "Conforto", "Outros visitantes", "Personagens da Vila"]);
     expect(settings.page).toContain(options);
     expect(html(<EnvironmentPanel />)).toContain(options);
   });

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
 import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
+import { lifeAction, lifePanel } from "../game/village-life";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { useAccount } from "../lib/account";
@@ -39,6 +40,8 @@ export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): s
       return "🎁 Ver loja";
     case "billboard":
       return "📜 Ler placa";
+    case "life":
+      return `💬 ${lifeAction(nearby.charId) ?? "Conversar"}`;
   }
 }
 
@@ -78,6 +81,12 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
       return;
     case "billboard":
       vila.open({ kind: "billboard", billboardId: n.billboardId });
+      return;
+    case "life": {
+      // The lines are chosen now, for where the character is and what it is doing; an unknown id opens nothing.
+      const panel = lifePanel(n.charId);
+      if (panel) vila.open(panel);
+    }
   }
 }
 

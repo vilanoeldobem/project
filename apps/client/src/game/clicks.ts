@@ -42,6 +42,20 @@ export function visit(spot: { x: number; z: number }, panel: Panel, reach: numbe
   else walkTo(spot.x, spot.z);
 }
 
+/**
+ * A click on a character of the village (IMPL-0025): from talking distance its dialogue opens; from farther
+ * away, or while it is walking, the avatar goes to stand `stand` u short of where it is (or of where it is
+ * going), on the avatar's side, and the action button offers the talk there. One click, one intention: an open
+ * dialogue leaves no walk behind it.
+ */
+export function visitCharacter(spot: { x: number; z: number; ready: boolean }, panel: Panel | null, reach: number, stand: number): void {
+  const dx = sim.pose.x - spot.x, dz = sim.pose.z - spot.z;
+  const dist = Math.hypot(dx, dz);
+  if (spot.ready && panel && dist < reach) return openFromScene(panel);
+  if (dist <= stand) return;
+  walkTo(spot.x + (dx / dist) * stand, spot.z + (dz / dist) * stand);
+}
+
 /** Where a ray meets the ground, or null when it never comes down to it. */
 export function groundUnder(origin: { x: number; y: number; z: number }, direction: { x: number; y: number; z: number }): { x: number; z: number } | null {
   if (direction.y >= -1e-6) return null;

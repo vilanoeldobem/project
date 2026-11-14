@@ -11,6 +11,7 @@ import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
 import { sim, walkRoute } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
 import { pickNearby } from "../game/nearby";
+import { lifeNear } from "../game/village-life";
 import { type Nearby, useVila } from "../game/store";
 import { attachZoomGestures } from "../lib/zoom-gestures";
 import { GIFTS, INTERACT_DISTANCE, QUEST_SPAWNS, surfaceAt, TREE_RADIUS } from "@vila/shared/game/world";
@@ -248,7 +249,8 @@ export function Player({ published }: { published: string }) {
 
     // ---- closest interaction (`game/nearby.ts`): one target, one action button. A residential plot is offered
     // only standing still, and the target on offer is held across the edge of its reach.
-    near.current = pickNearby(pose.x, pose.z, pose.speed, quests, useVila.getState().progress, near.current);
+    // A character of the village that stands within talking reach comes last (IMPL-0025).
+    near.current = pickNearby(pose.x, pose.z, pose.speed, quests, useVila.getState().progress, near.current, lifeNear(pose.x, pose.z, near.current));
     s.setNearby(near.current);
 
     // ---- see-through tint: shown while the camera cannot see the avatar's chest or head. Looked at again only
