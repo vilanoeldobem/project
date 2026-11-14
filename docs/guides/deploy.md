@@ -22,8 +22,10 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
 
-**Último deploy: 2026-11-12**, os cinco Workers a partir da `main` (`e2fa200`), na ordem API → servidor → painel →
-jogo → site. Nenhuma migration remota foi aplicada (o D1 de produção está na v3) e as contas seguem desligadas.
+**Último deploy: 2026-11-14**, versão 0.5.0, os cinco Workers a partir da `main` (`e4771c4`), na ordem API →
+servidor → jogo → painel → site, depois das migrations remotas `0004` a `0012` (o D1 de produção está na **v12**).
+Contas e todas as propostas seguem desligadas; o bucket R2 `vilanoeldobem-files` foi criado nesse dia, vazio e
+privado. O `smoke-api.sh` passa; o `verify-live.mjs` falha só pelos destinos do Google bloqueados pela CSP (OQ-13).
 
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
 ([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1 e o do bucket
@@ -65,7 +67,7 @@ e as rotas de candidatura e de análise de ONG requerem a 0009 (`ngo_withdrawals
 com qualquer combinação de bandeiras; operações que encontrem colunas novas ou essas tabelas ausentes retornam
 `503 schema_outdated`. As rotas públicas continuam tolerantes à v3, inclusive `/lots`, `/indicators`, `/ngos/:id`,
 logo e fotos: nenhuma delas lê a tabela de retiradas nem o que a 0010 cria. Isso não dispensa o upgrade antes de ativar as contas. O
-último estado registrado de produção permanece v3, sem aplicação remota destas migrations nesta entrega.
+D1 de produção está na v12 desde 2026-11-14 (migrations `0004` a `0012` aplicadas no deploy da 0.5.0).
 
 **Ordem com as contas ligadas: migration antes da API.** `db:migrate:remote` aplica todas as migrations pendentes
 de uma vez (levar a 0012 a um banco na v3 aplica também 0004–0011). Com `ACCOUNTS_ENABLED = "false"` a API desta
