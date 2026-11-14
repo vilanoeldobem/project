@@ -1089,8 +1089,14 @@ texto livre: só um id numérico anônimo por conexão e a pose do avatar. Nada 
 | cliente → sala | `["k", chapéu, cachecol, suéter, cores]` | visual do avatar (ids do catálogo, IMPL-0010); a sala só aceita ids existentes no encaixe certo |
 | sala → cliente | `["k", id, [chapéu, cachecol, suéter, cores]]` | visual de alguém (ao mudar; na entrada, todos os não padrão) |
 
-A sala corrige a pose recebida: dentro do mundo, velocidade até a máxima do avatar, sem teletransporte (o passo é
-limitado ao que daria para andar desde a última pose; a primeira pose é livre). Limite de 20 mensagens/s por
+A sala corrige a pose recebida: dentro do mundo, velocidade até a máxima do avatar, sem teletransporte. Cada conexão
+tem uma **reserva de deslocamento** (`apps/server/src/room.ts`): ela se recompõe com o tempo a `WALK_RATE` (velocidade
+máxima do avatar + 25 %, 10,625 u/s), tem teto `MOVE_ALLOWANCE_CAP` (1 s nesse ritmo, 10,625 u) e cada pose gasta a
+distância que de fato andou; a pose que pede mais é encurtada na mesma direção. Em qualquer intervalo de T segundos,
+ninguém anda mais que `10,625 + 10,625 × T` unidades, por mais poses que mande: enviar com mais frequência não dá
+distância extra. O teto é a tolerância a atraso da rede (poses que chegam juntas depois de uma pausa de até ~1 s
+passam sem corte). A primeira pose de cada conexão é livre e enche a reserva. Tudo fica em memória, nada é gravado.
+Limite de 20 mensagens/s por
 conexão (rajada de 40); mais de 200 descartadas → fecha com `1008`. Sala cheia → fecha com `4001` e o cliente tenta
 a próxima.
 
@@ -1114,6 +1120,17 @@ volta do mesmo jeito: no próximo toque, clique ou tecla com a aba visível.
 
 Carga medida (`apps/server/scripts/load.mjs`, `wrangler dev` local, 2026-11-11): 41 robôs → 40 conectados e 1
 recusado como cheio; cada visitante recebe ~9,7 mensagens/s e ~10 kB/s; do tick à chegada p95 9 ms (sem rede real).
+
+Carga entre salas (`apps/server/scripts/load-rooms.mjs`, `wrangler dev` local, 2026-11-14), robôs andando a 10 Hz:
+
+| Cenário | Resultado |
+|---|---|
+| sala 0 com 40 + um 41º | 40 na sala 0; o 41º recebe `4001` e entra na sala 1; ~10 mensagens/s por robô; maior intervalo entre snapshots 104 ms |
+| salas 2, 3 e 4 com 30, 12 e 5 | 47 conectados, nenhum fechamento; 9,7 mensagens/s; maior intervalo 197 ms |
+| 40 caem e reconectam no mesmo instante | os 40 voltam à sala 0 em 78 ms, nenhum `4001`; 9,3 mensagens/s; maior intervalo 105 ms |
+| 39 andando e 1 conexão que não lê por 10 s | os 39 seguem a 9,9 mensagens/s, maior intervalo 111 ms; a conexão lenta não é fechada e, ao voltar a ler, recebe 101 mensagens (~104 kB) acumuladas |
+
+O script termina com erro se alguma conexão for fechada com `1008` ou `1011` ou se uma sala não responder em 5 s.
 
 #### Remoção por administrador (PROPOSTA)
 
