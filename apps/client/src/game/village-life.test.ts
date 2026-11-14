@@ -7,12 +7,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { WEATHER_SEED } from "@vila/shared/environment/config";
 import { saoPauloToEpoch } from "@vila/shared/environment/time";
+import { clearance } from "@vila/shared/game/collision";
 import { compileLife, createLifeState, LIFE_ACTIVITIES, LIFE_CAST, sampleLife } from "@vila/shared/game/life";
 import { NOTHING_SOLD, WAYS } from "@vila/shared/game/life-dialogue";
+import { createNavField } from "@vila/shared/game/navigation";
 import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
 import { BILLBOARDS, INTERACT_DISTANCE, lotFront, LOTS, NPCS, RESIDENTIAL_PLOTS, SHOPS, TREE_RADIUS, WOOD_YARD } from "@vila/shared/game/world";
 
 import { env, frameAt, useEnvUi } from "../environment/runtime";
+import { sceneColliders } from "../scene/sceneColliders";
 import { visitCharacter } from "./clicks";
 import { events, type GameEvent } from "./events";
 import { REACT } from "./life-reactions";
@@ -109,6 +112,36 @@ describe("what one visitor sees never changes where a character is", () => {
     stand(at.x + 12, at.z);
     for (let f = 0; f < 240; f++) frame(ms + 1000 + f * 16);
     expect(Math.hypot(life.x[i] - at.x, life.z[i] - at.z)).toBeLessThan(0.01);
+  });
+});
+
+describe("a step aside next to something solid", () => {
+  it("turns to a side that is free instead of ending inside a bench, and never leaves the character on top of the avatar", () => {
+    const colliders = sceneColliders(new Set(), false);
+    sim.nav = createNavField(colliders);
+    // One of the two neighbours on the south-west bench: the bench is right behind it, seen from the plaza.
+    const ms = when("villager-5", (c) => c.activity === "chat" && c.presence === 1 && !c.moving, 9, 4);
+    const i = lifeIndex("villager-5"), at = here("villager-5");
+    const r = Math.hypot(at.x, at.z);
+    let turned = 0;
+    // The avatar comes from every side, the plaza's included (which pushes the villager straight at the bench).
+    for (let a = 0; a < 16; a++) {
+      const angle = (a / 16) * Math.PI * 2;
+      const from = { x: at.x + Math.cos(angle) * 0.3, z: at.z + Math.sin(angle) * 0.3 };
+      if (clearance(colliders, from.x, from.z) < 0) continue;
+      stand(from.x, from.z);
+      life.visible.fill(0);
+      for (let f = 0; f < 90; f++) frame(ms + f * 16);
+      const shown = { x: life.x[i], z: life.z[i] };
+      expect(clearance(colliders, shown.x, shown.z), `avatar at ${a}/16: the villager is drawn inside something`).toBeGreaterThanOrEqual(0);
+      expect(Math.hypot(shown.x - from.x, shown.z - from.z), `avatar at ${a}/16: the villager is drawn on the avatar`).toBeGreaterThan(0.6);
+      expect(Math.hypot(shown.x - at.x, shown.z - at.z)).toBeLessThanOrEqual(REACT.maxOffset + 1e-5);
+      // Pushed away from the tree (towards the bench): the step it takes is not the straight one.
+      const straight = { x: at.x + life.reactions.ox[i], z: at.z + life.reactions.oz[i] };
+      if (Math.hypot(straight.x - shown.x, straight.z - shown.z) > 0.1) turned++;
+    }
+    expect(r).toBeGreaterThan(8);
+    expect(turned).toBeGreaterThan(0);
   });
 });
 
