@@ -22,10 +22,11 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
 
-**Último deploy: 2026-11-14**, versão 0.5.0, os cinco Workers a partir da `main` (`e4771c4`), na ordem API →
-servidor → jogo → painel → site, depois das migrations remotas `0004` a `0012` (o D1 de produção está na **v12**).
-Contas e todas as propostas seguem desligadas; o bucket R2 `vilanoeldobem-files` foi criado nesse dia, vazio e
-privado. O `smoke-api.sh` passa; o `verify-live.mjs` falha só pelos destinos do Google bloqueados pela CSP (OQ-13).
+**Último deploy: 2026-11-14**, versão 0.6.0, os cinco Workers a partir da `main` (`9d32fbc`, tag `v0.6.0`), na
+ordem API → servidor → jogo → painel → site, **sem migration remota**: o D1 de produção segue na **v12**, e a `0013`
+(intenção durável de doação, só lida com `DONATIONS_ENABLED` ligada) não foi aplicada. Contas e todas as propostas
+seguem desligadas. O `smoke-api.sh` passa (17/17); o `verify-live.mjs` falha só pelos destinos do Google bloqueados
+pela CSP (OQ-13). A 0.5.0 (`e4771c4`) aplicou as migrations `0004` a `0012` e criou o bucket R2.
 O registro completo de cada publicação (commit, hosts, schema, R2, bandeiras por Worker, conferências e o que não
 foi verificado) fica em [reference/releases.md](../reference/releases.md).
 

@@ -1,6 +1,6 @@
 # Publicações em produção
 
-> **Status:** Implementado · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Status:** Implementado · **Versão do software:** 0.6.0 · **Schema D1:** v12 ·
 > **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** "Último deploy" em [guides/deploy.md](../guides/deploy.md), `apps/*/wrangler.jsonc` (bandeiras),
 > `migrations/`, `CHANGELOG.md`
@@ -9,6 +9,47 @@ Uma tabela por publicação em produção, da mais nova para a mais antiga. Cada
 **registro do deploy** (o que quem publicou anotou), **código** (`wrangler.jsonc` do commit publicado) ou
 **observado** (requisição pública feita na data indicada). Uma bandeira lida no código é o valor que o deploy
 enviou; ela não prova o comportamento. Um binding presente não prova que o recurso funciona.
+
+## 0.6.0 — 2026-11-14
+
+| Item | Valor | Fonte |
+|---|---|---|
+| Data | 2026-11-14, ~22h (BRT); `wrangler` registra 2026-11-15 01h UTC | registro do deploy |
+| Commit | `9d32fbc` (`main`, merge do PR #56, `release/0.6.0`), tag `v0.6.0` | registro do deploy |
+| Ordem | API → servidor → jogo → painel → site; **nenhuma migration remota** | registro do deploy |
+| Versões (`wrangler`) | api `86dfa91c` · server `3c0916ac` · jogo `078e54ac` · dash `0c96668f` · site `c40e9282` | registro do deploy |
+| Versões anteriores (alvo de rollback) | api `a6a19ee6` · server `ea49395d` · jogo `00245bb0` · dash `8690b262` · site `ac9bf1e0` | `wrangler deployments list` antes do deploy |
+| Workers e hosts | os mesmos da 0.5.0 | código |
+| Versão no ar | `GET api.*/health` → `"version":"0.6.0"`, `"environment":"production"`, `"db":true`, `"mail":false`, `"files":true` | observado em 14/11/2026 |
+| D1 | schema **v12** em produção; o código traz a **v13** (`0013_donation_durable_intent.sql`), **não aplicada**. Só rotas atrás de `DONATIONS_ENABLED` (desligada) leem as tabelas novas; com a bandeira ligada e a v12, respondem `503 schema_outdated` | registro do deploy; código |
+| Protocolo de presença | muda nesta versão (visual como código compacto, IMPL-0027): servidor e jogo publicados em sequência; uma aba antiga só tem a mensagem de visual descartada | código |
+| Novo binding | `DONATION_LIMITER` (rate limiting, namespace 1104) na API; sem efeito com as doações desligadas | código |
+| R2, e-mail, Durable Object | sem mudança desde a 0.5.0 | código |
+
+### Bandeiras em produção (0.6.0)
+
+Iguais às da 0.5.0 (nenhuma mudança de `vars` em `apps/*/wrangler.jsonc` entre `e4771c4` e `9d32fbc`; a API só ganhou
+o binding acima). `GET api.*/config` respondeu, em 14/11/2026, depois do deploy:
+`{"accounts":false,"quests":false,"files":false,"withdrawal":false,"moderation":{"presence":false,"block":false},"residentialPlots":false,"donations":false}`.
+No jogo, as prévias pagas do provador ficam ocultas por código (`SHOW_PAID_PREVIEWS = false`, PEN-022).
+
+### Conferências (0.6.0)
+
+| Conferência | Data | Resultado | Fonte |
+|---|---|---|---|
+| Gates (`typecheck`, `test` com 1.666 testes, `build`) e CI do PR #56 | 2026-11-14 | passam | registro do deploy |
+| Locais sobre `release/0.6.0`: `smoke-api.sh`, `verify`, `verify-fullroom`, `verify-recovery`, `verify-shop`, `verify-collisions`, `verify-life` | 2026-11-14 | passam (collisions e life rodados de novo isolados depois de o Chrome cair por falta de memória da máquina) | registro do deploy |
+| `scripts/smoke-api.sh` contra produção | 2026-11-14 | passa, 17/17 | observado |
+| `apps/client/scripts/verify-live.mjs` | 2026-11-14 | falha só pelos 7 erros de CSP dos destinos do Google (OQ-13), como na 0.5.0; nada mais falha | observado |
+| `GET` em `api.*/lots`, `/indicators`, `/residential-plots`, `/environment` | 2026-11-14 | 200 | observado |
+| Raiz de `play.*`, `dash.*`, `www.*`; `server.*/health` | 2026-11-14 | 200; `"rooms":true` | observado |
+
+### Não verificado (0.6.0)
+
+- Migration `0013` no remoto: não aplicada (exige autorização própria; ver deploy §3).
+- Ensaio de recuperação do D1, homologação, aparelhos reais: sem registro (como na 0.5.0).
+- Sala cheia em produção: medida só localmente (`verify-fullroom.mjs`, 40 pessoas, 97 chamadas).
+- Mistura de abas antigas e novas na mesma sala durante a troca de versão: não exercitada.
 
 ## 0.5.0 — 2026-11-14
 
