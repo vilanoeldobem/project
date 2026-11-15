@@ -86,8 +86,8 @@ describe("meshVoxels", () => {
     const xs = [...m.positions].filter((_, i) => i % 3 === 0);
     expect(Math.min(...xs)).toBeCloseTo(0.75);
     expect(Math.max(...xs)).toBeCloseTo(1.25);
-    expect(m.centers[0]).toBeCloseTo(1);
-    expect(m.centers[1]).toBeCloseTo(0.25);
+    expect(m.centers![0]).toBeCloseTo(1);
+    expect(m.centers![1]).toBeCloseTo(0.25);
   });
 
   it("skips the downward faces of the base layer when asked, and nothing else", () => {

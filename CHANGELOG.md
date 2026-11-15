@@ -9,6 +9,12 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — geometria de voxels mais leve (auditoria de 14/11/2026, §3.5)
+
+- **A geometria estática deixa de carregar o centro do voxel.** Sólido e janelas não guardam mais `aCenter`, que só os
+  shaders de lâmpadas, folhagem e seres "idle" leem: a geometria fixa da Vila cai de ~19,0 MB para ~15,7 MB de
+  atributos e índices (−17 %), sem mudança visual (`verify.mjs` e `verify-fullroom.mjs` passam, orçamento igual).
+
 ### Fixed — presença: reserva de deslocamento por tempo (auditoria de 14/11/2026, §8; sem mudança de protocolo)
 
 - **Mandar poses com mais frequência não dá mais distância.** O anti-teletransporte da sala passa a usar uma reserva

@@ -47,6 +47,15 @@ const MATERIAL: Record<Role, Material> = {
 };
 /** Emissive bulbs keep their colour; AO would dim the glow tint. */
 const NO_AO = new Set([ROLES.indexOf("lights")]);
+/**
+ * Roles whose material reads the voxel centre (`aCenter`) in its vertex shader: the twinkle of `lightsMaterial`
+ * and the wind of `foliageMaterial`; the solid role too when it is drawn with `idleMaterial` (`idle`). Plain
+ * solid and the windows (`windowMaterial`) have no vertex shader of their own, so their geometry carries no
+ * `aCenter`. Every geometry of one role therefore has the same attributes, which `mergeGeometries` requires.
+ */
+const ANIMATED: ReadonlySet<Role> = new Set(["lights", "sway"]);
+/** Whether a role's geometry carries `aCenter` (see `ANIMATED`). */
+export const needsCenter = (role: Role, idle = false): boolean => ANIMATED.has(role) || (idle && role === "solid");
 
 const tmp = new Color();
 const toLinear = (css: string): [number, number, number] => {
@@ -63,11 +72,13 @@ const dummy = new Object3D();
  * corners exactly as in one piece) but its triangles are handed out in `parts` pieces, the geometries of piece
  * `p` at `[p * ROLES.length + role]` (`splitParts`). A model that spans the horizon (the forest, the mountains)
  * is then drawn piece by piece, each culled by its own bounding sphere, and looks exactly as it did in one mesh.
+ *
+ * `idle`: the solid role will be drawn with `idleMaterial`, so it keeps `aCenter` (`needsCenter`).
  */
 export function voxelGeometries(
   voxels: Voxel[],
   size: number,
-  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; noFloor?: boolean; partOf?: (v: Voxel) => number; parts?: number } = {}
+  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; idle?: boolean; noFloor?: boolean; partOf?: (v: Voxel) => number; parts?: number } = {}
 ): Array<BufferGeometry | null> {
   const lower = (a: string[] = []) => new Set(a.map((c) => c.toLowerCase()));
   const sets: Array<[number, Set<string>]> = [[1, lower(roles.emissive)], [2, lower(roles.glow)], [3, lower(roles.sway)]];
@@ -82,6 +93,7 @@ export function voxelGeometries(
     groups: ROLES.length * parts,
     groupOf: partOf ? (v) => partOf(v) * ROLES.length + roleOf(v) : roleOf,
     noAo: parts === 1 ? NO_AO : new Set(Array.from({ length: parts }, (_, p) => [...NO_AO].map((role) => p * ROLES.length + role)).flat()),
+    centers: new Set(Array.from({ length: parts * ROLES.length }, (_, g) => g).filter((g) => needsCenter(ROLES[g % ROLES.length], roles.idle))),
     noFloor: roles.noFloor,
     toLinear,
   });
@@ -91,7 +103,7 @@ export function voxelGeometries(
     g.setAttribute("position", new BufferAttribute(m.positions, 3));
     g.setAttribute("normal", new BufferAttribute(m.normals, 3));
     g.setAttribute("color", new BufferAttribute(m.colors, 3));
-    g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
+    if (m.centers) g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
     g.setIndex(new BufferAttribute(m.indices, 1));
     g.computeBoundingSphere();
     return g;
@@ -105,9 +117,9 @@ export function voxelGeometries(
 export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false, material, casters }: Props) {
   const group = useRef<Group>(null);
   const geometries = useMemo(
-    () => voxelGeometries(voxels, size, { emissive, glow, sway }),
+    () => voxelGeometries(voxels, size, { emissive, glow, sway, idle: idle && !material }),
     // Colour lists are literals at call sites; their content, not identity, defines the grouping.
-    [voxels, size, emissive.join(), glow.join(), sway.join()]
+    [voxels, size, emissive.join(), glow.join(), sway.join(), idle && !material]
   );
   useShadowCasters(group, casters, geometries);
 
@@ -174,8 +186,8 @@ const tmpMatrix = new Matrix4();
 
 /**
  * Bakes many static models (any rotation) into one geometry per material role: the whole set costs one
- * draw call per role instead of one per model. Positions, normals and the per-voxel `aCenter` are all
- * transformed, so twinkle/sway shaders keep working. The caller disposes the result.
+ * draw call per role instead of one per model. Positions, normals and, in the roles that carry it, the per-voxel
+ * `aCenter` are all transformed, so twinkle/sway shaders keep working. The caller disposes the result.
  */
 export function mergeVoxelModels(items: MergeItem[]): Array<BufferGeometry | null> {
   const perRole: BufferGeometry[][] = ROLES.map(() => []);
@@ -191,7 +203,7 @@ export function mergeVoxelModels(items: MergeItem[]): Array<BufferGeometry | nul
         if (!g) return;
         const copy = g.clone();
         copy.applyMatrix4(tmpMatrix); // position + normal
-        (copy.getAttribute("aCenter") as BufferAttribute).applyMatrix4(tmpMatrix);
+        (copy.getAttribute("aCenter") as BufferAttribute | undefined)?.applyMatrix4(tmpMatrix);
         perRole[role].push(copy);
       });
     }
