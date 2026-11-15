@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v13 ·
+> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v14 ·
 > **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -371,7 +371,7 @@ A tabela aditiva `ngo_withdrawals` marca a retirada sem mudar `ngos.status` (con
 privadas projetam o estado efetivo `withdrawn`. No mesmo batch, a retirada incrementa a revisão, libera os
 terrenos efetivamente associados e grava uma auditoria. **As projeções públicas de uma ONG exigem o terreno
 publicado e não leem essa tabela**: a ONG retirada some de `/lots`, `/indicators`, do perfil, do logo e das
-fotos, e as rotas públicas respondem igual nos schemas v3 a v13. As rotas de candidatura e análise leem a tabela
+fotos, e as rotas públicas respondem igual nos schemas v3 a v14. As rotas de candidatura e análise leem a tabela
 e respondem `503 schema_outdated` sem a migration 0009. O texto que o admin escreve é a mensagem lida pela
 organização; não entra em resposta pública nem na auditoria. O jogo precisa recarregar para atualizar uma cena
 aberta; não há broadcast de retirada nem alteração de XP ou missões.

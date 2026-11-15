@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v13 · **Atualizado em:** 2026-11-14
+> **Schema D1:** v14 · **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,account-moderation,presence-moderation,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `apps/api/src/{account-moderation,presence-moderation,logo-removal}.test.ts`,
 > `packages/shared/src/accounts/{validate,files,contract,moderation,errors}.ts`, `apps/server/src/handler.ts`,
@@ -797,6 +797,8 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
+| `POST /admin/donations/intents/:id/resolve` | admin | `{accountId, resolution: "failed" \| "abandoned"}` → `{intent: {id, state: "failed", lastError: "resolved_by_admin", resolution}}` (IMPL-0028) |
+| `POST /admin/donations/events/:id/dismiss` | admin | `{accountId}` → `{event: {id, dismissed: true}}` (IMPL-0028) |
 
 Regras:
 
@@ -816,12 +818,21 @@ Regras:
 - **Webhook**: exige `X-Webhook-Secret` (ou `?webhookSecret=`) igual a `ABACATEPAY_WEBHOOK_SECRET` **e**
   `X-Webhook-Signature` = base64(HMAC-SHA256(corpo bruto, chave pública da AbacatePay)), comparados em tempo
   constante. O corpo é lido como bytes, nunca re-serializado. O id do evento (`log_…`) entra em
-  `abacatepay_webhook_events`: repetição responde `{ok: true, duplicate: true}` e não altera nada. A atualização
-  da doação só vale enquanto o id ainda não foi gravado, e a gravação vem em seguida na mesma transação; nenhum
-  horário entra na decisão, e o mesmo evento entregue duas vezes ao mesmo tempo é aplicado uma vez. Um evento novo
-  responde `{ok: true, applied}`, com `applied: false` quando o status atual da doação não admite a mudança.
+  `abacatepay_webhook_events` (processado) ou em `abacatepay_pending_events` (em espera), nunca nos dois: a
+  repetição de um id que está em qualquer um deles responde `{ok: true, duplicate: true}` e não altera nada. A
+  atualização da doação só vale enquanto o id não está em nenhuma das duas tabelas, e a gravação vem em seguida na
+  mesma transação; nenhum horário entra na decisão, e o mesmo evento entregue duas vezes ao mesmo tempo é aplicado
+  (ou guardado) uma vez. Um evento novo é gravado como processado quando a doação termina no status que ele pede:
+  `{ok: true, applied: true}` quando mudou agora, `{ok: true, applied: false}` quando ela já estava nele.
   Estorno (`transparent.refunded`, `transparent.lost`) é final e vale a partir de qualquer status anterior, mesmo
   quando chega antes de `transparent.completed`; nenhum evento posterior reabre uma doação estornada.
+  `transparent.completed` não encerra uma disputa (IMPL-0028): só sai de `pending`, `expired` ou `cancelled`. O
+  resultado da própria disputa (`transparent.disputed` com a cobrança `PAID`) continua devolvendo a doação a `paid`.
+- **Transição recusada (IMPL-0028)**: quando a guarda de status recusa a mudança (por exemplo `transparent.completed`
+  depois de `under_dispute` ou de `refunded`, ou uma disputa antes da confirmação do pagamento), o evento **não**
+  entra em `abacatepay_webhook_events`: fica em `abacatepay_pending_events` com `hold_reason =
+  'transition_refused'` e a resposta é `{ok: true, applied: false, refused: true}`. Ele nunca é aplicado sozinho,
+  nem quando o status da doação passa a admiti-lo: fica visível ao operador até ser dispensado.
 - **Intenção durável da cobrança (IMPL-0028, PROPOSTA)**: `idempotencyKey` é um UUID gerado pelo cliente, um por
   pedido de doação. Sem chave válida → `400 invalid_idempotency_key`. Falta de configuração do provedor (chave da
   API ausente; marcador de sandbox em produção) é recusada **antes** de gravar qualquer coisa. Depois, a API grava
@@ -847,19 +858,38 @@ Regras:
     `idempotency_key_reused`, `donation_intent_unknown`, `donation_intent_failed` ou `payment_provider_unavailable`
     (`apps/client/src/lib/donation-key.ts`).
   - Limite de abuso: binding `DONATION_LIMITER` (10 pedidos a cada 60 s), por conta quando há sessão e por SHA-256
-    do `CF-Connecting-IP` para visitantes; a chave do limite não é gravada nem registrada em log. Excedido →
-    `429 too_many_requests`, antes de gravar qualquer coisa. Sem o binding (local, testes, staging) não há limite.
+    do `CF-Connecting-IP` para visitantes; a chave do limite não é gravada nem registrada em log. Só uma chave
+    **nova** consome o limite, antes de gravar qualquer coisa; a repetição de uma chave que já tem intenção é
+    respondida antes do limite (ela nunca chama o provedor). Excedido → `429 too_many_requests`. Sem o binding
+    (local, testes, staging) não há limite.
 - **Evento antes da doação (IMPL-0028)**: um evento assinado sobre uma cobrança que ainda não tem doação **não**
-  entra em `abacatepay_webhook_events` (que significa "processado"): fica em `abacatepay_pending_events` e a
-  resposta é `{ok: true, applied: false, unmatched: true}`; a repetição dele responde `duplicate`. Assim que a
-  doação daquela cobrança existe (na criação, numa leitura `GET /donations/:id` ou no próximo evento da mesma
-  cobrança), os eventos em espera são aplicados na ordem de chegada pela mesma atualização protegida e só então
-  marcados como processados, na mesma transação.
+  entra em `abacatepay_webhook_events` (que significa "processado"): fica em `abacatepay_pending_events`
+  (`hold_reason = 'no_donation'`) e a resposta é `{ok: true, applied: false, unmatched: true}`; a repetição dele
+  responde `duplicate`. Assim que a doação daquela cobrança existe (na criação, numa leitura `GET /donations/:id` ou
+  no próximo evento da mesma cobrança), os eventos em espera são aplicados na ordem de chegada pela mesma
+  atualização protegida e marcados como processados, na mesma transação. Se a guarda recusar um deles nesse
+  momento, ele não é marcado como processado: passa a `transition_refused` e fica para o operador.
 - **Visão do operador (IMPL-0028)**: `reconciliation.intents` lista intenções `unknown` e `pending_provider`
   paradas há mais de `staleAfterSeconds`, com `{id, state, targetKind, ngoId, recipientName, amountCents,
   lastError, providerChargeId, createdAt, updatedAt, ageSeconds}`; `reconciliation.unmatchedEvents` lista eventos
-  em espera com `{id, event, chargeId, nextStatus, receivedAt, ageSeconds}`. Sem doador, e-mail, código Pix ou
-  comprovante. Consultar não grava auditoria.
+  em espera com `{id, event, chargeId, nextStatus, holdReason, receivedAt, ageSeconds}` (`holdReason`:
+  `no_donation` ou `transition_refused`). Sem doador, e-mail, código Pix ou comprovante. Consultar não grava
+  auditoria.
+- **Ações do operador (IMPL-0028)**: só `role = 'admin'`, com `accountId` da conta da sessão (`409 account_changed`
+  se outra aba trocou de conta), da origem do painel ou do jogo, e só com `DONATIONS_ENABLED` (desligada → `404`).
+  A escrita só vale enquanto quem age ainda é administrador e não está bloqueado, no momento em que a transação é
+  gravada; a auditoria vem na mesma transação, com a mesma condição, então duas ações simultâneas gravam uma linha.
+  Nenhuma das duas chama o provedor.
+  - `POST /admin/donations/intents/:id/resolve` encerra uma intenção `unknown` ou `pending_provider` parada há mais
+    de `staleAfterSeconds`. A tabela não tem o estado "abandonada": as duas resoluções gravam `state = 'failed'` e
+    `last_error = 'resolved_by_admin'`, e a auditoria (`donation.intent_resolve`, `{intentId, resolution, from}`)
+    diz qual foi escolhida. A cópia da resposta do provedor, se havia, é apagada; `provider_charge_id` fica. A
+    repetição com a mesma chave passa a responder `409 donation_intent_failed`. Intenção em outro estado (ou ainda
+    dentro da janela do provedor) → `409 intent_not_resolvable`; id inexistente → `404 not_found`; `resolution`
+    fora da lista → `400 invalid`.
+  - `POST /admin/donations/events/:id/dismiss` encerra um evento em espera (`resolved_at`) **sem** aplicá-lo e sem
+    gravá-lo como processado; a repetição do mesmo id continua `duplicate`. Auditoria `donation.event_dismiss`,
+    `{eventId, holdReason}`. Evento já encerrado → `409 event_not_pending`; id inexistente → `404 not_found`.
 - **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
   configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
   gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um
@@ -870,8 +900,10 @@ Regras:
 - **Schema**: com a bandeira ligada e o banco sem a migration 0011, as rotas de doação respondem
   `503 schema_outdated` (inclusive o webhook); sem a migration 0013, também `POST /donations/pix`,
   `GET /donations/:id`, o webhook e `GET /admin/donations/overview` respondem `503 schema_outdated` (as rotas de
-  configuração e `/donations/config` continuam). Com a bandeira desligada nenhuma rota pública lê as tabelas novas
-  e `/indicators` continua `null` (teste cobre v3 a v13).
+  configuração e `/donations/config` continuam). Sem a migration 0014 (coluna `hold_reason`), o webhook,
+  `GET /donations/:id`, a visão do operador e as duas ações do operador respondem `503 schema_outdated`. Com a
+  bandeira desligada nenhuma rota pública lê as tabelas novas e `/indicators` continua `null` (teste cobre v3 a
+  v14).
 
 ### Listas do painel administrativo (IMPL-0015)
 
@@ -1285,7 +1317,9 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 503 | `payment_provider_unavailable` | AbacatePay sem chave, fora do ar ou recusando a chamada |
 | API | 409 | `subaccounts_unavailable` | em produção, a AbacatePay ainda não habilitou subcontas na conta |
 | API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
-| API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante |
+| API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante; `resolution` inválida ao encerrar uma intenção |
+| API | 409 | `intent_not_resolvable` | `POST /admin/donations/intents/:id/resolve` com intenção que não está `unknown` nem `pending_provider` parada (já criada, já encerrada ou ainda dentro da janela do provedor) |
+| API | 409 | `event_not_pending` | `POST /admin/donations/events/:id/dismiss` com evento que já foi aplicado ou dispensado |
 | API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
 | API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |

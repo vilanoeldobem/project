@@ -34,8 +34,10 @@ import { deleteMe, logout, me, register, requestLink, updateMe, verify } from ".
 import { listAudit, listUsers } from "./backoffice";
 import {
   abacateWebhook,
+  adminDismissEvent,
   adminDonationOverview,
   adminExternalProof,
+  adminResolveIntent,
   adminUpdateNgoPayment,
   adminUpdateSettings,
   createDonation,
@@ -332,11 +334,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     // Recognize only the new migration columns, the withdrawal ledger (0009, joined by the signed-in NGO and
     // admin routes), what a database without 0010 lacks first (the block every session read checks and the
     // moderation tickets of the realtime server's route), the donation tables of 0011 and the intent and waiting
-    // event tables of 0013. Never retry protected writes with weaker guards.
+    // event tables of 0013, and the hold reason of a waiting event (0014). Never retry protected writes with weaker
+    // guards.
     if (
       (accountRequest || serverRequest || donationRequest) &&
       err instanceof Error &&
-      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked)\b|no such table: (?:ngo_withdrawals|moderation_tickets|donation_settings|ngo_payment_configs|donations|donation_redirects|abacatepay_webhook_events|donation_intents|abacatepay_pending_events)\b/i.test(err.message)
+      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked|hold_reason)\b|no such table: (?:ngo_withdrawals|moderation_tickets|donation_settings|ngo_payment_configs|donations|donation_redirects|abacatepay_webhook_events|donation_intents|abacatepay_pending_events)\b|has no column named hold_reason\b/i.test(err.message)
     )
       return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.
@@ -397,6 +400,10 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   if (is("GET", "/admin/donations/overview")) return adminDonationOverview(request, env);
   if (is("POST", "/admin/donations/settings")) return adminUpdateSettings(request, env);
   if (is("POST", "/admin/donations/external-proof")) return adminExternalProof(request, env);
+  const resolveIntent = /^\/admin\/donations\/intents\/([^/]+)\/resolve$/.exec(pathname);
+  if (resolveIntent && method === "POST") return adminResolveIntent(request, env, resolveIntent[1]);
+  const dismissEvent = /^\/admin\/donations\/events\/([^/]+)\/dismiss$/.exec(pathname);
+  if (dismissEvent && method === "POST") return adminDismissEvent(request, env, dismissEvent[1]);
   const paymentConfig = /^\/admin\/ngos\/([^/]+)\/payment-config$/.exec(pathname);
   if (paymentConfig && method === "POST") return adminUpdateNgoPayment(request, env, paymentConfig[1]);
   const adminUser = /^\/admin\/users\/([^/]+)\/(role|block|unblock)$/.exec(pathname);
