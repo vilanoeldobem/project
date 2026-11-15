@@ -9,6 +9,15 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — presença: reserva de deslocamento por tempo (auditoria de 14/11/2026, §8; sem mudança de protocolo)
+
+- **Mandar poses com mais frequência não dá mais distância.** O anti-teletransporte da sala passa a usar uma reserva
+  de deslocamento que recarga com o tempo (125 % da velocidade máxima, teto de 1 s de caminhada), em vez de uma folga
+  fixa somada a cada pose. Poses que chegam juntas depois de um atraso da rede passam sem corte; antes, a folga fixa
+  cortava até o cliente legítimo.
+- **Teste de carga entre salas.** `apps/server/scripts/load-rooms.mjs`: sala cheia e `4001` para a próxima, três
+  salas, reconexão em massa e um leitor lento (só local).
+
 ### Fixed — fase 2 da auditoria técnica de 14/11/2026 (sem mudança de schema, de rota ou de protocolo)
 
 - **A Vila avisa quando o 3D não abre.** Se o código da cena não baixa, o navegador não tem WebGL ou o contexto
