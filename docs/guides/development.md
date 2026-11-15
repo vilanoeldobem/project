@@ -48,6 +48,9 @@ apps/api/src/               index.ts (entrada) + api.ts (rotas, CORS, testável)
                             backoffice (listas só de leitura do painel, IMPL-0015)
 apps/api/test/d1.mjs        D1 de teste sobre node:sqlite com as migrations reais
 apps/server/src/            index.ts, handler.ts, room.ts (lógica pura), room-do.ts (VillageRoom) — server.*
+apps/server/scripts/load.mjs  carga numa sala: N robôs andando a 10 Hz (só local)
+apps/server/scripts/load-rooms.mjs  carga entre salas: sala cheia e 4001 para a próxima, três salas, reconexão em massa,
+                            leitor lento; erro em 1008/1011 ou sala muda (só local; `node … [ws://localhost:8788] [origem]`)
 apps/site/                  site público — www.vilanoeldobem.com.br
 packages/shared/src/        lógica pura (@vila/shared/…), sem DOM, three.js ou runtime da Cloudflare
   game/                     world.ts (layout e colisores), collision.ts (formato do colisor), motion.ts (movimento),

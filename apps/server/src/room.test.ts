@@ -5,7 +5,7 @@ import { MOTION } from "@vila/shared/game/motion";
 import { ACTIVE_MESSAGE, encodeLook, encodePose, encodeRemove, REMOVE_MAX_PER_MINUTE, REMOVE_MIN_INTERVAL_MS, ROOM_CAPACITY } from "@vila/shared/net/protocol";
 import { DEFAULT_IDLE_TIMEOUT_SECONDS, type Env, idleTimeoutMs } from "./env";
 import { handle } from "./handler";
-import { RoomState } from "./room";
+import { MOVE_ALLOWANCE_CAP, RoomState, WALK_RATE } from "./room";
 
 const pose = (x: number, z: number, yaw = 0, speed = 0) => encodePose({ x, z, yaw, speed });
 
@@ -17,16 +17,6 @@ describe("RoomState", () => {
     expect(r.join(0)).toBeNull();
     r.leave(ids[0]!);
     expect(r.join(0)).not.toBeNull();
-  });
-
-  it("lets the first pose place a visitor anywhere, then refuses teleports", () => {
-    const r = new RoomState();
-    const id = r.join(0)!;
-    expect(r.accept(id, pose(20, 0), 0)).toBe("ok");
-    r.accept(id, pose(-20, 0), 100); // 40 units in 0.1 s
-    const [[, x]] = r.flush(100);
-    expect(x).toBeGreaterThan(20 - (MOTION.maxSpeed * 1.25 * 0.1 + 0.75) - 1e-9);
-    expect(x).toBeLessThan(20);
   });
 
   it("broadcasts only what changed", () => {
@@ -51,6 +41,93 @@ describe("RoomState", () => {
     }
     expect(ok).toBe(40); // burst only, no refill at the same instant
     expect(last).toBe("abuse");
+  });
+});
+
+describe("movement allowance (anti-teleport)", () => {
+  const Z = 9;
+  /** x of the member's pose as the room broadcasts it. */
+  const xOf = (r: RoomState, id: number, now: number) => r.flush(now, true).find((p) => p[0] === id)![1];
+  /** Sends poses that each ask for `ask` units along +x, every `every` ms for `ms` ms after `t0`; returns where it ends. */
+  const run = (r: RoomState, id: number, t0: number, every: number, ms: number, ask: number) => {
+    let x = xOf(r, id, t0);
+    for (let t = t0 + every; t <= t0 + ms; t += every) {
+      r.accept(id, pose(x + ask, Z), t);
+      x = xOf(r, id, t);
+    }
+    return x;
+  };
+
+  it("never clamps a normal 10 Hz walk at top speed", () => {
+    const r = new RoomState();
+    const id = r.join(0)!;
+    r.accept(id, pose(-40, Z), 0);
+    const step = MOTION.maxSpeed * 0.1;
+    for (let i = 1; i <= 80; i++) {
+      r.accept(id, pose(-40 + step * i, Z), i * 100);
+      expect(xOf(r, id, i * 100)).toBeCloseTo(-40 + step * i, 9);
+    }
+  });
+
+  it("does not clamp poses bunched after a 400 ms stall", () => {
+    const r = new RoomState();
+    const id = r.join(0)!;
+    r.accept(id, pose(-40, Z), 0);
+    const step = MOTION.maxSpeed * 0.1;
+    // Ten seconds of walking at top speed and 10 Hz...
+    let x = -40;
+    for (let i = 1; i <= 100; i++) r.accept(id, pose((x = -40 + step * i), Z), i * 100);
+    // ...then the network holds four poses for 400 ms and delivers them, with the fifth, within 2 ms.
+    for (let k = 1; k <= 5; k++) r.accept(id, pose(x + step * k, Z), 10_400 + k * 0.4);
+    expect(xOf(r, id, 10_402)).toBeCloseTo(x + step * 5, 9);
+  });
+
+  it("gives a 100 Hz flood no more distance in a second than 10 Hz", () => {
+    const at10 = new RoomState(), at100 = new RoomState();
+    const a = at10.join(0)!, b = at100.join(0)!;
+    at10.accept(a, pose(-30, Z), 0);
+    at100.accept(b, pose(-30, Z), 0);
+    // Each pose asks for 5 units: far more than the old per-pose check allowed at 100 Hz (0.106 + 0.75 of slack,
+    // which let ~60 accepted poses a second cover ~50 units). First second: both spend the full allowance and what
+    // a second refills, never more; the flood is ahead by at most the 0.1 s of refill that the 10 Hz sender lost
+    // to the cap before its first step.
+    const slow1 = run(at10, a, 0, 100, 1000, 5);
+    const fast1 = run(at100, b, 0, 10, 1000, 5);
+    const most = -30 + MOVE_ALLOWANCE_CAP + WALK_RATE * 1 + 1e-9;
+    expect(slow1).toBeLessThanOrEqual(most);
+    expect(fast1).toBeLessThanOrEqual(most);
+    expect(fast1 - slow1).toBeLessThanOrEqual(WALK_RATE * 0.1 + 1e-9);
+    // Next second, with the allowance spent: exactly one second's walk each, however many poses.
+    const slow2 = run(at10, a, 1000, 100, 1000, 5);
+    const fast2 = run(at100, b, 1000, 10, 1000, 5);
+    expect(slow2 - slow1).toBeCloseTo(WALK_RATE * 1, 9);
+    expect(fast2 - fast1).toBeLessThanOrEqual(slow2 - slow1 + 1e-9);
+  });
+
+  it("still clamps a teleport along its direction", () => {
+    const r = new RoomState();
+    const id = r.join(0)!;
+    r.accept(id, pose(20, Z), 0);
+    r.accept(id, pose(-20, Z), 100); // 40 units in 0.1 s
+    const [[, x, z]] = r.flush(100);
+    expect(x).toBeCloseTo(20 - MOVE_ALLOWANCE_CAP, 9); // the allowance is capped: idle time banks no more
+    expect(z).toBe(Z);
+    r.accept(id, pose(-20, Z), 200); // the budget is spent: only 0.1 s of refill
+    expect(xOf(r, id, 200)).toBeCloseTo(20 - MOVE_ALLOWANCE_CAP - WALK_RATE * 0.1, 9);
+    r.accept(id, pose(-20, Z), 60_000); // a long wait banks one second's walk, not a minute's
+    expect(xOf(r, id, 60_000)).toBeCloseTo(20 - 2 * MOVE_ALLOWANCE_CAP - WALK_RATE * 0.1, 9);
+  });
+
+  it("lets the first pose place a visitor anywhere, also after a reconnect", () => {
+    const r = new RoomState();
+    const id = r.join(0)!;
+    expect(r.accept(id, pose(40, -40), 0)).toBe("ok");
+    expect(r.flush(0, true)[0].slice(1, 3)).toEqual([40, -40]);
+    // A connection rebuilt after hibernation is a new member: its first pose is free again.
+    const again = new RoomState();
+    again.join(1000, id);
+    again.accept(id, pose(-40, 40), 1000);
+    expect(again.flush(1000, true)[0].slice(1, 3)).toEqual([-40, 40]);
   });
 });
 
