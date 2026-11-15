@@ -37,6 +37,13 @@ const ICONS: Record<Slot, string> = {
   special: "✨",
 };
 
+/**
+ * Paid previews stay hidden: what may be shown about paid looks to an audience that likely includes minors is PEN-022,
+ * still open, and a shop says nothing is sold there (AGENTS.md). Owner's decision of 2026-11-14; the catalogue keeps
+ * the paid entries, and turning this on shows the cards, "Ver compra" and the note below as IMPL-0027 proposes.
+ */
+export const SHOW_PAID_PREVIEWS = false;
+
 const stateOf = (c: Cosmetic, on: boolean, owned: boolean): "equipped" | "paid" | "owned" | "locked" =>
   on ? "equipped" : isPaid(c) ? "paid" : owned ? "owned" : "locked";
 
@@ -53,7 +60,7 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
   const owned = unlockedIds(progress);
   const freeCount = COSMETICS.filter((c) => !isPaid(c)).length;
   const ownedCount = COSMETICS.filter((c) => !isPaid(c) && isUnlocked(c, progress)).length;
-  const items = COSMETICS.filter((c) => c.slot === slot && (!onlyOwned || owned.has(c.id)));
+  const items = COSMETICS.filter((c) => c.slot === slot && (SHOW_PAID_PREVIEWS || !isPaid(c)) && (!onlyOwned || owned.has(c.id)));
   const previewItem = preview ? COSMETICS.find((c) => c.id === preview) ?? null : null;
   const previewLook = previewItem ? wear(look, previewItem.id) : look;
 
@@ -169,7 +176,7 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
               A compra de visuais não está disponível.
             </p>
           )}
-          <p className="note">Visuais pagos são compras de aparência. Doações são separadas.</p>
+          {SHOW_PAID_PREVIEWS && <p className="note">Visuais pagos são compras de aparência. Doações são separadas.</p>}
         </SheetSection>
       </div>
     </div>

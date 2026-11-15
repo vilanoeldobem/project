@@ -46,6 +46,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added — o provador P08: dez categorias, 100 itens, inventário e prévia (IMPL-0027, **PROPOSTA**; sem schema novo)
 
+- **Prévias pagas ocultas até a PEN-022** (decisão do responsável na revisão do PR #48): o provador mostra só os 80
+  itens gratuitos, sem selo "Pago", "Ver compra" ou texto de compra, e a presença recusa um visual com item pago.
+
 - **O catálogo de visuais passa a ter as dez categorias da P08** (capacete, blusa, calça, vestido, sapato, costas,
   rosto, mão esquerda, mão direita e especial), com **100 entradas**: 80 gratuitas liberadas por missão ou nível 2 e
   20 pagas. O item "sem item" existe nas seis categorias em que faz sentido; um vestido repõe blusa e calça e vestir

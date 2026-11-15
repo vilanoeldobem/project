@@ -1,8 +1,9 @@
 /**
  * verify-shop.mjs — the P08 provador end to end in a real Chrome, at 1440×900 and 390×844. For each of the
- * four shops it enters the panel from the avatar at the door, lists every category (10 items, 8 free and 2
- * paid), previews and equips one item, checks the inventory count, and for the Ateliê it also checks a paid
- * card (only the honest "not available" note) and a locked card (requirement, no equip). It proves that a
+ * four shops it enters the panel from the avatar at the door, lists every category (8 free items; the 2 paid
+ * previews per category stay hidden until PEN-022, `SHOW_PAID_PREVIEWS`), previews and equips one item, checks the
+ * inventory count, and for the Ateliê it also checks that no paid card, purchase or price text shows and a locked
+ * card (requirement, no equip). It proves that a
  * preview does not change the look, an equipped item does, the look persists in `vila.look.v2` across a reload,
  * that the dress/blouse rule holds, and that the phone layout does not scroll sideways.
  *
@@ -126,8 +127,8 @@ for (const [name, viewport] of [
     const cards = await dialog.locator("[data-item-id]").count();
     const paid = await dialog.locator('[data-sale="paid"]').count();
     const free = await dialog.locator('[data-sale="free"]').count();
-    if (cards !== 10) errors.push(`${name}: "${label}" shows ${cards} items, not 10`);
-    if (paid !== 2) errors.push(`${name}: "${label}" shows ${paid} paid items, not 2`);
+    if (cards !== 8) errors.push(`${name}: "${label}" shows ${cards} items, not 8`);
+    if (paid !== 0) errors.push(`${name}: "${label}" shows ${paid} paid items; paid previews are hidden (PEN-022)`);
     if (free !== 8) errors.push(`${name}: "${label}" shows ${free} free items, not 8`);
   };
 
@@ -182,16 +183,10 @@ for (const [name, viewport] of [
     if (shop.paid) {
       await dialog.getByRole("button", { name: shop.paid.category, exact: true }).click();
       await page.waitForTimeout(120);
-      const card = dialog.locator(`[data-item-id="${shop.paid.id}"]`);
-      const before = await look();
-      await card.getByRole("button", { name: "Ver compra", exact: true }).click();
-      await page.waitForTimeout(100);
-      const note = dialog.locator("[data-paid-note]");
-      if (!(await note.count())) errors.push(`${name}: paid note is missing`);
-      if (!(await note.textContent())?.includes("A compra de visuais não está disponível.")) errors.push(`${name}: paid note text differs`);
-      if (!same(await look(), before)) errors.push(`${name}: "Ver compra" changed the look`);
+      if (await dialog.locator(`[data-item-id="${shop.paid.id}"]`).count()) errors.push(`${name}: the paid item ${shop.paid.id} is shown`);
+      if (await dialog.getByRole("button", { name: "Ver compra" }).count()) errors.push(`${name}: a "Ver compra" button is shown`);
       const text = (await dialog.textContent()) ?? "";
-      if (/R\$|\bpreço\b|\bmoedas?\b|\bcarrinho\b/i.test(text)) errors.push(`${name}: the shop shows a price or currency`);
+      if (/R\$|\bpreço\b|\bmoedas?\b|\bcarrinho\b|\bcompras?\b|\bpago\b/i.test(text)) errors.push(`${name}: the shop shows a price, a currency or a purchase`);
     }
 
     if (shop.locked) {

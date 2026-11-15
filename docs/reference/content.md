@@ -126,9 +126,10 @@ recompensa por tempo online nem contagem regressiva.
 
 O painel de cada loja abre o **provador** (P08/IMPL-0027): categorias daquela loja, retrato com prévia, dez cartões por
 categoria, "Em uso", o requisito exato dos itens fechados, "Equipar", o inventário ("No inventário: X de 80 visuais
-gratuitos") e "Só o que eu tenho". A loja continua **fechada** e nada é vendido; o provador é grátis. O cartão pago
-tem o selo "Pago" e **"Ver compra"** apenas revela "A compra de visuais não está disponível." — sem preço, moeda ou
-pagamento; a compra paga é o D21/PEN-022. "Visuais pagos são compras de aparência. Doações são separadas." O teste da
+gratuitos") e "Só o que eu tenho". A loja continua **fechada** e nada é vendido; o provador é grátis. As 20 prévias
+pagas do catálogo ficam **ocultas** até a PEN-022 (decisão de 14/11/2026, `SHOW_PAID_PREVIEWS = false`): oito cartões
+gratuitos por categoria, sem selo "Pago", "Ver compra" ou texto de compra; a presença recusa um visual com item pago.
+A compra paga é o D21/PEN-022. O teste da
 P08 é `scripts/verify-shop.mjs`. Os geradores `hat`/`scarf`/`sweater` da tabela da seção 3 são só da galeria de
 desenvolvimento; o catálogo usa os modelos explícitos desta seção.
 

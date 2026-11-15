@@ -102,7 +102,7 @@ describe("residential plot panel", () => {
 });
 
 describe("shop panel (P08 provador)", () => {
-  it.each(SHOPS.map((s) => s.id))("shows the closed shop and the provador of %s, with its categories and ten items", (id) => {
+  it.each(SHOPS.map((s) => s.id))("shows the closed shop and the provador of %s, with its categories and the free items only", (id) => {
     const html = renderToStaticMarkup(<ShopPanel shopId={id} />);
     const read = text(html);
     const copy = SHOP_COPY[SHOPS.findIndex((s) => s.id === id)];
@@ -116,13 +116,15 @@ describe("shop panel (P08 provador)", () => {
     expect(read).toContain("Nada é vendido na Vila.");
     expect(html).toContain(`data-shop-id="${id}"`);
     expect(html).toContain('data-board="P08"');
-    expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(10);
-    expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + 10); // category buttons + first category cards
+    // Paid previews are hidden until PEN-022 (SHOW_PAID_PREVIEWS): eight free cards per category, no paid card.
+    expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(8);
+    expect(html).not.toContain('data-sale="paid"');
+    expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + 8); // category buttons + first category cards
     expect(RAW.test(read)).toBe(false);
     expect(PROMISE.test(read)).toBe(false);
-    // No price, currency, payment or rent; the only "compra" is the paid card and the separation note.
-    expect(read).not.toMatch(/R\$|\bpreço\b|\bmoedas?\b|\bpag(ar|amento)\b|\bcarrinho\b|\balug\w+\b/i);
-    expect((read.match(/\bcompras?\b/gi) ?? []).length).toBeLessThanOrEqual(3);
+    // No price, currency, payment, purchase or rent anywhere in a shop (AGENTS.md: a shop is never an offer).
+    expect(MONEY.test(read)).toBe(false);
+    expect(read).not.toMatch(/\bcompras?\b|\bpago\b|ver compra/i);
   });
 
   it("gives every shop its own name and theme, none of them a brand or a promise", () => {

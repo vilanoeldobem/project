@@ -91,6 +91,15 @@ Compra paga real, preço concreto, provedor, reembolso, posse no servidor, regra
 emoji e qualquer efeito de jogo. A metade gratuita é equipável e o inventário é derivado do progresso já existente;
 não há tabela nova, bandeira nova nem migração de D1.
 
+### Ajuste de 14/11/2026: prévias pagas ocultas
+
+Na revisão do PR #48, o responsável decidiu **ocultar as prévias pagas** até a PEN-022 (o que mostrar sobre visuais
+pagos a um público que provavelmente inclui menores) ser respondida: a loja diz "Nada é vendido na Vila." e o
+AGENTS.md não admite oferta nem botão de compra numa loja. O catálogo mantém as 20 entradas pagas, mas o provador
+mostra só os 80 itens gratuitos (8 por categoria), sem selo "Pago", sem "Ver compra" e sem a nota sobre compras
+(`SHOW_PAID_PREVIEWS = false` em `ui/Wardrobe.tsx`). A presença também recusa um visual com item pago
+(`parseLook`), então nenhum visitante vê um item pago, mesmo vindo de um cliente modificado.
+
 ## Consequências
 
 - As quatro lojas deixam de ser apenas um texto e passam a abrir o provador; o painel ganhou controles (antes só
