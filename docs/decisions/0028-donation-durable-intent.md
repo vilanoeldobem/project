@@ -110,12 +110,20 @@ que a linha em `donations` é a fonte única e de que um pagamento confirmado co
      apagada e `provider_charge_id` fica. `POST /admin/donations/events/:id/dismiss` `{accountId}` encerra um evento
      em espera sem aplicá-lo nem gravá-lo como processado (auditoria `donation.event_dismiss`,
      `{eventId, holdReason}`). A linha de auditoria é gravada na mesma transação e com a mesma condição da
-     mudança: duas ações simultâneas gravam uma linha só. Erros: `409 intent_not_resolvable`,
-     `409 event_not_pending`, `409 account_changed`, `403 admin_only`, `404 not_found` (também com a bandeira
+     mudança: duas ações simultâneas gravam uma linha só. Uma intenção que guarda a cobrança do provedor nunca é
+     encerrada (`409 intent_has_charge`: a repetição com a mesma chave conclui a doação), e um evento à espera dessa
+     doação não é dispensado (`409 event_has_replayable_intent`); encerrar uma intenção `unknown` sem cobrança exige
+     que o operador confira antes, no painel da AbacatePay, se o `externalId` gerou cobrança. Erros:
+     `409 intent_not_resolvable`, `409 intent_has_charge`, `409 event_not_pending`, `409 event_has_replayable_intent`, `409 account_changed`, `403 admin_only`, `404 not_found` (também com a bandeira
      desligada). A tela do painel não muda neste passo: as rotas existem para o operador e para a próxima versão do
      painel.
 
 ## O que continua PENDENTE
+
+- **Disputa recusada antes do pagamento (decisão do responsável).** Um `transparent.disputed` que chega enquanto a
+  doação ainda está `pending` é recusado pela guarda e fica `transition_refused` para o operador; se depois chega o
+  `completed`, a doação conta como paga com a disputa aberta. O código não reavalia eventos recusados sozinho: qual deve
+  ser o comportamento é pergunta de produto, não decisão de código.
 
 - **Idempotência do lado da AbacatePay.** O código envia `externalId` em `POST /transparents/create`, mas nada no
   repositório confirma que a AbacatePay recusa ou devolve a mesma cobrança para o mesmo `externalId`, nem que exista

@@ -757,7 +757,14 @@ export async function abacateWebhook(request: Request, env: Env): Promise<Respon
   const db = env.DB;
   if (!charge || !next) {
     // Not about a donation state the Vila tracks: recorded as processed, nothing to apply.
-    const ignored = await db.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId).run();
+    // An id already waiting (same id, payload that now parses as untracked) stays where it is: never in both tables.
+    const ignored = await db
+      .prepare(
+        `INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id)
+         SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM abacatepay_pending_events WHERE id = ?)`
+      )
+      .bind(eventId, eventName, chargeId, eventId)
+      .run();
     return json(ignored.meta.changes ? { ok: true, applied: false } : { ok: true, duplicate: true }, { headers: NO_STORE });
   }
   // Earlier events for this charge that waited for its donation go first, in the order they arrived.
@@ -1117,10 +1124,14 @@ export async function adminResolveIntent(request: Request, env: Env, id: string)
     throw new HttpError(400, "invalid", { resolution: "Escolha se o pedido falhou ou foi abandonado." });
   const db = env.DB!;
   const intentId = id.toLowerCase();
-  if (!(await db.prepare("SELECT 1 AS x FROM donation_intents WHERE id = ?").bind(intentId).first())) throw new HttpError(404, "not_found");
+  const found = await db.prepare("SELECT provider_charge_id FROM donation_intents WHERE id = ?").bind(intentId).first<{ provider_charge_id: string | null }>();
+  if (!found) throw new HttpError(404, "not_found");
+  // An intent that holds the provider's charge (the provider answered, D1 failed) is never closed here: the donor
+  // may have paid it, and a same-key retry finishes the donation from the copy. Closing it would lose that payment.
+  if (found.provider_charge_id) throw new HttpError(409, "intent_has_charge");
   const now = new Date().toISOString();
   const stale = new Date(Date.now() - STALE_IN_FLIGHT_MS).toISOString();
-  const open = "id = ? AND (state = 'unknown' OR (state = 'pending_provider' AND updated_at < ?))";
+  const open = "id = ? AND provider_charge_id IS NULL AND (state = 'unknown' OR (state = 'pending_provider' AND updated_at < ?))";
   const [, resolved] = await db.batch([
     db
       .prepare(
@@ -1159,7 +1170,18 @@ export async function adminDismissEvent(request: Request, env: Env, id: string):
   assertAccount(body, admin);
   const db = env.DB!;
   if (!(await db.prepare("SELECT 1 AS x FROM abacatepay_pending_events WHERE id = ?").bind(id).first())) throw new HttpError(404, "not_found");
-  const open = `id = ? AND resolved_at IS NULL AND ${STILL_ADMIN}`;
+  // An event waiting for a donation that a same-key retry can still create (an intent holding that charge) stays:
+  // dismissing it would leave the paid status to arrive only by a provider refresh.
+  const replayable = await db
+    .prepare(
+      `SELECT 1 AS x FROM abacatepay_pending_events e JOIN donation_intents i ON i.provider_charge_id = e.charge_id
+        WHERE e.id = ? AND e.hold_reason = 'no_donation' AND i.state = 'unknown'`
+    )
+    .bind(id)
+    .first();
+  if (replayable) throw new HttpError(409, "event_has_replayable_intent");
+  const open = `id = ? AND resolved_at IS NULL AND NOT (hold_reason = 'no_donation' AND EXISTS (SELECT 1 FROM donation_intents i
+    WHERE i.provider_charge_id = abacatepay_pending_events.charge_id AND i.state = 'unknown')) AND ${STILL_ADMIN}`;
   const [, dismissed] = await db.batch([
     db
       .prepare(

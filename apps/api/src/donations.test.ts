@@ -1003,13 +1003,23 @@ describe("operator reconciliation (IMPL-0028)", () => {
     call("POST", `/admin/donations/events/${id}/dismiss`, { accountId: user, ...body }, user);
   const audits = (action: string) => db.sql("SELECT actor, subject, detail FROM audit_events WHERE action = ?", action);
 
+  it("never closes an intent that holds the provider's charge: the donor may have paid it, and a retry finishes it", async () => {
+    intent("unknown", ago(1_000), { last_error: "store_failed", provider_charge_id: "pix_char_9", provider_status: "PENDING", br_code: "000201-x" });
+    expect(await errorOf(await resolve({ resolution: "abandoned" }))).toEqual([409, "intent_has_charge"]);
+    expect(db.sql("SELECT state, last_error, provider_charge_id, br_code FROM donation_intents")).toEqual([
+      { state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_9", br_code: "000201-x" },
+    ]);
+    expect(audits("donation.intent_resolve")).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
   it("closes an 'unknown' intent as failed, never calls the provider, audits it, and a same-key retry stays closed", async () => {
-    const row = intent("unknown", ago(1_000), { last_error: "store_failed", provider_charge_id: "pix_char_9", provider_status: "PENDING", br_code: "000201-x" });
+    const row = intent("unknown", ago(1_000), { last_error: "provider_timeout" });
     const response = await resolve({ resolution: "abandoned" });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ intent: { id: INTENT, state: "failed", lastError: "resolved_by_admin", resolution: "abandoned" } });
     expect(db.sql("SELECT state, last_error, provider_charge_id, br_code, provider_status FROM donation_intents")).toEqual([
-      { state: "failed", last_error: "resolved_by_admin", provider_charge_id: "pix_char_9", br_code: null, provider_status: null },
+      { state: "failed", last_error: "resolved_by_admin", provider_charge_id: null, br_code: null, provider_status: null },
     ]);
     expect(audits("donation.intent_resolve")).toEqual([
       { actor: "admin", subject: `donation_intent:${INTENT}`, detail: JSON.stringify({ intentId: INTENT, resolution: "abandoned", from: "unknown" }) },
@@ -1092,6 +1102,24 @@ describe("operator reconciliation (IMPL-0028)", () => {
     expect(await (await webhook(event("log_paid", "transparent.completed", "pix_char_1", "PAID"))).json()).toEqual({ ok: true, duplicate: true });
     expect(db.sql("SELECT id FROM abacatepay_webhook_events")).toEqual([{ id: "log_refund" }]);
     expect(db.sql("SELECT status FROM donations WHERE id = ?", donation.id)).toEqual([{ status: "refunded" }]);
+  });
+
+  it("keeps an event waiting while an intent holding its charge can still finish the donation", async () => {
+    await settings();
+    intent("unknown", ago(1_000), { last_error: "store_failed", provider_charge_id: "pix_char_7", provider_status: "PENDING", br_code: "000201-x" });
+    await webhook(event("log_hold", "transparent.completed", "pix_char_7", "PAID"));
+    expect(await errorOf(await dismiss("log_hold"))).toEqual([409, "event_has_replayable_intent"]);
+    expect(db.sql("SELECT resolved_at FROM abacatepay_pending_events WHERE id = 'log_hold'")).toEqual([{ resolved_at: null }]);
+    expect(audits("donation.event_dismiss")).toHaveLength(0);
+  });
+
+  it("never records a waiting event id as processed, even when a redelivery no longer parses as tracked", async () => {
+    await settings();
+    await webhook(event("log_wait", "transparent.completed", "pix_char_8", "PAID"));
+    const again = await webhook({ id: "log_wait", event: "billing.unknown", devMode: true, data: {} });
+    expect(await again.json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events WHERE id = 'log_wait'")).toEqual([]);
+    expect(db.sql("SELECT resolved_at FROM abacatepay_pending_events WHERE id = 'log_wait'")).toEqual([{ resolved_at: null }]);
   });
 
   it("dismisses an event still waiting for its donation, which is then never applied", async () => {

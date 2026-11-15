@@ -885,11 +885,18 @@ Regras:
     `last_error = 'resolved_by_admin'`, e a auditoria (`donation.intent_resolve`, `{intentId, resolution, from}`)
     diz qual foi escolhida. A cópia da resposta do provedor, se havia, é apagada; `provider_charge_id` fica. A
     repetição com a mesma chave passa a responder `409 donation_intent_failed`. Intenção em outro estado (ou ainda
-    dentro da janela do provedor) → `409 intent_not_resolvable`; id inexistente → `404 not_found`; `resolution`
-    fora da lista → `400 invalid`.
+    dentro da janela do provedor) → `409 intent_not_resolvable`; intenção que guarda a cobrança do provedor
+    (`provider_charge_id`, caso "o provedor respondeu e o D1 falhou") → `409 intent_has_charge`: o doador pode ter
+    pago, e a repetição com a mesma chave conclui a doação a partir da cópia; id inexistente → `404 not_found`;
+    `resolution` fora da lista → `400 invalid`. **Antes de encerrar uma intenção `unknown` sem cobrança, o operador
+    confere no painel da AbacatePay** se existe cobrança com aquele `externalId` (o id da intenção): a API não consulta
+    o provedor, e o tempo esgotado pode ter criado uma cobrança.
   - `POST /admin/donations/events/:id/dismiss` encerra um evento em espera (`resolved_at`) **sem** aplicá-lo e sem
     gravá-lo como processado; a repetição do mesmo id continua `duplicate`. Auditoria `donation.event_dismiss`,
-    `{eventId, holdReason}`. Evento já encerrado → `409 event_not_pending`; id inexistente → `404 not_found`.
+    `{eventId, holdReason}`. Evento já encerrado → `409 event_not_pending`; evento à espera da doação cuja cobrança
+    está numa intenção `unknown` que ainda pode concluí-la → `409 event_has_replayable_intent`; id inexistente →
+    `404 not_found`. Uma reentrega do mesmo id, mesmo com conteúdo que não é mais acompanhado, continua `duplicate` e
+    nunca é gravada como processada enquanto o evento espera.
 - **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
   configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
   gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um
@@ -1319,7 +1326,9 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
 | API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante; `resolution` inválida ao encerrar uma intenção |
 | API | 409 | `intent_not_resolvable` | `POST /admin/donations/intents/:id/resolve` com intenção que não está `unknown` nem `pending_provider` parada (já criada, já encerrada ou ainda dentro da janela do provedor) |
+| API | 409 | `intent_has_charge` | `POST /admin/donations/intents/:id/resolve` com intenção que guarda a cobrança do provedor: a repetição com a mesma chave conclui a doação |
 | API | 409 | `event_not_pending` | `POST /admin/donations/events/:id/dismiss` com evento que já foi aplicado ou dispensado |
+| API | 409 | `event_has_replayable_intent` | `POST /admin/donations/events/:id/dismiss` com evento à espera de uma doação que uma intenção `unknown` com aquela cobrança ainda pode criar |
 | API | 400 | `bad_limit` | `/admin/audit` ou `/admin/users` com `limit` que não é um inteiro de 1 a 100 |
 | API | 400 | `bad_before` | `/admin/audit` ou `/admin/users` com `before` que não é um instante ISO terminado em `Z` |
 | servidor | 426 | `upgrade_required` | `/room` sem `Upgrade: websocket` |

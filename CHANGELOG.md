@@ -20,7 +20,9 @@ Cada versão indica o schema D1 que entrega.
   `{ok: true, applied: false, refused: true}`.
 - **Ações do operador:** `POST /admin/donations/intents/:id/resolve` (encerra intenção `unknown` ou `pending_provider`
   parada como `failed`/`resolved_by_admin`) e `POST /admin/donations/events/:id/dismiss` (dispensa evento em espera),
-  só para administradores, auditadas, sem chamar o provedor.
+  só para administradores, auditadas, sem chamar o provedor. Uma intenção que guarda a cobrança do provedor nunca é
+  encerrada (`409 intent_has_charge`), nem o evento que espera por ela é dispensado: a repetição com a mesma chave
+  conclui a doação.
 - **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): **não aplicada no remoto**; entra
   com a publicação que traz este código. Com as doações ligadas e o banco em v13, as rotas de doação respondem
   `503 schema_outdated`.
