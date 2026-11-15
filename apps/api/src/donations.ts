@@ -17,7 +17,8 @@
  * stale in-flight row ends 'unknown' or 'failed' (never deleted; the client starts over with a new key), and when
  * the provider answered but D1 failed, the answer is copied onto the row and a retry finishes from that copy. A
  * signed webhook about a charge with no donation yet waits in `abacatepay_pending_events` (not "processed") and is
- * applied, in arrival order, as soon as that donation exists.
+ * applied, in arrival order, as soon as that donation exists. An event whose status change the guard refuses is
+ * not "processed" either: it waits there as 'transition_refused' until an administrator dismisses it.
  *
  * Routes (public ones need only the flag; the account route needs a session):
  *   GET  /donations/config
@@ -32,6 +33,8 @@
  *   POST /admin/donations/settings
  *   POST /admin/ngos/:id/payment-config
  *   POST /admin/donations/external-proof
+ *   POST /admin/donations/intents/:id/resolve {accountId, resolution: "failed" | "abandoned"}
+ *   POST /admin/donations/events/:id/dismiss  {accountId}
  *
  * Money is integer cents. Nothing here logs a key, a secret, a CNPJ or payer data; the audit rows carry ids and
  * amounts, never the payment link or the proof reference.
@@ -67,7 +70,7 @@ import {
 } from "./abacatepay";
 import { newId, sha256Hex } from "./crypto";
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
-import { assertAccount, currentUser, requireAdmin, requireUser, type User } from "./session";
+import { assertAccount, assertStillAdmin, currentUser, requireAdmin, requireUser, STILL_ADMIN, type User } from "./session";
 import type { Env } from "./api";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -271,28 +274,38 @@ function chargeStatus(raw: string): DonationStatus {
 /**
  * From which states each new status may be applied; a stale or out-of-order event changes nothing. A refund is
  * final and applies from every other state: when it is delivered before the payment confirmation (the provider
- * retries a failed delivery later), the late confirmation must not count a refunded donation as paid.
+ * retries a failed delivery later), the late confirmation must not count a refunded donation as paid. A payment
+ * confirmation does not end a dispute either (IMPL-0028): only the dispute's own outcome does (`DISPUTE_WON_FROM`).
  */
 const TRANSITIONS: Record<Exclude<DonationStatus, "pending">, DonationStatus[]> = {
-  paid: ["pending", "expired", "cancelled", "under_dispute"],
+  paid: ["pending", "expired", "cancelled"],
   refunded: ["pending", "expired", "cancelled", "paid", "under_dispute"],
   under_dispute: ["paid"],
   expired: ["pending"],
   cancelled: ["pending"],
 };
 
+/** A `transparent.disputed` event whose charge is PAID again: the dispute was won, so it may leave 'under_dispute'. */
+const DISPUTE_WON_FROM: DonationStatus[] = [...TRANSITIONS.paid, "under_dispute"];
+
+/** The statuses a webhook event may move a donation from. */
+const eventFrom = (eventName: string, next: Exclude<DonationStatus, "pending">): DonationStatus[] =>
+  eventName === "transparent.disputed" && next === "paid" ? DISPUTE_WON_FROM : TRANSITIONS[next];
+
+/** An extra SQL condition on the guarded update (a webhook's idempotency checks), with its binds. */
+interface Guard {
+  from?: DonationStatus[];
+  sql: string;
+  binds: unknown[];
+}
+
 /**
- * One UPDATE of a donation row, guarded by the current status. `unseenEventId` is the webhook's event id: the row
- * changes only while that id is not in `abacatepay_webhook_events` yet (the webhook records it later in the same
- * batch), so a delivery of an event already recorded changes nothing.
+ * One UPDATE of a donation row, guarded by the current status (`guard.from`, default `TRANSITIONS[next]`). The
+ * webhook and the drain add their own condition (`guard.sql`) so a delivery of an event already recorded, or
+ * already waiting for an operator, changes nothing.
  */
-function chargeUpdate(
-  env: Env,
-  charge: PixCharge,
-  next: Exclude<DonationStatus, "pending">,
-  unseenEventId?: string
-): D1PreparedStatement {
-  const from = TRANSITIONS[next];
+function chargeUpdate(env: Env, charge: PixCharge, next: Exclude<DonationStatus, "pending">, guard?: Guard): D1PreparedStatement {
+  const from = guard?.from ?? TRANSITIONS[next];
   const now = new Date().toISOString();
   const paid = next === "paid" ? 1 : 0;
   const refunded = next === "refunded" ? 1 : 0;
@@ -302,13 +315,11 @@ function chargeUpdate(
        title_credited = CASE WHEN ? = 1 AND user_id IS NOT NULL AND provider = 'abacatepay' THEN 1 ELSE 0 END,
        platform_fee_cents = COALESCE(?, platform_fee_cents), receipt_url = COALESCE(?, receipt_url),
        br_code = COALESCE(?, br_code), br_code_base64 = COALESCE(?, br_code_base64), updated_at = ?
-     WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")})${
-       unseenEventId ? " AND NOT EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)" : ""
-     }`
+     WHERE provider_charge_id = ? AND status IN (${from.map(() => "?").join(",")})${guard ? ` AND ${guard.sql}` : ""}`
   ).bind(
     next, paid, now, refunded, now, paid, charge.platformFeeCents, charge.receiptUrl, charge.brCode, charge.brCodeBase64, now, charge.id,
     ...from,
-    ...(unseenEventId ? [unseenEventId] : [])
+    ...(guard?.binds ?? [])
   );
 }
 
@@ -606,12 +617,14 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
 
   // Resolve the donor before anything is written: a session read that fails must not leave an intent behind.
   const user = await currentUser(request, env);
-  await assertDonationRate(request, env, user);
   // The same key always means the same request: target, amount and donor.
   const requestHash = await sha256Hex(JSON.stringify([targetKind, requestedNgoId, amountCents, user?.id ?? null]));
 
+  // A retry of a known key never calls the provider, so it does not spend the abuse budget; a new key does, before
+  // anything is written.
   const existing = await readIntentByKey(env, key);
   if (existing) return replay(env, existing, requestHash);
+  await assertDonationRate(request, env, user);
 
   const target = await resolveTarget(env, targetKind, requestedNgoId, amountCents as number);
   // Configuration the provider call needs is checked before the intent exists: a missing key writes nothing.
@@ -744,47 +757,67 @@ export async function abacateWebhook(request: Request, env: Env): Promise<Respon
   const db = env.DB;
   if (!charge || !next) {
     // Not about a donation state the Vila tracks: recorded as processed, nothing to apply.
-    const ignored = await db.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId).run();
+    // An id already waiting (same id, payload that now parses as untracked) stays where it is: never in both tables.
+    const ignored = await db
+      .prepare(
+        `INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id)
+         SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM abacatepay_pending_events WHERE id = ?)`
+      )
+      .bind(eventId, eventName, chargeId, eventId)
+      .run();
     return json(ignored.meta.changes ? { ok: true, applied: false } : { ok: true, duplicate: true }, { headers: NO_STORE });
   }
   // Earlier events for this charge that waited for its donation go first, in the order they arrived.
   await drainPendingEvents(env, charge.id);
 
-  // One batch, which D1 runs as a transaction, one at a time. With the donation present, the update applies only
-  // while this event id is not recorded, and the insert that records it comes after: a replay, or the same event
-  // delivered twice at once, finds the id and changes nothing, so it cannot undo a later dispute or refund. With no
-  // donation for the charge yet (an early event, IMPL-0028), the event is NOT recorded as processed: it waits in
-  // `abacatepay_pending_events` and is applied when the donation appears. No clock takes part in either decision.
+  // One batch, which D1 runs as a transaction, one at a time. An event id is in at most one of two places: recorded
+  // as processed (`abacatepay_webhook_events`) or waiting (`abacatepay_pending_events`); a delivery of an id found in
+  // either changes nothing, so a replay cannot undo a later dispute or refund. Otherwise, with the donation present,
+  // the guarded update runs first, and the event is recorded as processed only when the donation ends in the status
+  // it asks for (applied now, or already there). When the guard refuses the change, the event is NOT recorded: it
+  // waits for an operator as 'transition_refused' and is never applied by itself. With no donation for the charge yet
+  // (an early event), it waits as 'no_donation' and is applied when the donation appears. No clock takes part.
   const exists = "EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ?)";
-  const results = await db.batch([
-    chargeUpdate(env, charge, next, eventId),
-    db.prepare(`INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) SELECT ?, ?, ? WHERE ${exists}`).bind(eventId, eventName, charge.id, charge.id),
+  const settled = "EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ? AND status = ?)";
+  const recorded = "EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)";
+  const waiting = "EXISTS (SELECT 1 FROM abacatepay_pending_events WHERE id = ?)";
+  const hold = (reason: "no_donation" | "transition_refused", where: string, binds: unknown[]) =>
     db
       .prepare(
-        `INSERT OR IGNORE INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status, receipt_url, platform_fee_cents, dev_mode)
-         SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT ${exists} AND NOT EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)`
+        `INSERT OR IGNORE INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status, receipt_url, platform_fee_cents, dev_mode, hold_reason)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, '${reason}' WHERE ${where} AND NOT ${recorded}`
       )
-      .bind(eventId, eventName, charge.id, next, providerStatus, charge.receiptUrl, charge.platformFeeCents, charge.devMode ? 1 : 0, charge.id, eventId),
-    // A redelivery of a waiting event, now that the donation exists, closes its waiting row too.
-    db.prepare(`UPDATE abacatepay_pending_events SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL AND ${exists}`).bind(new Date().toISOString(), eventId, charge.id),
+      .bind(eventId, eventName, charge.id, next, providerStatus, charge.receiptUrl, charge.platformFeeCents, charge.devMode ? 1 : 0, ...binds, eventId);
+  const results = await db.batch([
+    chargeUpdate(env, charge, next, { from: eventFrom(eventName, next), sql: `NOT ${recorded} AND NOT ${waiting}`, binds: [eventId, eventId] }),
+    db
+      .prepare(`INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) SELECT ?, ?, ? WHERE ${settled} AND NOT ${waiting}`)
+      .bind(eventId, eventName, charge.id, charge.id, next, eventId),
+    hold("no_donation", `NOT ${exists}`, [charge.id]),
+    hold("transition_refused", `${exists} AND NOT ${settled}`, [charge.id, charge.id, next]),
   ]);
   if (results[1].meta.changes) return json({ ok: true, applied: Boolean(results[0].meta.changes) }, { headers: NO_STORE });
   if (results[2].meta.changes) return json({ ok: true, applied: false, unmatched: true }, { headers: NO_STORE });
+  if (results[3].meta.changes) return json({ ok: true, applied: false, refused: true }, { headers: NO_STORE });
   return json({ ok: true, duplicate: true }, { headers: NO_STORE });
 }
 
 /**
  * Applies, in arrival order, the webhook events that reached the Vila before the donation for `chargeId` existed
- * (IMPL-0028). Each one goes through the same guarded update as a live delivery and is then recorded as processed,
- * in one transaction, so two drains at once, or a drain and a redelivery, apply it once. Nothing happens while the
- * donation does not exist. Answers how many events it looked at.
+ * (IMPL-0028). Each one goes through the same guarded update as a live delivery, in one transaction: when the
+ * donation ends in the status it asks for, it is recorded as processed and its waiting row is closed; when the guard
+ * refuses it, it is NOT recorded and stays waiting as 'transition_refused', for an operator, never retried. The
+ * update and both outcomes require the row to be still waiting as 'no_donation', so two drains at once, or a drain
+ * and a redelivery, apply it once. Nothing happens while the donation does not exist. Answers how many events it
+ * looked at.
  */
 async function drainPendingEvents(env: Env, chargeId: string): Promise<number> {
   const db = env.DB!;
   const { results } = await db
     .prepare(
       `SELECT id, event, next_status, provider_status, receipt_url, platform_fee_cents, dev_mode FROM abacatepay_pending_events
-        WHERE charge_id = ? AND resolved_at IS NULL AND EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ?)
+        WHERE charge_id = ? AND resolved_at IS NULL AND hold_reason = 'no_donation'
+          AND EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ?)
         ORDER BY received_at, rowid`
     )
     .bind(chargeId, chargeId)
@@ -801,10 +834,29 @@ async function drainPendingEvents(env: Env, chargeId: string): Promise<number> {
       devMode: waiting.dev_mode === 1,
       expiresAt: null,
     };
+    const open = "EXISTS (SELECT 1 FROM abacatepay_pending_events WHERE id = ? AND resolved_at IS NULL AND hold_reason = 'no_donation')";
+    const recorded = "EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)";
     await db.batch([
-      chargeUpdate(env, charge, waiting.next_status, waiting.id),
-      db.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(waiting.id, waiting.event, chargeId),
-      db.prepare("UPDATE abacatepay_pending_events SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL").bind(new Date().toISOString(), waiting.id),
+      chargeUpdate(env, charge, waiting.next_status, {
+        from: eventFrom(waiting.event, waiting.next_status),
+        sql: `NOT ${recorded} AND ${open}`,
+        binds: [waiting.id, waiting.id],
+      }),
+      db
+        .prepare(
+          `INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id)
+           SELECT ?, ?, ? WHERE EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ? AND status = ?) AND ${open}`
+        )
+        .bind(waiting.id, waiting.event, chargeId, chargeId, waiting.next_status, waiting.id),
+      db
+        .prepare(`UPDATE abacatepay_pending_events SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL AND hold_reason = 'no_donation' AND ${recorded}`)
+        .bind(new Date().toISOString(), waiting.id, waiting.id),
+      db
+        .prepare(
+          `UPDATE abacatepay_pending_events SET hold_reason = 'transition_refused'
+            WHERE id = ? AND resolved_at IS NULL AND hold_reason = 'no_donation' AND NOT ${recorded}`
+        )
+        .bind(waiting.id, waiting.id),
     ]);
   }
   return results.length;
@@ -856,9 +908,9 @@ export async function adminDonationOverview(request: Request, env: Env): Promise
 
 /**
  * What an operator must look at (IMPL-0028): intents whose outcome is not known (state 'unknown', or still
- * 'pending_provider' after the worker that owned them must have stopped) and signed webhook events still waiting
- * for a donation, each with its age in seconds. Ids, amounts and the recipient's public name only: never a donor,
- * an e-mail, a payment code or a receipt.
+ * 'pending_provider' after the worker that owned them must have stopped) and signed webhook events still waiting,
+ * for a donation or for an operator after the status guard refused them, each with its age in seconds. Ids,
+ * amounts and the recipient's public name only: never a donor, an e-mail, a payment code or a receipt.
  */
 async function reconciliation(env: Env) {
   const db = env.DB!;
@@ -874,8 +926,8 @@ async function reconciliation(env: Env) {
     .bind(stale)
     .all<Pick<IntentRow, "id" | "state" | "target_kind" | "ngo_id" | "recipient_name" | "amount_cents" | "last_error" | "provider_charge_id" | "created_at" | "updated_at">>();
   const { results: events } = await db
-    .prepare("SELECT id, event, charge_id, next_status, received_at FROM abacatepay_pending_events WHERE resolved_at IS NULL ORDER BY received_at LIMIT 100")
-    .all<{ id: string; event: string; charge_id: string; next_status: string; received_at: string }>();
+    .prepare("SELECT id, event, charge_id, next_status, hold_reason, received_at FROM abacatepay_pending_events WHERE resolved_at IS NULL ORDER BY received_at LIMIT 100")
+    .all<{ id: string; event: string; charge_id: string; next_status: string; hold_reason: string; received_at: string }>();
   return {
     staleAfterSeconds: STALE_IN_FLIGHT_MS / 1000,
     intents: intents.map((row) => ({
@@ -896,6 +948,8 @@ async function reconciliation(env: Env) {
       event: row.event,
       chargeId: row.charge_id,
       nextStatus: row.next_status,
+      // 'no_donation': waits for its donation; 'transition_refused': the status guard refused it (operator only).
+      holdReason: row.hold_reason,
       receivedAt: row.received_at,
       ageSeconds: age(row.received_at),
     })),
@@ -1045,4 +1099,101 @@ export async function adminExternalProof(request: Request, env: Env): Promise<Re
       .bind(newId(), admin.id, "donation.external_proof", `ngo:${ngoId}`, JSON.stringify({ donationId: id, amountCents })),
   ]);
   return json({ donation: donationView((await readDonation(env, id))!) }, { status: 201, headers: NO_STORE });
+}
+
+/* ----------------------------------------------- operator reconciliation */
+
+const EVENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Closes an intent whose outcome nobody will learn by themselves (IMPL-0028): 'unknown', or 'pending_provider' past
+ * the stale window. It never calls the provider. The table has no 'abandoned' state, so both resolutions end
+ * 'failed' with `last_error = 'resolved_by_admin'`, and the audit row says which one the administrator chose. Any
+ * copy of the provider's answer is cleared (it existed only to finish the donation); `provider_charge_id` stays.
+ * A same-key retry then answers `donation_intent_failed`. The audit row is written first in the same transaction,
+ * under the same condition as the update, so only the request that resolves the intent writes one.
+ */
+export async function adminResolveIntent(request: Request, env: Env, id: string): Promise<Response> {
+  requireDonations(env);
+  const admin = await requireAdmin(request, env);
+  if (!UUID.test(id)) throw new HttpError(404, "not_found");
+  const body = await readJson(request, 2_000);
+  assertAccount(body, admin);
+  const resolution = body.resolution;
+  if (resolution !== "failed" && resolution !== "abandoned")
+    throw new HttpError(400, "invalid", { resolution: "Escolha se o pedido falhou ou foi abandonado." });
+  const db = env.DB!;
+  const intentId = id.toLowerCase();
+  const found = await db.prepare("SELECT provider_charge_id FROM donation_intents WHERE id = ?").bind(intentId).first<{ provider_charge_id: string | null }>();
+  if (!found) throw new HttpError(404, "not_found");
+  // An intent that holds the provider's charge (the provider answered, D1 failed) is never closed here: the donor
+  // may have paid it, and a same-key retry finishes the donation from the copy. Closing it would lose that payment.
+  if (found.provider_charge_id) throw new HttpError(409, "intent_has_charge");
+  const now = new Date().toISOString();
+  const stale = new Date(Date.now() - STALE_IN_FLIGHT_MS).toISOString();
+  const open = "id = ? AND provider_charge_id IS NULL AND (state = 'unknown' OR (state = 'pending_provider' AND updated_at < ?))";
+  const [, resolved] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO audit_events (id, actor, action, subject, detail)
+         SELECT ?, ?, 'donation.intent_resolve', ?, json_object('intentId', id, 'resolution', ?, 'from', state)
+           FROM donation_intents WHERE ${open} AND ${STILL_ADMIN}`
+      )
+      .bind(newId(), admin.id, `donation_intent:${intentId}`, resolution, intentId, stale, admin.id),
+    db
+      .prepare(
+        `UPDATE donation_intents SET state = 'failed', last_error = 'resolved_by_admin', provider_status = NULL, br_code = NULL,
+           br_code_base64 = NULL, receipt_url = NULL, expires_at = NULL, platform_fee_cents = NULL, updated_at = ?
+         WHERE ${open} AND ${STILL_ADMIN}`
+      )
+      .bind(now, intentId, stale, admin.id),
+  ]);
+  if (!resolved.meta.changes) {
+    // The actor lost the role meanwhile, or the intent is not (or no longer) one an operator may close.
+    await assertStillAdmin(db, admin.id);
+    throw new HttpError(409, "intent_not_resolvable");
+  }
+  return json({ intent: { id: intentId, state: "failed", lastError: "resolved_by_admin", resolution } }, { headers: NO_STORE });
+}
+
+/**
+ * Closes a waiting webhook event without applying it (IMPL-0028): a refused transition the operator has looked at,
+ * or an event about a charge that will never have a donation here. It is not recorded as processed: a redelivery
+ * of the same id still changes nothing, because the id stays in `abacatepay_pending_events` (with `resolved_at`).
+ * Audited like the intent resolution, with the event id and why it was waiting.
+ */
+export async function adminDismissEvent(request: Request, env: Env, id: string): Promise<Response> {
+  requireDonations(env);
+  const admin = await requireAdmin(request, env);
+  if (!EVENT_ID.test(id)) throw new HttpError(404, "not_found");
+  const body = await readJson(request, 2_000);
+  assertAccount(body, admin);
+  const db = env.DB!;
+  if (!(await db.prepare("SELECT 1 AS x FROM abacatepay_pending_events WHERE id = ?").bind(id).first())) throw new HttpError(404, "not_found");
+  // An event waiting for a donation that a same-key retry can still create (an intent holding that charge) stays:
+  // dismissing it would leave the paid status to arrive only by a provider refresh.
+  const replayable = await db
+    .prepare(
+      `SELECT 1 AS x FROM abacatepay_pending_events e JOIN donation_intents i ON i.provider_charge_id = e.charge_id
+        WHERE e.id = ? AND e.hold_reason = 'no_donation' AND i.state = 'unknown'`
+    )
+    .bind(id)
+    .first();
+  if (replayable) throw new HttpError(409, "event_has_replayable_intent");
+  const open = `id = ? AND resolved_at IS NULL AND NOT (hold_reason = 'no_donation' AND EXISTS (SELECT 1 FROM donation_intents i
+    WHERE i.provider_charge_id = abacatepay_pending_events.charge_id AND i.state = 'unknown')) AND ${STILL_ADMIN}`;
+  const [, dismissed] = await db.batch([
+    db
+      .prepare(
+        `INSERT INTO audit_events (id, actor, action, subject, detail)
+         SELECT ?, ?, 'donation.event_dismiss', ?, json_object('eventId', id, 'holdReason', hold_reason) FROM abacatepay_pending_events WHERE ${open}`
+      )
+      .bind(newId(), admin.id, `abacatepay_event:${id}`, id, admin.id),
+    db.prepare(`UPDATE abacatepay_pending_events SET resolved_at = ? WHERE ${open}`).bind(new Date().toISOString(), id, admin.id),
+  ]);
+  if (!dismissed.meta.changes) {
+    await assertStillAdmin(db, admin.id);
+    throw new HttpError(409, "event_not_pending");
+  }
+  return json({ event: { id, dismissed: true } }, { headers: NO_STORE });
 }

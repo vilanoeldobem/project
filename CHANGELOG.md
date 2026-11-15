@@ -9,6 +9,24 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — doações: conciliação endurecida antes de ligar (IMPL-0028, **PROPOSTA**; schema v14 no código; atrás de `DONATIONS_ENABLED`, desligada)
+
+- **A repetição com a mesma `idempotencyKey` é respondida antes do limite de abuso** (`DONATION_LIMITER`) e não
+  consome o limite; uma chave nova continua passando pelo limite antes de qualquer gravação.
+- **Um `transparent.completed` atrasado não tira mais a doação de `under_dispute`** nem credita o Título de novo; só o
+  resultado da própria disputa devolve a doação a `paid`.
+- **Evento do webhook recusado pela guarda de status não é mais gravado como processado:** fica em
+  `abacatepay_pending_events` como `transition_refused`, visível ao operador e nunca aplicado sozinho; a resposta é
+  `{ok: true, applied: false, refused: true}`.
+- **Ações do operador:** `POST /admin/donations/intents/:id/resolve` (encerra intenção `unknown` ou `pending_provider`
+  parada como `failed`/`resolved_by_admin`) e `POST /admin/donations/events/:id/dismiss` (dispensa evento em espera),
+  só para administradores, auditadas, sem chamar o provedor. Uma intenção que guarda a cobrança do provedor nunca é
+  encerrada (`409 intent_has_charge`), nem o evento que espera por ela é dispensado: a repetição com a mesma chave
+  conclui a doação.
+- **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): **não aplicada no remoto**; entra
+  com a publicação que traz este código. Com as doações ligadas e o banco em v13, as rotas de doação respondem
+  `503 schema_outdated`.
+
 ### Changed — produção no schema D1 v13
 
 - **A migration `0013_donation_durable_intent.sql` foi aplicada em produção** (2026-11-15 01h27 UTC, aditiva, depois

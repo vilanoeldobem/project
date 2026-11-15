@@ -466,8 +466,11 @@ describe("webhook reconciliation", () => {
   it("keeps a refund that arrives before the payment confirmation", async () => {
     // The provider retries a failed delivery later: the refund can be the first event the Vila receives.
     expect(await (await webhook(event("log_refund", "transparent.refunded", chargeId, "REFUNDED"))).json()).toEqual({ ok: true, applied: true });
-    expect(await (await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: false });
+    // The guard refuses the late confirmation: it is kept for an operator, not recorded as processed.
+    expect(await (await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: false, refused: true });
     expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events")).toEqual([{ id: "log_refund" }]);
+    expect(db.sql("SELECT id, hold_reason, resolved_at FROM abacatepay_pending_events")).toEqual([{ id: "log_paid", hold_reason: "transition_refused", resolved_at: null }]);
     const indicators = ((await (await call("GET", "/indicators", undefined, null, null)).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators;
     expect([indicators.find((i) => i.key === "confirmed_donations")?.value, indicators.find((i) => i.key === "confirmed_amount")?.value]).toEqual([0, 0]);
   });
@@ -481,15 +484,61 @@ describe("webhook reconciliation", () => {
       ["log_won_late", "transparent.disputed", "PAID"],
       ["log_paid_again", "transparent.completed", "PAID"],
     ])
-      expect(await (await webhook(event(id, name, chargeId, status))).json()).toEqual({ ok: true, applied: false });
+      expect(await (await webhook(event(id, name, chargeId, status))).json()).toEqual({ ok: true, applied: false, refused: true });
     expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+    expect(count("abacatepay_webhook_events")).toBe(3);
+    expect(db.sql("SELECT id FROM abacatepay_pending_events WHERE hold_reason = 'transition_refused' ORDER BY rowid").map((r) => r.id)).toEqual([
+      "log_dispute_late",
+      "log_won_late",
+      "log_paid_again",
+    ]);
   });
 
   it("ends refunded when a dispute arrives before the payment confirmation and is then lost", async () => {
-    expect(await (await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"))).json()).toEqual({ ok: true, applied: false });
+    expect(await (await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"))).json()).toEqual({ ok: true, applied: false, refused: true });
     await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    // The refused dispute waits for an operator: it is never applied by itself once the payment makes it possible.
+    expect(db.sql("SELECT status FROM donations WHERE id=?", donationId)[0].status).toBe("paid");
+    expect(await (await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"))).json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT status FROM donations WHERE id=?", donationId)[0].status).toBe("paid");
     expect(await (await webhook(event("log_lost", "transparent.lost", chargeId, "LOST"))).json()).toEqual({ ok: true, applied: true });
     expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "refunded", title_credited: 0 });
+    expect(db.sql("SELECT id, hold_reason FROM abacatepay_pending_events WHERE resolved_at IS NULL")).toEqual([{ id: "log_dispute", hold_reason: "transition_refused" }]);
+  });
+
+  it("refuses a payment confirmation after a dispute, keeps it for an operator, and still accepts the dispute's outcome", async () => {
+    await webhook(event("log_paid", "transparent.completed", chargeId, "PAID"));
+    await webhook(event("log_dispute", "transparent.disputed", chargeId, "UNDER_DISPUTE"));
+    // A late `transparent.completed` neither ends the dispute nor credits the Título again.
+    expect(await (await webhook(event("log_paid_late", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: false, refused: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "under_dispute", title_credited: 0 });
+    const title = ((await (await call("GET", "/donations/my-title", undefined, "donor")).json()) as { title: { eligibleCents: number } }).title;
+    expect(title.eligibleCents).toBe(0);
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events WHERE id = 'log_paid_late'")).toEqual([]);
+    const pending = ((await (await call("GET", "/admin/donations/overview")).json()) as { reconciliation: { unmatchedEvents: unknown[] } }).reconciliation;
+    expect(pending.unmatchedEvents).toMatchObject([{ id: "log_paid_late", chargeId, nextStatus: "paid", holdReason: "transition_refused" }]);
+    // Redeliveries of the refused event are duplicates: one waiting row, nothing recorded, nothing applied.
+    for (let i = 0; i < 2; i++)
+      expect(await (await webhook(event("log_paid_late", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, duplicate: true });
+    expect([count("abacatepay_pending_events"), count("abacatepay_webhook_events")]).toEqual([1, 2]);
+    // The dispute's own outcome still moves it: won → paid and credited again.
+    expect(await (await webhook(event("log_won", "transparent.disputed", chargeId, "PAID"))).json()).toEqual({ ok: true, applied: true });
+    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donationId)[0]).toEqual({ status: "paid", title_credited: 1 });
+    // Now that the donation is paid, a redelivery of the refused event is still a duplicate and stays waiting.
+    expect(await (await webhook(event("log_paid_late", "transparent.completed", chargeId, "PAID"))).json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT resolved_at FROM abacatepay_pending_events WHERE id = 'log_paid_late'")).toEqual([{ resolved_at: null }]);
+  });
+
+  it("records a refused event once when the same delivery arrives twice at the same time", async () => {
+    freezeClock();
+    await webhook(event("log_refund", "transparent.refunded", chargeId, "REFUNDED"));
+    const both = await Promise.all([
+      webhook(event("log_paid", "transparent.completed", chargeId, "PAID")),
+      webhook(event("log_paid", "transparent.completed", chargeId, "PAID")),
+    ]).then((responses) => Promise.all(responses.map((r) => r.json())));
+    expect(both).toContainEqual({ ok: true, applied: false, refused: true });
+    expect(both).toContainEqual({ ok: true, duplicate: true });
+    expect([count("abacatepay_pending_events"), count("abacatepay_webhook_events")]).toEqual([1, 1]);
   });
 
   it("refuses a wrong secret or tampered body and writes no event", async () => {
@@ -888,6 +937,38 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect(db.sql("SELECT id FROM abacatepay_webhook_events")).toEqual([{ id: "log_left" }]);
   });
 
+  it("keeps an early event the guard refuses when it is finally applied for an operator, and never retries it", async () => {
+    await webhook(event("log_refund", "transparent.refunded", "pix_char_1", "REFUNDED"));
+    await webhook(event("log_paid", "transparent.completed", "pix_char_1", "PAID"));
+    const response = await pix({ targetKind: "global", amountCents: 500 }, "donor");
+    expect(await response.json()).toMatchObject({ donation: { status: "refunded", titleCredited: false } });
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events")).toEqual([{ id: "log_refund" }]);
+    expect(db.sql("SELECT id, hold_reason, resolved_at IS NULL AS open FROM abacatepay_pending_events ORDER BY rowid")).toEqual([
+      { id: "log_refund", hold_reason: "no_donation", open: 0 },
+      { id: "log_paid", hold_reason: "transition_refused", open: 1 },
+    ]);
+    // A later event or a status read does not try it again.
+    expect(await (await webhook(event("log_paid", "transparent.completed", "pix_char_1", "PAID"))).json()).toEqual({ ok: true, duplicate: true });
+    expect((await overview()).unmatchedEvents).toMatchObject([{ id: "log_paid", holdReason: "transition_refused" }]);
+  });
+
+  it("answers a retry of a known key without spending the abuse budget; a new key still hits the limiter first", async () => {
+    const keys: string[] = [];
+    let allow = true;
+    env.DONATION_LIMITER = { limit: async ({ key }) => (keys.push(key), { success: allow }) };
+    const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
+    expect((await pix(body, "donor")).status).toBe(201);
+    expect(keys).toEqual(["account:donor"]);
+    allow = false;
+    for (let i = 0; i < 3; i++) expect((await pix(body, "donor")).status).toBe(200);
+    // The same key with other data is refused as reuse, also without touching the limiter.
+    expect(await errorOf(await pix({ ...body, amountCents: 600 }, "donor"))).toEqual([409, "idempotency_key_reused"]);
+    expect(keys).toHaveLength(1);
+    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }, "donor"))).toEqual([429, "too_many_requests"]);
+    expect(keys).toHaveLength(2);
+    expect([count("donation_intents"), creates().length]).toEqual([1, 1]);
+  });
+
   it("limits charge creation per account, or per hash of the address, before writing anything", async () => {
     const keys: string[] = [];
     env.DONATION_LIMITER = { limit: async ({ key }) => (keys.push(key), { success: false }) };
@@ -901,6 +982,154 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect([count("donation_intents"), creates().length]).toEqual([0, 0]);
     env.DONATION_LIMITER = { limit: async () => ({ success: true }) };
     expect((await pix({ targetKind: "global", amountCents: 500 })).status).toBe(201);
+  });
+});
+
+describe("operator reconciliation (IMPL-0028)", () => {
+  const errorOf = async (response: Response) => [response.status, ((await response.json()) as { error: string }).error];
+  const INTENT = "b0000000-0000-4000-8000-000000000001";
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  function intent(state: string, updatedAt = ago(1_000), extra: Record<string, unknown> = {}) {
+    const row = { id: INTENT, idempotency_key: crypto.randomUUID(), request_hash: "h", target_kind: "global", recipient_name: "Instituto Parceiro",
+      sub_account_id: "sacc_x", amount_cents: 500, ngo_share_cents: 395, vila_share_cents: 105, ngo_percent_bps: 9500, fixed_fee_cents: 80,
+      state, updated_at: updatedAt, ...extra };
+    const cols = Object.keys(row);
+    db.sql(`INSERT INTO donation_intents (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`, ...(Object.values(row) as never[]));
+    return row;
+  }
+  const resolve = (body: Record<string, unknown>, user = "admin", id = INTENT) =>
+    call("POST", `/admin/donations/intents/${id}/resolve`, { accountId: user, resolution: "failed", ...body }, user);
+  const dismiss = (id: string, user = "admin", body: Record<string, unknown> = {}) =>
+    call("POST", `/admin/donations/events/${id}/dismiss`, { accountId: user, ...body }, user);
+  const audits = (action: string) => db.sql("SELECT actor, subject, detail FROM audit_events WHERE action = ?", action);
+
+  it("never closes an intent that holds the provider's charge: the donor may have paid it, and a retry finishes it", async () => {
+    intent("unknown", ago(1_000), { last_error: "store_failed", provider_charge_id: "pix_char_9", provider_status: "PENDING", br_code: "000201-x" });
+    expect(await errorOf(await resolve({ resolution: "abandoned" }))).toEqual([409, "intent_has_charge"]);
+    expect(db.sql("SELECT state, last_error, provider_charge_id, br_code FROM donation_intents")).toEqual([
+      { state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_9", br_code: "000201-x" },
+    ]);
+    expect(audits("donation.intent_resolve")).toHaveLength(0);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("closes an 'unknown' intent as failed, never calls the provider, audits it, and a same-key retry stays closed", async () => {
+    const row = intent("unknown", ago(1_000), { last_error: "provider_timeout" });
+    const response = await resolve({ resolution: "abandoned" });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ intent: { id: INTENT, state: "failed", lastError: "resolved_by_admin", resolution: "abandoned" } });
+    expect(db.sql("SELECT state, last_error, provider_charge_id, br_code, provider_status FROM donation_intents")).toEqual([
+      { state: "failed", last_error: "resolved_by_admin", provider_charge_id: null, br_code: null, provider_status: null },
+    ]);
+    expect(audits("donation.intent_resolve")).toEqual([
+      { actor: "admin", subject: `donation_intent:${INTENT}`, detail: JSON.stringify({ intentId: INTENT, resolution: "abandoned", from: "unknown" }) },
+    ]);
+    expect(calls).toHaveLength(0);
+    // The donor's retry with the same key is told the request failed; nothing is created or charged.
+    db.sql("UPDATE donation_intents SET request_hash = ?", await sha256Hex(JSON.stringify(["global", null, 500, null])));
+    expect(await errorOf(await call("POST", "/donations/pix", { idempotencyKey: row.idempotency_key, targetKind: "global", amountCents: 500 }, null))).toEqual([
+      409,
+      "donation_intent_failed",
+    ]);
+    expect([count("donations"), calls.filter((c) => c.path.endsWith("/transparents/create")).length]).toEqual([0, 0]);
+    // Closed is closed: a second resolution is refused and writes no second audit row.
+    expect(await errorOf(await resolve({}))).toEqual([409, "intent_not_resolvable"]);
+    expect(audits("donation.intent_resolve")).toHaveLength(1);
+  });
+
+  it("closes a stale 'pending_provider' intent, but not one still inside the provider's window or already settled", async () => {
+    intent("pending_provider", ago(5_000));
+    expect(await errorOf(await resolve({}))).toEqual([409, "intent_not_resolvable"]);
+    db.sql("UPDATE donation_intents SET updated_at = ?", ago(61_000));
+    expect((await resolve({})).status).toBe(200);
+    expect(audits("donation.intent_resolve").map((a) => JSON.parse(a.detail as string))).toEqual([{ intentId: INTENT, resolution: "failed", from: "pending_provider" }]);
+    for (const state of ["created", "failed"]) {
+      db.sql("DELETE FROM donation_intents");
+      intent(state, ago(120_000));
+      expect(await errorOf(await resolve({}))).toEqual([409, "intent_not_resolvable"]);
+    }
+    expect(audits("donation.intent_resolve")).toHaveLength(1);
+  });
+
+  it("resolves an intent once when two administrators act at the same time", async () => {
+    await db.prepare("INSERT INTO users(id,name,nickname,nickname_key,city,email,role,verified_at) VALUES('admin2','a2','a2','a2','Recife','a2@example.test','admin','2026-01-01')").run();
+    await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)").bind(await sha256Hex("admin2"), "admin2", "2099-01-01").run();
+    intent("unknown");
+    const statuses = (await Promise.all([resolve({}), resolve({}, "admin2")])).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+    expect(audits("donation.intent_resolve")).toHaveLength(1);
+  });
+
+  it("refuses a non-administrator, a stale account, a bad resolution and an unknown id, writing nothing", async () => {
+    intent("unknown");
+    expect(await errorOf(await resolve({}, "donor"))).toEqual([403, "admin_only"]);
+    expect(await errorOf(await resolve({ accountId: "someone-else" }))).toEqual([409, "account_changed"]);
+    expect(await errorOf(await resolve({ resolution: "paid" }))).toEqual([400, "invalid"]);
+    expect(await errorOf(await resolve({}, "admin", "b0000000-0000-4000-8000-000000000999"))).toEqual([404, "not_found"]);
+    expect(await errorOf(await resolve({}, "admin", "not-a-uuid"))).toEqual([404, "not_found"]);
+    expect(db.sql("SELECT state FROM donation_intents")).toEqual([{ state: "unknown" }]);
+    expect(count("audit_events")).toBe(0);
+  });
+
+  it("is dark with the flag off", async () => {
+    intent("unknown");
+    db.sql("INSERT INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status) VALUES ('log_x', 'transparent.completed', 'pix_char_x', 'paid', 'PAID')");
+    env.DONATIONS_ENABLED = "false";
+    expect(await errorOf(await resolve({}))).toEqual([404, "not_found"]);
+    expect(await errorOf(await dismiss("log_x"))).toEqual([404, "not_found"]);
+    expect(db.sql("SELECT state FROM donation_intents")).toEqual([{ state: "unknown" }]);
+    expect(count("audit_events")).toBe(0);
+  });
+
+  it("dismisses a waiting event without recording it as processed, audits it, and a redelivery stays a duplicate", async () => {
+    await settings();
+    db.sql("DELETE FROM audit_events");
+    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 }, "donor")).json()) as { donation: { id: string } };
+    await webhook(event("log_refund", "transparent.refunded", "pix_char_1", "REFUNDED"));
+    expect(await (await webhook(event("log_paid", "transparent.completed", "pix_char_1", "PAID"))).json()).toEqual({ ok: true, applied: false, refused: true });
+    expect(await errorOf(await dismiss("log_paid", "donor"))).toEqual([403, "admin_only"]);
+    expect(await errorOf(await dismiss("log_paid", "admin", { accountId: "someone-else" }))).toEqual([409, "account_changed"]);
+    expect(await errorOf(await dismiss("log_missing"))).toEqual([404, "not_found"]);
+    const response = await dismiss("log_paid");
+    expect([response.status, await response.json()]).toEqual([200, { event: { id: "log_paid", dismissed: true } }]);
+    expect(audits("donation.event_dismiss")).toEqual([
+      { actor: "admin", subject: "abacatepay_event:log_paid", detail: JSON.stringify({ eventId: "log_paid", holdReason: "transition_refused" }) },
+    ]);
+    expect(await errorOf(await dismiss("log_paid"))).toEqual([409, "event_not_pending"]);
+    expect(audits("donation.event_dismiss")).toHaveLength(1);
+    const overview = ((await (await call("GET", "/admin/donations/overview")).json()) as { reconciliation: { unmatchedEvents: unknown[] } }).reconciliation;
+    expect(overview.unmatchedEvents).toEqual([]);
+    expect(await (await webhook(event("log_paid", "transparent.completed", "pix_char_1", "PAID"))).json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events")).toEqual([{ id: "log_refund" }]);
+    expect(db.sql("SELECT status FROM donations WHERE id = ?", donation.id)).toEqual([{ status: "refunded" }]);
+  });
+
+  it("keeps an event waiting while an intent holding its charge can still finish the donation", async () => {
+    await settings();
+    intent("unknown", ago(1_000), { last_error: "store_failed", provider_charge_id: "pix_char_7", provider_status: "PENDING", br_code: "000201-x" });
+    await webhook(event("log_hold", "transparent.completed", "pix_char_7", "PAID"));
+    expect(await errorOf(await dismiss("log_hold"))).toEqual([409, "event_has_replayable_intent"]);
+    expect(db.sql("SELECT resolved_at FROM abacatepay_pending_events WHERE id = 'log_hold'")).toEqual([{ resolved_at: null }]);
+    expect(audits("donation.event_dismiss")).toHaveLength(0);
+  });
+
+  it("never records a waiting event id as processed, even when a redelivery no longer parses as tracked", async () => {
+    await settings();
+    await webhook(event("log_wait", "transparent.completed", "pix_char_8", "PAID"));
+    const again = await webhook({ id: "log_wait", event: "billing.unknown", devMode: true, data: {} });
+    expect(await again.json()).toEqual({ ok: true, duplicate: true });
+    expect(db.sql("SELECT id FROM abacatepay_webhook_events WHERE id = 'log_wait'")).toEqual([]);
+    expect(db.sql("SELECT resolved_at FROM abacatepay_pending_events WHERE id = 'log_wait'")).toEqual([{ resolved_at: null }]);
+  });
+
+  it("dismisses an event still waiting for its donation, which is then never applied", async () => {
+    await settings();
+    await webhook(event("log_early", "transparent.completed", "pix_char_1", "PAID"));
+    expect((await dismiss("log_early")).status).toBe(200);
+    const response = await pix({ targetKind: "global", amountCents: 500 }, "donor");
+    expect(await response.json()).toMatchObject({ donation: { status: "pending" } });
+    expect(count("abacatepay_webhook_events")).toBe(0);
+    expect(audits("donation.event_dismiss").map((a) => JSON.parse(a.detail as string))).toEqual([{ eventId: "log_early", holdReason: "no_donation" }]);
   });
 });
 
@@ -919,6 +1148,22 @@ describe("schema behind the code", () => {
     expect([hook.status, await hook.json()]).toEqual([503, { error: "schema_outdated" }]);
     expect(calls.filter((c) => c.path.endsWith("/transparents/create"))).toHaveLength(0);
     expect(count("abacatepay_webhook_events")).toBe(0);
+    expect(logged).not.toHaveBeenCalled();
+  });
+
+  it("answers 503 schema_outdated on the webhook and the operator routes without migration 0014 (v13)", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    db = createD1({ upTo: 13 });
+    env.DB = db;
+    await seed();
+    await settings();
+    const hook = await webhook(event("log_v13", "transparent.completed", "pix_char_1", "PAID"));
+    expect([hook.status, await hook.json()]).toEqual([503, { error: "schema_outdated" }]);
+    expect((await call("GET", "/admin/donations/overview")).status).toBe(503);
+    db.sql("INSERT INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status) VALUES ('log_x', 'transparent.completed', 'pix_char_x', 'paid', 'PAID')");
+    expect((await call("POST", "/admin/donations/events/log_x/dismiss", { accountId: "admin" })).status).toBe(503);
+    // Only the settings audit row: nothing was recorded or dismissed.
+    expect([count("abacatepay_webhook_events"), count("audit_events")]).toEqual([0, 1]);
     expect(logged).not.toHaveBeenCalled();
   });
 

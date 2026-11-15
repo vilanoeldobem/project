@@ -2,14 +2,15 @@
 
 **Status:** Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); a idempotência do
 lado da AbacatePay é PENDENTE; a migration 0013 foi aplicada no remoto em 2026-11-15 (01h27 UTC), aditiva, sem uso
-enquanto a bandeira estiver desligada
+enquanto a bandeira estiver desligada; a 0014 (complemento) entra no remoto junto com a publicação que a usa
 **Data:** 2026-11-14
 **Fontes:** auditoria §6.2 (P1, atrás da bandeira); IMPL-0023 (doações e conciliação), IMPL-0002 (nenhum fluxo de
 dinheiro simulado), IMPL-0015 (painel), IMPL-0021 (papel de administrador); DEC-010..013, DEC-027, DEC-042; PEN-004,
 PEN-006, PEN-026.
 **Código:** `apps/api/src/{donations,abacatepay,api}.ts`, `apps/api/src/donations.test.ts`,
 `apps/client/src/{lib/api.ts,ui/PixDonation.tsx}`, `packages/shared/src/accounts/errors.ts`,
-`apps/api/wrangler.jsonc` (`DONATION_LIMITER`), `migrations/0013_donation_durable_intent.sql`.
+`apps/api/wrangler.jsonc` (`DONATION_LIMITER`), `migrations/0013_donation_durable_intent.sql`,
+`migrations/0014_pending_event_hold_reason.sql`.
 
 ## Contexto
 
@@ -70,13 +71,59 @@ que a linha em `donations` é a fonte única e de que um pagamento confirmado co
 6. **Limite de abuso.** Binding `DONATION_LIMITER` (10 pedidos por 60 s, namespace `1104`), por conta quando há
    sessão e por SHA-256 do `CF-Connecting-IP` para visitantes, aplicado antes de qualquer gravação
    (`429 too_many_requests`). A chave não é gravada nem registrada em log. Sem o binding (local, testes, staging)
-   não há limite, como no `AUTH_LIMITER`.
+   não há limite, como no `AUTH_LIMITER`. Só uma chave nova consome o limite: a repetição de uma chave que já tem
+   intenção (inclusive `idempotency_key_reused`) é respondida antes dele, porque nunca chama o provedor (ver 8).
 7. **Migration aditiva.** `0013_donation_durable_intent.sql` cria `donation_intents` e `abacatepay_pending_events`;
    nenhuma tabela da 0011 muda (o `CHECK` de `donations.status` não precisou de novos estados). Sem a 0013, com a
    bandeira ligada, `POST /donations/pix`, `GET /donations/:id`, o webhook e a visão do operador respondem
    `503 schema_outdated`; as rotas públicas sempre ativas não leem as tabelas novas (teste cobre v3 a v13).
 
+8. **Complemento (2026-11-14): pendências resolvidas antes de qualquer ativação.**
+   - **Limite depois da repetição idempotente.** `POST /donations/pix` lê a intenção da chave antes do limite; só
+     uma chave sem intenção passa pelo `DONATION_LIMITER`, ainda antes de gravar qualquer coisa. Repetições da
+     mesma chave não gastam o limite de quem doa.
+   - **`transparent.completed` não encerra disputa.** A guarda de status não aceita mais `paid` a partir de
+     `under_dispute` para uma confirmação de pagamento (nem pelas consultas ao provedor de `refresh` e da
+     simulação). Só o resultado da própria disputa (`transparent.disputed` com a cobrança `PAID`) devolve a doação
+     a `paid`. Um `transparent.completed` depois da disputa não credita o Título de novo: fica para o operador
+     (abaixo).
+   - **Transição recusada não é "processada".** Quando a guarda recusa a mudança (por exemplo `paid` depois de
+     `refunded` ou de `under_dispute`, ou uma disputa antes da confirmação), o evento não entra em
+     `abacatepay_webhook_events`: fica em `abacatepay_pending_events` com `hold_reason = 'transition_refused'` e a
+     resposta é `{ok: true, applied: false, refused: true}`. Um evento só é gravado como processado quando a doação
+     termina no status que ele pede (mudou agora ou já estava nele). Um id fica numa tabela ou na outra, nunca nas
+     duas, e uma nova entrega de um id que está em qualquer uma é `duplicate`: a idempotência por id continua,
+     inclusive para entregas simultâneas. Um evento recusado **nunca** é aplicado sozinho, nem quando o status da
+     doação passa a admiti-lo: reaplicá-lo fora de ordem seria decidir o estado da doação sem o provedor. Um evento
+     que esperava a doação (`no_donation`) e é recusado quando finalmente aplicado passa a `transition_refused`.
+   - **Coluna nova.** As colunas da 0013 não distinguem "espera a doação" de "recusado"; sem essa distinção, a
+     drenagem tentaria de novo um evento recusado a cada novo evento da cobrança. A 0013 é imutável (aplicada no
+     remoto), então a `0014_pending_event_hold_reason.sql` acrescenta `hold_reason` (`no_donation` por padrão, que é
+     o sentido de toda linha da 0013). Sem a 0014, com a bandeira ligada, o webhook, `GET /donations/:id`, a visão
+     do operador e as ações abaixo respondem `503 schema_outdated`.
+   - **Ações do operador** (só `role = 'admin'`, `accountId` da sessão, mesma origem das demais escritas do painel,
+     condição `STILL_ADMIN` na transação, atrás de `DONATIONS_ENABLED`; nenhuma chama o provedor):
+     `POST /admin/donations/intents/:id/resolve` `{accountId, resolution: "failed" | "abandoned"}` encerra uma
+     intenção `unknown` ou `pending_provider` parada. O `CHECK` da 0013 não tem "abandonada", então as duas
+     resoluções gravam `state = 'failed'`, `last_error = 'resolved_by_admin'` e a auditoria
+     (`donation.intent_resolve`, `{intentId, resolution, from}`) guarda a escolha; a cópia da resposta do provedor é
+     apagada e `provider_charge_id` fica. `POST /admin/donations/events/:id/dismiss` `{accountId}` encerra um evento
+     em espera sem aplicá-lo nem gravá-lo como processado (auditoria `donation.event_dismiss`,
+     `{eventId, holdReason}`). A linha de auditoria é gravada na mesma transação e com a mesma condição da
+     mudança: duas ações simultâneas gravam uma linha só. Uma intenção que guarda a cobrança do provedor nunca é
+     encerrada (`409 intent_has_charge`: a repetição com a mesma chave conclui a doação), e um evento à espera dessa
+     doação não é dispensado (`409 event_has_replayable_intent`); encerrar uma intenção `unknown` sem cobrança exige
+     que o operador confira antes, no painel da AbacatePay, se o `externalId` gerou cobrança. Erros:
+     `409 intent_not_resolvable`, `409 intent_has_charge`, `409 event_not_pending`, `409 event_has_replayable_intent`, `409 account_changed`, `403 admin_only`, `404 not_found` (também com a bandeira
+     desligada). A tela do painel não muda neste passo: as rotas existem para o operador e para a próxima versão do
+     painel.
+
 ## O que continua PENDENTE
+
+- **Disputa recusada antes do pagamento (decisão do responsável).** Um `transparent.disputed` que chega enquanto a
+  doação ainda está `pending` é recusado pela guarda e fica `transition_refused` para o operador; se depois chega o
+  `completed`, a doação conta como paga com a disputa aberta. O código não reavalia eventos recusados sozinho: qual deve
+  ser o comportamento é pergunta de produto, não decisão de código.
 
 - **Idempotência do lado da AbacatePay.** O código envia `externalId` em `POST /transparents/create`, mas nada no
   repositório confirma que a AbacatePay recusa ou devolve a mesma cobrança para o mesmo `externalId`, nem que exista
@@ -86,20 +133,17 @@ que a linha em `donations` é a fonte única e de que um pagamento confirmado co
   Confirmar com a documentação ou o suporte da AbacatePay antes de ligar as doações.
 - **Chave do limite por endereço sem sal.** O `DONATION_LIMITER` usa SHA-256 do `CF-Connecting-IP` sem chave
   secreta; um HMAC com chave exigiria um novo segredo do Worker, o que depende de aprovação do responsável.
-- **Limite antes da repetição idempotente.** O limite de abuso conta também as repetições da mesma chave, inclusive
-  as que só devolvem a doação já criada.
-- **`paid` depois de `under_dispute`.** A transição herdada da IMPL-0023 aceita um `transparent.completed`
-  atrasado depois de uma disputa e devolve a doação a `paid`. Se isso é desejado é PENDENTE.
-- **Evento gravado mesmo quando a transição é recusada.** Um evento cuja mudança de status a guarda recusa
-  (por exemplo, `paid` depois de `refunded`) entra em `abacatepay_webhook_events` como processado, com
-  `applied: false`; não fica registro separado de "recusado".
 - **Retenção e limite de `abacatepay_pending_events`.** Não há prazo de retenção nem teto de linhas; eventos de
-  cobranças que não são da Vila ficam em espera indefinidamente (visíveis, com a idade).
+  cobranças que não são da Vila e eventos recusados ficam em espera até um administrador dispensá-los (visíveis,
+  com a idade). Decisão de produto.
 - **Se o webhook traz `externalId`/`metadata`.** Se trouxer, um evento em espera poderia ser ligado à intenção
   `unknown` sem o id da cobrança. Hoje só o id da cobrança liga um evento a uma doação.
-- **Rota do operador para resolver intenções `unknown`.** Não há rota para o admin encerrar uma intenção
-  `unknown` ou ligá-la a uma cobrança encontrada no painel do provedor; a visão é só de leitura. Retenção das
-  intenções: PENDENTE, como a das demais tabelas de doação.
+- **Ligar uma intenção `unknown` a uma cobrança encontrada no painel do provedor.** A rota do operador só encerra
+  a intenção (`failed`, `resolved_by_admin`); não cria a doação a partir de uma cobrança achada no provedor nem
+  aplica um evento recusado. Retenção das intenções: PENDENTE, como a das demais tabelas de doação.
+- **Resposta atrasada depois do encerramento.** Uma intenção `pending_provider` só pode ser encerrada depois de
+  60 s (o tempo-limite do provedor é 15 s); se ainda assim a resposta chegar depois, ela não é copiada (a intenção
+  já está `failed`) e a cobrança pode existir no provedor sem doação local, como no caso `unknown` acima.
 - Tudo o que a IMPL-0023 deixa PENDENTE continua: contrato da parceira e provedor (PEN-004, PEN-006), Título
   (PEN-026). Nenhuma bandeira foi ligada e nenhuma migration remota foi aplicada.
 
@@ -132,8 +176,12 @@ que a linha em `donations` é a fonte única e de que um pagamento confirmado co
   com falha (com evento chegando no meio, e duas repetições disputando a cópia), D1 sem gravar nem a cópia
   (intenção parada vira `unknown` sem nova chamada), escritor atrasado barrado depois de a intenção ficar parada,
   evento antes da doação, repetição do evento, ordem dos eventos em espera, drenagem na leitura, limite de abuso e
-  schema v12; `apps/client/src/lib/donation-key.test.ts` cobre quando o jogo mantém ou troca a chave;
-  `public-ngo.test.ts` cobre v13; `node scripts/verify-media-local.mjs --progress --withdrawal` aplica a 0013 num
+  schema v12; e, no complemento, repetição da chave sem gastar o limite, `transparent.completed` recusado depois
+  da disputa (com a vitória da disputa ainda aceita), evento recusado guardado e nunca reaplicado (inclusive
+  entregas repetidas e simultâneas, e o recusado na drenagem), encerramento de intenção (`unknown`, parada, fora da
+  janela, já criada, não admin, conta trocada, bandeira desligada, auditoria, duas ações simultâneas), dispensa de
+  evento e schema v13; `apps/client/src/lib/donation-key.test.ts` cobre quando o jogo mantém ou troca a chave;
+  `public-ngo.test.ts` cobre v3 a v14; `node scripts/verify-media-local.mjs --progress --withdrawal` aplica a 0013 num
   D1 local do workerd.
 
 ## Relacionados
