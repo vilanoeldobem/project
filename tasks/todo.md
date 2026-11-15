@@ -956,3 +956,18 @@ Branch `fix/audit-phase-2` (from main; independent of PR #49).
 
 Scheduled live synthetic (verify-live in smoke.yml) would fail daily until OQ-13 is done in GA; staging for all
 apps, restore drill, release manifest and deploy-doc reconciliation (audit 7.4, 7.5, 7.7) need owner time/approval.
+
+# Next steps — 2026-11-15 (recorded in ROADMAP.md, "Correções pós-0.6.0 (0.6.1)")
+
+State at handoff: production runs 0.6.0 (tag v0.6.0) with D1 v13; `main` also holds #59 (donation reconciliation
+hardening, migration 0014 not applied remotely). No open PRs, no extra branches or worktrees.
+
+## Plan (A → C → release 0.6.1 → B)
+
+- [ ] A. Wardrobe follow-ups from the #48 review: focus after "Equipar", "Grátis" chip announced, hat-holly v1→v2
+      migration, dress/blouse/pants exclusivity in `parseLook`, paid guard in `wear()` + behaviour tests, dress gap check.
+- [ ] C. Readiness route that really touches D1, R2 and the room; `/health` stays lightweight.
+- [ ] Release 0.6.1: A + C + #59; apply 0014 remotely with the deploy (Time Travel bookmark first); record in releases.md.
+- [ ] B. "HUD da ONG e segundo jogo" (P04, P09; D10, D24): read the boards and the decision log first.
+
+Owner-only items are listed in ROADMAP.md, "Pendências do responsável".
