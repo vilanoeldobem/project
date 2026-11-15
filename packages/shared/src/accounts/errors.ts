@@ -45,7 +45,13 @@ const ERROR_TEXT: Record<string, string> = {
   ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
   global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",
   invalid_donation_amount: "O valor da doação precisa ser um número inteiro entre R$ 2,00 e R$ 50.000,00.",
-  subaccounts_unavailable: "A AbacatePay ainda não habilitou subcontas nesta conta. Peça a ativação ao suporte e informe o ID da subconta no painel.",
+  // Durable creation intent (IMPL-0028, PROPOSTA).
+  invalid_idempotency_key: "Não foi possível identificar este pedido de doação. Atualize a página e tente de novo.",
+  idempotency_key_reused: "Este pedido de doação já foi feito com outros dados. Atualize a página e comece de novo.",
+  donation_in_progress: "Estamos gerando o código Pix desta doação. Aguarde alguns segundos e tente de novo.",
+  donation_not_confirmed: "Não conseguimos confirmar a criação do código Pix. Tente de novo: o mesmo pedido será retomado, sem gerar uma segunda doação.",
+  donation_intent_unknown: "Não conseguimos concluir este pedido de doação. Nenhum código Pix dele chegou até você, então nada foi pago; comece uma nova doação.",
+  subaccounts_unavailable:"A AbacatePay ainda não habilitou subcontas nesta conta. Peça a ativação ao suporte e informe o ID da subconta no painel.",
 };
 
 /** The sentence to show for a failed call (UI copy, pt-BR). */

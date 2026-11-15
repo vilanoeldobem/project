@@ -290,7 +290,8 @@ describe("POST /moderation/consume (realtime server, service binding)", () => {
     expect(audit().map((row) => row.subject)).toEqual(["room:5"]);
     refuse = "";
     expect((await consume(ticket)).status).toBe(200);
-    expect(configuredVars("namespace_id")).toEqual(["1101", "1102", "1103"]);
+    // One namespace per limiter (1104 is DONATION_LIMITER, IMPL-0028): none shares another's budget.
+    expect(configuredVars("namespace_id")).toEqual(["1101", "1102", "1103", "1104"]);
     // Without the binding (tests, staging) nothing is limited and nothing fails.
     env.MODERATION_LIMITER = undefined;
     expect((await handleApi(bindingRequest("A".repeat(32)), env)).status).toBe(404);

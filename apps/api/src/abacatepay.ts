@@ -62,8 +62,23 @@ export async function verifyAbacateWebhook(request: Request, rawBody: Uint8Array
 
 /** A provider refusal, kept internal: its text may carry account details and never reaches a response. */
 class ProviderError extends Error {
-  constructor(readonly detail: string) {
+  /** `status` is the provider's HTTP status; 0 when no answer arrived (network error or timeout). */
+  constructor(
+    readonly detail: string,
+    readonly status = 0
+  ) {
     super("payment_provider_unavailable");
+  }
+}
+
+/**
+ * `503 payment_provider_unavailable` from `createPixCharge`, saying whether the provider may still have created the
+ * charge (`ambiguous`: no answer, a timeout, a 5xx or a success without a charge id) or refused it for sure (a 4xx
+ * or an error envelope on a 2xx). The donation intent (IMPL-0028) is left 'unknown' or 'failed' accordingly.
+ */
+export class ChargeCreationError extends HttpError {
+  constructor(readonly ambiguous: boolean) {
+    super(503, "payment_provider_unavailable");
   }
 }
 
@@ -112,7 +127,7 @@ async function callProvider(env: Env, method: "GET" | "POST", path: string, body
   if (typeof failure === "string") detail = failure;
   else if (failure && typeof failure === "object" && "message" in failure && typeof failure.message === "string") detail = failure.message;
   if (!response.ok || (failure !== null && failure !== undefined && failure !== "" && failure !== false))
-    throw new ProviderError(detail || `http_${response.status}`);
+    throw new ProviderError(detail || `http_${response.status}`, response.status);
   return (envelope.data && typeof envelope.data === "object" ? envelope.data : {}) as Record<string, unknown>;
 }
 
@@ -192,10 +207,19 @@ export async function createPixCharge(
     metadata: input.metadata,
   };
   if (!devSubAccount) data.splits = [{ subAccountId: input.subAccountId, amount: input.ngoShareCents }];
+  let answer: Record<string, unknown>;
   try {
-    return chargeView(await callProvider(env, "POST", "/transparents/create", { method: "PIX", data }));
+    answer = await callProvider(env, "POST", "/transparents/create", { method: "PIX", data });
   } catch (error) {
-    return providerUnavailable(error);
+    if (!(error instanceof ProviderError)) throw error;
+    // A 4xx is a refusal (nothing was created); no answer, a timeout or a 5xx may have created the charge.
+    throw new ChargeCreationError(error.status === 0 || error.status >= 500);
+  }
+  try {
+    return chargeView(answer);
+  } catch {
+    // A success without a charge id: the provider may hold a charge the Vila cannot name.
+    throw new ChargeCreationError(true);
   }
 }
 

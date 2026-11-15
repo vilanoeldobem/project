@@ -142,7 +142,8 @@ export interface MyTitle {
 
 export const fetchGlobalDonationConfig = () => getJson<DonationConfig>("/donations/config");
 export const fetchNgoDonationInfo = (ngoId: string) => getJson<NgoDonationInfo>(`/ngos/${encodeURIComponent(ngoId)}/donation-info`);
-export const createPixDonation = (body: { targetKind: DonationTargetKind; ngoId?: string; amountCents: number }) =>
+/** `idempotencyKey`: one UUID per donation request; a retry of the same request sends the same key (IMPL-0028). */
+export const createPixDonation = (body: { idempotencyKey: string; targetKind: DonationTargetKind; ngoId?: string; amountCents: number }) =>
   postJson<{ donation: Donation }>("/donations/pix", body);
 export const fetchDonationStatus = (id: string, refresh = false) => getJson<{ donation: Donation }>(`/donations/${encodeURIComponent(id)}${refresh ? "?refresh=1" : ""}`, "include");
 export const simulatePixDonation = (id: string) => postJson<{ donation: Donation }>(`/donations/${encodeURIComponent(id)}/simulate`, {});

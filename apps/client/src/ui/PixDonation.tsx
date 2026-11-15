@@ -6,7 +6,7 @@
  * Nothing here completes a payment by itself: the donation is confirmed by the provider (webhook or status
  * check), and a visitor's donation never credits a Título because it has no account to credit.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { errorText } from "@vila/shared/accounts/errors";
 import { computeDonationSplit, formatBrl, parseBrlToCents, type DonationTargetKind } from "@vila/shared/donations/contract";
@@ -47,6 +47,7 @@ export function PixDonation({
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const operation = useRef<{ request: string; key: string } | null>(null);
   const amountCents = custom.trim() ? (parseBrlToCents(custom) ?? Number.NaN) : preset;
   const split = (() => {
     try {
@@ -66,8 +67,13 @@ export function PixDonation({
       return;
     }
     setBusy(true);
+    // One key per request (IMPL-0028): trying again after an error resumes the same request, never a second one;
+    // another amount or a finished donation starts a new key.
+    const request = `${targetKind}:${ngoId ?? ""}:${amountCents}`;
+    if (operation.current?.request !== request) operation.current = { request, key: crypto.randomUUID() };
     try {
-      const created = await createPixDonation({ targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      const created = await createPixDonation({ idempotencyKey: operation.current.key, targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      operation.current = null;
       setDonation(created.donation);
     } catch (e) {
       setError(errorText(e));

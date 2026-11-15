@@ -1,6 +1,6 @@
 # Arquitetura
 
-> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v13 ·
 > **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
@@ -371,7 +371,7 @@ A tabela aditiva `ngo_withdrawals` marca a retirada sem mudar `ngos.status` (con
 privadas projetam o estado efetivo `withdrawn`. No mesmo batch, a retirada incrementa a revisão, libera os
 terrenos efetivamente associados e grava uma auditoria. **As projeções públicas de uma ONG exigem o terreno
 publicado e não leem essa tabela**: a ONG retirada some de `/lots`, `/indicators`, do perfil, do logo e das
-fotos, e as rotas públicas respondem igual nos schemas v3 a v12. As rotas de candidatura e análise leem a tabela
+fotos, e as rotas públicas respondem igual nos schemas v3 a v13. As rotas de candidatura e análise leem a tabela
 e respondem `503 schema_outdated` sem a migration 0009. O texto que o admin escreve é a mensagem lida pela
 organização; não entra em resposta pública nem na auditoria. O jogo precisa recarregar para atualizar uma cena
 aberta; não há broadcast de retirada nem alteração de XP ou missões.
@@ -498,6 +498,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
 | api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala, só quando o bilhete foi emitido (IMPL-0021) |
+| api | `ratelimits` | `DONATION_LIMITER`, 10 requisições / 60 s | Limite de `POST /donations/pix` por conta, ou por SHA-256 do endereço para visitantes (nada gravado; IMPL-0028, só alcançado com `DONATIONS_ENABLED`) |
 | api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
 | api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
 | api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, criado em 2026-11-14 e vazio (IMPL-0017) |
