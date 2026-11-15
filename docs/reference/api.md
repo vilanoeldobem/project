@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v12 · **Atualizado em:** 2026-11-13
+> **Schema D1:** v13 · **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,account-moderation,presence-moderation,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `apps/api/src/{account-moderation,presence-moderation,logo-removal}.test.ts`,
 > `packages/shared/src/accounts/{validate,files,contract,moderation,errors}.ts`, `apps/server/src/handler.ts`,
@@ -787,13 +787,13 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 |---|---|---|
 | `GET /donations/config` | público | `{global: {enabled, recipientName, ngoPercentBps, fixedFeeCents, minAmountCents}}`; nunca CNPJ nem subconta |
 | `GET /ngos/:id/donation-info` | público | ONG publicada em terreno publicado: `{ngoId, name, method, enabled, ngoPercentBps, fixedFeeCents, minAmountCents, confirmedDonations, confirmedAmountCents}`; sem URL, subconta ou CNPJ |
-| `POST /donations/pix` | visitante ou conta | `{targetKind: "global" \| "ngo", ngoId?, amountCents}` → `201 {donation}`, com `brCode`, `brCodeBase64`, `expiresAt`, `devMode` |
+| `POST /donations/pix` | visitante ou conta | `{idempotencyKey, targetKind: "global" \| "ngo", ngoId?, amountCents}` → `201 {donation}`, com `brCode`, `brCodeBase64`, `expiresAt`, `devMode`; repetição com a mesma chave → `200 {donation}` (a mesma doação) |
 | `GET /donations/:id[?refresh=1]` | público | `{donation}`; com `refresh=1` e status `pending`, consulta o provedor e concilia antes de responder |
 | `POST /donations/:id/simulate` | sandbox | só fora de produção e com cobrança `devMode`: simula o pagamento e concilia |
 | `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
 | `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
-| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects}` |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
@@ -822,6 +822,44 @@ Regras:
   responde `{ok: true, applied}`, com `applied: false` quando o status atual da doação não admite a mudança.
   Estorno (`transparent.refunded`, `transparent.lost`) é final e vale a partir de qualquer status anterior, mesmo
   quando chega antes de `transparent.completed`; nenhum evento posterior reabre uma doação estornada.
+- **Intenção durável da cobrança (IMPL-0028, PROPOSTA)**: `idempotencyKey` é um UUID gerado pelo cliente, um por
+  pedido de doação. Sem chave válida → `400 invalid_idempotency_key`. Falta de configuração do provedor (chave da
+  API ausente; marcador de sandbox em produção) é recusada **antes** de gravar qualquer coisa. Depois, a API grava
+  uma linha em `donation_intents` (`pending_provider`) e só então chama o provedor, **no máximo uma vez por
+  chave**: nenhuma repetição chama o provedor de novo. A doação (`donations`) é criada na mesma transação que marca
+  a intenção `created`, e só enquanto a intenção ainda está `pending_provider` sem cobrança (ou `unknown` com
+  exatamente aquela cobrança): quem chega atrasado não sobrescreve nada. O id da intenção é o id da doação e o
+  `externalId` enviado à AbacatePay.
+  - Mesma chave com outro valor, outro destino ou outro doador → `409 idempotency_key_reused`, sem chamar nada.
+  - Mesma chave enquanto a chamada ao provedor está em andamento → `409 donation_in_progress`; repetições
+    simultâneas causam **uma** chamada ao provedor. Uma intenção `pending_provider` há mais de 60 s (o trabalhador
+    caiu durante a chamada) vira `unknown` (`last_error = 'stale_in_flight'`) na próxima leitura da chave, e a
+    resposta é `409 donation_intent_unknown`; ninguém a assume nem chama o provedor de novo.
+  - Provedor respondeu e o D1 falhou (ou a intenção ficou parada enquanto ele respondia) → `503
+    donation_not_confirmed`; a resposta do provedor é copiada na intenção (`unknown`, `store_failed`), e a repetição
+    com a mesma chave cria a doação a partir dessa cópia, **sem nova chamada** ao provedor. Se nem a cópia puder ser
+    gravada, a intenção fica `pending_provider` e vira `unknown` depois de 60 s.
+  - Tempo esgotado, falha de rede ou 5xx do provedor → `503 payment_provider_unavailable` e intenção `unknown`;
+    recusa 4xx → intenção `failed`. A repetição com a mesma chave responde `409 donation_intent_unknown` ou
+    `409 donation_intent_failed`, sem chamar o provedor; o cliente começa um novo pedido com outra chave.
+  - O jogo reaproveita a chave quando o pedido ainda pode ser retomado (sem resposta, `donation_in_progress`,
+    `donation_not_confirmed`) e gera outra depois de uma doação concluída, de outro valor ou destino, e depois de
+    `idempotency_key_reused`, `donation_intent_unknown`, `donation_intent_failed` ou `payment_provider_unavailable`
+    (`apps/client/src/lib/donation-key.ts`).
+  - Limite de abuso: binding `DONATION_LIMITER` (10 pedidos a cada 60 s), por conta quando há sessão e por SHA-256
+    do `CF-Connecting-IP` para visitantes; a chave do limite não é gravada nem registrada em log. Excedido →
+    `429 too_many_requests`, antes de gravar qualquer coisa. Sem o binding (local, testes, staging) não há limite.
+- **Evento antes da doação (IMPL-0028)**: um evento assinado sobre uma cobrança que ainda não tem doação **não**
+  entra em `abacatepay_webhook_events` (que significa "processado"): fica em `abacatepay_pending_events` e a
+  resposta é `{ok: true, applied: false, unmatched: true}`; a repetição dele responde `duplicate`. Assim que a
+  doação daquela cobrança existe (na criação, numa leitura `GET /donations/:id` ou no próximo evento da mesma
+  cobrança), os eventos em espera são aplicados na ordem de chegada pela mesma atualização protegida e só então
+  marcados como processados, na mesma transação.
+- **Visão do operador (IMPL-0028)**: `reconciliation.intents` lista intenções `unknown` e `pending_provider`
+  paradas há mais de `staleAfterSeconds`, com `{id, state, targetKind, ngoId, recipientName, amountCents,
+  lastError, providerChargeId, createdAt, updatedAt, ageSeconds}`; `reconciliation.unmatchedEvents` lista eventos
+  em espera com `{id, event, chargeId, nextStatus, receivedAt, ageSeconds}`. Sem doador, e-mail, código Pix ou
+  comprovante. Consultar não grava auditoria.
 - **Sandbox**: com `ABACATEPAY_API_KEY` de sandbox (`abc_dev_…`) e sem subcontas habilitadas na conta, a
   configuração usa o marcador local `dev_sacc_<cnpj>` e a cobrança sai sem `splits`; o split completo continua
   gravado no D1. Em produção a mesma recusa vira `409 subaccounts_unavailable`, e o admin pode informar um
@@ -830,8 +868,10 @@ Regras:
   (`donation.settings_update`, `ngo.payment_config`, `donation.external_proof`) guarda ids, método, percentual e
   valores, nunca CNPJ, URL ou referência do comprovante. Nenhuma chave, segredo ou dado do pagador é registrado.
 - **Schema**: com a bandeira ligada e o banco sem a migration 0011, as rotas de doação respondem
-  `503 schema_outdated` (inclusive o webhook); com a bandeira desligada nenhuma rota pública lê as tabelas novas
-  e `/indicators` continua `null` (teste cobre v3 a v12).
+  `503 schema_outdated` (inclusive o webhook); sem a migration 0013, também `POST /donations/pix`,
+  `GET /donations/:id`, o webhook e `GET /admin/donations/overview` respondem `503 schema_outdated` (as rotas de
+  configuração e `/donations/config` continuam). Com a bandeira desligada nenhuma rota pública lê as tabelas novas
+  e `/indicators` continua `null` (teste cobre v3 a v13).
 
 ### Listas do painel administrativo (IMPL-0015)
 

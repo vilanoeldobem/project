@@ -6,13 +6,14 @@
  * Nothing here completes a payment by itself: the donation is confirmed by the provider (webhook or status
  * check), and a visitor's donation never credits a Título because it has no account to credit.
  */
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { errorText } from "@vila/shared/accounts/errors";
 import { computeDonationSplit, formatBrl, parseBrlToCents, type DonationTargetKind } from "@vila/shared/donations/contract";
 
 import { useAccount } from "../lib/account";
 import { createPixDonation, fetchDonationStatus, simulatePixDonation, type Donation } from "../lib/api";
+import { afterFailure, keyFor, type DonationKey } from "../lib/donation-key";
 
 const PRESETS = [200, 500, 1000, 2500];
 const STATUS_TEXT: Record<string, string> = {
@@ -47,6 +48,7 @@ export function PixDonation({
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const operation = useRef<DonationKey | null>(null);
   const amountCents = custom.trim() ? (parseBrlToCents(custom) ?? Number.NaN) : preset;
   const split = (() => {
     try {
@@ -66,10 +68,15 @@ export function PixDonation({
       return;
     }
     setBusy(true);
+    // One key per request (IMPL-0028): see lib/donation-key.ts for when a retry keeps it and when it starts over.
+    const current = keyFor(operation.current, `${targetKind}:${ngoId ?? ""}:${amountCents}`);
+    operation.current = current;
     try {
-      const created = await createPixDonation({ targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      const created = await createPixDonation({ idempotencyKey: current.key, targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      operation.current = null;
       setDonation(created.donation);
     } catch (e) {
+      operation.current = afterFailure(current, e);
       setError(errorText(e));
     } finally {
       setBusy(false);

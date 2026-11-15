@@ -100,4 +100,5 @@ máximo, o Vila registra o redirecionamento.
 [IMPL-0002](0002-donations-disabled-until-partner-contract.md) · [IMPL-0009](0009-split-client-api-server-shared.md) ·
 [IMPL-0011](0011-accounts-magic-link-ngo-review.md) · [IMPL-0015](0015-dash-backoffice-app.md) ·
 [IMPL-0017](0017-ngo-files-r2.md) · [IMPL-0020](0020-ngo-publication-withdrawal.md) ·
+[IMPL-0028](0028-donation-durable-intent.md) (intenção durável da cobrança e eventos em espera) ·
 [api.md](../reference/api.md) · [storage.md](../reference/storage.md) · [open-questions.md](open-questions.md)

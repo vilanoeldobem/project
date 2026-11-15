@@ -128,6 +128,11 @@ export interface Env {
    * service binding (no address there; only a ticket that was issued is charged to its room).
    */
   MODERATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
+  /**
+   * Workers rate limiting binding for `POST /donations/pix` (IMPL-0028), keyed by account id when signed in and by
+   * a SHA-256 of the client address otherwise (never stored or logged). Without it there is no limit.
+   */
+  DONATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
 export const VERSION = "0.5.0";
@@ -326,12 +331,12 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (err instanceof HttpError) return errorResponse(err);
     // Recognize only the new migration columns, the withdrawal ledger (0009, joined by the signed-in NGO and
     // admin routes), what a database without 0010 lacks first (the block every session read checks and the
-    // moderation tickets of the realtime server's route), and the donation tables of 0011. Never retry protected
-    // writes with weaker guards.
+    // moderation tickets of the realtime server's route), the donation tables of 0011 and the intent and waiting
+    // event tables of 0013. Never retry protected writes with weaker guards.
     if (
       (accountRequest || serverRequest || donationRequest) &&
       err instanceof Error &&
-      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked)\b|no such table: (?:ngo_withdrawals|moderation_tickets|donation_settings|ngo_payment_configs|donations|donation_redirects|abacatepay_webhook_events)\b/i.test(err.message)
+      /no such column: (?:[a-z_]+\.)?(?:files_deleting|file_write_token|blocked)\b|no such table: (?:ngo_withdrawals|moderation_tickets|donation_settings|ngo_payment_configs|donations|donation_redirects|abacatepay_webhook_events|donation_intents|abacatepay_pending_events)\b/i.test(err.message)
     )
       return errorResponse(new HttpError(503, "schema_outdated"));
     // Never log request parameters or personal data; only the route and the error type.

@@ -81,6 +81,11 @@ progresso e exclusão de conta), o cadastro, o pedido de link e a confirmação 
 `503 schema_outdated`, sem gravar nada (nenhum link é enviado nem gasto, nenhuma sessão é aberta): na prática,
 ninguém entra até a migration ser aplicada ([§10](#10-administrador-e-moderação-impl-0021)).
 
+A **0013** (intenção durável das doações, [IMPL-0028](../decisions/0028-donation-durable-intent.md), **PROPOSTA**)
+**não foi aplicada no remoto**. Só as rotas de doação a exigem, e elas estão desligadas (`DONATIONS_ENABLED =
+"false"`): com a bandeira desligada a API desta versão funciona igual num banco na v12. Aplicá-la antes de ligar
+as doações, e somente com autorização.
+
 ## 4. Publicar
 
 Cada app tem seu script na raiz; cada um roda o build (typecheck + `wrangler deploy --dry-run` ou `vite build`) e

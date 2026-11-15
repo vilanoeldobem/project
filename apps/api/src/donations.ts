@@ -11,10 +11,18 @@
  * webhook changes nothing (`abacatepay_webhook_events`); a refund or lost dispute turns the credit off. A
  * donation never grants XP (DEC-042); the Título tiers are PROPOSTA (PEN-026).
  *
+ * Durable creation intent (IMPL-0028, PROPOSTA): `POST /donations/pix` writes a `donation_intents` row, keyed by
+ * the client's `idempotencyKey`, BEFORE it calls the provider, and writes the provider's answer to the same row.
+ * The provider is called at most ONCE per key: a retry never calls it again. A timeout, a provider error or a
+ * stale in-flight row ends 'unknown' or 'failed' (never deleted; the client starts over with a new key), and when
+ * the provider answered but D1 failed, the answer is copied onto the row and a retry finishes from that copy. A
+ * signed webhook about a charge with no donation yet waits in `abacatepay_pending_events` (not "processed") and is
+ * applied, in arrival order, as soon as that donation exists.
+ *
  * Routes (public ones need only the flag; the account route needs a session):
  *   GET  /donations/config
  *   GET  /ngos/:id/donation-info
- *   POST /donations/pix {targetKind, ngoId?, amountCents}
+ *   POST /donations/pix {idempotencyKey, targetKind, ngoId?, amountCents}
  *   GET  /donations/:id?refresh=1
  *   POST /donations/:id/simulate            (sandbox only)
  *   POST /donations/redirect {ngoId}
@@ -46,10 +54,20 @@ import {
   validateSplitConfig,
 } from "@vila/shared/donations/contract";
 
-import { checkPixCharge, createOrGetSubAccount, createPixCharge, simulatePixPayment, subAccountIdError, verifyAbacateWebhook, type PixCharge } from "./abacatepay";
-import { newId } from "./crypto";
+import {
+  assertChargeConfig,
+  ChargeCreationError,
+  checkPixCharge,
+  createOrGetSubAccount,
+  createPixCharge,
+  simulatePixPayment,
+  subAccountIdError,
+  verifyAbacateWebhook,
+  type PixCharge,
+} from "./abacatepay";
+import { newId, sha256Hex } from "./crypto";
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
-import { assertAccount, currentUser, requireAdmin, requireUser } from "./session";
+import { assertAccount, currentUser, requireAdmin, requireUser, type User } from "./session";
 import type { Env } from "./api";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -303,19 +321,58 @@ async function applyCharge(env: Env, charge: PixCharge, next: DonationStatus): P
   await chargeUpdate(env, charge, next).run();
 }
 
-export async function createDonation(request: Request, env: Env): Promise<Response> {
-  requireDonations(env);
-  assertAllowedOrigin(request, env);
-  if (!env.DB) throw new HttpError(503, "db_unavailable");
-  const db = env.DB;
-  const body = await readJson(request, 4_000);
-  const targetKind = body.targetKind;
-  if (targetKind !== "global" && targetKind !== "ngo")
-    throw new HttpError(400, "invalid", { targetKind: "Escolha a doação global ou uma ONG da Vila." });
-  const amountCents = body.amountCents;
-  if (!Number.isSafeInteger(amountCents) || (amountCents as number) < MIN_DONATION_CENTS || (amountCents as number) > MAX_DONATION_CENTS)
-    throw new HttpError(400, "invalid_donation_amount");
+/* ------------------------------------------------- durable creation intent */
 
+/**
+ * An intent still 'pending_provider' after this long lost its worker (the provider call times out at 15 s). It is
+ * never handed to another request: the next read of its key turns it 'unknown', for an operator.
+ */
+export const STALE_IN_FLIGHT_MS = 60_000;
+
+type IntentState = "pending_provider" | "created" | "unknown" | "failed";
+
+interface IntentRow {
+  id: string;
+  idempotency_key: string;
+  request_hash: string;
+  target_kind: DonationTargetKind;
+  ngo_id: string | null;
+  recipient_name: string;
+  user_id: string | null;
+  sub_account_id: string;
+  amount_cents: number;
+  ngo_share_cents: number;
+  vila_share_cents: number;
+  ngo_percent_bps: number;
+  fixed_fee_cents: number;
+  state: IntentState;
+  last_error: string | null;
+  provider_charge_id: string | null;
+  provider_status: string | null;
+  br_code: string | null;
+  br_code_base64: string | null;
+  receipt_url: string | null;
+  expires_at: string | null;
+  platform_fee_cents: number | null;
+  dev_mode: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Recipient, sub-account and split of a request, resolved from the current configuration. */
+interface Target {
+  targetKind: DonationTargetKind;
+  ngoId: string | null;
+  recipientName: string;
+  subAccountId: string;
+  split: ReturnType<typeof computeDonationSplit>;
+}
+
+const readIntentByKey = (env: Env, key: string): Promise<IntentRow | null> =>
+  env.DB!.prepare("SELECT * FROM donation_intents WHERE idempotency_key = ?").bind(key).first<IntentRow>();
+
+/** The configured recipient of a donation request; throws the same refusals the route always had. */
+async function resolveTarget(env: Env, targetKind: DonationTargetKind, requestedNgoId: string | null, amountCents: number): Promise<Target> {
   let recipientName: string;
   let ngoId: string | null = null;
   let splitConfig: SplitConfig;
@@ -327,8 +384,7 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
     splitConfig = splitOf(settings);
     subAccountId = settings.primary_sub_account_id;
   } else {
-    if (typeof body.ngoId !== "string" || !UUID.test(body.ngoId)) throw new HttpError(400, "invalid", { ngoId: "Escolha uma ONG publicada na Vila." });
-    const ngo = await db.prepare(PUBLISHED_NGO).bind(body.ngoId).first<{ id: string; name: string }>();
+    const ngo = await env.DB!.prepare(PUBLISHED_NGO).bind(requestedNgoId).first<{ id: string; name: string }>();
     if (!ngo) throw new HttpError(404, "not_found");
     const payment = await readPayment(env, ngo.id);
     if (payment?.payment_method === "external_link" || !payment?.sub_account_id) throw new HttpError(409, "ngo_payment_not_configured");
@@ -337,57 +393,253 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
     splitConfig = splitOf(payment);
     subAccountId = payment.sub_account_id;
   }
-
-  let split;
   try {
-    split = computeDonationSplit(amountCents as number, splitConfig);
+    return { targetKind, ngoId, recipientName, subAccountId, split: computeDonationSplit(amountCents, splitConfig) };
   } catch {
     // The amount is already inside the Pix window, so the remaining refusal is the configured split.
     throw new HttpError(409, targetKind === "global" ? "global_donation_not_configured" : "ngo_payment_not_configured");
   }
+}
 
-  // Resolve the donor before creating the provider charge: a session read that fails must not leave a payable Pix
-  // with no local row.
+/**
+ * The abuse limit of charge creation: one Workers rate limiting binding, keyed by account when signed in and by a
+ * SHA-256 of the client address otherwise. The key is never stored or logged; without the binding (local, tests,
+ * staging) there is no limit, like the sign-in limiter.
+ */
+async function assertDonationRate(request: Request, env: Env, user: User | null): Promise<void> {
+  if (!env.DONATION_LIMITER) return;
+  const key = user ? `account:${user.id}` : `ip:${await sha256Hex(request.headers.get("CF-Connecting-IP") ?? "unknown")}`;
+  if (!(await env.DONATION_LIMITER.limit({ key })).success) throw new HttpError(429, "too_many_requests");
+}
+
+/** The charge the provider answered, as the intent kept it while the donation row could not be written. */
+const storedCharge = (intent: IntentRow): PixCharge => ({
+  id: intent.provider_charge_id!,
+  status: intent.provider_status ?? "PENDING",
+  amountCents: intent.amount_cents,
+  brCode: intent.br_code,
+  brCodeBase64: intent.br_code_base64,
+  receiptUrl: intent.receipt_url,
+  platformFeeCents: intent.platform_fee_cents,
+  devMode: intent.dev_mode === 1,
+  expiresAt: intent.expires_at,
+});
+
+/**
+ * Where an intent must still be for a writer to finish it: in flight with no charge yet (the request that called
+ * the provider), or 'unknown' holding exactly this charge (a same-key retry finishing from the stored copy).
+ * Anything else — created by someone else, or turned 'unknown' because it went stale — fences the writer out.
+ */
+const fence = (from: "pending_provider" | "unknown"): string =>
+  from === "pending_provider" ? "state = 'pending_provider' AND provider_charge_id IS NULL" : "state = 'unknown' AND provider_charge_id = ?";
+const fenceBinds = (from: "pending_provider" | "unknown", charge: PixCharge): string[] => (from === "unknown" ? [charge.id] : []);
+
+/**
+ * Writes the donation row for a charge the provider created and marks the intent created, in one transaction, and
+ * only while the intent is still where `from` says (see `fence`). Never calls the provider. When D1 fails, or the
+ * intent was fenced out by staleness, the charge is copied onto the intent ('unknown', `store_failed`) so a retry
+ * with the same key can finish from that copy; if even that write fails the intent stays 'pending_provider' and
+ * goes 'unknown' once stale. Answers true when this call created the donation, false when another one already had.
+ */
+async function finishIntent(env: Env, intent: IntentRow, charge: PixCharge, from: "pending_provider" | "unknown"): Promise<boolean> {
+  const db = env.DB!;
+  const now = new Date().toISOString();
+  try {
+    const [inserted] = await db.batch([
+      // The insert runs only while the intent is still this writer's to finish; the update below uses the same fence.
+      db
+        .prepare(
+          `INSERT INTO donations (id, target_kind, ngo_id, recipient_name, user_id, provider, provider_charge_id, sub_account_id,
+             amount_cents, ngo_share_cents, vila_share_cents, platform_fee_cents, ngo_percent_bps, fixed_fee_cents, status,
+             br_code, br_code_base64, receipt_url, expires_at, dev_mode)
+           SELECT ?, ?, ?, ?, ?, 'abacatepay', ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?
+            WHERE EXISTS (SELECT 1 FROM donation_intents WHERE id = ? AND ${fence(from)})`
+        )
+        .bind(
+          intent.id,
+          intent.target_kind,
+          intent.ngo_id,
+          intent.recipient_name,
+          intent.user_id,
+          charge.id,
+          intent.sub_account_id,
+          intent.amount_cents,
+          intent.ngo_share_cents,
+          intent.vila_share_cents,
+          charge.platformFeeCents,
+          intent.ngo_percent_bps,
+          intent.fixed_fee_cents,
+          charge.brCode,
+          charge.brCodeBase64,
+          charge.receiptUrl,
+          charge.expiresAt,
+          charge.devMode ? 1 : 0,
+          intent.id,
+          ...fenceBinds(from, charge)
+        ),
+      // The payment code now lives only in `donations`: the copied answer is cleared. `provider_charge_id` stays (it
+      // ties the intent to its charge) and `dev_mode` keeps its value.
+      db
+        .prepare(
+          `UPDATE donation_intents SET state = 'created', provider_charge_id = ?, provider_status = NULL, br_code = NULL,
+             br_code_base64 = NULL, receipt_url = NULL, expires_at = NULL, platform_fee_cents = NULL, last_error = NULL, updated_at = ?
+           WHERE id = ? AND ${fence(from)}`
+        )
+        .bind(charge.id, now, intent.id, ...fenceBinds(from, charge)),
+    ]);
+    if (inserted.meta.changes) return true;
+  } catch (error) {
+    if (error instanceof Error && /no such table/i.test(error.message)) throw error;
+  }
+  // Fenced out or failed. Another request may have finished the same intent first (the donation id is the intent id).
+  const current = await db.prepare("SELECT state FROM donation_intents WHERE id = ?").bind(intent.id).first<{ state: IntentState }>().catch(() => null);
+  if (current?.state === "created") return false;
+  if (from === "pending_provider") {
+    // Keep the provider's answer on the intent, whether it is still in flight (D1 failed) or went stale meanwhile.
+    await db
+      .prepare(
+        `UPDATE donation_intents SET state = 'unknown', last_error = 'store_failed', provider_charge_id = ?, provider_status = ?,
+           br_code = ?, br_code_base64 = ?, receipt_url = ?, expires_at = ?, platform_fee_cents = ?, dev_mode = ?, updated_at = ?
+         WHERE id = ? AND state IN ('pending_provider', 'unknown') AND provider_charge_id IS NULL`
+      )
+      .bind(
+        charge.id, charge.status, charge.brCode, charge.brCodeBase64, charge.receiptUrl, charge.expiresAt, charge.platformFeeCents,
+        charge.devMode ? 1 : 0, now, intent.id
+      )
+      .run()
+      // D1 itself is failing: the intent stays 'pending_provider' and turns 'unknown' once stale, never re-sent.
+      .catch(() => undefined);
+  }
+  // D1 failed, or a stale mark fenced this writer out: either way the donation is not confirmed yet.
+  throw new HttpError(503, "donation_not_confirmed");
+}
+
+/** Calls the provider, once, for the intent this request inserted, and records a failure on the intent. */
+async function chargeIntent(env: Env, intent: IntentRow): Promise<PixCharge> {
+  try {
+    return await createPixCharge(env, {
+      amountCents: intent.amount_cents,
+      description: `Doacao Vila Noel do Bem - ${intent.recipient_name}`,
+      // The intent id is the donation id and the provider's externalId.
+      externalId: intent.id,
+      subAccountId: intent.sub_account_id,
+      ngoShareCents: intent.ngo_share_cents,
+      metadata: { donationId: intent.id, targetKind: intent.target_kind },
+    });
+  } catch (error) {
+    // A refusal for sure leaves nothing to pay ('failed'); anything else may have created a charge ('unknown').
+    // Neither is ever sent to the provider again: the client starts over with a new key.
+    const failed = error instanceof ChargeCreationError ? !error.ambiguous : error instanceof HttpError;
+    const code = error instanceof HttpError ? error.code : "internal";
+    await env.DB!.prepare("UPDATE donation_intents SET state = ?, last_error = ?, updated_at = ? WHERE id = ? AND state = 'pending_provider'")
+      .bind(failed ? "failed" : "unknown", code, new Date().toISOString(), intent.id)
+      .run()
+      .catch(() => undefined);
+    throw error;
+  }
+}
+
+/** Applies the charge status, then any webhook event that arrived before the donation existed. */
+async function afterCreate(env: Env, charge: PixCharge): Promise<void> {
+  await applyCharge(env, charge, chargeStatus(charge.status));
+  try {
+    await drainPendingEvents(env, charge.id);
+  } catch (error) {
+    // The donation exists; the waiting events stay waiting and are drained by the next read or event. No data here.
+    console.error("donation_drain_failed", error instanceof Error ? error.name : "unknown");
+  }
+}
+
+const created = async (env: Env, id: string, status: 200 | 201): Promise<Response> =>
+  json({ donation: donationView((await readDonation(env, id))!) }, { status, headers: NO_STORE });
+
+/**
+ * The answer to a request whose key already has an intent. At most one provider call ever happens per key, so this
+ * never calls the provider: it returns the donation, finishes it from the stored copy of the provider's answer, or
+ * says why the client must start over with a new key.
+ */
+async function replay(env: Env, existing: IntentRow, requestHash: string): Promise<Response> {
+  if (existing.request_hash !== requestHash) throw new HttpError(409, "idempotency_key_reused");
+  if (existing.state === "created") return created(env, existing.id, 200);
+  if (existing.state === "unknown" && existing.provider_charge_id) {
+    // The provider answered but the donation row was not written: finish it from the stored answer.
+    const charge = storedCharge(existing);
+    const mine = await finishIntent(env, existing, charge, "unknown");
+    if (mine) await afterCreate(env, charge);
+    return created(env, existing.id, mine ? 201 : 200);
+  }
+  if (existing.state === "failed") throw new HttpError(409, "donation_intent_failed");
+  if (existing.state === "unknown") throw new HttpError(409, "donation_intent_unknown");
+  // 'pending_provider': in flight, or its worker is gone. A stale one becomes 'unknown' for an operator.
+  const stale = new Date(Date.now() - STALE_IN_FLIGHT_MS).toISOString();
+  if (existing.updated_at >= stale) throw new HttpError(409, "donation_in_progress");
+  await env.DB!.prepare(
+    "UPDATE donation_intents SET state = 'unknown', last_error = 'stale_in_flight', updated_at = ? WHERE id = ? AND state = 'pending_provider' AND updated_at < ?"
+  )
+    .bind(new Date().toISOString(), existing.id, stale)
+    .run();
+  const now = await env.DB!.prepare("SELECT * FROM donation_intents WHERE id = ?").bind(existing.id).first<IntentRow>();
+  // The late worker may have written the provider's answer meanwhile: the next retry finishes from it.
+  if (now && now.state !== "pending_provider" && !(now.state === "unknown" && !now.provider_charge_id)) return replay(env, now, requestHash);
+  throw new HttpError(409, "donation_intent_unknown");
+}
+
+export async function createDonation(request: Request, env: Env): Promise<Response> {
+  requireDonations(env);
+  assertAllowedOrigin(request, env);
+  if (!env.DB) throw new HttpError(503, "db_unavailable");
+  const db = env.DB;
+  const body = await readJson(request, 4_000);
+  const key = typeof body.idempotencyKey === "string" ? body.idempotencyKey.toLowerCase() : "";
+  if (!UUID.test(key)) throw new HttpError(400, "invalid_idempotency_key");
+  const targetKind = body.targetKind;
+  if (targetKind !== "global" && targetKind !== "ngo")
+    throw new HttpError(400, "invalid", { targetKind: "Escolha a doação global ou uma ONG da Vila." });
+  const amountCents = body.amountCents;
+  if (!Number.isSafeInteger(amountCents) || (amountCents as number) < MIN_DONATION_CENTS || (amountCents as number) > MAX_DONATION_CENTS)
+    throw new HttpError(400, "invalid_donation_amount");
+  let requestedNgoId: string | null = null;
+  if (targetKind === "ngo") {
+    if (typeof body.ngoId !== "string" || !UUID.test(body.ngoId)) throw new HttpError(400, "invalid", { ngoId: "Escolha uma ONG publicada na Vila." });
+    requestedNgoId = body.ngoId.toLowerCase();
+  }
+
+  // Resolve the donor before anything is written: a session read that fails must not leave an intent behind.
   const user = await currentUser(request, env);
-  const id = newId();
-  const charge = await createPixCharge(env, {
-    amountCents: split.amountCents,
-    description: `Doacao Vila Noel do Bem - ${recipientName}`,
-    externalId: id,
-    subAccountId,
-    ngoShareCents: split.ngoShareCents,
-    metadata: { donationId: id, targetKind },
-  });
-  await db
+  await assertDonationRate(request, env, user);
+  // The same key always means the same request: target, amount and donor.
+  const requestHash = await sha256Hex(JSON.stringify([targetKind, requestedNgoId, amountCents, user?.id ?? null]));
+
+  const existing = await readIntentByKey(env, key);
+  if (existing) return replay(env, existing, requestHash);
+
+  const target = await resolveTarget(env, targetKind, requestedNgoId, amountCents as number);
+  // Configuration the provider call needs is checked before the intent exists: a missing key writes nothing.
+  assertChargeConfig(env, target.subAccountId);
+  // The durable intent comes first: whatever happens after the provider call, this row says it was made.
+  const intent = await db
     .prepare(
-      `INSERT INTO donations (id, target_kind, ngo_id, recipient_name, user_id, provider, provider_charge_id, sub_account_id,
-         amount_cents, ngo_share_cents, vila_share_cents, platform_fee_cents, ngo_percent_bps, fixed_fee_cents, status,
-         br_code, br_code_base64, receipt_url, expires_at, dev_mode)
-       VALUES (?, ?, ?, ?, ?, 'abacatepay', ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`
+      `INSERT INTO donation_intents (id, idempotency_key, request_hash, target_kind, ngo_id, recipient_name, user_id, sub_account_id,
+         amount_cents, ngo_share_cents, vila_share_cents, ngo_percent_bps, fixed_fee_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(idempotency_key) DO NOTHING
+       RETURNING *`
     )
     .bind(
-      id,
-      targetKind,
-      ngoId,
-      recipientName,
-      user?.id ?? null,
-      charge.id,
-      subAccountId,
-      split.amountCents,
-      split.ngoShareCents,
-      split.vilaShareCents,
-      charge.platformFeeCents,
-      split.ngoPercentBps,
-      split.fixedFeeCents,
-      charge.brCode,
-      charge.brCodeBase64,
-      charge.receiptUrl,
-      charge.expiresAt,
-      charge.devMode ? 1 : 0
+      newId(), key, requestHash, targetKind, target.ngoId, target.recipientName, user?.id ?? null, target.subAccountId,
+      target.split.amountCents, target.split.ngoShareCents, target.split.vilaShareCents, target.split.ngoPercentBps, target.split.fixedFeeCents
     )
-    .run();
-  await applyCharge(env, charge, chargeStatus(charge.status));
-  return json({ donation: donationView((await readDonation(env, id))!) }, { status: 201, headers: NO_STORE });
+    .first<IntentRow>();
+  if (!intent) {
+    // A concurrent request with the same key inserted first: answer as a retry of it.
+    const winner = await readIntentByKey(env, key);
+    if (!winner) throw new HttpError(409, "donation_in_progress");
+    return replay(env, winner, requestHash);
+  }
+  const charge = await chargeIntent(env, intent);
+  const mine = await finishIntent(env, intent, charge, "pending_provider");
+  if (mine) await afterCreate(env, charge);
+  return created(env, intent.id, mine ? 201 : 200);
 }
 
 export async function getDonation(env: Env, id: string, url: URL): Promise<Response> {
@@ -396,6 +648,8 @@ export async function getDonation(env: Env, id: string, url: URL): Promise<Respo
   if (!UUID.test(id)) throw new HttpError(404, "not_found");
   let row = await readDonation(env, id);
   if (!row) throw new HttpError(404, "not_found");
+  // A webhook that arrived before the donation row existed is applied now, before anything is answered.
+  if (row.provider === "abacatepay" && row.provider_charge_id && (await drainPendingEvents(env, row.provider_charge_id))) row = (await readDonation(env, id))!;
   if (row.status === "pending" && row.provider === "abacatepay" && row.provider_charge_id && url.searchParams.get("refresh") === "1") {
     const charge = await checkPixCharge(env, row.provider_charge_id);
     await applyCharge(env, charge, chargeStatus(charge.status));
@@ -487,14 +741,73 @@ export async function abacateWebhook(request: Request, env: Env): Promise<Respon
         }
       : null;
 
-  // One batch, which D1 runs as a transaction, one at a time: the update applies only while this event id is not
-  // recorded, and the insert that records it comes after. A replay, or the same event delivered twice at once,
-  // finds the id and changes nothing, so it cannot undo a later dispute or refund. No clock takes part in it.
-  const record = env.DB.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId);
-  const results = await env.DB.batch(charge && next ? [chargeUpdate(env, charge, next, eventId), record] : [record]);
-  const inserted = results[results.length - 1];
-  if (!inserted.meta.changes) return json({ ok: true, duplicate: true }, { headers: NO_STORE });
-  return json({ ok: true, applied: results.length > 1 && Boolean(results[0].meta.changes) }, { headers: NO_STORE });
+  const db = env.DB;
+  if (!charge || !next) {
+    // Not about a donation state the Vila tracks: recorded as processed, nothing to apply.
+    const ignored = await db.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(eventId, eventName, chargeId).run();
+    return json(ignored.meta.changes ? { ok: true, applied: false } : { ok: true, duplicate: true }, { headers: NO_STORE });
+  }
+  // Earlier events for this charge that waited for its donation go first, in the order they arrived.
+  await drainPendingEvents(env, charge.id);
+
+  // One batch, which D1 runs as a transaction, one at a time. With the donation present, the update applies only
+  // while this event id is not recorded, and the insert that records it comes after: a replay, or the same event
+  // delivered twice at once, finds the id and changes nothing, so it cannot undo a later dispute or refund. With no
+  // donation for the charge yet (an early event, IMPL-0028), the event is NOT recorded as processed: it waits in
+  // `abacatepay_pending_events` and is applied when the donation appears. No clock takes part in either decision.
+  const exists = "EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ?)";
+  const results = await db.batch([
+    chargeUpdate(env, charge, next, eventId),
+    db.prepare(`INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) SELECT ?, ?, ? WHERE ${exists}`).bind(eventId, eventName, charge.id, charge.id),
+    db
+      .prepare(
+        `INSERT OR IGNORE INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status, receipt_url, platform_fee_cents, dev_mode)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE NOT ${exists} AND NOT EXISTS (SELECT 1 FROM abacatepay_webhook_events WHERE id = ?)`
+      )
+      .bind(eventId, eventName, charge.id, next, providerStatus, charge.receiptUrl, charge.platformFeeCents, charge.devMode ? 1 : 0, charge.id, eventId),
+    // A redelivery of a waiting event, now that the donation exists, closes its waiting row too.
+    db.prepare(`UPDATE abacatepay_pending_events SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL AND ${exists}`).bind(new Date().toISOString(), eventId, charge.id),
+  ]);
+  if (results[1].meta.changes) return json({ ok: true, applied: Boolean(results[0].meta.changes) }, { headers: NO_STORE });
+  if (results[2].meta.changes) return json({ ok: true, applied: false, unmatched: true }, { headers: NO_STORE });
+  return json({ ok: true, duplicate: true }, { headers: NO_STORE });
+}
+
+/**
+ * Applies, in arrival order, the webhook events that reached the Vila before the donation for `chargeId` existed
+ * (IMPL-0028). Each one goes through the same guarded update as a live delivery and is then recorded as processed,
+ * in one transaction, so two drains at once, or a drain and a redelivery, apply it once. Nothing happens while the
+ * donation does not exist. Answers how many events it looked at.
+ */
+async function drainPendingEvents(env: Env, chargeId: string): Promise<number> {
+  const db = env.DB!;
+  const { results } = await db
+    .prepare(
+      `SELECT id, event, next_status, provider_status, receipt_url, platform_fee_cents, dev_mode FROM abacatepay_pending_events
+        WHERE charge_id = ? AND resolved_at IS NULL AND EXISTS (SELECT 1 FROM donations WHERE provider_charge_id = ?)
+        ORDER BY received_at, rowid`
+    )
+    .bind(chargeId, chargeId)
+    .all<{ id: string; event: string; next_status: Exclude<DonationStatus, "pending">; provider_status: string; receipt_url: string | null; platform_fee_cents: number | null; dev_mode: number }>();
+  for (const waiting of results) {
+    const charge: PixCharge = {
+      id: chargeId,
+      status: waiting.provider_status,
+      amountCents: null,
+      brCode: null,
+      brCodeBase64: null,
+      receiptUrl: waiting.receipt_url,
+      platformFeeCents: waiting.platform_fee_cents,
+      devMode: waiting.dev_mode === 1,
+      expiresAt: null,
+    };
+    await db.batch([
+      chargeUpdate(env, charge, waiting.next_status, waiting.id),
+      db.prepare("INSERT OR IGNORE INTO abacatepay_webhook_events (id, event, charge_id) VALUES (?, ?, ?)").bind(waiting.id, waiting.event, chargeId),
+      db.prepare("UPDATE abacatepay_pending_events SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL").bind(new Date().toISOString(), waiting.id),
+    ]);
+  }
+  return results.length;
 }
 
 export async function getMyTitle(request: Request, env: Env): Promise<Response> {
@@ -535,7 +848,58 @@ export async function adminDonationOverview(request: Request, env: Env): Promise
   const { results: recentRedirects } = await db
     .prepare("SELECT r.id, r.ngo_id, n.name AS ngo_name, r.created_at FROM donation_redirects r LEFT JOIN ngos n ON n.id = r.ngo_id ORDER BY r.created_at DESC LIMIT 50")
     .all();
-  return json({ settings: settingsView(settings, true), ngos, recentDonations: recentDonations.map(donationView), recentRedirects }, { headers: NO_STORE });
+  return json(
+    { settings: settingsView(settings, true), ngos, recentDonations: recentDonations.map(donationView), recentRedirects, reconciliation: await reconciliation(env) },
+    { headers: NO_STORE }
+  );
+}
+
+/**
+ * What an operator must look at (IMPL-0028): intents whose outcome is not known (state 'unknown', or still
+ * 'pending_provider' after the worker that owned them must have stopped) and signed webhook events still waiting
+ * for a donation, each with its age in seconds. Ids, amounts and the recipient's public name only: never a donor,
+ * an e-mail, a payment code or a receipt.
+ */
+async function reconciliation(env: Env) {
+  const db = env.DB!;
+  const now = Date.now();
+  const age = (iso: string) => Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
+  const stale = new Date(now - STALE_IN_FLIGHT_MS).toISOString();
+  const { results: intents } = await db
+    .prepare(
+      `SELECT id, state, target_kind, ngo_id, recipient_name, amount_cents, last_error, provider_charge_id, created_at, updated_at
+         FROM donation_intents WHERE state = 'unknown' OR (state = 'pending_provider' AND updated_at < ?)
+        ORDER BY updated_at LIMIT 100`
+    )
+    .bind(stale)
+    .all<Pick<IntentRow, "id" | "state" | "target_kind" | "ngo_id" | "recipient_name" | "amount_cents" | "last_error" | "provider_charge_id" | "created_at" | "updated_at">>();
+  const { results: events } = await db
+    .prepare("SELECT id, event, charge_id, next_status, received_at FROM abacatepay_pending_events WHERE resolved_at IS NULL ORDER BY received_at LIMIT 100")
+    .all<{ id: string; event: string; charge_id: string; next_status: string; received_at: string }>();
+  return {
+    staleAfterSeconds: STALE_IN_FLIGHT_MS / 1000,
+    intents: intents.map((row) => ({
+      id: row.id,
+      state: row.state,
+      targetKind: row.target_kind,
+      ngoId: row.ngo_id,
+      recipientName: row.recipient_name,
+      amountCents: row.amount_cents,
+      lastError: row.last_error,
+      providerChargeId: row.provider_charge_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      ageSeconds: age(row.created_at),
+    })),
+    unmatchedEvents: events.map((row) => ({
+      id: row.id,
+      event: row.event,
+      chargeId: row.charge_id,
+      nextStatus: row.next_status,
+      receivedAt: row.received_at,
+      ageSeconds: age(row.received_at),
+    })),
+  };
 }
 
 /** Validates the split fields shared by the two admin forms; throws the pt-BR field errors when unusable. */

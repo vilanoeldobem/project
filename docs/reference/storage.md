@@ -1,13 +1,14 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.5.0 · **Schema D1:** v13 ·
 > **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation,donations,abacatepay}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v12 no código**; produção na v12 desde 2026-11-14, com as migrations `0004` a `0012` aplicadas no deploy da 0.5.0,
-segundo o registro do deploy; ver [releases.md](releases.md)). O histórico aplicado identifica o schema real e
+(**v13 no código**; produção na v12 desde 2026-11-14, com as migrations `0004` a `0012` aplicadas no deploy da 0.5.0,
+segundo o registro do deploy; ver [releases.md](releases.md). A `0013` não foi aplicada no remoto: só é exigida
+pelas rotas de doação, desligadas em produção). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -30,12 +31,14 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0010_account_blocks.sql` | colunas `users.blocked` e `users.moderation_token`, registro `account_blocks` e bilhetes `moderation_tickets` ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md); bloqueio e remoção de visitante são **PROPOSTA**); aditiva, requer as tabelas de `0004` |
 | `0011_donations_abacatepay.sql` | `donation_settings`, `ngo_payment_configs`, `donations`, `donation_redirects` e `abacatepay_webhook_events`: doações e conciliação com a AbacatePay (**PROPOSTA**, [IMPL-0023](../decisions/0023-donations-abacatepay.md)); aditiva, só requer `ngos` e `users` |
 | `0012_village_expansion.sql` | expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais (id, faixa e posição; sem colunas de posse); aditiva, só requer `lots` |
+| `0013_donation_durable_intent.sql` | `donation_intents` (intenção durável da cobrança Pix, gravada antes de chamar o provedor) e `abacatepay_pending_events` (eventos do webhook que chegam antes da doação) (**PROPOSTA**, [IMPL-0028](../decisions/0028-donation-durable-intent.md)); aditiva, requer `ngos` e `users`; **não aplicada no remoto** |
 
-Esta versão contém 0001–0012, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
+Esta versão contém 0001–0013, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
 retiradas; a 0010 acrescenta o bloqueio de conta e os bilhetes de moderação; a 0011 acrescenta as doações e a
 conciliação com a AbacatePay, sem tocar nas tabelas existentes; a 0012 move os terrenos de ONG para a fachada da
-praça, acrescenta quatro e cria os terrenos residenciais, sem tocar nas tabelas da 0011.
+praça, acrescenta quatro e cria os terrenos residenciais, sem tocar nas tabelas da 0011; a 0013 acrescenta a
+intenção durável da cobrança e a fila de eventos em espera, sem tocar nas tabelas da 0011.
 A 0012 chamava-se 0011 enquanto estava em revisão: nunca foi aplicada em lugar nenhum e recebeu o próximo número
 livre ao integrar, depois da 0011 das doações.
 A 0007 chamava-se 0010
@@ -49,7 +52,7 @@ Operações de conta que encontrem ausência das novas colunas retornam `503 sch
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
 ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
-`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v12 (com as contas ligadas, a migration
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v13 (com as contas ligadas, a migration
 vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 A 0010 é pré-requisito de **toda rota que lê a sessão**, com qualquer combinação de bandeiras: a conferência da
 sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas e as três rotas de entrada (cadastro, pedido
@@ -57,7 +60,8 @@ e confirmação do link) respondem `503 schema_outdated` sem gravar nada. Nenhum
 `account_blocks` ou `moderation_tickets`.
 Com `DONATIONS_ENABLED` desligada, nenhuma rota pública lê as tabelas da 0011; com a bandeira ligada e o banco sem
 ela, as rotas de doação (`/donations/config`, `/ngos/:id/donation-info`, `/donations/:id`, o webhook e as rotas
-administrativas) respondem `503 schema_outdated`.
+administrativas) respondem `503 schema_outdated`. Sem a 0013, com a bandeira ligada, `POST /donations/pix`,
+`GET /donations/:id`, o webhook e `GET /admin/donations/overview` respondem `503 schema_outdated`.
 
 Regras: imutáveis depois de aplicadas no remoto; números sequenciais; nada de `IF NOT EXISTS` sobre tabela existente.
 
@@ -193,6 +197,36 @@ status permitida; `title_credited` vira 1 só em `paid` de uma conta, e 0 em est
 confirmação atrasada não muda a linha. A soma do Título e os indicadores públicos são lidos de `donations` (sem
 contador paralelo), então repetir o webhook não duplica crédito. Nenhuma rota pública lê estas tabelas com a
 bandeira desligada; com ela ligada e o banco sem a 0011, as rotas respondem `503 schema_outdated`.
+A partir da v13, `abacatepay_webhook_events` só recebe eventos **processados** (ou ignorados por não tratarem de um
+status acompanhado); um evento sobre uma cobrança ainda sem doação fica em `abacatepay_pending_events` (abaixo).
+
+### donation_intents e abacatepay_pending_events (v13, PROPOSTA)
+
+Intenção durável da cobrança Pix e eventos do webhook que chegam antes da doação
+([IMPL-0028](../decisions/0028-donation-durable-intent.md)). **PROPOSTA**, como todas as doações: só recebem linhas
+com `DONATIONS_ENABLED = "true"`. Aditiva: não altera nenhuma tabela da 0011.
+
+| Tabela | Papel | Campos que importam |
+|---|---|---|
+| `donation_intents` | uma linha por pedido de doação, gravada **antes** da chamada ao provedor | `id` (= `donations.id` e `externalId` do provedor), `idempotency_key` UNIQUE (UUID do cliente), `request_hash` (SHA-256 de destino, ONG, valor e conta), destino, recebedor, subconta e split, `state` (`pending_provider`/`created`/`unknown`/`failed`), `last_error` (só código: `store_failed`, `stale_in_flight`, `payment_provider_unavailable`…), `provider_charge_id` UNIQUE e cópia da resposta do provedor (`provider_status`, `br_code`, `br_code_base64`, `receipt_url`, `expires_at`, `platform_fee_cents`, `dev_mode`) |
+| `abacatepay_pending_events` | evento assinado sobre uma cobrança sem doação ainda; **não** conta como processado | `id` PK (id do evento), `event`, `charge_id`, `next_status` (`paid`/`refunded`/`under_dispute`), `provider_status`, `receipt_url`, `platform_fee_cents`, `dev_mode`, `received_at`, `resolved_at` |
+
+Índices: `idx_donation_intents_state` (`state`, `updated_at`) e `idx_abacatepay_pending_events_charge`
+(`charge_id`, `resolved_at`). `donation_intents.user_id` e `ngo_id` usam `ON DELETE SET NULL`, como `donations`.
+
+- O provedor é chamado no máximo uma vez por intenção (por chave). `unknown` e `failed` nunca voltam ao provedor;
+  uma `pending_provider` parada há mais de 60 s vira `unknown` (`stale_in_flight`) na próxima leitura da chave.
+- A cópia da resposta do provedor só é gravada quando a doação não pôde ser (`unknown`, `store_failed`): a
+  repetição com a mesma chave cria a doação a partir dela, sem nova chamada. Quando a doação existe, a intenção
+  passa a `created` e `provider_status`, `br_code`, `br_code_base64`, `receipt_url`, `expires_at` e
+  `platform_fee_cents` voltam a `NULL` (o código Pix fica só em `donations`); `provider_charge_id` fica (liga a
+  intenção à cobrança) e `dev_mode` mantém o valor.
+- Uma intenção nunca é apagada pelo fluxo: `unknown` e `pending_provider` parada aparecem para o operador em
+  `GET /admin/donations/overview` com a idade.
+- Um evento em espera é aplicado, na ordem de chegada, assim que a doação da cobrança existe; nesse momento o id
+  entra em `abacatepay_webhook_events` e `resolved_at` é preenchido na mesma transação.
+- Sem a 0013, com a bandeira ligada, `POST /donations/pix`, `GET /donations/:id`, o webhook e
+  `GET /admin/donations/overview` respondem `503 schema_outdated`. Nenhuma rota pública sempre ativa lê estas tabelas.
 
 ### lots
 
@@ -353,7 +387,8 @@ Dados pessoais guardados (P13, DEC-038): **Nome, Nickname, Cidade e E-mail**, s�
 aparece para outras pessoas (inclusive para o admin, que vê quem enviou a candidatura só pelo nickname). A lista de
 contas do painel administrativo (`GET /admin/users`) traz nickname, papel, cidade, data de criação, se a conta foi
 verificada e se está bloqueada — nunca e-mail, nome ou a mensagem do bloqueio. Tokens e
-sessões ficam só como hash. IP é usado apenas como chave do limite de requisições (`AUTH_LIMITER`) e não é gravado.
+sessões ficam só como hash. IP é usado apenas como chave do limite de requisições (`AUTH_LIMITER`; em
+`DONATION_LIMITER`, só o SHA-256 dele) e não é gravado.
 Logs nunca recebem corpo de requisição, e-mail, token ou CNPJ.
 
 | Dado | Retenção (PROPOSTA, a confirmar na revisão LGPD / ECA Digital) |

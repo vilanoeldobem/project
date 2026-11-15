@@ -22,7 +22,9 @@
   "ratelimits": [
     { "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } },
     { "name": "FILE_LIMITER", "namespace_id": "1102", "simple": { "limit": 20, "period": 60 } },
-    { "name": "MODERATION_LIMITER", "namespace_id": "1103", "simple": { "limit": 60, "period": 60 } }
+    { "name": "MODERATION_LIMITER", "namespace_id": "1103", "simple": { "limit": 60, "period": 60 } },
+    // Pix charge creation (IMPL-0028), by account or by a hash of the address; only reached with DONATIONS_ENABLED.
+    { "name": "DONATION_LIMITER", "namespace_id": "1104", "simple": { "limit": 10, "period": 60 } }
   ],
   // Files of NGO applications (IMPL-0017): private bucket, no public bucket URL and no custom domain; every
   // byte is served by this Worker. The bucket must be created by hand, with approval, before a deploy
