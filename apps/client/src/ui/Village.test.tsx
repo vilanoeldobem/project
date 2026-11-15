@@ -12,6 +12,7 @@ import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, plotLabel, RESIDENTIAL_P
 
 import { sim, walkRoute } from "../game/sim";
 import { useVila } from "../game/store";
+import { shopSlots } from "../game/wardrobe";
 import { pressEscape } from "../lib/escape";
 import { useAccount } from "../lib/account";
 import type { LotInfo } from "../lib/api";
@@ -100,23 +101,30 @@ describe("residential plot panel", () => {
   });
 });
 
-describe("shop panel", () => {
-  it.each(SHOPS.map((s) => s.id))("says the name and the theme of %s and that it is closed, with no promise of sales or of an opening", (id) => {
+describe("shop panel (P08 provador)", () => {
+  it.each(SHOPS.map((s) => s.id))("shows the closed shop and the provador of %s, with its categories and the free items only", (id) => {
     const html = renderToStaticMarkup(<ShopPanel shopId={id} />);
     const read = text(html);
     const copy = SHOP_COPY[SHOPS.findIndex((s) => s.id === id)];
+    const slots = shopSlots(id);
     expect(read).toContain(copy.name);
     expect(read).toContain(`Tema: ${copy.theme}.`);
     expect(read).toContain("Esta loja está fechada.");
+    expect(read).toContain("O provador é grátis");
     // "Ainda não abriu" would announce an opening: whether a shop ever opens is not decided.
     expect(read).not.toMatch(/ainda não abri|não abriu|vai abrir|abre em/i);
-    expect(read).toContain("Se e como ela vai funcionar ainda não foi decidido.");
     expect(read).toContain("Nada é vendido na Vila.");
     expect(html).toContain(`data-shop-id="${id}"`);
+    expect(html).toContain('data-board="P08"');
+    // Paid previews are hidden until PEN-022 (SHOW_PAID_PREVIEWS): eight free cards per category, no paid card.
+    expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(8);
+    expect(html).not.toContain('data-sale="paid"');
+    expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + 8); // category buttons + first category cards
     expect(RAW.test(read)).toBe(false);
     expect(PROMISE.test(read)).toBe(false);
+    // No price, currency, payment, purchase or rent anywhere in a shop (AGENTS.md: a shop is never an offer).
     expect(MONEY.test(read)).toBe(false);
-    expect(buttons(html)).toEqual([]);
+    expect(read).not.toMatch(/\bcompras?\b|\bpago\b|ver compra/i);
   });
 
   it("gives every shop its own name and theme, none of them a brand or a promise", () => {
@@ -159,7 +167,7 @@ describe("the three panels behave like every other panel", () => {
   it.each(PANELS)("$state.kind: the shared dialog inside the veil, with the one close button", ({ element }) => {
     const html = renderToStaticMarkup(element);
     // `ui/Panel.tsx`: the veil that closes on a press outside, around a modal dialog that takes the focus.
-    expect(html).toMatch(/^<div class="backdrop"><div class="panel" role="dialog" aria-modal="true" aria-label="[^"]+" tabindex="-1">/);
+    expect(html).toMatch(/^<div class="backdrop"><div class="panel[^"]*" role="dialog" aria-modal="true" aria-label="[^"]+" tabindex="-1"/);
     expect(html.match(/<button[^>]*aria-label="Fechar"/g)).toHaveLength(1);
   });
 

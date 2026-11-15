@@ -554,7 +554,7 @@ export const lotFront = (lot: LotDef) => ({ x: round2(lot.x + LOT_FRONT * Math.s
 export const SHOP_COPY: ReadonlyArray<{ name: string; theme: string }> = [
   { name: "Ateliê de Enfeites", theme: "enfeites de Natal" },
   { name: "Oficina de Brinquedos", theme: "brinquedos e lembranças" },
-  { name: "Alfaiataria de Inverno", theme: "gorros, cachecóis e suéteres" },
+  { name: "Alfaiataria de Inverno", theme: "roupas de inverno" },
   { name: "Empório da Lareira", theme: "lenha e lanternas" },
 ];
 export const shopCopy = (shopId: string) => SHOP_COPY[SHOPS.findIndex((s) => s.id === shopId) % SHOP_COPY.length] ?? SHOP_COPY[0];

@@ -247,10 +247,12 @@ uma migration nova. Decisão, números e o que fica para depois em
   as regras do [§2.3](#23-chegada-hud-e-menu-do-jogo): `E` com qualquer foco, `Enter` só fora de um controle, tecla
   mantida pressionada abre uma vez, o botão some com um painel ou o menu aberto e a dica de como andar dá lugar a
   ele. Os painéis estão em `ui/Village.tsx`, usam o mesmo `Panel` dos demais (clique no véu, Esc, foco, caminhada
-  em espera) e não têm botão além de fechar. O texto deles é neutro (IMPL-0024 §4 e §6): o terreno e o bairro e
-  "não têm dono… proposta em estudo e ainda não foi decidida"; a loja "está fechada"; a placa "mostra avisos da
-  própria Vila". Nenhum diz "em breve", requisito, venda ou aluguel enquanto `/config.residentialPlots` é falso, e
-  nenhum mostra id cru (os ids ficam em atributos `data-`). Um terreno de ONG que a API não lista é "Terreno em
+  em espera). O do terreno e o da placa não têm botão além de fechar; o da loja é o **provador P08** (IMPL-0027,
+  `ui/Wardrobe.tsx`): categorias daquela loja, retrato com prévia, cartões, "Equipar", inventário e "Ver compra" do
+  item pago (que só diz que a compra não está disponível). O texto deles é neutro (IMPL-0024 §4 e §6): o terreno e o
+  bairro e "não têm dono… proposta em estudo e ainda não foi decidida"; a loja "está fechada" e o provador é grátis;
+  a placa "mostra avisos da própria Vila". Nenhum diz "em breve", requisito, venda ou aluguel enquanto
+  `/config.residentialPlots` é falso, e nenhum mostra id cru (os ids ficam em atributos `data-`). Um terreno de ONG que a API não lista é "Terreno em
   preparação" no rótulo 3D, no painel e na lista (`lib/lots.ts`).
 - **Clique na cena** (`game/clicks.ts`, pura): o chão fica embaixo de todo toque e chama `pressScene`, que
   decide nesta ordem. (1) No modo moderação com a remoção de visitantes ligada (IMPL-0021, PROPOSTA), o toque

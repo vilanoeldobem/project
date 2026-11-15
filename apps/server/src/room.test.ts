@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_LOOK } from "@vila/shared/game/cosmetics";
 import { MOTION } from "@vila/shared/game/motion";
-import { ACTIVE_MESSAGE, encodePose, encodeRemove, REMOVE_MAX_PER_MINUTE, REMOVE_MIN_INTERVAL_MS, ROOM_CAPACITY } from "@vila/shared/net/protocol";
+import { ACTIVE_MESSAGE, encodeLook, encodePose, encodeRemove, REMOVE_MAX_PER_MINUTE, REMOVE_MIN_INTERVAL_MS, ROOM_CAPACITY } from "@vila/shared/net/protocol";
 import { DEFAULT_IDLE_TIMEOUT_SECONDS, type Env, idleTimeoutMs } from "./env";
 import { handle } from "./handler";
 import { RoomState } from "./room";
@@ -55,7 +56,7 @@ describe("RoomState", () => {
 
 describe("idle bookkeeping (IMPL-0014)", () => {
   const LIMIT = 60_000;
-  const look = JSON.stringify(["k", "hat-beanie", "scarf-stripes", "sweater-none", "palette-classic"]);
+  const look = encodeLook({ ...DEFAULT_LOOK, helmet: "helmet-beanie" });
 
   it("removes only members idle for longer than the limit, once", () => {
     const r = new RoomState();
@@ -262,23 +263,38 @@ describe("realtime routes", () => {
 });
 
 describe("looks", () => {
-  const look = (...ids: string[]) => JSON.stringify(["k", ...ids]);
+  const look = (helmet: string) => encodeLook({ ...DEFAULT_LOOK, helmet });
 
   it("stores valid looks, broadcasts changes once, and replays custom looks to newcomers", () => {
     const r = new RoomState();
     const a = r.join(0)!, b = r.join(0)!;
-    expect(r.accept(a, look("hat-beanie", "scarf-stripes", "sweater-none", "palette-classic"), 0)).toBe("ok");
+    expect(r.accept(a, look("helmet-beanie"), 0)).toBe("ok");
     expect(r.flushLooks().map((x) => x.id)).toEqual([a]);
     expect(r.flushLooks()).toEqual([]);
     expect(r.flushLooks(true).map((x) => x.id)).toEqual([a]); // b still wears the default
     expect(b).toBeGreaterThan(0);
   });
 
-  it("rejects unknown ids, wrong slots and wrong lengths", () => {
+  it("broadcasts a change back to the default once, but does not replay it to a newcomer", () => {
     const r = new RoomState();
     const a = r.join(0)!;
-    for (const bad of [look("hat-crown", "scarf-none", "sweater-none", "palette-classic"), look("scarf-none", "hat-santa", "sweater-none", "palette-classic"), look("hat-santa")])
-      expect(r.accept(a, bad, 0)).toBe("dropped");
+    expect(r.accept(a, look(DEFAULT_LOOK.helmet), 0)).toBe("ok");
+    expect(r.flushLooks().map((x) => x.id)).toEqual([a]);
+    expect(r.flushLooks()).toEqual([]);
+    expect(r.flushLooks(true)).toEqual([]); // a newcomer already assumes the default
+  });
+
+  it("rejects unknown indexes, wrong lengths and the old array form", () => {
+    const r = new RoomState();
+    const a = r.join(0)!;
+    for (const bad of [
+      '["k","000000000z"]',
+      '["k","000000000"]',
+      '["k","00000000000"]',
+      '["k",["helmet-santa","blouse-plain"]]',
+      '["k","helmet-santa"]',
+    ])
+      expect(r.accept(a, bad, 0), bad).toBe("dropped");
     expect(r.flushLooks()).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 import { Matrix4, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
-import { COSMETICS, type Look, SLOTS } from "@vila/shared/game/cosmetics";
+import { COSMETICS, DEFAULT_LOOK, isPaid, type Look, SLOTS } from "@vila/shared/game/cosmetics";
 import { ROOM_CAPACITY } from "@vila/shared/net/protocol";
 
 import { AVATAR_SIZE, avatarParts } from "./models";
@@ -14,14 +14,21 @@ const partsOf = (look: Look) => {
   return KEYS.map((k) => voxelGeometries(voxels[k], AVATAR_SIZE)[0] ?? null);
 };
 
-/** Every combination of the cosmetics, in a fixed order. */
-function allLooks(): Look[] {
-  let looks: Array<Partial<Look>> = [{}];
-  for (const slot of SLOTS) {
-    const options = COSMETICS.filter((c) => c.slot === slot).map((c) => c.id);
-    looks = looks.flatMap((l) => options.map((id) => ({ ...l, [slot]: id })));
-  }
-  return looks as Look[];
+/**
+ * `count` distinct wearable looks, in a fixed order: look `i` is `i` written in mixed radix over the free items of
+ * each slot. (The full product of the catalogue is far too large to enumerate.)
+ */
+function allLooks(count = ROOM_CAPACITY): Look[] {
+  const options = SLOTS.map((slot) => COSMETICS.filter((c) => c.slot === slot && !isPaid(c)).map((c) => c.id));
+  return Array.from({ length: count }, (_, i) => {
+    const look = { ...DEFAULT_LOOK };
+    let n = i;
+    SLOTS.forEach((slot, s) => {
+      look[slot] = options[s]![n % options[s]!.length]!;
+      n = Math.floor(n / options[s]!.length);
+    });
+    return look;
+  });
 }
 
 describe("remote avatars as one mesh", () => {

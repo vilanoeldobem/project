@@ -24,6 +24,8 @@ export const V = {
   stoneWarm: shade(P.stone, 0.95),
   crust: shade(P.gold, 0.68),
   ice: P.ice,
+  rose: shade(P.red, 1.5),
+  navy: shade(P.bulbBlue, 0.5),
   // Skin tones for villagers: named variations of the palette skin (no single "default" person).
   skinLight: shade(P.skin, 1.18),
   skinDeep: shade(P.skin, 0.72),
