@@ -330,8 +330,8 @@ describe("Pix donations", () => {
     const response = await pix({ targetKind: "global", amountCents: 1000 });
     expect([response.status, ((await response.json()) as { error: string }).error]).toEqual([503, "payment_provider_unavailable"]);
     expect(count("donations")).toBe(0);
-    // A 5xx may have created the charge: the intent stays, recoverable, with only the error code.
-    expect(db.sql("SELECT state,attempts,last_error FROM donation_intents")).toEqual([{ state: "unknown", attempts: 1, last_error: "payment_provider_unavailable" }]);
+    // A 5xx may have created the charge: the intent stays, for an operator, with only the error code.
+    expect(db.sql("SELECT state,last_error FROM donation_intents")).toEqual([{ state: "unknown", last_error: "payment_provider_unavailable" }]);
   });
 
   it("refreshes a pending charge from the provider and answers a paid donation", async () => {
@@ -702,8 +702,8 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect(again.status).toBe(200);
     expect(await again.json()).toMatchObject({ donation: { id: donation.id, brCode: donation.brCode } });
     expect([creates().length, count("donations")]).toEqual([1, 1]);
-    // The intent id is the donation id and the provider's externalId; the charge copy is cleared once stored.
-    expect(intents()).toMatchObject([{ id: donation.id, state: "created", attempts: 1, provider_charge_id: "pix_char_1", br_code: null, br_code_base64: null }]);
+    // The intent id is the donation id and the provider's externalId; the payment code lives only in `donations`.
+    expect(intents()).toMatchObject([{ id: donation.id, state: "created", provider_charge_id: "pix_char_1", br_code: null, br_code_base64: null }]);
     expect(creates()[0].body).toMatchObject({ data: { externalId: donation.id } });
   });
 
@@ -748,11 +748,11 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect(await errorOf(await pix(body, "donor"))).toEqual([503, "donation_not_confirmed"]);
     expect(count("donations")).toBe(0);
     expect(intents()).toMatchObject([
-      { state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_1", br_code: "000201-charge-1", provider_status: "PENDING", attempts: 1 },
+      { state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_1", br_code: "000201-charge-1", provider_status: "PENDING" },
     ]);
     // The operator sees it, with its age, and no donor, e-mail or payment code.
     const seen = await overview();
-    expect(seen.intents).toMatchObject([{ state: "unknown", lastError: "store_failed", providerChargeId: "pix_char_1", amountCents: 1000, attempts: 1 }]);
+    expect(seen.intents).toMatchObject([{ state: "unknown", lastError: "store_failed", providerChargeId: "pix_char_1", amountCents: 1000 }]);
     expect(typeof seen.intents[0].ageSeconds).toBe("number");
     expect(JSON.stringify(seen)).not.toMatch(/donor|example\.test|000201|user/);
     // The payment is confirmed while the donation row is missing: the event waits, it is not "processed".
@@ -767,62 +767,94 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect(await overview()).toMatchObject({ intents: [], unmatchedEvents: [] });
   });
 
-  it("lets a stale in-flight intent be retried when D1 failed completely after the provider answered", async () => {
+  it("turns a stale in-flight intent 'unknown' when D1 failed completely, and never calls the provider again", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     failStore({ times: 1, everything: true });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
     expect(await errorOf(await pix(body))).toEqual([503, "donation_not_confirmed"]);
-    expect(intents()).toMatchObject([{ state: "pending_provider", provider_charge_id: null, attempts: 1 }]);
+    expect(intents()).toMatchObject([{ state: "pending_provider", provider_charge_id: null }]);
     env.DB = db;
-    // Still inside the window of a live provider call: no second call.
+    // Still inside the window of a live provider call.
     expect(await errorOf(await pix(body))).toEqual([409, "donation_in_progress"]);
     expect(await overview()).toMatchObject({ intents: [] });
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 61_000);
-    expect((await overview()).intents).toMatchObject([{ state: "pending_provider", attempts: 1 }]);
-    const retry = await pix(body);
-    expect(retry.status).toBe(201);
-    expect(creates()).toHaveLength(2);
-    expect(creates().map((c) => (c.body?.data as { externalId: string }).externalId)).toEqual([intents()[0].id, intents()[0].id]);
-    expect(intents()).toMatchObject([{ state: "created", attempts: 2, provider_charge_id: "pix_char_2" }]);
-  });
-
-  it("leaves a timed-out call 'unknown' and retries it under the same intent, up to the attempt limit", async () => {
-    let attempts = 0;
-    onCreate(async () => {
-      attempts++;
-      throw new DOMException("The operation timed out.", "TimeoutError");
-    });
-    const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      expect(await errorOf(await pix(body))).toEqual([503, "payment_provider_unavailable"]);
-      expect(intents()).toMatchObject([{ state: "unknown", attempts: attempt, provider_charge_id: null, last_error: "payment_provider_unavailable" }]);
-    }
+    expect((await overview()).intents).toMatchObject([{ state: "pending_provider" }]);
+    // Stale: it becomes 'unknown' for an operator; nobody takes it over and calls the provider.
     expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
-    expect([attempts, count("donations")]).toEqual([3, 0]);
-    expect((await overview()).intents).toMatchObject([{ state: "unknown", attempts: 3 }]);
+    expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
+    expect(intents()).toMatchObject([{ state: "unknown", last_error: "stale_in_flight", provider_charge_id: null }]);
+    expect([creates().length, count("donations")]).toEqual([1, 0]);
+    expect((await overview()).intents).toMatchObject([{ state: "unknown", lastError: "stale_in_flight" }]);
   });
 
-  it("recovers a timed-out call on the next retry with the same key", async () => {
-    let fail = true;
+  it("fences a late writer out of a stale intent, keeps its answer, and lets the same key finish from it", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
     onCreate(async (forward) => {
-      if (fail) throw new DOMException("The operation timed out.", "TimeoutError");
+      await gate;
       return forward();
     });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    expect((await pix(body)).status).toBe(503);
-    fail = false;
-    const retry = await pix(body);
-    expect(retry.status).toBe(201);
-    expect(intents()).toMatchObject([{ state: "created", attempts: 2 }]);
-    expect(count("donations")).toBe(1);
+    const late = pix(body);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 61_000);
+    expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
+    release();
+    // The provider answered after the intent went stale: no donation is written over the 'unknown' mark.
+    expect(await errorOf(await late)).toEqual([503, "donation_not_confirmed"]);
+    expect(count("donations")).toBe(0);
+    expect(intents()).toMatchObject([{ state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_1", br_code: "000201-charge-1" }]);
+    const finish = await pix(body);
+    expect(finish.status).toBe(201);
+    expect(await finish.json()).toMatchObject({ donation: { brCode: "000201-charge-1", status: "pending" } });
+    expect(creates()).toHaveLength(1);
   });
 
-  it("marks a provider refusal 'failed', outside the operator's list", async () => {
-    onCreate(async () => reply(400, { data: null, error: "Invalid split" }));
+  it("finishes from the stored copy once, even when two retries race for it", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    failStore({ times: 1 });
+    const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
+    expect((await pix(body)).status).toBe(503);
+    env.DB = db;
+    const statuses = (await Promise.all([pix(body), pix(body)])).map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 201]);
+    expect([creates().length, count("donations")]).toEqual([1, 1]);
+  });
+
+  it.each([
+    ["a timeout", async () => { throw new DOMException("The operation timed out.", "TimeoutError"); }, "unknown", "donation_intent_unknown"],
+    ["a network error", async () => { throw new TypeError("fetch failed"); }, "unknown", "donation_intent_unknown"],
+    ["a 5xx", async () => reply(502, { data: null, error: "bad gateway" }), "unknown", "donation_intent_unknown"],
+    ["a 4xx refusal", async () => reply(400, { data: null, error: "Invalid split" }), "failed", "donation_intent_failed"],
+  ] as const)("makes one provider call per key after %s, and answers every retry without calling it", async (_name, answer, state, code) => {
+    let provider = 0;
+    onCreate(async () => {
+      provider++;
+      return answer();
+    });
+    const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
+    expect(await errorOf(await pix(body))).toEqual([503, "payment_provider_unavailable"]);
+    expect(intents()).toMatchObject([{ state, provider_charge_id: null, last_error: "payment_provider_unavailable" }]);
+    for (let retry = 0; retry < 3; retry++) expect(await errorOf(await pix(body))).toEqual([409, code]);
+    expect([provider, count("donations")]).toEqual([1, 0]);
+    // Only the outcome nobody knows needs an operator; a refusal created nothing.
+    expect((await overview()).intents).toHaveLength(state === "unknown" ? 1 : 0);
+    // A new key is a new request.
+    stubProvider();
+    expect((await pix({ ...body, idempotencyKey: crypto.randomUUID() })).status).toBe(201);
+  });
+
+  it("checks the provider configuration before writing an intent, so a configuration error leaves nothing", async () => {
+    env.ABACATEPAY_API_KEY = undefined;
     expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }))).toEqual([503, "payment_provider_unavailable"]);
-    expect(intents()).toMatchObject([{ state: "failed", attempts: 1 }]);
-    expect(await overview()).toMatchObject({ intents: [] });
+    env.ABACATEPAY_API_KEY = API_KEY;
+    // A sandbox marker in production must never route money.
+    await db.prepare("UPDATE donation_settings SET primary_sub_account_id = 'dev_sacc_x'").run();
+    env.ENVIRONMENT = "production";
+    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }))).toEqual([409, "subaccounts_unavailable"]);
+    expect([count("donation_intents"), creates().length]).toEqual([0, 0]);
   });
 
   it("stores an early webhook as unmatched, ignores its redelivery, and applies it when the donation appears", async () => {

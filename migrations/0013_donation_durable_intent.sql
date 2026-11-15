@@ -4,10 +4,10 @@
 -- routes that require migration 0003 keep working untouched and 0011 stays exactly as applied.
 
 -- One row per logical donation request, written BEFORE the provider is called. `idempotency_key` is the UUID the
--- client sends with `POST /donations/pix`: a retry with the same key reaches the same row and never calls the
--- provider twice while the row is in flight or created. `id` is also the donation id and the provider's
--- `externalId`. A provider failure or timeout leaves the row in 'unknown' (never deleted) so a retry with the same
--- key, or an operator, can finish it.
+-- client sends with `POST /donations/pix`: a retry with the same key reaches the same row, and the provider is
+-- called at most once per key. `id` is also the donation id and the provider's `externalId`. A provider failure,
+-- a timeout or a stale in-flight row ends 'unknown' or 'failed' (never deleted, never sent to the provider again:
+-- an operator looks at it and the client starts over with a new key).
 CREATE TABLE donation_intents (
   id                 TEXT PRIMARY KEY,                       -- UUID; = donations.id once created
   idempotency_key    TEXT NOT NULL UNIQUE,                   -- client-supplied UUID
@@ -22,16 +22,18 @@ CREATE TABLE donation_intents (
   vila_share_cents   INTEGER NOT NULL CHECK (vila_share_cents >= 0),
   ngo_percent_bps    INTEGER NOT NULL,
   fixed_fee_cents    INTEGER NOT NULL,
-  -- pending_provider: the provider call is in flight (or the worker died during it; stale after a short while)
+  -- pending_provider: the provider call is in flight (after 60 s with no answer, the next read turns it 'unknown')
   -- created: the provider answered and the donation row exists
-  -- unknown: the outcome is not known (timeout, provider error, or the provider answered and D1 failed)
-  -- failed: the provider refused before creating anything (nothing to pay)
+  -- unknown: the outcome is not known (timeout, provider error, stale in flight, or the provider answered and D1
+  --          failed: then the answer is copied below and a same-key retry finishes the donation from that copy)
+  -- failed: the provider refused before creating anything
   state              TEXT NOT NULL DEFAULT 'pending_provider' CHECK (state IN ('pending_provider','created','unknown','failed')),
-  attempts           INTEGER NOT NULL DEFAULT 1 CHECK (attempts >= 1),
   last_error         TEXT,                                   -- stable error code only; never provider text
-  -- What the provider answered, kept only while the donation row could not be written ('unknown' with a charge),
-  -- so a retry finishes the donation without a second provider call. Cleared once the donation exists.
+  -- The charge id ties the intent to its charge and stays once the donation exists.
   provider_charge_id TEXT UNIQUE,
+  -- Copy of the provider's answer, written only when the donation row could not be (state 'unknown',
+  -- last_error 'store_failed'). When the donation is created, provider_status, br_code, br_code_base64,
+  -- receipt_url, expires_at and platform_fee_cents are set back to NULL; dev_mode keeps its value.
   provider_status    TEXT,
   br_code            TEXT,
   br_code_base64     TEXT,

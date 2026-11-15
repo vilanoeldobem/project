@@ -208,15 +208,19 @@ com `DONATIONS_ENABLED = "true"`. Aditiva: não altera nenhuma tabela da 0011.
 
 | Tabela | Papel | Campos que importam |
 |---|---|---|
-| `donation_intents` | uma linha por pedido de doação, gravada **antes** da chamada ao provedor | `id` (= `donations.id` e `externalId` do provedor), `idempotency_key` UNIQUE (UUID do cliente), `request_hash` (SHA-256 de destino, ONG, valor e conta), destino, recebedor, subconta e split, `state` (`pending_provider`/`created`/`unknown`/`failed`), `attempts` ≥ 1, `last_error` (só código), `provider_charge_id` UNIQUE e cópia da resposta do provedor (`provider_status`, `br_code`, `br_code_base64`, `receipt_url`, `expires_at`, `platform_fee_cents`, `dev_mode`) |
+| `donation_intents` | uma linha por pedido de doação, gravada **antes** da chamada ao provedor | `id` (= `donations.id` e `externalId` do provedor), `idempotency_key` UNIQUE (UUID do cliente), `request_hash` (SHA-256 de destino, ONG, valor e conta), destino, recebedor, subconta e split, `state` (`pending_provider`/`created`/`unknown`/`failed`), `last_error` (só código: `store_failed`, `stale_in_flight`, `payment_provider_unavailable`…), `provider_charge_id` UNIQUE e cópia da resposta do provedor (`provider_status`, `br_code`, `br_code_base64`, `receipt_url`, `expires_at`, `platform_fee_cents`, `dev_mode`) |
 | `abacatepay_pending_events` | evento assinado sobre uma cobrança sem doação ainda; **não** conta como processado | `id` PK (id do evento), `event`, `charge_id`, `next_status` (`paid`/`refunded`/`under_dispute`), `provider_status`, `receipt_url`, `platform_fee_cents`, `dev_mode`, `received_at`, `resolved_at` |
 
 Índices: `idx_donation_intents_state` (`state`, `updated_at`) e `idx_abacatepay_pending_events_charge`
 (`charge_id`, `resolved_at`). `donation_intents.user_id` e `ngo_id` usam `ON DELETE SET NULL`, como `donations`.
 
-- A cópia da resposta do provedor só fica na intenção enquanto a doação não pôde ser gravada (`unknown` com
-  cobrança): a repetição com a mesma chave cria a doação a partir dela, sem nova chamada. Quando a doação existe, a
-  intenção passa a `created` e a cópia é apagada (o código Pix fica só em `donations`).
+- O provedor é chamado no máximo uma vez por intenção (por chave). `unknown` e `failed` nunca voltam ao provedor;
+  uma `pending_provider` parada há mais de 60 s vira `unknown` (`stale_in_flight`) na próxima leitura da chave.
+- A cópia da resposta do provedor só é gravada quando a doação não pôde ser (`unknown`, `store_failed`): a
+  repetição com a mesma chave cria a doação a partir dela, sem nova chamada. Quando a doação existe, a intenção
+  passa a `created` e `provider_status`, `br_code`, `br_code_base64`, `receipt_url`, `expires_at` e
+  `platform_fee_cents` voltam a `NULL` (o código Pix fica só em `donations`); `provider_charge_id` fica (liga a
+  intenção à cobrança) e `dev_mode` mantém o valor.
 - Uma intenção nunca é apagada pelo fluxo: `unknown` e `pending_provider` parada aparecem para o operador em
   `GET /admin/donations/overview` com a idade.
 - Um evento em espera é aplicado, na ordem de chegada, assim que a doação da cobrança existe; nesse momento o id

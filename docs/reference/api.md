@@ -793,7 +793,7 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 | `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
 | `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
-| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, maxProviderAttempts, intents, unmatchedEvents}` (IMPL-0028) |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
@@ -823,20 +823,29 @@ Regras:
   Estorno (`transparent.refunded`, `transparent.lost`) é final e vale a partir de qualquer status anterior, mesmo
   quando chega antes de `transparent.completed`; nenhum evento posterior reabre uma doação estornada.
 - **Intenção durável da cobrança (IMPL-0028, PROPOSTA)**: `idempotencyKey` é um UUID gerado pelo cliente, um por
-  pedido de doação (o jogo reaproveita a chave ao tentar de novo depois de um erro e gera outra para outro valor ou
-  depois de uma doação concluída). Sem chave válida → `400 invalid_idempotency_key`. Antes de chamar o provedor, a
-  API grava uma linha em `donation_intents` (`pending_provider`); a resposta do provedor é gravada na mesma linha,
-  e a doação (`donations`) é criada na mesma transação que marca a intenção `created`. O id da intenção é o id da
-  doação e o `externalId` enviado à AbacatePay em todas as tentativas da mesma chave.
+  pedido de doação. Sem chave válida → `400 invalid_idempotency_key`. Falta de configuração do provedor (chave da
+  API ausente; marcador de sandbox em produção) é recusada **antes** de gravar qualquer coisa. Depois, a API grava
+  uma linha em `donation_intents` (`pending_provider`) e só então chama o provedor, **no máximo uma vez por
+  chave**: nenhuma repetição chama o provedor de novo. A doação (`donations`) é criada na mesma transação que marca
+  a intenção `created`, e só enquanto a intenção ainda está `pending_provider` sem cobrança (ou `unknown` com
+  exatamente aquela cobrança): quem chega atrasado não sobrescreve nada. O id da intenção é o id da doação e o
+  `externalId` enviado à AbacatePay.
   - Mesma chave com outro valor, outro destino ou outro doador → `409 idempotency_key_reused`, sem chamar nada.
   - Mesma chave enquanto a chamada ao provedor está em andamento → `409 donation_in_progress`; repetições
     simultâneas causam **uma** chamada ao provedor. Uma intenção `pending_provider` há mais de 60 s (o trabalhador
-    caiu durante a chamada) pode ser retomada.
-  - Provedor respondeu e o D1 falhou → `503 donation_not_confirmed`; a intenção fica `unknown` com a cobrança
-    guardada, e a repetição com a mesma chave cria a doação **sem nova chamada** ao provedor.
+    caiu durante a chamada) vira `unknown` (`last_error = 'stale_in_flight'`) na próxima leitura da chave, e a
+    resposta é `409 donation_intent_unknown`; ninguém a assume nem chama o provedor de novo.
+  - Provedor respondeu e o D1 falhou (ou a intenção ficou parada enquanto ele respondia) → `503
+    donation_not_confirmed`; a resposta do provedor é copiada na intenção (`unknown`, `store_failed`), e a repetição
+    com a mesma chave cria a doação a partir dessa cópia, **sem nova chamada** ao provedor. Se nem a cópia puder ser
+    gravada, a intenção fica `pending_provider` e vira `unknown` depois de 60 s.
   - Tempo esgotado, falha de rede ou 5xx do provedor → `503 payment_provider_unavailable` e intenção `unknown`;
-    recusa 4xx → intenção `failed`. Nos dois casos a repetição com a mesma chave chama o provedor de novo, com o
-    mesmo `externalId`, até 3 tentativas por chave; depois disso `409 donation_intent_unknown`.
+    recusa 4xx → intenção `failed`. A repetição com a mesma chave responde `409 donation_intent_unknown` ou
+    `409 donation_intent_failed`, sem chamar o provedor; o cliente começa um novo pedido com outra chave.
+  - O jogo reaproveita a chave quando o pedido ainda pode ser retomado (sem resposta, `donation_in_progress`,
+    `donation_not_confirmed`) e gera outra depois de uma doação concluída, de outro valor ou destino, e depois de
+    `idempotency_key_reused`, `donation_intent_unknown`, `donation_intent_failed` ou `payment_provider_unavailable`
+    (`apps/client/src/lib/donation-key.ts`).
   - Limite de abuso: binding `DONATION_LIMITER` (10 pedidos a cada 60 s), por conta quando há sessão e por SHA-256
     do `CF-Connecting-IP` para visitantes; a chave do limite não é gravada nem registrada em log. Excedido →
     `429 too_many_requests`, antes de gravar qualquer coisa. Sem o binding (local, testes, staging) não há limite.
@@ -847,7 +856,7 @@ Regras:
   cobrança), os eventos em espera são aplicados na ordem de chegada pela mesma atualização protegida e só então
   marcados como processados, na mesma transação.
 - **Visão do operador (IMPL-0028)**: `reconciliation.intents` lista intenções `unknown` e `pending_provider`
-  paradas há mais de `staleAfterSeconds`, com `{id, state, targetKind, ngoId, recipientName, amountCents, attempts,
+  paradas há mais de `staleAfterSeconds`, com `{id, state, targetKind, ngoId, recipientName, amountCents,
   lastError, providerChargeId, createdAt, updatedAt, ageSeconds}`; `reconciliation.unmatchedEvents` lista eventos
   em espera com `{id, event, chargeId, nextStatus, receivedAt, ageSeconds}`. Sem doador, e-mail, código Pix ou
   comprovante. Consultar não grava auditoria.

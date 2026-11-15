@@ -12,10 +12,12 @@ Cada versão indica o schema D1 que entrega.
 ### Fixed — doações: intenção durável antes do provedor (IMPL-0028, **PROPOSTA**; schema v13; tudo atrás de `DONATIONS_ENABLED`, desligada)
 
 - **A cobrança Pix tem uma intenção durável antes da chamada à AbacatePay.** `POST /donations/pix` grava a linha em
-  `donation_intents` antes do provedor e registra nela a resposta. Repetir com a mesma `idempotencyKey` devolve a
-  mesma doação e nunca chama o provedor enquanto a intenção está em andamento ou criada. A chave reaproveitada com outro
-  valor, destino ou doador responde `409 idempotency_key_reused`. Tempo esgotado ou falha do D1 deixam a intenção
-  `unknown`, retomável pela mesma chave (no máximo 3 chamadas ao provedor por chave).
+  `donation_intents` antes do provedor e registra nela a resposta. O provedor é chamado **no máximo uma vez por
+  `idempotencyKey`**: repetir devolve a mesma doação, ou `409` (`donation_in_progress`, `donation_intent_unknown`,
+  `donation_intent_failed`, `idempotency_key_reused`), sem nova chamada. Tempo esgotado, erro do provedor ou intenção
+  parada há mais de 60 s ficam `unknown`/`failed` para o operador, e o jogo começa um novo pedido com outra chave.
+  Quando o provedor respondeu e o D1 falhou, a resposta é copiada na intenção e a repetição com a mesma chave
+  conclui a doação a partir dela. Erro de configuração do provedor não grava intenção.
 - **Webhook antes da doação não se perde.** Um evento sobre cobrança ainda sem doação não é marcado como processado:
   fica em `abacatepay_pending_events` e é aplicado na ordem de chegada quando a doação existe.
 - **Visão do operador.** `GET /admin/donations/overview` traz `reconciliation`: intenções `unknown` ou paradas e eventos

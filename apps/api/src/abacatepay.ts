@@ -191,14 +191,23 @@ export async function createOrGetSubAccount(env: Env, input: { name: string; tax
   }
 }
 
+/**
+ * The configuration a charge needs, checked without calling anyone: the API key, and no local sandbox marker in
+ * production (it must never route money: refuse instead of silently dropping the split). The donation route checks
+ * it before writing its intent (IMPL-0028), so a configuration error leaves nothing behind.
+ */
+export function assertChargeConfig(env: Env, subAccountId: string): void {
+  if (!env.ABACATEPAY_API_KEY) throw new HttpError(503, "payment_provider_unavailable");
+  if (subAccountId.startsWith("dev_sacc_") && env.ENVIRONMENT === "production") throw new HttpError(409, "subaccounts_unavailable");
+}
+
 /** A Pix charge with the split that pays `subAccountId`; the local sandbox marker sends no `splits`. */
 export async function createPixCharge(
   env: Env,
   input: { amountCents: number; description: string; externalId: string; subAccountId: string; ngoShareCents: number; metadata: Record<string, string> }
 ): Promise<PixCharge> {
   const devSubAccount = input.subAccountId.startsWith("dev_sacc_");
-  // A local sandbox marker must never route money in production: refuse instead of silently dropping the split.
-  if (devSubAccount && env.ENVIRONMENT === "production") throw new HttpError(409, "subaccounts_unavailable");
+  assertChargeConfig(env, input.subAccountId);
   const data: Record<string, unknown> = {
     amount: input.amountCents,
     expiresIn: 3600,

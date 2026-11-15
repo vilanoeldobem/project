@@ -13,6 +13,7 @@ import { computeDonationSplit, formatBrl, parseBrlToCents, type DonationTargetKi
 
 import { useAccount } from "../lib/account";
 import { createPixDonation, fetchDonationStatus, simulatePixDonation, type Donation } from "../lib/api";
+import { afterFailure, keyFor, type DonationKey } from "../lib/donation-key";
 
 const PRESETS = [200, 500, 1000, 2500];
 const STATUS_TEXT: Record<string, string> = {
@@ -47,7 +48,7 @@ export function PixDonation({
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const operation = useRef<{ request: string; key: string } | null>(null);
+  const operation = useRef<DonationKey | null>(null);
   const amountCents = custom.trim() ? (parseBrlToCents(custom) ?? Number.NaN) : preset;
   const split = (() => {
     try {
@@ -67,15 +68,15 @@ export function PixDonation({
       return;
     }
     setBusy(true);
-    // One key per request (IMPL-0028): trying again after an error resumes the same request, never a second one;
-    // another amount or a finished donation starts a new key.
-    const request = `${targetKind}:${ngoId ?? ""}:${amountCents}`;
-    if (operation.current?.request !== request) operation.current = { request, key: crypto.randomUUID() };
+    // One key per request (IMPL-0028): see lib/donation-key.ts for when a retry keeps it and when it starts over.
+    const current = keyFor(operation.current, `${targetKind}:${ngoId ?? ""}:${amountCents}`);
+    operation.current = current;
     try {
-      const created = await createPixDonation({ idempotencyKey: operation.current.key, targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      const created = await createPixDonation({ idempotencyKey: current.key, targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
       operation.current = null;
       setDonation(created.donation);
     } catch (e) {
+      operation.current = afterFailure(current, e);
       setError(errorText(e));
     } finally {
       setBusy(false);
