@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-14 · **Versão atual:** 0.6.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-15 · **Versão atual:** 0.6.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -31,7 +31,8 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | **Implementado** (desligado em produção até revisão LGPD/ECA) | 11–17/11 |
 | Moderação, entrada direta, expansão e vida na Vila (IMPL-0021..0025) | 0.5.0 | — | — | **Entregue** 2026-11-14 (propostas desligadas em produção) | 13–14/11 |
 | Pranchas P01–P15, provador P08 e auditoria técnica (IMPL-0026..0028) | 0.6.0 | P01–P15, P08 | D20 | **Entregue** 2026-11-14 (prévias pagas ocultas; propostas desligadas) | 14/11 |
-| HUD da ONG e segundo jogo | 0.6.x | P04 completo, P09 | D10, D24 | Planejado | 15–19/11 |
+| Correções pós-0.6.0 e publicação das doações endurecidas | 0.6.1 | P08 (acessibilidade) | D20 | **Próximo** | 15–16/11 |
+| HUD da ONG e segundo jogo | 0.6.x | P04 completo, P09 | D10, D24 | Planejado (depois da 0.6.1) | 16–19/11 |
 | Doação e badges | 0.7.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
 | Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
 | QA e release candidate | 1.0.0-rc | todas entregues | Q01–Q09, M04 | Planejado | 24–27/11 |
@@ -83,12 +84,30 @@ atrás da bandeira `ACCOUNTS_ENABLED`, que fica `"false"` em produção até a r
 **Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio verificado no
 Resend, com a chave `RESEND_API_KEY` no Worker ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
 
-### HUD da ONG e segundo jogo (0.5.0)
+### Correções pós-0.6.0 (0.6.1) — próximo
+
+Ordem recomendada (2026-11-15): **A → C → publicação 0.6.1 → B** (marco seguinte).
+
+- **A. Provador P08, pendências da revisão do PR #48.** Foco do teclado depois de "Equipar" (manter no cartão ou
+  `contentKey` no `Panel`); o selo "Grátis" lido pelo leitor de tela (`aria-describedby`); a migração v1 → v2 que tira
+  `hat-holly` de quem só tinha o nível 2 (manter um caminho por nível ou avisar no CHANGELOG); a exclusividade
+  vestido × blusa/calça aplicada também em `parseLook`, para todo visual remoto; guarda de item pago em `wear()` e
+  testes de comportamento no lugar do teste tautológico; conferir a fresta visual em y = 0 embaixo do vestido.
+- **C. Saúde real das dependências.** `/health` continua leve (o processo responde); uma rota de prontidão separada
+  faz uma leitura de verdade no D1, no R2 e na sala (auditoria §7.6).
+- **Publicação 0.6.1.** Leva A, C e o endurecimento das doações já na `main` (PR #59, IMPL-0028); aplica a migration
+  `0014` no remoto **junto** com essa publicação (ponto de restauração do D1 antes, como na `0013`). Bandeiras seguem
+  como estão.
+
+### HUD da ONG e segundo jogo (0.6.x) — depois da 0.6.1
+
+Antes de começar, ler as pranchas P04 e P09 e o registro de decisões em `vilanoeldobem/docs`; o que não estiver
+CONFIRMADO entra como PROPOSTA.
 
 **Escopo:** casa publicada com conteúdo real (descrição, fotos, projetos, painel de estatísticas — DEC-028/029) e
 segundo minijogo (Jogo da Velha, doc 23).
 
-### Doação e badges (0.6.0) — bloqueado
+### Doação e badges (0.7.0) — bloqueado
 
 **Escopo:** integração com o provedor da parceira (preferência por página de campanha identificada — PRP-015/016),
 estados da doação (iniciada → … → conciliada/devolvida/contestada), badges por doação confirmada (DEC-041).
@@ -98,12 +117,28 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 
 | Tarefa | Status | Observação |
 |---|---|---|
-| CI (typecheck, test, build em PR) | **Entregue** (falta proteção da `main`) | Marco "Infraestrutura de entrega", item 1 |
+| CI (typecheck, test, build em PR) | **Entregue**; `main` protegida desde 2026-11-14 (só por PR, CI obrigatório) | Marco "Infraestrutura de entrega", item 1 |
 | Ambiente de homologação (staging) | **Próximo** | Marco "Infraestrutura de entrega", item 2 |
 | Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
 | Redução do chunk Three.js | **Entregue** (245 kB gzip) | Marco "Infraestrutura de entrega", item 4 |
 | Logs de erro | Parcial | `observability.enabled` em cada Worker |
 | Revisão LGPD / ECA Digital | Não iniciado | bloqueia ligar as contas da 0.4.0 em produção |
+| Medição de carregamento (auditoria §3.6) | Planejado | script que separa download, avaliação do JS, malhas e envio à GPU; base para os testes em celular |
+| Papéis de superfície explícitos nos voxels (auditoria §4.4) | Planejado | brilho e balanço deixam de depender da cor da tinta |
+| Verificação ao vivo diária | Bloqueado | entra no `smoke.yml` depois da OQ-13 resolvida no Google Analytics |
+
+## Pendências do responsável (2026-11-15)
+
+Nada abaixo é decisão de código; cada item tem registro próprio.
+
+- **OQ-13:** desligar Google Signals e personalização de anúncios na propriedade do Google Analytics (a CSP fica).
+- **OQ-21:** prévias de visuais pagos no provador (seguem ocultas).
+- **IMPL-0028:** chave com segredo (HMAC) para o limite por IP (exige segredo novo); retenção dos eventos órfãos da
+  AbacatePay; ordem de uma disputa recusada antes do pagamento; confirmação com a AbacatePay da deduplicação por
+  `externalId`.
+- **Testes em celulares reais** (fase 3 da auditoria) e **homologação + ensaio de restauração** do D1/R2 (criam recursos
+  na Cloudflare, exigem autorização).
+- Decisão de revisão obrigatória nos PRs (hoje 0 aprovações).
 
 ## Riscos que podem reordenar o roadmap
 
