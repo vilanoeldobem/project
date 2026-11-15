@@ -1,6 +1,6 @@
 # Publicações em produção
 
-> **Status:** Implementado · **Versão do software:** 0.6.0 · **Schema D1:** v12 ·
+> **Status:** Implementado · **Versão do software:** 0.6.0 · **Schema D1:** v13 ·
 > **Atualizado em:** 2026-11-14
 > **Fonte de verdade:** "Último deploy" em [guides/deploy.md](../guides/deploy.md), `apps/*/wrangler.jsonc` (bandeiras),
 > `migrations/`, `CHANGELOG.md`
@@ -21,7 +21,7 @@ enviou; ela não prova o comportamento. Um binding presente não prova que o rec
 | Versões anteriores (alvo de rollback) | api `a6a19ee6` · server `ea49395d` · jogo `00245bb0` · dash `8690b262` · site `ac9bf1e0` | `wrangler deployments list` antes do deploy |
 | Workers e hosts | os mesmos da 0.5.0 | código |
 | Versão no ar | `GET api.*/health` → `"version":"0.6.0"`, `"environment":"production"`, `"db":true`, `"mail":false`, `"files":true` | observado em 14/11/2026 |
-| D1 | schema **v12** em produção; o código traz a **v13** (`0013_donation_durable_intent.sql`), **não aplicada**. Só rotas atrás de `DONATIONS_ENABLED` (desligada) leem as tabelas novas; com a bandeira ligada e a v12, respondem `503 schema_outdated` | registro do deploy; código |
+| D1 | publicado com a produção em **v12**; a `0013_donation_durable_intent.sql` foi aplicada **depois**, em 2026-11-15 01h27 UTC (produção em **v13**), com autorização do responsável. Ponto de restauração do D1 imediatamente antes: bookmark `0000008a-00000000-00005124-550cb3acb20c73e5f35a2a54e191b9b5` (`wrangler d1 time-travel restore vilanoeldobem --bookmark=…`). Só rotas atrás de `DONATIONS_ENABLED` (desligada) leem as tabelas novas; com a bandeira ligada e a v12, respondem `503 schema_outdated` | registro do deploy; código |
 | Protocolo de presença | muda nesta versão (visual como código compacto, IMPL-0027): servidor e jogo publicados em sequência; uma aba antiga só tem a mensagem de visual descartada | código |
 | Novo binding | `DONATION_LIMITER` (rate limiting, namespace 1104) na API; sem efeito com as doações desligadas | código |
 | R2, e-mail, Durable Object | sem mudança desde a 0.5.0 | código |
@@ -46,7 +46,7 @@ No jogo, as prévias pagas do provador ficam ocultas por código (`SHOW_PAID_PRE
 
 ### Não verificado (0.6.0)
 
-- Migration `0013` no remoto: não aplicada (exige autorização própria; ver deploy §3).
+- Migration `0013`: aplicada em 2026-11-15 01h27 UTC; depois dela `wrangler d1 migrations list --remote` diz "No migrations to apply", as duas tabelas existem (`sqlite_master`), `/health`, `/lots`, `/indicators`, `/residential-plots`, `/environment` e `/config` respondem 200 e o `smoke-api.sh` passa. As rotas que usam as tabelas seguem desligadas e não foram exercitadas.
 - Ensaio de recuperação do D1, homologação, aparelhos reais: sem registro (como na 0.5.0).
 - Sala cheia em produção: medida só localmente (`verify-fullroom.mjs`, 40 pessoas, 97 chamadas).
 - Mistura de abas antigas e novas na mesma sala durante a troca de versão: não exercitada.
