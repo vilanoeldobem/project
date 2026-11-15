@@ -125,7 +125,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
-  association and reads no table newer than the one it serves: production may run behind the code (v12 since the 0.5.0 deploy, 2026-11-14; `docs/reference/releases.md`). Never
+  association and reads no table newer than the one it serves: production may run behind the code (v13 since 2026-11-15; `docs/reference/releases.md`). Never
   join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
   `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.

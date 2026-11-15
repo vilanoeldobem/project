@@ -23,7 +23,9 @@ Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel admin
 `workers_dev: false`).
 
 **Último deploy: 2026-11-14**, versão 0.6.0, os cinco Workers a partir da `main` (`9d32fbc`, tag `v0.6.0`), na
-ordem API → servidor → jogo → painel → site, **sem migration remota**: o D1 de produção segue na **v12**, e a `0013`
+ordem API → servidor → jogo → painel → site, **sem migration remota** naquele momento; a `0013` foi aplicada logo
+depois, em 2026-11-15 01h27 UTC, com autorização (D1 de produção na **v13**; ponto de restauração anterior no
+[releases.md](../reference/releases.md)). Antes disso a `0013`
 (intenção durável de doação, só lida com `DONATIONS_ENABLED` ligada) não foi aplicada. Contas e todas as propostas
 seguem desligadas. O `smoke-api.sh` passa (17/17); o `verify-live.mjs` falha só pelos destinos do Google bloqueados
 pela CSP (OQ-13). A 0.5.0 (`e4771c4`) aplicou as migrations `0004` a `0012` e criou o bucket R2.

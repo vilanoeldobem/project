@@ -1,7 +1,8 @@
 # IMPL-0028: Intenção durável da cobrança Pix e eventos do webhook em espera
 
 **Status:** Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); a idempotência do
-lado da AbacatePay é PENDENTE; a migration 0013 não foi aplicada no remoto
+lado da AbacatePay é PENDENTE; a migration 0013 foi aplicada no remoto em 2026-11-15 (01h27 UTC), aditiva, sem uso
+enquanto a bandeira estiver desligada
 **Data:** 2026-11-14
 **Fontes:** auditoria §6.2 (P1, atrás da bandeira); IMPL-0023 (doações e conciliação), IMPL-0002 (nenhum fluxo de
 dinheiro simulado), IMPL-0015 (painel), IMPL-0021 (papel de administrador); DEC-010..013, DEC-027, DEC-042; PEN-004,

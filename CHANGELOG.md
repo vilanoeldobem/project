@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — produção no schema D1 v13
+
+- **A migration `0013_donation_durable_intent.sql` foi aplicada em produção** (2026-11-15 01h27 UTC, aditiva, depois
+  da publicação da 0.6.0, com ponto de restauração registrado em `docs/reference/releases.md`). As tabelas novas só são
+  lidas com `DONATIONS_ENABLED` ligada; hoje desligada.
+- **Prévias pagas do provador registradas como OQ-21** em `docs/decisions/open-questions.md` (seguem ocultas).
+
 ## [0.6.0] - 2026-11-14
 
 **Pranchas e provador P08, auditoria técnica (fases 1 e 2) e endurecimento**
