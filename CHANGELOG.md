@@ -9,6 +9,24 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — doações: intenção durável antes do provedor (IMPL-0028, **PROPOSTA**; schema v13; tudo atrás de `DONATIONS_ENABLED`, desligada)
+
+- **A cobrança Pix tem uma intenção durável antes da chamada à AbacatePay.** `POST /donations/pix` grava a linha em
+  `donation_intents` antes do provedor e registra nela a resposta. Repetir com a mesma `idempotencyKey` devolve a
+  mesma doação e nunca chama o provedor enquanto a intenção está em andamento ou criada. A chave reaproveitada com outro
+  valor, destino ou doador responde `409 idempotency_key_reused`. Tempo esgotado ou falha do D1 deixam a intenção
+  `unknown`, retomável pela mesma chave (no máximo 3 chamadas ao provedor por chave).
+- **Webhook antes da doação não se perde.** Um evento sobre cobrança ainda sem doação não é marcado como processado:
+  fica em `abacatepay_pending_events` e é aplicado na ordem de chegada quando a doação existe.
+- **Visão do operador.** `GET /admin/donations/overview` traz `reconciliation`: intenções `unknown` ou paradas e eventos
+  em espera, com a idade de cada um.
+- **Limite de abuso.** `DONATION_LIMITER` (10 pedidos por 60 s) por conta ou por hash do endereço, sem gravar o IP.
+- **Migration `0013_donation_durable_intent.sql`** (aditiva; **não aplicada no remoto**). Sem ela, com as doações
+  ligadas, as rotas que a exigem respondem `503 schema_outdated`.
+- **Mudança incompatível (rota desligada):** `POST /donations/pix` sem `idempotencyKey` responde `400`; o jogo, único
+  chamador, já envia a chave.
+- **PENDENTE:** se a AbacatePay deduplica por `externalId` não pode ser confirmado pelo repositório (ver IMPL-0028).
+
 ### Changed — geometria de voxels mais leve (auditoria de 14/11/2026, §3.5)
 
 - **A geometria estática deixa de carregar o centro do voxel.** Sólido e janelas não guardam mais `aCenter`, que só os
