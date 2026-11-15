@@ -9,6 +9,18 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-14
+
+**Pranchas e provador P08, auditoria técnica (fases 1 e 2) e endurecimento**
+([IMPL-0026](docs/decisions/0026-boards-ui-and-character-appearance.md),
+[IMPL-0027](docs/decisions/0027-cosmetic-shop-wardrobe.md), [IMPL-0028](docs/decisions/0028-donation-durable-intent.md)).
+Schema D1 **v13** no código: a migration `0013` (intenção durável de doação) **não** foi aplicada em produção nesta
+publicação; produção segue em **v12**, e tudo o que lê as tabelas novas está atrás de `DONATIONS_ENABLED`, desligada.
+O protocolo de presença muda (o visual vai como código compacto do catálogo): cliente e servidor são publicados
+juntos, e uma aba antiga só tem a mensagem de visual descartada. Contas, arquivos e fotos de ONG, retirada, bloqueio,
+remoção de visitante, terrenos residenciais e doações seguem **desligados**; as prévias pagas do provador ficam
+ocultas até a PEN-022.
+
 ### Fixed — doações: intenção durável antes do provedor (IMPL-0028, **PROPOSTA**; schema v13; tudo atrás de `DONATIONS_ENABLED`, desligada)
 
 - **A cobrança Pix tem uma intenção durável antes da chamada à AbacatePay.** `POST /donations/pix` grava a linha em
