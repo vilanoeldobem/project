@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — documentação de marca
+
+- Roteiro local para elaboração de manual da marca em `docs/skills/`, identificado como **PROPOSTA** e vinculado às decisões do produto.
+
 ### Fixed — doações: conciliação endurecida antes de ligar (IMPL-0028, **PROPOSTA**; schema v14 no código; atrás de `DONATIONS_ENABLED`, desligada)
 
 - **A repetição com a mesma `idempotencyKey` é respondida antes do limite de abuso** (`DONATION_LIMITER`) e não
