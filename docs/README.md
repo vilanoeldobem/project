@@ -23,6 +23,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 
 **Guias**
 - [guides/development.md](guides/development.md) — ciclo de desenvolvimento, gates, receitas, checklist de PR.
+- [skills/manual-da-marca-skill.md](skills/manual-da-marca-skill.md) — roteiro genérico para manual da marca (**PROPOSTA**; não é o manual oficial da Vila).
 - [guides/deploy.md](guides/deploy.md) — publicar os Workers na Cloudflare (conta do projeto), D1 remoto, rollback; painel administrativo; arquivos de ONG no R2.
 - [guides/staging-database.md](guides/staging-database.md) — banco D1 de homologação: acesso, migrations, backup e recuperação.
 
