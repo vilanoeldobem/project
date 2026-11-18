@@ -42,15 +42,10 @@ button { font: inherit; color: inherit; }
 .world-unavailable__retry { font: inherit; font-weight: 800; padding: 10px 18px; border-radius: 999px; border: 0; background: var(--pine); color: var(--cream); cursor: pointer; }
 .world-paused { position: absolute; left: 50%; bottom: 96px; transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px; background: var(--pine); color: var(--cream); font-weight: 700; text-align: center; }
 
-/* Temporary blocky wordmark: shown while the village loads, never during play (IMPL-0022) */
-.wordmark {
-  margin: 0; display: flex; flex-direction: column; line-height: 0.9;
-  font-weight: 900; letter-spacing: 0.04em; color: var(--cream); font-size: 1rem;
-  text-shadow: 0 2px 0 var(--pine), 2px 2px 0 var(--pine), -1px 0 0 var(--pine), 0 0 12px rgba(230, 183, 101, 0.6);
-}
-.wordmark span:last-child { color: var(--gold); }
-.wordmark--large { font-size: clamp(2.2rem, 8vw, 3.6rem); text-align: center; }
-.wordmark--large span { text-shadow: 0 4px 0 var(--pine), 4px 4px 0 var(--pine), -2px 0 0 var(--pine), 0 0 24px rgba(230, 183, 101, 0.7); }
+/* Brand mark (IMPL-0029): the in-test logo, shown while the village loads and in the HUD bar, never during play (IMPL-0022). */
+.brandmark { display: block; width: auto; height: 32px; }
+.brandmark--large { height: 140px; }
+.loading__brand { display: grid; place-items: center; padding: 14px 18px; border-radius: 20px; background: var(--pine); border: 2px solid var(--gold); box-shadow: var(--shadow); }
 
 /* Buttons */
 .btn {
@@ -93,7 +88,7 @@ kbd {
 }
 /* The top and the bottom keep their size; the middle block takes what they leave (see `.hud__mid`). */
 .hud__top, .hud__bottom { flex: none; }
-/* The boards' top bar (P01): the temporary wordmark, then the paths and the system chips on the pine felt. */
+/* The boards' top bar (P01): the brand mark, then the paths and the system chips on the pine felt. */
 .hud__top {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 6px 10px; border-radius: 18px;
@@ -101,7 +96,6 @@ kbd {
   border: 2px solid var(--gold); box-shadow: var(--shadow);
 }
 .hud__brand { flex: none; }
-.hud__brand .wordmark { font-size: 0.74rem; }
 .hud__nav { flex: 1 1 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 6px; }
 .hud__group { position: relative; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 .hud__system { justify-content: flex-end; }

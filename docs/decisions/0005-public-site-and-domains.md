@@ -1,6 +1,7 @@
 # IMPL-0005: Site público em `apps/site` e domínios `www` / `app`
 
-**Status:** Aceita (0.3.0, 2026-11-08)
+**Status:** Aceita (0.3.0, 2026-11-08) — decisão 3 (marcador temporário em texto) substituída por
+[IMPL-0029](0029-brand-logo-in-the-apps.md) quanto ao logotipo
 **Data:** 2026-11-08
 **Fontes:** pedido do responsável técnico (Augusto, 2026-11-08); DEC-021 (propósito e promessa), DEC-024 (logo em
 teste), PEN-011 (domínio); Código: `apps/site/`, `apps/web/wrangler.jsonc`, `apps/site/wrangler.jsonc`

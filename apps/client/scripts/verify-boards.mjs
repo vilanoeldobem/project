@@ -169,8 +169,8 @@ for (const [name, width, height] of [
   await ready(page);
 
   // P01: the bar with the brand and the four named paths, with nothing covering the village.
-  if (!(await page.locator('.hud__top[data-board="P01"] .hud__brand .wordmark').isVisible())) fail(`${name}: P01 has no wordmark in the bar`);
-  if ((await page.locator(".wordmark").count()) !== 1) fail(`${name}: the wordmark appears outside the header bar`);
+  if (!(await page.locator('.hud__top[data-board="P01"] .hud__brand .brandmark').isVisible())) fail(`${name}: P01 has no brand mark in the bar`);
+  if ((await page.locator(".brandmark").count()) !== 1) fail(`${name}: the brand mark appears outside the header bar`);
   for (const path of ["Explorar ONGs", "Jogar", "Doação global", "Indicar uma ONG"]) {
     if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) fail(`${name}: P01 path "${path}" is missing`);
   }

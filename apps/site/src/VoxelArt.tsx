@@ -7,29 +7,6 @@
 
 const crisp = { shapeRendering: "crispEdges" as const, focusable: "false" as const, "aria-hidden": true };
 
-/** Decorative header mark (not a logo, see App.tsx): gold star over a snow-capped pine, 12×12 grid. */
-export function VoxelCrestMark({ size = 32 }: { size?: number }) {
-  return (
-    <svg className="voxel-icon" width={size} height={size} viewBox="0 0 24 24" {...crisp}>
-      <g transform="scale(2)">
-        <rect x="5" y="0" width="1" height="1" fill="var(--accent-gold)" />
-        <rect x="4" y="1" width="3" height="1" fill="var(--accent-gold)" />
-        <rect x="5" y="2" width="1" height="1" fill="var(--accent-leaf)" />
-        <rect x="4" y="3" width="3" height="1" fill="var(--accent-leaf)" />
-        <rect x="3" y="4" width="5" height="1" fill="var(--accent-leaf)" />
-        <rect x="2" y="5" width="7" height="1" fill="var(--accent-leaf)" />
-        <rect x="2" y="5" width="1" height="1" fill="var(--snow)" />
-        <rect x="8" y="5" width="1" height="1" fill="var(--snow)" />
-        <rect x="1" y="6" width="9" height="1" fill="var(--accent-leaf)" />
-        <rect x="1" y="6" width="1" height="1" fill="var(--snow)" />
-        <rect x="9" y="6" width="1" height="1" fill="var(--snow)" />
-        <rect x="5" y="7" width="1" height="2" fill="var(--accent-gold-strong)" />
-        <rect x="1" y="9" width="9" height="1" fill="var(--snow)" />
-      </g>
-    </svg>
-  );
-}
-
 const BULB_COLORS = ["var(--bulb-gold)", "var(--bulb-red)", "var(--bulb-green)", "var(--bulb-blue)"];
 
 /**
