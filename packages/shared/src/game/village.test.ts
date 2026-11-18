@@ -302,7 +302,7 @@ describe("village plan in force (IMPL-0024, PROPOSTA)", () => {
     expect(standard).toBeGreaterThan(economy);
     // Every level asked can be reached by playing, with nothing bought: all three with the quest catalog on,
     // only the outer tier with the four missions that are open in production today (the plot panel says so).
-    expect([attainableLevel(false), attainableLevel(true)]).toEqual([2, 6]);
+    expect([attainableLevel(false), attainableLevel(true)]).toEqual([2, 7]);
     expect(premium).toBeLessThanOrEqual(attainableLevel(true));
     expect([premium, standard, economy].map((level) => level <= attainableLevel(false))).toEqual([false, false, true]);
     // The names the UI shows are places, not classes.

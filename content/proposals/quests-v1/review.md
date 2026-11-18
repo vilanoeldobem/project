@@ -210,3 +210,12 @@ Nenhum lugar inexistente em `world.ts` foi citado. As posições de NPC são sug
   números.
 - **Medição em GPU real**: a galeria e a verificação rodam com renderização por software no Chromium; custo de
   quadro em aparelho real não foi medido.
+
+## Adendo 2026-11-18 — epílogo "O ramo da chegada"
+
+O catálogo passou a **18 missões, 6 cadeias, 550 XP**, **9 objetos únicos** em **12 missões com objeto** e 6
+prompts de objeto. A revisão original acima continua sendo o retrato histórico das 15 missões; o acréscimo é o
+epílogo `welcome-bough` (`bough-ribbon` 15 → `bough-sprigs` 20 → `bough-delivery` 50), bloqueado até
+`story-page-delivery`, com o objeto novo `winter-sprig`. Validadores: `validate-quests.mjs` (18/5/6, XP 550),
+`validate-epilogue.mjs` (3/85) e `validate-objects.mjs` (9 objetos, 3 `reuse`, 6 `new`, 6 prompts, 12 missões com
+objeto). Decisão em [`epilogue-bough/README.md`](epilogue-bough/README.md).

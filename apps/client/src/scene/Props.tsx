@@ -15,7 +15,7 @@ import { lotLabel } from "../lib/lots";
 import { type Placement, Voxels } from "./Voxels";
 import { Smoke } from "./environment/Particles";
 import { villager } from "./gen/characters";
-import { donationPanel, ornamentCrate, reindeerBell } from "./gen/quest-items";
+import { donationPanel, ornamentCrate, reindeerBell, winterSprig } from "./gen/quest-items";
 import type { GenModel } from "./gen/types";
 import { gift as generateGift, lantern as generateLantern } from "./gen/props";
 import { house } from "./gen/houses";
@@ -240,6 +240,7 @@ const QUEST_ITEM_GEN: Record<string, (seed: string) => GenModel> = {
   "reindeer-bell": reindeerBell,
   "ornament-crate": ornamentCrate,
   "lake-lantern": generateLantern,
+  "winter-sprig": winterSprig,
 };
 
 /** Item of an active collect quest: floats and turns like a hidden gift, so it reads as pickable. */

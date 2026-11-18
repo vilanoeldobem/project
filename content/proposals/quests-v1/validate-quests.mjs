@@ -39,6 +39,8 @@ function loadTable(name) {
 }
 
 const TRACKS = ["explore", "play", "causes"];
+/** The epilogue starts from the end of the village story instead of being free from the start. */
+const CROSS_CHAINS = new Map([["welcome-bough", "story-page-delivery"]]);
 const TYPES = ["talk", "collect", "deliver", "visit", "read", "minigame", "interact"];
 const XP_ALLOWED = [15, 20, 25, 30, 40, 50];
 
@@ -48,8 +50,8 @@ const dialogues = loadTable("dialogues.csv");
 
 // --- ids and cardinality
 if (npcs.length !== 5) fail(`npcs.csv: expected 5 rows, got ${npcs.length}`);
-if (quests.length !== 15) fail(`quests.csv: expected 15 rows, got ${quests.length}`);
-if (dialogues.length !== 15) fail(`dialogues.csv: expected 15 rows, got ${dialogues.length}`);
+if (quests.length !== 18) fail(`quests.csv: expected 18 rows, got ${quests.length}`);
+if (dialogues.length !== 18) fail(`dialogues.csv: expected 18 rows, got ${dialogues.length}`);
 const npcIds = new Set(npcs.map((n) => n.npc_id));
 if (npcIds.size !== npcs.length) fail("npcs.csv: duplicated npc_id");
 const questIds = new Set(quests.map((q) => q.missao_id));
@@ -65,7 +67,7 @@ for (const q of quests) {
   if (!chains.has(q.cadeia_id)) chains.set(q.cadeia_id, []);
   chains.get(q.cadeia_id).push(q);
 }
-if (chains.size !== 5) fail(`expected 5 chains, got ${chains.size}`);
+if (chains.size !== 6) fail(`expected 6 chains, got ${chains.size}`);
 for (const [cid, list] of chains) {
   const sorted = [...list].sort((a, b) => Number(a.ordem) - Number(b.ordem));
   if (sorted.map((q) => Number(q.ordem)).join(",") !== "1,2,3") fail(`chain ${cid}: ordem must be 1,2,3`);
@@ -73,7 +75,7 @@ for (const [cid, list] of chains) {
   if (act.size !== 1) fail(`chain ${cid}: quests must share one activation NPC`);
   const owner = npcs.find((n) => n.npc_id === sorted[0].npc_ativacao);
   if (!owner) fail(`chain ${cid}: activation NPC missing from npcs.csv`);
-  else if (owner.cadeia_id !== cid) fail(`chain ${cid}: owner npc maps to chain ${owner.cadeia_id}`);
+  else if (owner.cadeia_id !== cid && !CROSS_CHAINS.has(cid)) fail(`chain ${cid}: owner npc maps to chain ${owner.cadeia_id}`);
   if (!sorted.some((q) => q.trilha === "explore")) fail(`chain ${cid}: no explore quest`);
   const types = sorted.map((q) => q.tipo_objetivo);
   if (new Set(types).size !== 3) fail(`chain ${cid}: objective types not distinct (${types.join(", ")})`);
@@ -84,7 +86,8 @@ for (const n of npcs) {
   if (n.gerador !== "villager") fail(`${n.npc_id}: gerador must be villager`);
   if (n.semente !== n.npc_id) fail(`${n.npc_id}: semente must equal npc_id`);
   const own = quests.filter((q) => q.npc_ativacao === n.npc_id);
-  if (own.length !== 3) fail(`${n.npc_id}: activates ${own.length} quests, expected 3`);
+  const expected = n.npc_id === "storyteller" ? 6 : 3;
+  if (own.length !== expected) fail(`${n.npc_id}: activates ${own.length} quests, expected ${expected}`);
 }
 
 // --- tracks
@@ -93,8 +96,8 @@ for (const q of quests) {
   if (!TRACKS.includes(q.trilha)) fail(`${q.missao_id}: invalid trilha "${q.trilha}"`);
   tracks[q.trilha]++;
 }
-if (tracks.explore !== 8 || tracks.play !== 4 || tracks.causes !== 3)
-  fail(`tracks must be 8/4/3, got ${tracks.explore}/${tracks.play}/${tracks.causes}`);
+if (tracks.explore !== 11 || tracks.play !== 4 || tracks.causes !== 3)
+  fail(`tracks must be 11/4/3, got ${tracks.explore}/${tracks.play}/${tracks.causes}`);
 const playChains = new Set(quests.filter((q) => q.trilha === "play").map((q) => q.cadeia_id)).size;
 const causeChains = new Set(quests.filter((q) => q.trilha === "causes").map((q) => q.cadeia_id)).size;
 if (playChains < 2) fail(`only ${playChains} chains include play`);
@@ -115,7 +118,7 @@ for (const t of TYPES) {
 for (const list of chains.values()) {
   const sorted = [...list].sort((a, b) => Number(a.ordem) - Number(b.ordem));
   sorted.forEach((q, i) => {
-    const expected = i === 0 ? "" : sorted[i - 1].missao_id;
+    const expected = i === 0 ? (CROSS_CHAINS.get(list[0].cadeia_id) ?? "") : sorted[i - 1].missao_id;
     if (q.prerequisito_id !== expected)
       fail(`${q.missao_id}: prerequisito_id must be "${expected || "(empty)"}", got "${q.prerequisito_id}"`);
   });
@@ -140,7 +143,7 @@ for (const q of quests) {
   if (Number(q.ordem) === 3 && xp !== 50) fail(`${q.missao_id}: finale must award 50 XP`);
   xpTotal += xp;
 }
-if (xpTotal < 400 || xpTotal > 500) fail(`total XP ${xpTotal} outside 400-500`);
+if (xpTotal < 400 || xpTotal > 600) fail(`total XP ${xpTotal} outside 400-600`);
 
 // --- objects and quantities
 const usage = {};

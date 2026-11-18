@@ -1,22 +1,23 @@
 # quests-v1 — proposta de missões da Vila
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
-> Conteúdo narrativo para avaliação. O runtime das 15 missões está implementado para
+> Conteúdo narrativo para avaliação. O runtime das 18 missões está implementado para
 > avaliação local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` no cliente e
 > `QUESTS_V1_ENABLED` na API), desligado em produção e staging; nada aqui é decisão aprovada.
 
 ## Contagens
 
-- 15 missões · 5 NPCs fictícios · 5 cadeias de 3 missões (convite → complicação → finale)
-- XP total: **465** (≈ nível 5 no protótipo com XP_PER_LEVEL = 100)
-- 6 entregas cruzadas (NPC de entrega diferente do de ativação)
-- 8 objetos únicos; o mais usado aparece em 2 quests
+- 18 missões · 5 NPCs fictícios · 6 cadeias de 3 missões (convite → complicação → finale); a sexta é o epílogo
+  "O ramo da chegada", aberto depois de `story-page-delivery`
+- XP total: **550** (≈ nível 6 no protótipo com XP_PER_LEVEL = 100)
+- 7 entregas cruzadas (NPC de entrega diferente do de ativação)
+- 9 objetos únicos; o mais usado aparece em 2 quests
 
 ## Distribuição por trilha
 
 | Trilha | Quests |
 |---|---|
-| explore | 8 |
+| explore | 11 |
 | play | 4 |
 | causes | 3 |
 
@@ -25,12 +26,12 @@
 | Tipo | Quests |
 |---|---|
 | talk | 1 |
-| collect | 3 |
-| deliver | 3 |
+| collect | 4 |
+| deliver | 4 |
 | visit | 2 |
 | read | 1 |
 | minigame | 3 |
-| interact | 2 |
+| interact | 3 |
 
 ## Distribuição por status_mecanica
 
@@ -38,7 +39,7 @@
 |---|---|---|
 | existing | 3 | route-memory-game, market-lucky-game, letter-pairs-game |
 | partial | 3 | newest-house-visit, tree-promise-visit, donation-promise-reading |
-| new | 9 | demais |
+| new | 12 | demais |
 
 ## Cadeias
 
@@ -49,19 +50,31 @@
 | undelivered-letters | Seu Nivaldo | As cartas que ficaram | frozen-mailbox (15) → letter-pairs-game (30) → newest-house-visit (50) | 95 |
 | lake-lights | Aurora | A noite das luzes do lago | lake-lanterns (20) → kids-sled-run (25) → lantern-for-the-flight (50) | 95 |
 | village-story | Dona Guida | O livro da Vila | tree-promise-visit (15) → donation-promise-reading (20) → story-page-delivery (50) | 85 |
+| welcome-bough | Dona Guida | O ramo da chegada | bough-ribbon (15) → bough-sprigs (20) → bough-delivery (50) | 85 |
 
-## Objetos únicos (8)
+## Objetos únicos (9)
 
 | objeto_id | Nome | Tipo | Usos |
 |---|---|---|---|
 | reindeer-bell | Sino do arreio | quest_item | harness-bells |
 | lucky-charm | Patuá da sorte | quest_item | charm-for-the-flight |
 | ornament-crate | Caixa de enfeites | quest_item | ornament-crates |
-| village-mailbox | Caixa de correio | world_prop | frozen-mailbox |
+| village-mailbox | Caixa de correio | world_prop | frozen-mailbox, bough-ribbon |
 | lake-lantern | Lanterna do lago | quest_item | lake-lanterns, lantern-for-the-flight |
 | kids-sled | Trenó pequeno | world_prop | kids-sled-run |
 | donation-panel | Painel de doação global | world_prop | donation-promise-reading |
 | story-page | Página da história | quest_item | story-page-delivery |
+| winter-sprig | Ramo de pinheiro | quest_item | bough-sprigs, bough-delivery |
+
+## Epílogo (2026-11-18)
+
+A sexta cadeia, **O ramo da chegada** (`welcome-bough`), é um epílogo de três missões: depois de a página do livro
+viajar, Dona Guida solta o laço preso na caixa de correio, recolhe dois ramos de pinheiro no mercado oeste e entrega
+o ramo pronto a Seu Nivaldo. Ela só abre depois de `story-page-delivery` e usa o mesmo motor, os mesmos NPCs e os
+mesmos pontos livres das caixas do mercado e da caixa de correio (só uma missão fica ativa por vez). O único objeto
+novo é `winter-sprig`; não há bandeira nova, migration ou passo de doação. Decisão e alternativas em
+[`epilogue-bough/README.md`](epilogue-bough/README.md); pesquisa em
+[`../../research/missoes-epilogo-ramo-2026-11-18.md`](../../research/missoes-epilogo-ramo-2026-11-18.md).
 
 ## Lacunas de mecânica (implementadas em local/dev atrás de flags)
 
@@ -83,10 +96,11 @@ flags ficam desligadas em produção.
 
 `node validate-quests.mjs` confere as regras estruturais (contagens, trilhas, tipos,
 pré-requisitos, entregas cruzadas, XP, objetos, limites de texto e ausência de marcadores
-de preenchimento).
+de preenchimento). `node validate-epilogue.mjs` confere só a cadeia do epílogo (3 missões, 3 tipos,
+85 XP, finale 50, entrega cruzada, limites de texto e ausência de marcadores).
 
 `node validate-objects.mjs` confere a normalização de [`objects.csv`](objects.csv) e a fila de
-[`object-prompts/`](object-prompts/README.md): as 9 missões com objeto cobertas por 8 objetos
+[`object-prompts/`](object-prompts/README.md): as 12 missões com objeto cobertas por 9 objetos
 únicos, uso de 1 a 4 missões por objeto, orçamentos de voxels e faces, coerência de status
 (`reuse` sem prompt, `new` com prompt) e ausência de marcadores de preenchimento. O relatório
 desta revisão está em [`review.md`](review.md).

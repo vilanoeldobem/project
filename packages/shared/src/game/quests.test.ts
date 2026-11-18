@@ -55,13 +55,13 @@ const csvTable = (name: string) => {
 const apply = (p: Progress, questId: string, ...events: string[]) => events.reduce((acc, e) => applyEvent(acc, questId, e).progress, p);
 
 describe("catalog integrity", () => {
-  it("has 15 quests with unique ids", () => {
-    expect(QUESTS).toHaveLength(15);
-    expect(new Set(QUESTS.map((q) => q.id)).size).toBe(15);
+  it("has 18 quests with unique ids", () => {
+    expect(QUESTS).toHaveLength(18);
+    expect(new Set(QUESTS.map((q) => q.id)).size).toBe(18);
   });
 
-  it("has 5 chains of orders 1, 2, 3 with the published titles", () => {
-    expect(Object.keys(CHAIN_TITLES)).toHaveLength(5);
+  it("has 6 chains of orders 1, 2, 3 with the published titles", () => {
+    expect(Object.keys(CHAIN_TITLES)).toHaveLength(6);
     for (const [chainId, title] of Object.entries(CHAIN_TITLES)) {
       const chain = QUESTS.filter((q) => q.chainId === chainId);
       expect(chain.map((q) => q.order).sort()).toEqual([1, 2, 3]);
@@ -69,34 +69,34 @@ describe("catalog integrity", () => {
     }
   });
 
-  it("gives exactly 3 quests per NPC and keeps prerequisites linear", () => {
-    for (const npc of NPC_IDS) expect(QUESTS.filter((q) => q.giverNpcId === npc)).toHaveLength(3);
+  it("gives 3 quests per NPC, 6 to the storyteller's second chain, and keeps prerequisites linear", () => {
+    for (const npc of NPC_IDS) expect(QUESTS.filter((q) => q.giverNpcId === npc)).toHaveLength(npc === "storyteller" ? 6 : 3);
     for (const chainId of Object.keys(CHAIN_TITLES)) {
       const chain = QUESTS.filter((q) => q.chainId === chainId).sort((a, b) => a.order - b.order);
-      expect(chain[0].prerequisiteId).toBeUndefined();
+      expect(chain[0].prerequisiteId).toBe(chainId === "welcome-bough" ? "story-page-delivery" : undefined);
       expect(chain[1].prerequisiteId).toBe(chain[0].id);
       expect(chain[2].prerequisiteId).toBe(chain[1].id);
     }
   });
 
-  it("keeps XP in the allowed set, finales at 50 and the total at 465", () => {
+  it("keeps XP in the allowed set, finales at 50 and the total at 550", () => {
     expect(new Set(QUESTS.map((q) => q.xp))).toEqual(new Set([15, 20, 25, 30, 50]));
     for (const q of QUESTS.filter((x) => x.order === 3)) expect(q.xp).toBe(50);
-    expect(QUESTS.reduce((sum, q) => sum + q.xp, 0)).toBe(465);
+    expect(QUESTS.reduce((sum, q) => sum + q.xp, 0)).toBe(550);
     expect(MISSIONS.reduce((sum, m) => sum + m.xp, 0)).toBe(110);
   });
 
   it("covers the track and objective-type distribution", () => {
     const track = (t: string) => QUESTS.filter((q) => q.track === t).length;
-    expect([track("explore"), track("play"), track("causes")]).toEqual([8, 4, 3]);
+    expect([track("explore"), track("play"), track("causes")]).toEqual([11, 4, 3]);
     const type = (t: string) => QUESTS.filter((q) => q.objectiveType === t).length;
-    expect(["talk", "collect", "deliver", "visit", "read", "minigame", "interact"].map(type)).toEqual([1, 3, 3, 2, 1, 3, 2]);
+    expect(["talk", "collect", "deliver", "visit", "read", "minigame", "interact"].map(type)).toEqual([1, 4, 4, 2, 1, 3, 3]);
   });
 
-  it("uses 8 unique objects in 9 quests", () => {
+  it("uses 9 unique objects in 12 quests", () => {
     const objectIds = QUESTS.filter((q) => q.objectKind !== "none").map((q) => q.objectId);
-    expect(QUESTS.filter((q) => q.objectId).length).toBe(9);
-    expect(new Set(objectIds).size).toBe(8);
+    expect(QUESTS.filter((q) => q.objectId).length).toBe(12);
+    expect(new Set(objectIds).size).toBe(9);
     for (const q of QUESTS) if (q.objectKind !== "none") expect(q.objectName).toBeTruthy();
   });
 
@@ -114,7 +114,7 @@ describe("catalog integrity", () => {
 describe("catalog matches content/proposals/quests-v1", () => {
   it("matches every quests.csv field", () => {
     const rows = csvTable("quests.csv");
-    expect(rows).toHaveLength(15);
+    expect(rows).toHaveLength(18);
     for (const row of rows) {
       const quest = QUESTS.find((q) => q.id === row.missao_id);
       expect(quest, row.missao_id).toBeTruthy();
@@ -150,7 +150,7 @@ describe("catalog matches content/proposals/quests-v1", () => {
       if (row.cadeia_id) expect(CHAIN_TITLES[row.cadeia_id]).toBe(row.titulo_cadeia);
     }
     const dialogues = csvTable("dialogues.csv");
-    expect(dialogues).toHaveLength(15);
+    expect(dialogues).toHaveLength(18);
     for (const row of dialogues) {
       const quest = QUESTS.find((q) => q.id === row.missao_id);
       expect(quest, row.missao_id).toBeTruthy();
@@ -182,10 +182,11 @@ describe("world coverage", () => {
 });
 
 describe("quest state machine", () => {
-  it("starts with one available quest per chain", () => {
-    expect(questState(EMPTY_PROGRESS, "harness-bells")).toBe("available");
-    expect(questState(EMPTY_PROGRESS, "route-memory-game")).toBe("locked");
-    expect(questState(EMPTY_PROGRESS, "charm-for-the-flight")).toBe("locked");
+  it("starts with one available quest per open chain, and the epilogue locked behind the story", () => {
+    for (const chainId of Object.keys(CHAIN_TITLES)) {
+      const first = QUESTS.filter((q) => q.chainId === chainId).sort((a, b) => a.order - b.order)[0];
+      expect(questState(EMPTY_PROGRESS, first.id), chainId).toBe(chainId === "welcome-bough" ? "locked" : "available");
+    }
     expect(activeQuest(EMPTY_PROGRESS)).toBeUndefined();
     expect(activeInventory(EMPTY_PROGRESS)).toEqual([]);
     expect(questState(EMPTY_PROGRESS, "unknown-quest")).toBe("locked");
@@ -286,16 +287,16 @@ describe("quest state machine", () => {
     expect(questState(p, "harness-bells")).toBe("available");
   });
 
-  it("replays the whole 465 XP log in any order without exceeding 465", () => {
+  it("replays the whole 550 XP log in any order without exceeding 550", () => {
     const log: Array<[string, string]> = QUESTS.flatMap((q) => [
       [q.id, "accept"] as [string, string],
       ...q.objectiveEventIds.map((e) => [q.id, e] as [string, string]),
       [q.id, "turn-in"] as [string, string],
     ]);
     const replay = (events: Array<[string, string]>) => events.reduce((p, [m, e]) => applyEvent(p, m, e).progress, EMPTY_PROGRESS);
-    expect(replay(log).xp).toBe(465);
-    expect(replay([...log, ...log]).xp).toBe(465);
-    expect(replay([...log].reverse()).xp).toBeLessThanOrEqual(465);
+    expect(replay(log).xp).toBe(550);
+    expect(replay([...log, ...log]).xp).toBe(550);
+    expect(replay([...log].reverse()).xp).toBeLessThanOrEqual(550);
 
     // Deterministic permutations: the counters are recomputed from `seen`, so no order can over-grant.
     let seed = 7;
@@ -306,11 +307,11 @@ describe("quest state machine", () => {
         const j = seed % (i + 1);
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
-      expect(replay(shuffled).xp).toBeLessThanOrEqual(465);
+      expect(replay(shuffled).xp).toBeLessThanOrEqual(550);
     }
   });
 
-  it("completes all 15 quests in chain order", () => {
+  it("completes all 18 quests in chain order", () => {
     let p = EMPTY_PROGRESS;
     let xp = 0;
     for (const chainId of Object.keys(CHAIN_TITLES)) {
@@ -328,7 +329,40 @@ describe("quest state machine", () => {
         expect(p.xp).toBe(xp);
       }
     }
-    expect(p.xp).toBe(465);
+    expect(p.xp).toBe(550);
     expect(Object.keys(p.completed).sort()).toEqual(QUESTS.map((q) => q.id).sort());
+  });
+
+  it("unlocks the epilogue only after the village story is delivered, then runs it once", () => {
+    expect(questState(EMPTY_PROGRESS, "bough-ribbon")).toBe("locked");
+    let p = apply(EMPTY_PROGRESS, "tree-promise-visit", "accept", "tree", "turn-in");
+    p = apply(p, "donation-promise-reading", "accept", "read-confirm", "turn-in");
+    p = apply(p, "story-page-delivery", "accept", "turn-in");
+    expect(p.completed["story-page-delivery"]).toBe(true);
+    expect(p.xp).toBe(85);
+    expect(questState(p, "bough-ribbon")).toBe("available");
+
+    p = apply(p, "bough-ribbon", "accept");
+    expect(questState(p, "bough-ribbon")).toBe("active");
+    p = apply(p, "bough-ribbon", "bough-ribbon");
+    expect(questState(p, "bough-ribbon")).toBe("ready_to_turn_in");
+    p = apply(p, "bough-ribbon", "turn-in");
+    expect(p.xp).toBe(100);
+
+    p = apply(p, "bough-sprigs", "accept");
+    expect(questState(p, "bough-sprigs")).toBe("active");
+    p = apply(p, "bough-sprigs", "sprig-market-1", "sprig-market-2");
+    expect(questState(p, "bough-sprigs")).toBe("ready_to_turn_in");
+    p = apply(p, "bough-sprigs", "turn-in");
+    expect(p.xp).toBe(120);
+
+    p = apply(p, "bough-delivery", "accept");
+    expect(questState(p, "bough-delivery")).toBe("ready_to_turn_in");
+    p = apply(p, "bough-delivery", "turn-in");
+    expect(p.xp).toBe(170);
+    expect(p.completed["bough-ribbon"]).toBe(true);
+    expect(p.completed["bough-sprigs"]).toBe(true);
+    expect(p.completed["bough-delivery"]).toBe(true);
+    expect(activeInventory(p)).toEqual([]);
   });
 });

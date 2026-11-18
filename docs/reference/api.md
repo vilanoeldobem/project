@@ -417,7 +417,7 @@ O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
   num navegador compartilhado a próxima pessoa não herda nada.
 - Confiança (**PROPOSTA**): o servidor confere ids de missão, ids de evento conhecidos, idempotência e, nas quests, a
   ordem das transições; não prova que o presente foi achado nem que o NPC foi visitado na cena. Uma conta consegue
-  forjar no máximo o XP do catálogo (575 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
+  forjar no máximo o XP do catálogo (660 XP com as quests ligadas). XP não dá nada que dinheiro compre, e doação não
   dá XP.
 
 O formato de sucesso é sempre `{progress}`, o estado autoritativo da conta. Exemplo: um visitante com

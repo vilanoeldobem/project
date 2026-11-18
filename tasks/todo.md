@@ -971,3 +971,25 @@ hardening, migration 0014 not applied remotely). No open PRs, no extra branches 
 - [ ] B. "HUD da ONG e segundo jogo" (P04, P09; D10, D24): read the boards and the decision log first.
 
 Owner-only items are listed in ROADMAP.md, "Pendências do responsável".
+
+# Task: quest epilogue "O ramo da chegada" — 2026-11-18
+
+PROPOSTA (PEN-025), atrás das flags existentes; no production/staging change.
+
+## Plan
+
+- [x] Decision doc `content/proposals/quests-v1/epilogue-bough/README.md` (five options, chosen epilogue, cut line,
+      XP budget, places, risks, acceptance) and research `content/research/missoes-epilogo-ramo-2026-11-18.md`
+      (10 sources read, 2 accessibility, 2 voxels, discarded ones recorded).
+- [x] Content: three quests and dialogues appended to `quests.csv`/`dialogues.csv`, `winter-sprig` in
+      `objects.csv`/`objects.md`, prompt `06-winter-sprig.md`, own `validate-epilogue.mjs`.
+- [x] Runtime: catalog `welcome-bough` (bough-ribbon 15 → bough-sprigs 20 → bough-delivery 50, gated after
+      `story-page-delivery`), two market pickups, mailbox interaction, `quest-winter-sprig` generator, HUD copy.
+- [x] Tests: shared catalog/state/motion/village counts and epilogue state test; API epilogue test (blocked before
+      the story, 85 XP after, idempotent, flag off); browser verifier extended to 18 quests.
+- [x] Validators: `validate-quests.mjs` 18/5/6/550; `validate-objects.mjs` 9 objects/6 prompts/12 quests with object;
+      `validate-epilogue.mjs` 3/85.
+- [x] Browser: `verify-quests.mjs` on local Workers (18 quests, 630 XP = 550 + 80 incidental, lot plaza-01) and
+      `verify.mjs` budget (max 106 calls / 179 542 triangles in scene; gallery props 172 calls / 41 050 triangles).
+- [x] `pnpm check` exit 0 (typecheck all packages; shared 261, API 464, client 733 tests; builds done).
+

@@ -2,22 +2,22 @@
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
 > Derivado de [`quests.csv`](quests.csv) e de [`story-bible.md`](story-bible.md); nada aqui é decisão
-> aprovada. Os cinco objetos `new` têm gerador em `apps/client/src/scene/gen/quest-items.ts` e estão `done`;
+> aprovada. Os seis objetos `new` têm gerador em `apps/client/src/scene/gen/quest-items.ts` e estão `done`;
 > os três `reuse` continuam usando geradores de `props.ts`. Referências visuais em
 > [`object-references.md`](object-references.md).
 
 ## 1. Regras da normalização
 
-- Entram apenas as linhas de `quests.csv` com `tipo_objeto` diferente de `none` (9 linhas).
+- Entram apenas as linhas de `quests.csv` com `tipo_objeto` diferente de `none` (12 linhas).
 - Agrupamento por `objeto_id`; `nome_objeto` e `tipo_objeto` idênticos em todas as ocorrências e
   `qtd_total` igual à soma exata de `qtd_objetos`.
-- Resultado: **8 objetos únicos** (meta de 8 a 12), nenhum objeto usado em mais de 2 missões.
+- Resultado: **9 objetos únicos** (meta de 8 a 12), nenhum objeto usado em mais de 2 missões.
 - Tetos de orçamento: **80 voxels / 200 faces** para `quest_item` e **220 voxels / 600 faces** para
   `world_prop` (categoria `props` de IMPL-0010).
 - Classificação: `reuse` quando um gerador existente de `apps/client/src/scene/gen/props.ts` cobre a
   silhueta por variação de semente; `new` (`status_build: pending` até o gerador ser implementado, depois
   `done`) quando a silhueta exige gerador próprio em `apps/client/src/scene/gen/quest-items.ts`. Troca apenas
-  de cor não conta como reuso. Os cinco objetos `new` já estão `done`.
+  de cor não conta como reuso. Os seis objetos `new` já estão `done`.
 - Tabela completa em [`objects.csv`](objects.csv); prompts em [`object-prompts/`](object-prompts/README.md).
 
 ## 2. Índice por cadeia e missão
@@ -66,6 +66,15 @@
 `qtd_objetos = 0` porque o tipo de objetivo é `read`; o painel existe uma única vez no mundo, junto à
 grande árvore, e é inspecionado, não coletado.
 
+### welcome-bough — o epílogo de Dona Guida
+
+| missão | objetivo | objeto_id | nome_objeto | tipo_objeto | qtd | gerador | status_build | orçamento (voxels / faces) | prompt |
+|---|---|---|---|---:|---|---|---|---|---|
+| bough-sprigs | collect | winter-sprig | Ramo de pinheiro | quest_item | 2 | quest-winter-sprig | done | 80 / 200 | [06-winter-sprig.md](object-prompts/06-winter-sprig.md) |
+| bough-delivery | deliver | winter-sprig | Ramo de pinheiro | quest_item | 1 | quest-winter-sprig | done | 80 / 200 | [06-winter-sprig.md](object-prompts/06-winter-sprig.md) |
+
+`bough-ribbon` reusa a caixa de correio (`village-mailbox`), sem objeto novo.
+
 ## 3. Catálogo consolidado por `objeto_id`
 
 | objeto_id | nome_objeto | tipo_objeto | status_build | classificação | gerador | cadeia | usado_em | qtd_total | semente | orçamento (voxels / faces) | tamanho | interação | colisão | materiais |
@@ -73,11 +82,12 @@ grande árvore, e é inspecionado, não coletado.
 | reindeer-bell | Sino do arreio | quest_item | done | new | quest-reindeer-bell | flight-night | harness-bells | 2 | reindeer-bell | 80 / 200 | 0.18 | pickup | none | solid |
 | lucky-charm | Patuá da sorte | quest_item | done | new | quest-lucky-charm | flight-night | charm-for-the-flight | 1 | lucky-charm | 80 / 200 | 0.18 | carry | none | solid |
 | ornament-crate | Caixa de enfeites | quest_item | done | new | quest-ornament-crate | market-opening | ornament-crates | 2 | ornament-crate | 80 / 200 | 0.2 | pickup | none | solid;emissive |
-| village-mailbox | Caixa de correio | world_prop | reuse | reuse | mailbox | undelivered-letters | frozen-mailbox | 1 | village-mail | 220 / 600 | 0.2 | interact | small | solid |
+| village-mailbox | Caixa de correio | world_prop | reuse | reuse | mailbox | undelivered-letters | frozen-mailbox;bough-ribbon | 2 | village-mail | 220 / 600 | 0.2 | interact | small | solid |
 | lake-lantern | Lanterna do lago | quest_item | reuse | reuse | lantern | lake-lights | lake-lanterns;lantern-for-the-flight | 3 | lake-lantern | 80 / 200 | 0.22 | pickup | none | solid;emissive |
 | kids-sled | Trenó pequeno | world_prop | reuse | reuse | sled | lake-lights | kids-sled-run | 1 | kids-sled | 220 / 600 | 0.22 | interact | small | solid |
 | donation-panel | Painel de doação global | world_prop | done | new | quest-donation-panel | village-story | donation-promise-reading | 0 | donation-panel | 220 / 600 | 0.2 | inspect | small | solid;emissive |
 | story-page | Página da história | quest_item | done | new | quest-story-page | village-story | story-page-delivery | 1 | story-page | 80 / 200 | 0.18 | carry | none | solid |
+| winter-sprig | Ramo de pinheiro | quest_item | done | new | quest-winter-sprig | welcome-bough | bough-sprigs;bough-delivery | 3 | winter-sprig | 80 / 200 | 0.18 | pickup | none | solid |
 
 ## 4. Justificativa de classificação
 
@@ -91,7 +101,7 @@ grande árvore, e é inspecionado, não coletado.
 - `kids-sled` → `sled` com semente `kids-sled`: patins curvos, assento ripado e encosto/carga opcional
   já são o trenó pequeno guardado ao sul (47 voxels e 170 faces, medidos).
 
-**`new` (5, todos `done`)** — nenhum gerador de `props.ts` cobre a silhueta; os cinco estão em
+**`new` (6, todos `done`)** — nenhum gerador de `props.ts` cobre a silhueta; os cinco estão em
 `apps/client/src/scene/gen/quest-items.ts` e foram conferidos na galeria de adereços:
 
 - `reindeer-bell`: sino de arreio com cúpula metálica, badalo e alça de couro; `gift` é caixa fechada e
@@ -105,5 +115,7 @@ grande árvore, e é inspecionado, não coletado.
   medido: 77 voxels / 196 faces.
 - `story-page`: folha/pergaminho com debruado, uma faixa de fita e lacre; nenhum gerador produz papel.
   Máximo medido: 47 voxels / 130 faces.
+- `winter-sprig`: ramo de pinheiro com haste diagonal, leque de agulhas e bagas; `pine` é árvore inteira e
+  `garland` é fita de folhagem, não um ramo solto. Máximo medido: 23 voxels / 90 faces.
 
-Mudar só a cor de um `gift` não foi aceito como reuso em nenhum dos cinco casos.
+Mudar só a cor de um `gift` não foi aceito como reuso em nenhum dos seis casos.
