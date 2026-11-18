@@ -327,10 +327,52 @@ export function storyPage(seed: Seed): GenModel {
   return { voxels: done(out), size: 0.18 };
 }
 
+/**
+ * Pine sprig (`winter-sprig`, PROPOSTA epilogue `welcome-bough`): a diagonal wooden stem with a three-layer
+ * needle fan, two or three red berries on one side and a snow dab on the tip. Reads at 0.18 u; budget
+ * 80 voxels / 200 faces (props category allows more, the quest-item ceiling is the smaller one).
+ */
+export function winterSprig(seed: Seed): GenModel {
+  const r = new Rng(seed, "quest-winter-sprig");
+  const needles = r.pick([
+    [P.pine, P.pineDark],
+    [P.pineLight, P.pine],
+    [P.leaf, P.pineDark],
+  ] as const);
+  const berry = r.pick([P.red, V.redDeep] as const);
+  const berryCount = r.int(2, 3);
+  const berrySide = r.chance(0.5) ? 1 : -1;
+  const snow = r.chance(0.5);
+  const tall = r.chance(0.5);
+  const turn = r.int(0, 1);
+  const v: Voxel[] = [];
+  const top = tall ? 5 : 4;
+  // Stem: one wood voxel per level, leaning one voxel in +x every two levels so the silhouette is diagonal.
+  for (let y = 0; y <= top; y++) v.push([Math.floor(y / 2), y, 0, y === 0 ? V.woodDark : P.trunk]);
+  // Needle fan: a two-voxel group on alternating sides at every level, plus a short cross needle up top.
+  for (let y = 2; y <= top; y++) {
+    const x = Math.floor(y / 2);
+    const side = y % 2 ? 1 : -1;
+    for (let k = 1; k <= 2; k++) v.push([x + side * k, y, 0, needles[k - 1]]);
+    if (y >= 4) v.push([x, y, side, needles[0]]);
+  }
+  // Top tuft and two berries beside the stem; a third berry the taller seeds carry above them.
+  const tx = Math.floor(top / 2);
+  v.push([tx, top + 1, 0, needles[0]], [tx - 1, top + 1, 0, needles[1]], [tx + 1, top + 1, 0, needles[1]]);
+  for (let b = 0; b < berryCount; b++) {
+    const y = 3 + b;
+    v.push([Math.floor(y / 2) + berrySide, y, 1, berry]);
+  }
+  if (snow) v.push([tx, top + 2, 0, P.snow]);
+  const out = turn ? rotate(v, 1) : v;
+  return { voxels: done(out), size: 0.18 };
+}
+
 export const QUEST_ITEMS: Generator[] = [
   { id: "quest-reindeer-bell", category: "props", name: "Sino do arreio", generate: reindeerBell },
   { id: "quest-lucky-charm", category: "props", name: "Patuá da sorte", generate: luckyCharm },
   { id: "quest-ornament-crate", category: "props", name: "Caixa de enfeites", generate: ornamentCrate },
   { id: "quest-donation-panel", category: "props", name: "Painel de doação global", generate: donationPanel },
   { id: "quest-story-page", category: "props", name: "Página da história", generate: storyPage },
+  { id: "quest-winter-sprig", category: "props", name: "Ramo de pinheiro", generate: winterSprig },
 ];

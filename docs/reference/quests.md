@@ -2,16 +2,17 @@
 
 > **Status:** Implementado no cliente, na API e no código compartilhado, atrás de flags; conteúdo **PROPOSTA**
 > (DEC-039 a DEC-042; catálogo pendente em PEN-025) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-13
+> **Atualizado em:** 2026-11-18
 > **Fonte de verdade:** `packages/shared/src/game/quests.ts`, `packages/shared/src/game/progress.ts`,
 > `packages/shared/src/game/world.ts`, `apps/client/src/{game,scene,ui}`, `apps/api/src/progress.ts`;
 > conteúdo em `content/proposals/quests-v1/` (PROPOSTA). Decisão técnica:
 > [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
 
-O runtime de `quests-v1` leva ao jogo as 15 missões narrativas da [proposta](../../content/proposals/quests-v1/README.md)
-(cinco cadeias de três missões). Nada aqui é decisão de produto: o catálogo, os XP, os cinco moradores fictícios e
-os visuais continuam pendentes em **PEN-025**. Em produção tudo fica desligado; nada muda para quem joga sem as flags:
-sem NPCs, sem itens, sem atril de doação, sem os obstáculos deles e sem nenhum evento de quest enviado ou gravado.
+O runtime de `quests-v1` leva ao jogo as 18 missões narrativas da [proposta](../../content/proposals/quests-v1/README.md)
+(seis cadeias de três missões; o epílogo "O ramo da chegada" é a sexta). Nada aqui é decisão de produto: o catálogo,
+os XP, os cinco moradores fictícios e os visuais continuam pendentes em **PEN-025**. Em produção tudo fica desligado;
+nada muda para quem joga sem as flags: sem NPCs, sem itens, sem atril de doação, sem os obstáculos deles e sem nenhum
+evento de quest enviado ou gravado.
 
 ## 1. Flags
 
@@ -30,7 +31,8 @@ não põe eventos de quest na fila nem os envia; um evento de quest que já esti
 de reenviado. Se só um dos lados estiver ligado, nada de quest aparece.
 
 As quatro missões rápidas (`explore-gifts`, `play-memory`, `causes-visit-lot`, `causes-global-donation`) continuam
-iguais e **sempre** aceitas pela API, com ou sem a flag.
+iguais e **sempre** aceitas pela API, com ou sem a flag. O epílogo "O ramo da chegada" não tem bandeira própria:
+roda atrás destas duas mesmas flags e fica desligado junto com o resto do catálogo.
 
 ## 2. Catálogo
 
@@ -51,10 +53,14 @@ iguais e **sempre** aceitas pela API, com ou sem a flag.
 | O livro da Vila (`village-story`) | 1 | `tree-promise-visit` | visit | Dona Guida → Dona Guida | 15 |
 | | 2 | `donation-promise-reading` | read | Dona Guida → Dona Guida | 20 |
 | | 3 | `story-page-delivery` | deliver | Dona Guida → Seu Nivaldo | 50 |
+| O ramo da chegada (`welcome-bough`, epílogo) | 1 | `bough-ribbon` | interact | Dona Guida → Dona Guida | 15 |
+| | 2 | `bough-sprigs` | collect | Dona Guida → Dona Guida | 20 |
+| | 3 | `bough-delivery` | deliver | Dona Guida → Seu Nivaldo | 50 |
 
-Total: **465 XP** de quest (mais os 110 XP das quatro missões rápidas, **575 XP** ao todo). Níveis continuam
-`floor(xp / 100) + 1` (`XP_PER_LEVEL = 100`): só as quests levam ao nível 5 (`floor(465 / 100) + 1`) e a soma com as
-missões rápidas leva ao **nível 6** (`floor(575 / 100) + 1`).
+Total: **550 XP** de quest (mais os 110 XP das quatro missões rápidas, **660 XP** ao todo). Níveis continuam
+`floor(xp / 100) + 1` (`XP_PER_LEVEL = 100`): só as quests levam ao nível 6 (`floor(550 / 100) + 1`) e a soma com as
+missões rápidas leva ao **nível 7** (`floor(660 / 100) + 1`). O epílogo só abre depois de `story-page-delivery`; as
+outras cinco cadeias continuam abertas desde o início.
 
 ## 3. Máquina de estados
 
@@ -72,7 +78,7 @@ missões rápidas leva ao **nível 6** (`floor(575 / 100) + 1`).
 e nenhuma outra em andamento. As funções são puras e usadas pelo cliente e pela API.
 
 **Entregas (`deliver`)** ficam prontas ao aceitar: o item existe por derivação (`activeInventory`), sem campo novo
-no progresso. `objectiveEventIds` é vazio nas três entregas.
+no progresso. `objectiveEventIds` é vazio nas quatro entregas.
 
 ## 4. Ids de evento
 
@@ -91,6 +97,9 @@ Toda missão aceita `accept` e `turn-in`; os objetivos usam ids estáveis:
 | `kids-sled-run` | `sled-ride` |
 | `tree-promise-visit` | `tree` |
 | `donation-promise-reading` | `read-confirm` |
+| `bough-ribbon` | `bough-ribbon` |
+| `bough-sprigs` | `sprig-market-1`, `sprig-market-2` |
+| `bough-delivery` | — (pronta ao aceitar) |
 
 `applyEvent` grava a chave `<missao>:<evento>` apenas quando a transição é válida; evento fora de hora não entra em
 `seen` (nada de pré-coleta) e o XP só é somado no `turn-in`, uma vez.
@@ -158,6 +167,12 @@ deliberada no teste, não pode ser um deslize.
 | `crate-market` | `ornament-crates` | `ornament-crate` | `-16.8` | `-3.6` |
 | `lantern-lake-1` | `lake-lanterns` | `lake-lantern` | `19.5` | `14.5` |
 | `lantern-lake-2` | `lake-lanterns` | `lake-lantern` | `22.5` | `5.5` |
+| `sprig-market-1` | `bough-sprigs` | `winter-sprig` | `-14.5` | `8.6` |
+| `sprig-market-2` | `bough-sprigs` | `winter-sprig` | `-16.8` | `-3.6` |
+
+Os dois ramos do epílogo reusam de propósito os pontos de `crate-street` e `crate-market`: só uma missão fica ativa
+por vez, então as duas entradas nunca desenham ou oferecem juntas. O chão já estava livre e continua conferido pelo
+teste de coordenadas e pelo de navegação; o objeto novo é `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u).
 
 Os dois sinos e a primeira lanterna foram afastados dos pinheiros (antes `(-10, -12.4)`, `(12.2, 9.5)` e
 `(23.5, 17)`): com o colisor do pinheiro do tamanho das ramas desenhadas
@@ -173,6 +188,9 @@ pequeno foram para a faixa festiva da praça, e com eles Baltazar (antes `(-2.5,
 |---|---|---:|---:|---:|
 | `mailbox-open` | `frozen-mailbox` | `2.4` | `12.6` | `3.5` |
 | `sled-ride` | `kids-sled-run` | `13.44` | `-19.8` | `3.5` |
+| `bough-ribbon` | `bough-ribbon` | `2.4` | `12.6` | `3.5` |
+
+`bough-ribbon` reusa o ponto da caixa de correio pelo mesmo motivo: uma missão ativa por vez.
 
 | Peça | `x` | `z` | `rot` | `r` |
 |---|---:|---:|---|---:|
@@ -224,8 +242,8 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
 - Com `QUESTS_V1_ENABLED` desligada, os eventos de quest do lote são ignorados e os demais são gravados; id de missão
   ou de evento que o jogo não produz continua dando `400 bad_events` para o lote inteiro.
 - **Confiança (risco aceito, PROPOSTA):** o servidor confere ids e a ordem das transições, mas confia que a ação
-  aconteceu na cena. Uma conta consegue forjar no máximo o XP do catálogo: **575 XP** (465 de quests + 110 das missões
-  rápidas). XP não dá nada que dinheiro compre e doação não dá XP.
+  aconteceu na cena. Uma conta consegue forjar no máximo o XP do catálogo: **660 XP** (550 de quests + 110 das
+  missões rápidas). XP não dá nada que dinheiro compre e doação não dá XP.
 - **Nenhuma migration, tabela ou coluna nova.** Nenhum texto livre, coordenada ou dado de dispositivo é enviado.
 - Doação não dá XP de quest; jogar nunca é doar; nada aqui usa sorte, loot box, compra, tempo online, diária,
   sequência ou convite em massa.
@@ -233,17 +251,21 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
 ## 10. Verificação
 
 - `packages/shared/src/game/quests.test.ts`: catálogo, sincronia com os três CSVs, máquina de estados, regra de uma
-  missão ativa, roteamento do minijogo, 465 XP e teto de 465 XP em qualquer ordem de replay.
+  missão ativa, roteamento do minijogo, 550 XP, teto de 550 XP em qualquer ordem de replay e o epílogo bloqueado até
+  `story-page-delivery`.
 - `packages/shared/src/game/motion.test.ts`: folgas de NPCs, pontos de coleta e atril contra obstáculos, terrenos,
-  lago, árvore e entre si; `OBSTACLES` sem nenhuma entrada na posição de um NPC ou do atril.
+  lago, árvore e entre si; `OBSTACLES` sem nenhuma entrada na posição de um NPC ou do atril; as coordenadas dos dois
+  ramos e do laço ficam fixadas.
 - `packages/shared/src/game/navigation.test.ts`: com as quests ligadas, o avatar chega a cada ponto de coleta e para
   ao lado de cada NPC, do atril, da caixa de correio e do trenó pequeno, dentro do alcance da interação.
-- `apps/api/src/accounts.test.ts`: cadeia completa no servidor (100 XP), replay idempotente, evento desconhecido,
-  bandeira desligada (quests ignoradas, missões gravadas), `accept` de aba desatualizada que volta a valer, objetivo
-  antes do `accept` e linha gravada antes da hora.
+- `apps/api/src/accounts.test.ts`: cadeia completa no servidor (100 XP), epílogo bloqueado antes da história e 85 XP
+  depois, replay idempotente, evento desconhecido, bandeira desligada (quests ignoradas, missões gravadas), `accept`
+  de aba desatualizada que volta a valer, objetivo antes do `accept` e linha gravada antes da hora.
+- `content/proposals/quests-v1/validate-epilogue.mjs`: regras estruturais só do epílogo (3 missões, 3 tipos, 85 XP,
+  finale 50, entrega cruzada, limites de texto e ausência de marcadores).
 - `apps/client/src/lib/account.test.ts`: quests só com a bandeira do cliente **e** `/config.quests`; sem elas,
   nenhum evento de quest é enfileirado ou enviado.
-- `apps/client/scripts/verify-quests.mjs`: navegador real, `?quests=1`, 15 missões em ordem, capturas em
+- `apps/client/scripts/verify-quests.mjs`: navegador real, `?quests=1`, 18 missões em ordem, capturas em
   `apps/client/verify-output/`.
 
 ### Verificação em aparelho real (responsável)

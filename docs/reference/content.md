@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 5 de 5 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-11
+> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 6 de 6 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-18
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -45,6 +45,7 @@
 | `quest-ornament-crate` | Caixa de enfeites | props | madeira, profundidade, altura, combinação de bolas emissivas, topo, lado da neve | 68 / 156 |
 | `quest-donation-panel` | Painel de doação global | props | madeira, largura, altura, moldura, guirlanda, lâmpada, orientação | 77 / 196 |
 | `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
+| `quest-winter-sprig` | Ramo de pinheiro | props | par de tons de agulha, duas ou três bagas, lado das bagas, neve no topo, haste curta/longa, giro | 23 / 90 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
 | `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
@@ -95,8 +96,10 @@ morador (cápsula de 1,5 × 0,9 u) e carregam um
 rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitura da doação global
 (`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, com um rótulo curto
 "Doação global"; leva ao mesmo painel de doação da árvore (DEC-026). NPCs, atril, rótulos e obstáculos só existem com
-as quests ligadas. Posições e rótulos são sugestões PROPOSTA; a copy diz
-"ao sul" para o trenó e o trenó pequeno, que estão em `+z` na tela. Ver [quests.md](quests.md).
+as quests ligadas. No epílogo (`welcome-bough`), dois ramos de pinheiro (`quest-winter-sprig`, semente
+`winter-sprig`) usam os mesmos pontos livres das caixas do mercado, sem colisor; só uma missão fica ativa por vez.
+Posições e rótulos são sugestões PROPOSTA; a copy diz "ao sul" para o trenó e o trenó pequeno, que estão em `+z` na
+tela. Ver [quests.md](quests.md).
 
 ## 4. Cosméticos do avatar e o provador P08 (PROPOSTA)
 

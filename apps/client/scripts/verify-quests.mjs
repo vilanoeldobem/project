@@ -1,7 +1,7 @@
 /**
  * verify-quests.mjs — real-browser check of the quests-v1 runtime (PROPOSTA; DEC-039..042, PEN-025)
  * against LOCAL Workers only. Opens `?quests=1`, publishes one NGO in the local D1 through the same
- * applicant + admin API flow as verify-accounts.mjs, then completes the 15 quests in chain order with
+ * applicant + admin API flow as verify-accounts.mjs, then completes the 18 quests in chain order with
  * `window.__vila.walkTo`, the HUD action buttons, the NPC dialogs, the donation panel and a memory
  * solver that reads the card labels. Fails on any console or page error.
  *
@@ -15,6 +15,7 @@ import { mkdirSync } from "node:fs";
 import { chromium } from "playwright-core";
 
 import { arrive } from "./arrive.mjs";
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
 if (!/localhost|127\.0\.0\.1/.test(url + apiUrl)) {
@@ -134,8 +135,9 @@ process.on("unhandledRejection", async (e) => {
 async function newPage(name) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await ctx.newPage();
+  isolateAnalytics(page);
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   return page;
 }
@@ -436,6 +438,34 @@ await dialogButton(page, /Concluir missão \(\+50 XP\)/).click();
 await page.waitForTimeout(400);
 if (await page.getByRole("dialog").isVisible().catch(() => false)) await closePanel(page);
 
+// ---- welcome-bough (O ramo da chegada): the epilogue unlocked by the story page
+await walkTo(page, 7, 5);
+await openNpc(page, "Dona Guida");
+await dialogButton(page, "Aceitar missão").click();
+await expectState(page, "bough-ribbon", "active");
+await walkTo(page, 2.4, 14.6);
+await page.getByRole("button", { name: /Soltar o laço/ }).click();
+await expectState(page, "bough-ribbon", "ready_to_turn_in");
+await walkTo(page, 7, 5);
+await openNpc(page, "Dona Guida");
+await dialogButton(page, /Concluir missão \(\+15 XP\)/).click();
+await dialogButton(page, "Aceitar missão").click();
+await expectState(page, "bough-sprigs", "active");
+await walkTo(page, -14.5, 8.6, 1.4);
+await page.waitForFunction(() => window.__vila.progress().seen["bough-sprigs:sprig-market-1"], null, { timeout: 60000 }).catch(() => fail("bough-sprigs: first sprig not collected"));
+await walkTo(page, -16.8, -3.6, 1.4);
+await page.waitForFunction(() => window.__vila.progress().seen["bough-sprigs:sprig-market-2"], null, { timeout: 60000 }).catch(() => fail("bough-sprigs: second sprig not collected"));
+await walkTo(page, 7, 5);
+await openNpc(page, "Dona Guida");
+await dialogButton(page, /Concluir missão \(\+20 XP\)/).click();
+await dialogButton(page, "Aceitar missão").click();
+await expectState(page, "bough-delivery", "ready_to_turn_in");
+await walkTo(page, 4.5, 9.6);
+await openNpc(page, "Seu Nivaldo");
+await dialogButton(page, /Concluir missão \(\+50 XP\)/).click();
+await page.waitForTimeout(400);
+if (await page.getByRole("dialog").isVisible().catch(() => false)) await closePanel(page);
+
 // ---- results
 const progress = await page.evaluate(() => window.__vila.progress());
 const quests = await page.evaluate(() => window.__vila.extra.quests());
@@ -443,10 +473,11 @@ const unfinished = quests.filter((q) => q.state !== "completed");
 if (unfinished.length) errors.push(`quests not completed: ${unfinished.map((q) => `${q.id}=${q.state}`).join(", ")}`);
 const MISSION_XP = { "explore-gifts": 30, "play-memory": 40, "causes-visit-lot": 20, "causes-global-donation": 20 };
 const incidental = Object.entries(MISSION_XP).reduce((sum, [id, xp]) => sum + (progress.completed[id] ? xp : 0), 0);
-if (progress.xp !== 465 + incidental) errors.push(`xp: expected ${465 + incidental} (465 quest + ${incidental} missions), got ${progress.xp}`);
+if (progress.xp !== 550 + incidental) errors.push(`xp: expected ${550 + incidental} (550 quest + ${incidental} missions), got ${progress.xp}`);
 
 await page.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
 await page.getByText("A Noite de Voo").first().waitFor({ timeout: 5000 }).catch(() => fail("caderno: quest chains missing"));
+await page.getByText("O ramo da chegada").first().waitFor({ timeout: 5000 }).catch(() => fail("caderno: epilogue chain missing"));
 await page.screenshot({ path: `${out}quests-4-caderno-chains.png` });
 await closePanel(page);
 await page.context().close();
@@ -458,4 +489,4 @@ if (errors.length) {
   for (const e of errors) console.error(` - ${e}`);
   process.exit(1);
 }
-console.log(`ok — 15 quests completed, ${progress.xp} XP (${incidental} incidental), lot ${publishedLot}; screenshots in ${out}`);
+console.log(`ok — 18 quests completed, ${progress.xp} XP (${incidental} incidental), lot ${publishedLot}; screenshots in ${out}`);

@@ -254,6 +254,8 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
    * an intentional test diff. The clearance checks above stay; this one pins the coordinates themselves.
    * IMPL-0016 moved `bell-pine-north` (was -10, -12.4), `bell-pine-east` (was 12.2, 9.5) and
    * `lantern-lake-1` (was 23.5, 17) out from under the pine boughs, which now block the avatar.
+   * The epilogue (welcome-bough) deliberately reuses the market and mailbox points: only one quest is
+   * active at a time, so two entries at one point are never drawn or offered together.
    */
   it("pins the exact coordinates of NPCs, quest spawns, quest interactions and the donation lectern", () => {
     expect(NPCS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
@@ -270,10 +272,13 @@ describe("quest placements (PROPOSTA quests-v1)", () => {
       { id: "crate-market", x: -16.8, z: -3.6 },
       { id: "lantern-lake-1", x: 19.5, z: 14.5 },
       { id: "lantern-lake-2", x: 22.5, z: 5.5 },
+      { id: "sprig-market-1", x: -14.5, z: 8.6 },
+      { id: "sprig-market-2", x: -16.8, z: -3.6 },
     ]);
     expect(QUEST_INTERACTIONS.map(({ id, x, z }) => ({ id, x, z }))).toEqual([
       { id: "mailbox-open", x: 2.4, z: 12.6 },
       { id: "sled-ride", x: 13.44, z: -19.8 },
+      { id: "bough-ribbon", x: 2.4, z: 12.6 },
     ]);
     expect({ x: DONATION_PANEL.x, z: DONATION_PANEL.z, r: DONATION_PANEL.r }).toEqual({ x: 4.6, z: 6.4, r: 0.5 });
   });
