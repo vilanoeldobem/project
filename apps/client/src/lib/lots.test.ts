@@ -15,6 +15,9 @@ describe("the developer preview of a full village (IMPL-0031)", () => {
     expect(demo[1]).toBe(lots[1]);
     // The label says what the house is: never something that reads as the name of an organisation.
     for (const lot of [demo[0], demo[2]]) expect(lot.ngo_name).toMatch(/^Casa de demonstração \d+$/);
+    // The five levels of the building in turn (IMPL-0032), so the preview shows and measures every one of them.
+    const many = withDemoHouses(Array.from({ length: 10 }, (_, i) => ({ id: `plaza-${i}`, state: "available", ngo_name: null })), "?villageDemo=full", true);
+    expect(many.map((l) => (l as { ngo_level?: number }).ngo_level)).toEqual([1, 2, 3, 4, 5, 1, 2, 3, 4, 5]);
     // The input is not changed: nothing is written anywhere.
     expect(lots[0]).toEqual({ id: "plaza-01", state: "available", ngo_name: null });
   });

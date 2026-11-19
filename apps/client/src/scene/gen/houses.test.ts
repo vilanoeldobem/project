@@ -5,6 +5,7 @@ import { RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
 
 import { archetypeOf, residence } from "../villageModels";
 import { ARCHETYPES, CHIMNEY, house } from "./houses";
+import { ngoBuilding } from "./ngoBuilding";
 
 const LOT_IDS = Array.from({ length: 8 }, (_, i) => `plaza-${String(i + 1).padStart(2, "0")}`);
 
@@ -81,3 +82,66 @@ describe("residential archetypes (IMPL-0030)", () => {
     expect(alike).toBeLessThan(RESIDENTIAL_PLOTS.length * 0.03);
   });
 });
+
+describe("the five levels of an NGO's building (IMPL-0032, PROPOSTA)", () => {
+  const LEVELS = [1, 2, 3, 4, 5] as const;
+  const lots = [...LOT_IDS, "ring1-01", "ring2-07", "ring3-17", "ring4-30"];
+  const height = (m: { voxels: ReadonlyArray<readonly [number, number, number, string]> }) => Math.max(...m.voxels.map((v) => v[1])) + 1;
+
+  it("grows with the level: never lower, taller from the second to the third and from the fourth to the fifth", () => {
+    for (const id of lots) {
+      const h = LEVELS.map((level) => height(ngoBuilding(id, level)));
+      for (let i = 1; i < h.length; i++) expect(h[i], `${id} level ${i + 1}`).toBeGreaterThanOrEqual(h[i - 1]);
+      expect(h[2], id).toBeGreaterThan(h[1]);
+      expect(h[4], id).toBeGreaterThan(h[3]);
+      // Each level is its own building: no two levels of a lot draw the same voxels.
+      const prints = LEVELS.map((level) => ngoBuilding(id, level).voxels.map((v) => v.join()).sort().join("|"));
+      expect(new Set(prints).size, id).toBe(5);
+    }
+  });
+
+  it("keeps the NGO's own colours, roof and chimney side from one level to the next", () => {
+    for (const id of lots) {
+      const models = LEVELS.map((level) => ngoBuilding(id, level));
+      const side = models.map((m) => Math.sign(m.anchors!.chimney[0]));
+      expect(new Set(side).size, `${id} chimney side`).toBe(1);
+      // The door (in the middle of the front wall, two or three voxels from the centre) keeps the seed's colour.
+      const door = models.map((m, i) => m.voxels.find(([x, y, z]) => x === 0 && y === 0 && z === (i < 2 ? 2 : 3))?.[3]);
+      expect(new Set(door).size, `${id} door ${door.join()}`).toBe(1);
+      expect(door[0], id).toBeDefined();
+    }
+  });
+
+  it("stays on the pad of a lot at every level: 5 voxels from its centre, the chimney on its column, windows lit", () => {
+    for (const id of lots)
+      for (const level of LEVELS) {
+        const m = ngoBuilding(id, level);
+        for (const [x, , z] of m.voxels) expect(Math.max(Math.abs(x), Math.abs(z)), `${id} level ${level}`).toBeLessThanOrEqual(5);
+        const [cx, cy, cz] = m.anchors!.chimney;
+        expect(m.voxels.find(([x, y, z]) => x === cx && z === cz && y === cy - 0.5)?.[3], `${id} level ${level} chimney`).toBe(CHIMNEY);
+        expect(m.voxels.some((v) => v[3] === P.window), `${id} level ${level}`).toBe(true);
+        expect(m.glow).toEqual([P.window]);
+      }
+  });
+
+  it("puts a turret and lights on the fourth level and a star on the fifth, and none of them before", () => {
+    for (const id of lots) {
+      const lit = LEVELS.map((level) => ngoBuilding(id, level).emissive ?? []);
+      expect(lit.slice(0, 3).every((e) => e.length === 0), id).toBe(true);
+      expect(lit[3].length, id).toBeGreaterThan(0);
+      const stone = (level: number) => ngoBuilding(id, level).voxels.filter((v) => v[3] === P.stone).length;
+      expect(stone(4), `${id} turret`).toBeGreaterThan(stone(3) + 20);
+      const star = (level: number) => ngoBuilding(id, level).voxels.filter((v) => v[3] === P.gold && v[1] >= 12).length;
+      expect([star(4), star(5)], `${id} star`).toEqual([0, 1]);
+    }
+  });
+
+  it("draws level 1 for anything that is not a level: the feature off, an older API, a value out of range", () => {
+    const print = (m: { voxels: ReadonlyArray<readonly [number, number, number, string]> }) => m.voxels.map((v) => v.join()).sort().join("|");
+    const first = print(ngoBuilding("plaza-03", 1));
+    for (const level of [null, undefined, 0, 6, 2.5, Number.NaN]) expect(print(ngoBuilding("plaza-03", level as number)), String(level)).toBe(first);
+    // The same building for every visitor.
+    expect(print(ngoBuilding("plaza-03", 4))).toBe(print(ngoBuilding("plaza-03", 4)));
+  });
+});
+

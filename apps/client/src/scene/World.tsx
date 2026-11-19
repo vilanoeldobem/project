@@ -2,6 +2,7 @@ import { Canvas } from "@react-three/fiber";
 import { lazy, Suspense } from "react";
 
 import { usePreset } from "../environment/settings";
+import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import { LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
 import { useQuestsEnabled } from "../game/questsFlag";
@@ -20,6 +21,7 @@ import { RenderStats } from "./RenderStats";
 import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
+import { housesKey } from "./sceneColliders";
 import { Billboards, Rings, Shops } from "./Village";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
@@ -35,7 +37,8 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
   const quests = useQuestsEnabled();
   // What blocks the avatar on each lot depends on whether its chalet is published (`scene/sceneColliders.ts`,
   // IMPL-0016). Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
-  const published = LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => l.id).join();
+  // The level of each building is part of the key (IMPL-0032): a taller house hides more and may block more.
+  const published = housesKey(LOTS.filter((l) => lots[l.id]?.state === "published" && lots[l.id]?.ngo_name).map((l) => ({ id: l.id, level: asNgoLevel(lots[l.id]?.ngo_level) })));
   return (
     <Canvas
       shadows={preset.shadows}

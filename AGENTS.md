@@ -106,6 +106,14 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   `docs/reference/display-boards.md`), and **every one shows only the village's own notices**: defining the sizes
   did not decide OQ-18. Never load third-party artwork, a brand or anything that reads as an advertisement into a
   board, and never write "anuncie", "alugue" or "publicidade" on screen, before the product owner answers.
+- NGO building levels ([IMPL-0032](docs/decisions/0032-ngo-building-levels.md)) are **PROPOSTA**: dark code behind
+  `NGO_LEVELS_ENABLED` ("false" in production and staging), and they also need `DONATIONS_ENABLED`. No product
+  decision lets an NGO's house grow with money: whether it may, on which base, what an NGO with its own payment
+  page gets and whether a level may go down are the product owner's to answer (OQ-23). Never flip the flag without
+  explicit approval, and never decide that policy in code: the thresholds in
+  `packages/shared/src/game/ngo-level.ts` are placeholders. `GET /lots` sends the level and **never the amount**;
+  the level is shown by the building alone: no "nível" on a panel, no list or comparison of NGOs, no XP, nothing
+  unlocked by it. Every level keeps inside `HOUSE_ENVELOPE` and carries no text, logo or brand.
 - The look of the village ([IMPL-0030](docs/decisions/0030-thawed-village-and-readable-streets.md), **PROPOSTA**):
   snow is an accent and roads are the darkest thing on the ground. `apps/client/src/scene/groundRuns.test.ts` keeps
   a contrast of at least 3:1 between every road tone and every yard tone and the share of snow tones under a fifth:
@@ -196,7 +204,9 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   into one block per ring and side (`scene/Village.tsx` `Rings`), the chalets of published lots too (`Lots`): never a
   mesh per building, and the ground is drawn in sectors. Measure calls and triangles before and after;
   `apps/client/scripts/verify.mjs` fails over the budget at the spawn, default zoom and zoomed out, and with a house
-  on every lot (`?villageDemo=full`, local builds only: the full village has about 11 calls of headroom).
+  on every lot at mixed levels (`?villageDemo=full`, local builds only: the full village has about 17 calls and
+  43 000 triangles of headroom). A new material role on a block is a draw call per block in view: join the lit
+  roles of every block (`joinLitRoles`), as the rows of houses and the NGO chalets do.
 - `GET /residential-plots` is an always-on public route: the shared layout is its source (every plot, always), the
   `residential_plots` table (0012, in production since 2026-11-14) only adds state and is read only with the flag on. A
   missing table, a missing row or a D1 error answers "unavailable", never a 500 or a shorter list. `enabled` is the

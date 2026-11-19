@@ -24,6 +24,11 @@ export interface LotInfo {
   ngo_summary: string | null;
   /** Path on the API of the public logo of a published NGO (IMPL-0017); absent from an older API. */
   ngo_logo?: string | null;
+  /**
+   * Level of the published NGO's building, 1 to 5 (IMPL-0032, PROPOSTA); null with the feature off or no published
+   * NGO, absent from an older API. The scene reads it with `asNgoLevel`: anything else is drawn as level 1.
+   */
+  ngo_level?: number | null;
 }
 
 async function getJson<T>(path: string, credentials: RequestCredentials = "omit"): Promise<T | null> {

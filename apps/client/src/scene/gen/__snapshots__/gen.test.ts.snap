@@ -208,6 +208,46 @@ exports[`generator snapshots > market-stall keeps the output of fixed seeds stab
 ]
 `;
 
+exports[`generator snapshots > ngo-level-1 keeps the output of fixed seeds stable 1`] = `
+[
+  "4e48bf21",
+  "32368cf0",
+  "1f5a0d66",
+]
+`;
+
+exports[`generator snapshots > ngo-level-2 keeps the output of fixed seeds stable 1`] = `
+[
+  "b6f6dc31",
+  "818609c1",
+  "92f337c1",
+]
+`;
+
+exports[`generator snapshots > ngo-level-3 keeps the output of fixed seeds stable 1`] = `
+[
+  "8b6aa47a",
+  "7f116e94",
+  "d794a9d3",
+]
+`;
+
+exports[`generator snapshots > ngo-level-4 keeps the output of fixed seeds stable 1`] = `
+[
+  "48a9ee85",
+  "c4f2d1d4",
+  "e84951e1",
+]
+`;
+
+exports[`generator snapshots > ngo-level-5 keeps the output of fixed seeds stable 1`] = `
+[
+  "6e6d9a43",
+  "8810a0a3",
+  "dfa5e97f",
+]
+`;
+
 exports[`generator snapshots > owl keeps the output of fixed seeds stable 1`] = `
 [
   "e3ec65dc",

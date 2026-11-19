@@ -136,6 +136,16 @@ Ainda **não publicado**; vale para a primeira publicação que levar essas duas
 
 Ordem que atende aos quatro pontos: API → (0015, com autorização) → servidor → jogo → painel → site.
 
+**Níveis da casa da ONG ([IMPL-0032](../decisions/0032-ngo-building-levels.md), PROPOSTA) — bandeira desligada.**
+
+| Bandeira | Onde | Produção e homologação | Script local `dev` | Depende de |
+|---|---|---|---|---|
+| `NGO_LEVELS_ENABLED` | `apps/api/wrangler.jsonc` | `"false"` | ligada | resposta do dono do produto à [OQ-23](../decisions/open-questions.md); `DONATIONS_ENABLED` ligada (PEN-004, PEN-006); migration 0011 |
+
+Não tem migration própria. Com a bandeira desligada `GET /lots` responde `ngo_level: null` e o jogo desenha toda
+casa publicada no nível 1. O jogo desta versão funciona contra uma API antiga (que não envia o campo) e a API desta
+versão contra um jogo antigo (que ignora o campo). Não ligar sem aprovação explícita.
+
 ### 4.1 Primeiro deploy da separação (IMPL-0009)
 
 Mudança incompatível: a API perdeu o prefixo `/api`, então cliente e API vão juntos. Ordem obrigatória:

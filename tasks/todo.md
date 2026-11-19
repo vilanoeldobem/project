@@ -1083,7 +1083,37 @@ Three stacked local branches. No push, deploy, remote migration or flag flip.
 
 ## Phase 3 — `feat/ngo-levels` (shared, api, client)
 
-- [ ] `ngoLevel` thresholds in the shared package (placeholders, PROPOSTA)
-- [ ] `/lots.ngo_level` behind `DONATIONS_ENABLED` and the new `NGO_LEVELS_ENABLED`; all-schemas matrix
-- [ ] Five building levels inside the lot's envelope; dev gallery
-- [ ] Gates, browser checks, docs: ADR 0032, api reference, open question, AGENTS.md, CHANGELOG
+- [x] `ngoLevel` thresholds in the shared package (placeholders, PROPOSTA): R$ 500, 2 500, 10 000, 50 000
+- [x] `/lots.ngo_level` behind `DONATIONS_ENABLED` and the new `NGO_LEVELS_ENABLED`; `/config.ngoLevels`; the
+      all-schemas matrix got the flag's bit (1 024 combinations per schema, v3 to v15)
+- [x] Five building levels inside the lot's envelope, the NGO's own colours at every level; dev gallery; the
+      collider audit runs at every level on every lot
+- [x] Gates, browser checks, docs: ADR 0032, api reference, OQ-23, deploy guide, AGENTS.md, CHANGELOG
+
+### Review (2026-11-19)
+
+- Gates: typecheck clean; tests 1 932 (shared 279, api 482, client 940, dash 151, server 71, site 9). One run of
+  the donation test "calls the provider once when retries with the same key arrive at the same time" failed
+  again and then passed four times in a row: the timing flake noted in phase 1, in code this work does not touch.
+- End to end on the local stack (scratch database, flag on): three test houses on the square with R$ 0,
+  R$ 3 000 and R$ 60 000 of confirmed donations answered `ngo_level` 1, 3 and 5, with no amount in `/lots`, and
+  the scene drew a cabin, a two-floor house and the three-floor building with its turret and star.
+- Budget (`verify.mjs`, a house on every lot at mixed levels): 133 calls / 186 390 triangles at the spawn zoomed
+  out at 06:20; 131 / 207 262 on the second street. Found on the way: with the lights of levels 4 and 5 the second
+  street reached 148 calls; the windows and lights of every chalet block are now two meshes for the village.
+- Gallery maxima over the test seeds, budget 900 voxels / 1 800 faces: level 1 169 / 356, level 2 280 / 528,
+  level 3 507 / 670, level 4 526 / 678, level 5 679 / 762.
+- Changed on purpose: with the levels off (production), a published house is the level 1 cabin, not the chalet
+  of a size drawn from the seed.
+- Not done: `verify-accounts.mjs` (it publishes an NGO through the dashboard; not run), a phone measurement, the
+  dashboard showing a level (it does not).
+- Owner's call: OQ-23 (whether a house may grow with money, the base, external payment pages, going down).
+
+### Lessons
+
+- A feature that adds a material role adds a draw call to every block that has it. The full-village budget check
+  caught it at 148 of 150; without that check it would have shipped two calls from the limit.
+- A model that grows by level should take its colours from a seed that does not depend on the level, and say so
+  in a test: otherwise "the same NGO, bigger" becomes "a different house".
+- A steep roof on a small house can be taller than a low roof on a big one: assert the order of the heights.
+

@@ -48,6 +48,7 @@ import {
   recordRedirect,
   simulateDonation,
 } from "./donations";
+import { ngoLevel } from "@vila/shared/game/ngo-level";
 import { deleteFile, downloadFileAdmin, downloadOwnFile, filesBucket, noFilesTable, publicLogo, recoverFileUploads, removeLogoAdmin, uploadFile } from "./files";
 import { allowedOrigins, errorResponse, HttpError, json, noStore, NO_STORE } from "./http";
 import { mailConfigured } from "./mail";
@@ -117,6 +118,11 @@ export interface Env {
   NGO_FILES_ENABLED?: string;
   /** "true" turns on donations and the AbacatePay reconciliation (PROPOSTA; IMPL-0023, PEN-004/PEN-006/PEN-026). Off in production. */
   DONATIONS_ENABLED?: string;
+  /**
+   * "true" adds the level of each published NGO's building to `GET /lots` (PROPOSTA; IMPL-0032, OQ-23). It is the
+   * confirmed donation total turned into a level from 1 to 5, so it needs `DONATIONS_ENABLED` too. Off in production.
+   */
+  NGO_LEVELS_ENABLED?: string;
   /** AbacatePay v2 API key (Worker secret, never a `var`; `abc_dev_…` on the sandbox). */
   ABACATEPAY_API_KEY?: string;
   /** Secret configured in the AbacatePay dashboard for the webhook (Worker secret; ≥ 32 characters). */
@@ -151,6 +157,12 @@ export interface LotRow {
   ngo_summary: string | null;
   /** Path of the published NGO's logo on this API (`/ngos/<id>/logo?v=…`), or null (IMPL-0017). */
   ngo_logo: string | null;
+  /**
+   * Level of the published NGO's building, 1 to 5, from its confirmed donation total (IMPL-0032, PROPOSTA), or
+   * null: the feature is off, the lot has no published NGO, or the database has no donations yet. The amount
+   * itself is never part of this answer.
+   */
+  ngo_level: number | null;
 }
 
 export interface Indicator {
@@ -202,28 +214,43 @@ async function indicators(env: Env): Promise<Indicator[]> {
   ];
 }
 
+/** NGO levels (IMPL-0032, PROPOSTA): a projection of the donations, so it is on only when they are. */
+export const ngoLevelsEnabled = (env: Env): boolean => env.NGO_LEVELS_ENABLED === "true" && env.DONATIONS_ENABLED === "true";
+
+const noDonationsTable = (error: unknown): boolean => error instanceof Error && /no such table: donations\b/i.test(error.message);
+
 async function lots(env: Env): Promise<LotRow[] | null> {
   if (!env.DB) return null;
   const LOGO = `CASE WHEN n.status = 'published' AND l.state = 'published' THEN
        (SELECT '/ngos/' || n.id || '/logo?v=' || substr(f.id, 1, 8) FROM ngo_files f WHERE f.ngo_id = n.id AND f.kind = 'logo') END`;
-  const query = (logo: string) =>
+  // The same sum `GET /ngos/:id/donation-info` answers (IMPL-0023): confirmed donations of the published NGO.
+  const TOTAL = `CASE WHEN n.status = 'published' AND l.state = 'published' THEN
+       (SELECT COALESCE(SUM(d.amount_cents), 0) FROM donations d WHERE d.ngo_id = n.id AND d.status = 'paid') END`;
+  const query = (logo: string, total: string) =>
     env.DB!.prepare(
       `SELECT l.id, l.street, l.slot, l.x, l.z, l.state,
               CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.id END AS ngo_id,
               CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.name END AS ngo_name,
               CASE WHEN n.status = 'published' AND l.state = 'published' THEN n.summary END AS ngo_summary,
-              ${logo} AS ngo_logo
+              ${logo} AS ngo_logo,
+              ${total} AS confirmed_cents
          FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id
         ORDER BY l.street, l.slot`
-    ).all<LotRow>();
-  // `ngo_files` is read only with the feature on, and a database that does not have the table yet (migration
-  // 0006 not applied) still answers, without logos: this public route must never depend on a later migration.
-  if (!filesBucket(env)) return (await query("NULL")).results;
-  try {
-    return (await query(LOGO)).results;
-  } catch (e) {
-    if (!noFilesTable(e)) throw e;
-    return (await query("NULL")).results;
+    ).all<Omit<LotRow, "ngo_level"> & { confirmed_cents: number | null }>();
+  // `ngo_files` and `donations` are read only with their feature on, and a database that does not have one of
+  // them yet (migration 0006 or 0011 not applied) still answers, without logos or without levels: this public
+  // route must never depend on a later migration.
+  let logo = filesBucket(env) ? LOGO : "NULL", total = ngoLevelsEnabled(env) ? TOTAL : "NULL";
+  for (;;) {
+    try {
+      const { results } = await query(logo, total);
+      // The level goes out, the amount does not.
+      return results.map(({ confirmed_cents, ...row }) => ({ ...row, ngo_level: confirmed_cents === null || confirmed_cents === undefined ? null : ngoLevel(confirmed_cents) }));
+    } catch (e) {
+      if (logo !== "NULL" && noFilesTable(e)) logo = "NULL";
+      else if (total !== "NULL" && noDonationsTable(e)) total = "NULL";
+      else throw e;
+    }
   }
 }
 
@@ -300,6 +327,8 @@ async function route(request: Request, env: Env): Promise<Response> {
           residentialPlots: residentialPlotsEnabled(env),
           // Donations work for visitors too, so this flag does not depend on ACCOUNTS_ENABLED.
           donations: env.DONATIONS_ENABLED === "true",
+          // Levels of the NGO buildings (IMPL-0032, PROPOSTA): a projection of the donations, on only with them.
+          ngoLevels: ngoLevelsEnabled(env),
         }, { headers: NO_STORE });
       }
       case "/indicators":
