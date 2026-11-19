@@ -237,7 +237,10 @@ uma migration nova. Decisão, números e o que fica para depois em
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
   `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 256 peças
   assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
-  para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor. Um bloco residencial ou um
+  para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor (`groundRuns.ts`): ruas
+  escuras, meio-fio claro em toda célula sem calçamento encostada numa rua, cruzamentos calçados, grama com manchas
+  de neve e neve na borda do mundo ([IMPL-0030](../decisions/0030-thawed-village-and-readable-streets.md); o teste
+  exige contraste de 3:1 entre todo tom de rua e todo tom de quintal). Um bloco residencial ou um
   setor da floresta só projeta sombra enquanto a sombra de alguma peça dele aparece na tela (§10).
 - **Interação:** `Player` pergunta, a cada quadro, o que está ao alcance (`game/nearby.ts`, pura) e grava um único
   alvo em `nearby`: árvore, NPC, atril e terreno de ONG primeiro; porta de loja ou placa só quando nenhum daqueles

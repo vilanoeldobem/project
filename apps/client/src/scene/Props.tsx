@@ -51,7 +51,8 @@ export function Lamps() {
 
 const PAD = new PlaneGeometry(7, 7).rotateX(-Math.PI / 2);
 const PAD_MATERIAL = new MeshStandardMaterial({ roughness: 1 });
-const PAD_COLOR = { published: new Color(P.snowShade), available: new Color(P.snowDeep) };
+// A paved pad under a published chalet, gravel on a free lot (IMPL-0030: the ground is no longer white).
+const PAD_COLOR = { published: new Color(P.paver), available: new Color(P.gravel) };
 const padDummy = new Object3D();
 
 /**

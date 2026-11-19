@@ -8,6 +8,14 @@
  * mesh drawn, `plaza-03` published. The first version's rule (a building footprint up to 6 u south of the
  * avatar) agreed with those rays on 1 230 of them; the samples below are from each kind of disagreement and
  * from both kinds of agreement.
+ *
+ * Nine of the 48 samples changed when the houses of the residential rows got their archetypes and lost most
+ * of their roof snow (IMPL-0030): a townhouse is two floors where a chalet stood, a terrace has no ridge, and
+ * a roof without its snow is one voxel lower. Those nine carry the answer of the same segment test against the
+ * new models (four now hidden behind a taller house, five now in view over a lower one); they were not
+ * measured again in the browser, so the names of their groups describe the first measurement, not them:
+ * (53.68, 22.23), (52.97, 41.07), (-61.63, 32.42), (28.68, -46.27), (28.16, 28.16), (-29.26, 29.26),
+ * (-36.96, 38), (23.72, 66.5) and (51.8, 51.8).
  */
 import { describe, expect, it } from "vitest";
 
@@ -70,16 +78,16 @@ describe("street points measured in the scene (camera at rest, plaza-03 publishe
       [37.5, -0.78, 0], [27.07, 25.97, 0], [-34.75, 18.28, 0], [-66.5, 13.01, 0], [-28.09, -65.96, 0], [52.48, -22.47, 0],
     ],
     "in plain view, where the first rule drew a red silhouette": [
-      [53.68, 22.23, 0], [-38.01, 38.01, 0], [36.93, -36.93, 0], [52.97, 41.07, 0], [37.83, 56.22, 0], [-32.42, 61.63, 0],
-      [-44.32, 49.73, 0], [-61.63, 32.42, 0], [-29.71, -45.24, 0], [-47.56, -46.48, 0], [28.68, -46.27, 0], [34.58, -59.47, 0],
+      [53.68, 22.23, 1], [-38.01, 38.01, 0], [36.93, -36.93, 0], [52.97, 41.07, 1], [37.83, 56.22, 0], [-32.42, 61.63, 0],
+      [-44.32, 49.73, 0], [-61.63, 32.42, 1], [-29.71, -45.24, 0], [-47.56, -46.48, 0], [28.68, -46.27, 1], [34.58, -59.47, 0],
     ],
     "hidden, and the first rule agreed": [
-      [55.03, 22.79, 1], [28.16, 28.16, 1], [-29.26, 29.26, 1], [-33.75, 0, 1], [-45.43, -45.43, 1], [34.74, -34.74, 1],
-      [16.83, 53, 1], [23.72, 66.5, 1], [-3.83, 66.5, 1], [-3.88, -37.5, 1], [32.7, 22.1, 1], [-27.22, 49.5, 1],
+      [55.03, 22.79, 1], [28.16, 28.16, 0], [-29.26, 29.26, 0], [-33.75, 0, 1], [-45.43, -45.43, 1], [34.74, -34.74, 1],
+      [16.83, 53, 1], [23.72, 66.5, 0], [-3.83, 66.5, 1], [-3.88, -37.5, 1], [32.7, 22.1, 1], [-27.22, 49.5, 1],
     ],
     "hidden, where the first rule drew nothing (corners, diagonal rows)": [
-      [56.75, 0, 1], [51.8, 51.8, 1], [-26.25, 0, 1], [-42.25, -42.25, 1], [50.74, -50.73, 1], [48.34, 26.61, 1],
-      [42.14, 32.82, 1], [27.64, 47.31, 1], [-26.61, 48.34, 1], [-32.82, 42.14, 1], [-36.96, 38, 1], [-45.24, 29.71, 1],
+      [56.75, 0, 1], [51.8, 51.8, 0], [-26.25, 0, 1], [-42.25, -42.25, 1], [50.74, -50.73, 1], [48.34, 26.61, 1],
+      [42.14, 32.82, 1], [27.64, 47.31, 1], [-26.61, 48.34, 1], [-32.82, 42.14, 1], [-36.96, 38, 0], [-45.24, 29.71, 1],
     ],
   };
   it.each(Object.keys(cases))("%s", (name) => {

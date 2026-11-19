@@ -9,6 +9,20 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — cena: menos neve, ruas legíveis e casas variadas (IMPL-0030, **PROPOSTA**; sem mudança de schema)
+
+- **A neve virou detalhe.** O chão da Vila passa a ser grama com geada e manchas de neve, a praça é de pedra
+  quente e a neve só toma o chão na borda do mundo. Nos telhados ela fica na cumeeira; pinheiros, muros e cercas
+  têm cerca de um terço da neve de antes.
+- **Ruas legíveis.** Asfalto, paralelepípedo escuro e terra batida no lugar da "neve batida", sem manchas de neve
+  sobre a rua; meio-fio claro dos dois lados; cruzamentos calçados onde uma rua cruza uma avenida; vielas de tijolo;
+  um poste por lado também na rua econômica. O contraste entre rua e quintal foi de 1,2–1,6 para pelo menos 3:1.
+- **Clima v2** (`WEATHER_ALGORITHM_VERSION = 2`): céu limpo em 42 % das janelas (era 12 %), nevasca em 2 % (era
+  5 %), névoa mais leve e flocos menores. **Publicar API e cliente juntos:** versões diferentes não sincronizam.
+- **Casas residenciais com quatro formas** sorteadas pela semente do terreno (chalé, água-furtada, sobrado, casa
+  com terraço), mais cores de parede e de telhado, paredes em enxaimel, tábuas ou tijolos, base de pedra,
+  venezianas e canteiros. Pegada, colisores e altura máxima de cada faixa não mudaram.
+
 ### Added — identidade: logotipo da marca nas três aplicações (IMPL-0029, logo final **PENDENTE**, PEN-016)
 
 - O logotipo Modelo B (render voxel em teste) passa a ser a marca do site (cabeçalho e rodapé), do jogo (tela de

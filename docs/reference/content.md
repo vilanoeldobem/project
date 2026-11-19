@@ -45,7 +45,8 @@
 | `quest-ornament-crate` | Caixa de enfeites | props | madeira, profundidade, altura, combinação de bolas emissivas, topo, lado da neve | 68 / 156 |
 | `quest-donation-panel` | Painel de doação global | props | madeira, largura, altura, moldura, guirlanda, lâmpada, orientação | 77 / 196 |
 | `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
-| `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
+| `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, parede lisa, em enxaimel, em tábuas ou em tijolos, base de pedra, venezianas, canteiro, varanda, guirlanda na porta, pingentes, neve só na cumeeira, chaminé de ardósia (âncora `chimney` = origem da fumaça) | ver `stats.json` |
+| `house-dormer`, `house-townhouse`, `house-terrace` | Casa com água-furtada, sobrado, casa com terraço | houses | os arquétipos das casas residenciais (IMPL-0030, PROPOSTA): janela acesa sobre a porta; dois andares sob telhado baixo; laje com mureta, floreiras e um cômodo no terraço | ver `stats.json` |
 | `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
@@ -68,8 +69,10 @@ fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (
 Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), PROPOSTA): cada um recebe um
 `house` com a semente = id do terreno (`premium-01`…) e as opções da sua faixa (`residence()` em
 `apps/client/src/scene/villageModels.ts`): pegada fixa (7 × 7 com varanda, 7 × 5, 5 × 5 sem beiral), um andar,
-sem telhado alpino e com a cumeeira ao longo da rua. Sem opções, `house()` devolve o que sempre devolveu (os
-terrenos de ONG não mudaram). A casa é cenário: nenhuma chaminé solta fumaça enquanto ninguém for dono;
+sem telhado alpino e com a cumeeira ao longo da rua. Cada terreno sorteia ainda um **arquétipo** pela semente do
+seu id (`archetypeOf()`, [IMPL-0030](../decisions/0030-thawed-village-and-readable-streets.md), PROPOSTA): chalé
+clássico (metade dos terrenos), água-furtada, sobrado ou terraço, sempre com as paredes da faixa e até 9 voxels de
+altura. Sem opções, `house()` desenha a forma da semente (os terrenos de ONG). A casa é cenário: nenhuma chaminé solta fumaça enquanto ninguém for dono;
 `chimneyOf()` dá o topo da chaminé para quando houver lareira. As lojas usam `shop` com a semente = id da loja. As
 peças que distinguem as faixas (muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha) e a moldura da
 placa são modelos fixos em `villageModels.ts`, não geradores.

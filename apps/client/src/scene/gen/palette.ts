@@ -26,6 +26,11 @@ export const V = {
   ice: P.ice,
   rose: shade(P.red, 1.5),
   navy: shade(P.bulbBlue, 0.5),
+  // Painted walls of the residential rows (IMPL-0030): a street of one colour reads as one long building.
+  mustard: shade(P.gold, 0.9),
+  // Slate for roofs: the palette's stone is so pale that a roof of it reads as a roof under snow.
+  slate: shade(P.stoneDark, 0.6),
+  skyBlue: shade(P.bulbBlue, 0.82),
   // Skin tones for villagers: named variations of the palette skin (no single "default" person).
   skinLight: shade(P.skin, 1.18),
   skinDeep: shade(P.skin, 0.72),
@@ -35,6 +40,9 @@ export const V = {
   furGrey: shade(P.stoneDark, 0.8),
   ginger: shade(P.carrot, 0.85),
 } as const;
+
+/** The darker course of a wall material (planks, bricks): a named variation, never a free colour. */
+export const course = (hex: string): string => shade(hex, 0.88);
 
 /** Wrapping paper pairs (base, pattern) and ribbons for gifts. */
 export const WRAPS: ReadonlyArray<readonly [string, string]> = [

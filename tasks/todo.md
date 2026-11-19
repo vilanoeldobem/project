@@ -971,3 +971,77 @@ hardening, migration 0014 not applied remotely). No open PRs, no extra branches 
 - [ ] B. "HUD da ONG e segundo jogo" (P04, P09; D10, D24): read the boards and the decision log first.
 
 Owner-only items are listed in ROADMAP.md, "Pendências do responsável".
+
+# Task: village growth, 80/20 zoning, civic buildings, display surfaces, NGO levels, less snow — 2026-11-19
+
+Owner request (2026-11-19, eight items): a larger village, common civic buildings at scattered places, about 80%
+of the plot space for NGOs and 20% for houses, NGO buildings that evolve with donations, display surfaces with
+defined artwork sizes, more varied houses, less snow, streets that are easier to see. No product decision in the
+docs repository covers any of them: everything is PROPOSTA.
+
+Owner's choices in the planning session: 4 rings (radius about 99: 96 NGO lots, 24 houses, 11 civic buildings,
+5 parks or squares); snow as accent; a sleigh station instead of a petrol station (the no-vehicles rule stays);
+NGO levels from the confirmed donation total, behind a new flag that is off in production.
+
+Three stacked local branches. No push, deploy, remote migration or flag flip.
+
+## Phase 1 — `feat/village-thaw-and-streets` (client + shared, no data change)
+
+- [x] Baseline: gates and screenshots on the untouched tree (1 682 tests green)
+- [x] Palette: named tones for asphalt, kerb, cobble, brick, packed earth, paver, gravel, lawn
+- [x] Ground: dark streets with no snow speckle, kerbs, paved junctions, lanes as brick paths, grass yards with
+      snow patches, warm plaza, snow at the edge of the world; contrast test (road against yard at least 3:1)
+- [x] Snow sources: roof snow on the ridge only, slate roofs and chimneys, pines, tree, dressing, lot pads
+- [x] Weather v2: clear 42 %, blizzard 2 %, lower fog gain, lighter flakes; `WEATHER_ALGORITHM_VERSION` = 2
+- [x] House variety: four seeded archetypes inside the tier's footprint, height at or under 9; wall patterns,
+      stone base, shutters, flower beds, more wall and roof colours
+- [x] Street lamps on the economy street
+- [x] Gates, browser checks, before/after screenshots and budget
+- [x] Docs: ADR 0030, environment, content and architecture references, OQ-07, CHANGELOG
+
+### Review (2026-11-19)
+
+- Gates: typecheck clean; tests 1 707 (shared 260, api 463, client 753, dash 151, server 71, site 9); client build
+  clean. One run of `apps/api/src/donations.test.ts` › "calls the provider once when retries with the same key
+  arrive at the same time" failed and passed alone and on the next full run: timing, not this change.
+- Browser (system Chrome, local Workers on private ports 18787/18788/18799 through `--host-rules`, because 8787
+  belongs to another local project): `verify.mjs`, `verify-collisions.mjs` and `verify-life.mjs` pass.
+- Budget (medium, spawn): zoomed out 15:30 107 calls / 181 174 triangles → 103 / 178 654; default zoom noon
+  93 / 139 346 → 91 / 142 146. Premium street, default zoom: 79 / 160 408.
+- Measured on the ground: road against yard contrast 1.19–1.59 → at least 3.2; snow tones under a fifth of the
+  village's ground (test).
+- Seen in the scene and changed: single snow cubes scattered on roofs read as noise (ridge only now); the
+  palette's pale stone read as snow on roofs and chimneys (slate now); the haze of "Nevando" whitened the view
+  (fog gain 0.024 → 0.012).
+- Not done: a measurement on a real phone; nine occlusion samples re-derived by the segment test, not measured
+  again in the browser (said in the test and in the ADR).
+
+### Lessons
+
+- Look at the first screenshot before tuning numbers: "a few patches of snow" was right on paper and wrong on a
+  roof seen from above.
+- The `rtk` hook rewrites compound shell commands and vitest output: run vitest through `rtk proxy`, and keep a
+  build, a server start and a check in separate calls.
+- A fixed port of the local stack may belong to another project on the same machine: check `lsof` before
+  starting, and never stop a process that is not ours.
+
+## Phase 2 — `feat/village-growth` (shared, api, client, migration 0015)
+
+- [ ] Plan as a list of rings with a zoning string per ring; frontage and square untouched
+- [ ] Lot ids `ring<N>-NN`, village-wide lot number, id checks read `LOTS`
+- [ ] Migration 0015 (84 lots, residential plots re-seeded) and seed-sync tests on the migrated state
+- [ ] Civic buildings (11 generators, `civic` budget), parks and squares, colliders and audit
+- [ ] Display surfaces: rooftop, outdoor, lawn sign, LED screen; one atlas, one draw call; artwork sizes documented
+- [ ] Rendering: one baked block per ring and side, ground and lit meshes in sectors, forest and snowfield
+- [ ] Navigation: larger grid, scratch cap and pinned numbers re-measured
+- [ ] UI: panels for civic buildings and parks, Explore grouped by street, map from the rings
+- [ ] Village life: homes and routes on the new rings
+- [ ] Gates, browser checks, budget with every lot published (localhost-only hook)
+- [ ] Docs: ADR 0031, references, OQ-18, OQ-19, new open questions, AGENTS.md, CHANGELOG
+
+## Phase 3 — `feat/ngo-levels` (shared, api, client)
+
+- [ ] `ngoLevel` thresholds in the shared package (placeholders, PROPOSTA)
+- [ ] `/lots.ngo_level` behind `DONATIONS_ENABLED` and the new `NGO_LEVELS_ENABLED`; all-schemas matrix
+- [ ] Five building levels inside the lot's envelope; dev gallery
+- [ ] Gates, browser checks, docs: ADR 0032, api reference, open question, AGENTS.md, CHANGELOG

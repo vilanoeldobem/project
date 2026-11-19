@@ -14,7 +14,7 @@ import { Rng, type Seed } from "./rng";
 import type { GenModel, Generator } from "./types";
 
 const WALLS = [P.cream, P.red, P.pine, V.woodLight, V.blueNight] as const;
-const ROOFS = [P.terracotta, V.redDeep, P.stoneDark, V.woodDark] as const;
+const ROOFS = [P.terracotta, V.redDeep, V.slate, V.woodDark] as const;
 const HALF = 3;
 const WALL_TOP = 3;
 
@@ -49,7 +49,8 @@ export function shop(seed: Seed): GenModel {
   // A wreath over the door.
   if (r.chance(0.7)) v.push([-1, WALL_TOP, HALF + 1, P.pineLight], [1, WALL_TOP, HALF + 1, P.pineLight], [0, WALL_TOP, HALF + 1, P.red]);
 
-  const snowy = snowCap(dedupe(v), P.snow, (x, z) => (x * 3 + z * 5) % 4 !== 0 && z !== HALF + 1 && Math.abs(x) <= HALF + 1);
+  // A drift along the back of the upper step (IMPL-0030: snow is an accent, the roof keeps its colour).
+  const snowy = snowCap(dedupe(v), P.snow, (x, z) => z === -HALF && Math.abs(x) <= HALF && (((x % 4) + 4) % 4 !== 1));
   return { voxels: dedupe(snowy), size: 1, glow: [P.window], solid: [[-HALF - 0.5, HALF + 0.5, -HALF - 0.5, HALF + 0.5]] };
 }
 

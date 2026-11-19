@@ -58,9 +58,33 @@ exports[`generator snapshots > hat keeps the output of fixed seeds stable 1`] = 
 
 exports[`generator snapshots > house keeps the output of fixed seeds stable 1`] = `
 [
-  "a86785d6",
-  "aa537777",
-  "3a3d4d7f",
+  "e1d4ef8f",
+  "294dec3",
+  "833407ce",
+]
+`;
+
+exports[`generator snapshots > house-dormer keeps the output of fixed seeds stable 1`] = `
+[
+  "6be5870d",
+  "db9e9c58",
+  "f96fee36",
+]
+`;
+
+exports[`generator snapshots > house-terrace keeps the output of fixed seeds stable 1`] = `
+[
+  "f6f5e4ac",
+  "b58b28ac",
+  "6766a838",
+]
+`;
+
+exports[`generator snapshots > house-townhouse keeps the output of fixed seeds stable 1`] = `
+[
+  "afc6dc39",
+  "6681ed35",
+  "8391136c",
 ]
 `;
 
@@ -178,9 +202,9 @@ exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] 
 
 exports[`generator snapshots > shop keeps the output of fixed seeds stable 1`] = `
 [
-  "2ea71bd7",
-  "d4f3eed7",
-  "6f981610",
+  "abb3a99a",
+  "538b49a",
+  "2ed4f79",
 ]
 `;
 

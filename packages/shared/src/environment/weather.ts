@@ -26,12 +26,17 @@ export interface WeatherParams {
 
 export type NumericWeatherKey = Exclude<keyof WeatherParams, "kind">;
 
+/**
+ * Odds of each kind per slot (weather algorithm v2, IMPL-0030, PROPOSTA): clear is the most common state and
+ * falling snow is mostly light. v1 snowed in 85% of the slots (12 / 30 / 32 / 18 / 5 / 3), which kept the
+ * village white; v2 is 42 / 30 / 14 / 7 / 2 / 5.
+ */
 const TYPES: Array<{ kind: WeatherKind; cumulative: number }> = [
-  { kind: "CLEAR_FROST", cumulative: 0.12 },
-  { kind: "LIGHT_SNOW", cumulative: 0.42 },
-  { kind: "SNOW", cumulative: 0.74 },
-  { kind: "HEAVY_SNOW", cumulative: 0.92 },
-  { kind: "BLIZZARD", cumulative: 0.97 },
+  { kind: "CLEAR_FROST", cumulative: 0.42 },
+  { kind: "LIGHT_SNOW", cumulative: 0.72 },
+  { kind: "SNOW", cumulative: 0.86 },
+  { kind: "HEAVY_SNOW", cumulative: 0.93 },
+  { kind: "BLIZZARD", cumulative: 0.95 },
   { kind: "MISTY_FROST", cumulative: 1.0 },
 ];
 
