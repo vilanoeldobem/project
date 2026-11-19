@@ -14,7 +14,7 @@ import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
 import { ModerationBar, ModerationChip } from "./Moderation";
-import { Wordmark } from "./Wordmark";
+import { BrandMark } from "./BrandMark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
@@ -157,7 +157,7 @@ export function Hud() {
     <div className="hud">
       <nav className="hud__top" aria-label="Vila" data-board="P01">
         <div className="hud__brand">
-          <Wordmark compact />
+          <BrandMark />
         </div>
         <EnvironmentChip />
         <div className="hud__nav">

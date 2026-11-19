@@ -18,10 +18,13 @@ import { Field } from "./common";
 function Frame({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="gate">
-      <div className="gate__card">
-        <p className="kicker">Vila Noel do Bem · Painel administrativo</p>
-        <h1>{title}</h1>
-        {children}
+      <div className="gate__inner">
+        <img className="gate__logo" src="/logo-vilanoeldobem.png" width={380} height={360} alt="Vila Noel do Bem" />
+        <div className="gate__card">
+          <p className="kicker">Painel administrativo</p>
+          <h1>{title}</h1>
+          {children}
+        </div>
       </div>
     </main>
   );

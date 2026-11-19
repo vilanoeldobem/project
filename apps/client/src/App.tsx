@@ -24,7 +24,7 @@ import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { LifeDialog, NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
-import { Wordmark } from "./ui/Wordmark";
+import { BrandMark } from "./ui/BrandMark";
 import { WorldBoundary, WorldPaused } from "./ui/WorldBoundary";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -57,7 +57,7 @@ export function App() {
           <Suspense
             fallback={
               <div className="loading">
-                <Wordmark large />
+                <div className="loading__brand"><BrandMark large /></div>
                 <p>Acendendo as luzes da Vila…</p>
               </div>
             }

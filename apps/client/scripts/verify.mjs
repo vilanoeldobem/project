@@ -35,8 +35,8 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
     if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`${name}: path "${path}" is not on the HUD at arrival`);
   }
   if (await page.getByRole("button", { name: /Aproximar|Afastar/ }).count()) errors.push(`${name}: zoom buttons on the HUD`);
-  // The boards (P01) put the temporary wordmark back in the top bar, with no control of its own.
-  if (!(await page.locator(".hud__brand .wordmark").isVisible())) errors.push(`${name}: the header does not show the wordmark`);
+  // The boards (P01) put the brand mark back in the top bar, with no control of its own.
+  if (!(await page.locator(".hud__brand .brandmark").isVisible())) errors.push(`${name}: the header does not show the brand mark`);
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > viewport.width) errors.push(`${name}: the page scrolls sideways`);
   await page.screenshot({ path: `${out}${name}-1-chegada.png` });
   // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar, with nothing to close

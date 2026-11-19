@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — identidade: logotipo da marca nas três aplicações (IMPL-0029, logo final **PENDENTE**, PEN-016)
+
+- O logotipo Modelo B (render voxel em teste) passa a ser a marca do site (cabeçalho e rodapé), do jogo (tela de
+  carregamento e barra do HUD) e do painel administrativo (entrada, estados de sessão e cabeçalho); o favicon dos
+  três apps vira a estrela do logotipo e a imagem de compartilhamento do site passa a ser a peça 1200 × 630 com a
+  marca, sem slogan. A aprovação da logo final continua pendente (DEC-024, PEN-016).
+
 ### Added — documentação de marca
 
 - Roteiro local para elaboração de manual da marca em `docs/skills/`, identificado como **PROPOSTA** e vinculado às decisões do produto.

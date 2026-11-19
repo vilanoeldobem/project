@@ -7,7 +7,6 @@ import {
   VoxelChaletHeartIcon,
   VoxelCheckShieldIcon,
   VoxelClockIcon,
-  VoxelCrestMark,
   VoxelGameIcon,
   VoxelGarland,
   VoxelMissionIcon,
@@ -23,9 +22,9 @@ import { villageNow, type VillageNow } from "./villageClock";
 /**
  * Public landing page (www.*). Copy is pt-BR and uses only approved wording: purpose and promise
  * (DEC-021); donation rules (DEC-010..013, DEC-026, DEC-029); NGO criteria (DEC-015); deadline
- * (DEC-043). No slogan is used (PEN-015). No logo is approved yet (DEC-024, PEN-016), so the brand
- * is the temporary text wordmark (IMPL-0005, decision 3). The star-and-pine mark beside it is
- * decorative voxel art drawn in code, not a logo: no logo image may be shown as the brand here.
+ * (DEC-043). No slogan is used (PEN-015). The brand is the in-test logo (IMPL-0029): the Modelo B
+ * render, applied per the owner's instruction on 2026-11-18. Final approval of the logo is still
+ * pending (DEC-024, PEN-016).
  */
 
 const THEME_KEY = "vila.site.theme.v1";
@@ -175,11 +174,7 @@ export function App() {
           {/* DOM order is the visual order at every width (WCAG 2.4.3): brand, comfort toggles, nav, CTA. */}
           <div className="top__row top__row--brand">
             <a className="brand" href="/" aria-label="Vila Noel do Bem — início">
-              <VoxelCrestMark size={34} />
-              <span className="wordmark">
-                <span>VILA NOEL</span>
-                <span>DO BEM</span>
-              </span>
+              <img className="brandmark" src="/logo-vilanoeldobem.png" width={380} height={360} alt="" />
             </a>
             {/* Toggle buttons: the name never changes, `aria-pressed` alone carries the state. */}
             <button
@@ -445,6 +440,7 @@ export function App() {
       <VoxelVillageSkyline />
       <footer className="footer">
         <div className="footer__inner">
+          <img className="footer__logo" src="/logo-vilanoeldobem.png" width={380} height={360} alt="" />
           <p>© 2026 Vila Noel do Bem</p>
           <p className="footer__note">
             Transformar a magia do Natal em experiências que aproximam pessoas, despertam alegria e estimulam a
