@@ -5,13 +5,14 @@
  * test instead of letting the avatar walk through a house.
  */
 import type { Collider } from "@vila/shared/game/collision";
-import { HOUSE_ENVELOPE, lotColliders, LOTS, OBSTACLES, pineAt, pineIsTall, PINES, plotColliders, QUEST_OBSTACLES, RESIDENTIAL_PLOTS, SHOPS, WORLD_RADIUS } from "@vila/shared/game/world";
+import { HOUSE_ENVELOPE, lotColliders, LOTS, OBSTACLES, pineAt, pineIsTall, PINES, plotColliders, QUEST_OBSTACLES, RESIDENTIAL_PLOTS, SHOPS, SITE_PROPS, SITES, WORLD_RADIUS } from "@vila/shared/game/world";
 
+import { civic } from "./gen/civic";
 import { house } from "./gen/houses";
 import { shop } from "./gen/shops";
 import { pine, tree } from "./models";
 import { type Columns, columnsOf, type Occluder, occluderAt } from "./occlusion";
-import { billboardFrame, residence } from "./villageModels";
+import { bandstand, billboardFrame, residence } from "./villageModels";
 
 /**
  * Walls and porch of the chalet of every residential plot: the footprint of the very model `Residences`
@@ -54,7 +55,7 @@ const plantOccluders = (): Occluder[] =>
       .map(({ at, tall }) => occluderAt(columnsFor(`pine:${tall}`, () => ({ voxels: pine(tall), size: 1 })), at)),
   ]);
 
-/** The buildings that are always drawn: the shops with their sign frames and the residential chalets. */
+/** The buildings that are always drawn: the shops with their sign frames, the residential chalets, the civic buildings and the bandstands. */
 let fixed: Occluder[] | null = null;
 const fixedBuildings = (): Occluder[] =>
   (fixed ??= [
@@ -63,6 +64,9 @@ const fixedBuildings = (): Occluder[] =>
       occluderAt(columnsFor("frame", () => ({ voxels: billboardFrame(), size: 1 })), { x: s.x, z: s.z }),
     ]),
     ...RESIDENTIAL_PLOTS.map((plot) => occluderAt(columnsFor(`home:${plot.id}`, () => residence(plot)), { x: plot.house.x, z: plot.house.z, rot: plot.facing })),
+    // The rings (IMPL-0031): the civic buildings and the bandstands of the parks hide the avatar like any building.
+    ...SITES.filter((site) => site.kind).map((site) => occluderAt(columnsFor(`site:${site.id}`, () => civic(site.kind!, site.id)), { x: site.centre.x, z: site.centre.z, rot: site.facing })),
+    ...SITE_PROPS.filter((prop) => prop.kind === "bandstand").map((prop) => occluderAt(columnsFor("bandstand", () => ({ voxels: bandstand(), size: 1 })), prop)),
   ]);
 
 /** Every building of the scene: the fixed ones and the chalet of every published lot. */

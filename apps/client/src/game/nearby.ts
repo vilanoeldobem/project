@@ -36,6 +36,7 @@ import {
   RESIDENTIAL_PLOTS,
   SHOPS,
   TREE_RADIUS,
+  SITES,
 } from "@vila/shared/game/world";
 
 import type { Nearby } from "./store";
@@ -71,13 +72,17 @@ const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", int
 const NEAR_LOT: Nearby[] = LOTS.map((l) => ({ kind: "lot", lotId: l.id }));
 const NEAR_PANEL: Nearby = { kind: "donation-panel" };
 const NEAR_TREE: Nearby = { kind: "tree" };
-/** Places of the expanded village: where each one is used from. Shops and billboards first, then the plots. */
+/**
+ * Places of the expanded village: where each one is used from. Shops, the civic buildings, parks and squares of
+ * the rings (IMPL-0031) and the boards first, then the plots.
+ */
 const PLACES: Array<{ x: number; z: number; near: NonNullable<Nearby> }> = [
   ...SHOPS.map((s) => ({ x: s.door.x, z: s.door.z, near: { kind: "shop" as const, shopId: s.id } })),
+  ...SITES.map((site) => ({ x: site.front.x, z: site.front.z, near: { kind: "site" as const, siteId: site.id } })),
   ...BILLBOARDS.map((b) => ({ x: b.point.x, z: b.point.z, near: { kind: "billboard" as const, billboardId: b.id } })),
   ...RESIDENTIAL_PLOTS.map((p) => ({ x: p.front.x, z: p.front.z, near: { kind: "plot" as const, plotId: p.id } })),
 ];
-const FIRST_PLOT = SHOPS.length + BILLBOARDS.length;
+const FIRST_PLOT = SHOPS.length + SITES.length + BILLBOARDS.length;
 const PLACE_OF = new Map<unknown, number>(PLACES.map((p, i) => [p.near, i]));
 const LOT_OF = new Map<unknown, number>(NEAR_LOT.map((n, i) => [n, i]));
 const NPC_OF = new Map<unknown, number>(NEAR_NPC.map((n, i) => [n, i]));

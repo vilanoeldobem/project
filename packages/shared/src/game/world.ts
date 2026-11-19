@@ -69,38 +69,46 @@ export const LOT_INTERACT_DISTANCE = 6;
 export const PLACE_INTERACT_DISTANCE = 3.2;
 
 // ---------------------------------------------------------------------------------------------------------
-// Village plan (IMPL-0024, PROPOSTA; the final plan is PEN-017/PEN-023).
+// Village plan (IMPL-0024 and IMPL-0031, PROPOSTA; the final plan is PEN-017/PEN-023).
 //
 // The village is a wheel around the Christmas tree: `sides` avenues leave the square between the sides of a
-// polygon, and every ring of plots is a row along each side, facing the tree. A lane (pedestrian path) runs
+// polygon, and every ring is a row of parcels along each side, facing the tree. A lane (pedestrian path) runs
 // down the middle of every side, so each side holds two half rows. From the centre out: the square (plaza,
 // ring street, festive band), the square's frontage (plots reserved for approved NGOs, DEC-028, and the
-// Christmas shops) and three residential rings, one per tier.
+// Christmas shops) and the rings of `VILLAGE_PLAN.rings`, one street each.
+//
+// A ring is zoned by half row (IMPL-0031): each of its `2 × sides` half rows is lots for NGOs, houses, a civic
+// building, a park or a small square. About four parcels in five are NGO lots. Growing the village is adding a
+// ring to the list: the rings before it, their lots and their ids do not move.
 //
 // What follows the plan, and what does not:
 //
-// - `layoutVillage(plan)` derives the rings, the lots, the shops and billboards, the residential plots, the
-//   street graph and the world radius. The belt of tall pines, the street lamps, the lane lanterns, the wood
-//   yard, the dressing of the rows, the ground and the navigation grid follow the plan in force (`VILLAGE`).
+// - `layoutVillage(plan)` derives the rings, the lots, the shops, the residential plots, the civic buildings,
+//   the parks and squares, the display boards, the street graph and the world radius. The belt of tall pines,
+//   the street lamps, the lane lanterns, the wood yard, the dressing of the rows, the ground and the navigation
+//   grid follow the plan in force (`VILLAGE`).
 // - The scenery of the square is placed by hand for the plan in force: 8 avenues, a square of 26 u, a shop
 //   every two sides. The plaza lamps and benches, the three small pines, the market, the sleigh, the pond,
 //   the snowmen, the reindeer pens, the quest NPCs, the quest items and the gifts do not move with the plan;
-//   nor do the spots of the village's characters (`life.ts`, IMPL-0025), whose tests say when one no longer fits.
+//   nor do the spots of the village's characters (`life.ts`, IMPL-0025), whose tests say when one no longer fits
+//   (their homes are houses: the half rows they live in must stay residential).
 //
 // So the knobs are of two kinds:
 //
 // - safe to turn (nothing by hand is in their way; the tests of the layout and of the walk check the result):
-//   a tier's `perHalf`, `width`, `depth` and `house`, `streetWidth`, `backYard` and `edge`;
+//   a ring's `perHalf`, `width`, `depth` and `zoning`, a new ring at the end of the list, a tier's `house`,
+//   `streetWidth`, `backYard` and `edge`;
 // - turn only with the scenery of the square reviewed: `sides` (`assertPlan` refuses any other number: an
 //   avenue would run over what stands in the square), `plazaRadius`, `ringStreet`, `squareApothem`,
 //   `avenueWidth`, `laneWidth`, `frontage` and `shopEvery`.
 //
-// Ids are positional (`plaza-NN`, `shop-NN`, `<tier>-NN`: the n-th place counted around the village), so
-// they are stable only for an unchanged plan: another `shopEvery`, `frontage.perHalf` or tier `perHalf`
-// renumbers or moves lots and plots, including the ones stored in D1 (`lots.id`, `ngos.requested_lot_id`,
-// `progress_events`, quest objectives, `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`).
-// Once migration 0012 is applied to a database, changing the plan needs a new migration that moves or
-// renames those rows; `village.test.ts` pins the ids to their places and says so when it fails.
+// Ids are positional (`plaza-NN`, `ring1-NN`, `shop-NN`, `<tier>-NN`, `civic-NN`: the n-th place of its kind
+// counted around the village, ring by ring), so they are stable only for an unchanged plan: another
+// `shopEvery`, `frontage.perHalf`, ring `perHalf` or `zoning` renumbers or moves lots and plots, including the
+// ones stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
+// `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`). Migrations 0012 and 0015 seed them:
+// changing the plan needs a new migration that moves or renames those rows; `village.test.ts` pins the ids to
+// their places and says so when it fails. A ring appended to the list only adds rows.
 // ---------------------------------------------------------------------------------------------------------
 
 /**
@@ -136,13 +144,38 @@ export interface TierPlan {
   /** pt-BR name of the tier's neighbourhood, as the UI shows it: a place, with no word that reads as a price class. */
   label: string;
   requirement: TierRequirement;
-  /** Plots on each half of a side (two half rows per side, one on each side of the lane). 0 = no ring, no street. */
-  perHalf: number;
-  /** Plot width along the street and depth away from it (multiples of 0.5 u). */
-  width: number;
-  depth: number;
   house: HousePlan;
 }
+
+/** What a half row of a ring holds (IMPL-0031, PROPOSTA). */
+export type RowUse = "ngo" | "residential" | "civic" | "park" | "square";
+/** One letter per half row in a ring's `zoning`. */
+export const ZONING_LETTERS: Record<string, RowUse> = { N: "ngo", R: "residential", C: "civic", P: "park", S: "square" };
+
+/**
+ * A ring of parcels behind its own street (IMPL-0031, PROPOSTA). Every half row of the ring is a grid of
+ * `perHalf` parcels of `width` × `depth`; what stands on it is the letter of `zoning` for that half row.
+ */
+export interface RingPlan {
+  /** Id of the ring: prefix of the ids of its NGO lots and the `street` of their rows in D1 (`ring1`, `ring2`…). */
+  id: string;
+  /** Tier of the houses of the ring and the paving of its street. */
+  tier: PlotTier;
+  /** Parcels on each half of a side. */
+  perHalf: number;
+  /** Parcel width along the street and depth away from it (multiples of 0.5 u). */
+  width: number;
+  depth: number;
+  /**
+   * Use of each half row, two letters per side from the east side counter-clockwise, the clockwise half first:
+   * N = NGO lots, R = houses, C = a civic building (the next of `VillagePlan.civic`), P = a park, S = a square.
+   */
+  zoning: string;
+}
+
+/** Civic buildings of the village (IMPL-0031, PROPOSTA): scenery with a name, nothing is sold or served in them. */
+export const CIVIC_KINDS = ["bank", "restaurant", "gym", "school", "cinema", "theatre", "supermarket", "hospital", "sleigh-station", "mall", "sports-hall"] as const;
+export type CivicKind = (typeof CIVIC_KINDS)[number];
 
 export interface VillagePlan {
   /** Avenues, and sides of every ring. */
@@ -164,12 +197,21 @@ export interface VillagePlan {
   /** Walkable ground beyond the outermost corner. */
   edge: number;
   tiers: Record<PlotTier, TierPlan>;
+  /** The rings behind the frontage, nearest the square first. An empty list is the square alone. */
+  rings: RingPlan[];
+  /** The civic building of each `C` of the zoning, in the order the letters come (ring by ring, around the village). */
+  civic: CivicKind[];
 }
 
 /**
  * The plan in force (PROPOSTA). Requirements are placeholders for the product owner to set (OQ-17): levels
  * come only from missions and quests (DEC-042), and level 3 and above need the quests, which are off in
  * production today.
+ *
+ * Zoning (IMPL-0031): 97 NGO lots (12 on the frontage, 85 on the rings), 23 houses, 11 civic buildings, three
+ * parks and two squares. The letters were arranged by hand, scattered around the village: no two civic
+ * buildings side by side, houses and parks on every quarter, and the half rows where a character of the
+ * village lives (`life.ts`) kept residential.
  */
 export const VILLAGE_PLAN: VillagePlan = {
   sides: 8,
@@ -184,39 +226,31 @@ export const VILLAGE_PLAN: VillagePlan = {
   shopEvery: 2,
   edge: 2.5,
   tiers: {
-    premium: {
-      label: "Bairro do Centro",
-      requirement: { kind: "level", level: 5 },
-      perHalf: 1,
-      width: 12,
-      depth: 10,
-      house: { halfWidth: 3, halfDepth: 3, porch: 1, eaves: true, offset: -1 },
-    },
-    standard: {
-      label: "Bairro do Meio",
-      requirement: { kind: "level", level: 3 },
-      perHalf: 2,
-      width: 9.5,
-      depth: 8,
-      house: { halfWidth: 3, halfDepth: 2, porch: 0.5, eaves: true, offset: -1 },
-    },
-    economy: {
-      label: "Bairro da Floresta",
-      requirement: { kind: "level", level: 2 },
-      perHalf: 4,
-      width: 6,
-      depth: 7,
-      house: { halfWidth: 2, halfDepth: 2, porch: 0, eaves: false, offset: -0.5 },
-    },
+    premium: { label: "Bairro do Centro", requirement: { kind: "level", level: 5 }, house: { halfWidth: 3, halfDepth: 3, porch: 1, eaves: true, offset: -1 } },
+    standard: { label: "Bairro do Meio", requirement: { kind: "level", level: 3 }, house: { halfWidth: 3, halfDepth: 2, porch: 0.5, eaves: true, offset: -1 } },
+    economy: { label: "Bairro da Floresta", requirement: { kind: "level", level: 2 }, house: { halfWidth: 2, halfDepth: 2, porch: 0, eaves: false, offset: -0.5 } },
   },
+  rings: [
+    //                                                          side: 0 1 2 3 4 5 6 7
+    { id: "ring1", tier: "premium", perHalf: 1, width: 12, depth: 10, zoning: "RNCNRNNCRNSNRCRN" },
+    { id: "ring2", tier: "standard", perHalf: 2, width: 9.5, depth: 8, zoning: "NRNCNNRNCRNNPNCN" },
+    { id: "ring3", tier: "standard", perHalf: 3, width: 8, depth: 8, zoning: "NNCNNRNPNNCNNRNC" },
+    { id: "ring4", tier: "economy", perHalf: 3, width: 10, depth: 9, zoning: "NSNNRNCNNPNNCRNN" },
+  ],
+  civic: ["bank", "restaurant", "gym", "school", "cinema", "theatre", "supermarket", "hospital", "sleigh-station", "mall", "sports-hall"],
 };
 
 export interface LotDef {
   id: string;
+  /** Where the lot stands: `plaza` (the square's frontage) or the id of its ring. The `street` of its row in D1. */
+  street: string;
+  /** 1-based position among the lots of its street: `<street>-<slot>` is the id. */
   slot: number;
+  /** The number people read on screen ("Terreno 27"): 1-based among every lot, the square first, then ring by ring. */
+  number: number;
   x: number;
   z: number;
-  /** Rotation (rad) so the lot faces the tree across the square. */
+  /** Rotation (rad) so the lot faces the tree across its street. */
   facing: number;
 }
 
@@ -232,23 +266,48 @@ export interface ShopDef {
   keeper: { x: number; z: number; rot: number };
 }
 
-/** A signage frame on a shop (PROPOSTA): shows a notice of the village; not for rent (PEN-008, OQ-18). */
+/**
+ * Formats of the display boards of the village (IMPL-0031, PROPOSTA). Every board shows a notice of the village
+ * today; the size of the artwork each one takes is fixed here so that artwork can be produced for them, but
+ * whether a board may ever show anything else is not decided (PEN-008, OQ-18).
+ *
+ * `width` × `height`: the panel in world units. `art`: the artwork to deliver, in pixels, at the panel's
+ * proportions. `cell`: its cell in the one atlas the game draws every board from (a quarter of the artwork each
+ * way, a fifth for a screen, which holds `SCREEN_SLIDES` cells): on screen a board is never larger than its cell.
+ */
+export type BoardFormat = "rooftop" | "outdoor" | "lawn" | "screen";
+export const BOARD_FORMATS: Record<BoardFormat, { width: number; height: number; art: readonly [number, number]; cell: readonly [number, number] }> = {
+  rooftop: { width: 5, height: 2, art: [1280, 512], cell: [320, 128] },
+  outdoor: { width: 8, height: 4, art: [2048, 1024], cell: [512, 256] },
+  lawn: { width: 2, height: 1.5, art: [512, 384], cell: [128, 96] },
+  screen: { width: 8, height: 4.5, art: [1920, 1080], cell: [384, 216] },
+};
+
+/** A display board (PROPOSTA): shows a notice of the village; not for rent (PEN-008, OQ-18). */
 export interface BillboardDef {
   id: string;
-  shopId: string;
-  /** Centre of the frame, on the shop's roof. The frame always faces +z, towards the camera. */
+  format: BoardFormat;
+  /** The shop whose roof a `rooftop` board stands on. */
+  shopId?: string;
+  /** The park, square or civic building a board belongs to. */
+  siteId?: string;
+  /** Stands on the ground, on posts: it has a collider (`BOARD_SOLID`). The others stand on a roof. */
+  grounded: boolean;
+  /** Centre of the panel. A board always faces +z, towards the camera. */
   x: number;
   y: number;
   z: number;
-  /** Where the avatar stands to inspect it: at the shop's corner. */
+  /** Where the avatar stands to read it. */
   point: { x: number; z: number };
 }
 
-/** A residential plot (PROPOSTA, OQ-17). Mirrors a `residential_plots` row (migration 0012). */
+/** A residential plot (PROPOSTA, OQ-17). Mirrors a `residential_plots` row (migrations 0012 and 0015). */
 export interface ResidentialPlot {
   id: string;
   tier: PlotTier;
-  /** 1-based position inside the tier, counter-clockwise from the east side. */
+  /** The ring the plot stands on. */
+  ring: string;
+  /** 1-based position inside the tier, ring by ring, counter-clockwise from the east side. */
   slot: number;
   /** Centre of the plot. */
   x: number;
@@ -268,10 +327,48 @@ export interface ResidentialPlot {
 /** A row of residential plots: one half of a side of a ring. */
 export interface RowDef {
   tier: PlotTier;
+  ring: string;
   side: number;
   /** -1 = clockwise of the lane, +1 = counter-clockwise. */
   half: -1 | 1;
+  /** Width and depth of each plot of the row. */
+  width: number;
+  depth: number;
   plots: ResidentialPlot[];
+}
+
+/** A row of NGO lots on a ring: one half of a side. */
+export interface LotRowDef {
+  ring: string;
+  side: number;
+  half: -1 | 1;
+  /** Width of each lot along the street. */
+  width: number;
+  lots: LotDef[];
+}
+
+/**
+ * A half row that is one place instead of parcels (IMPL-0031, PROPOSTA): a civic building, a park or a square.
+ * Scenery with a name: nothing is sold, served or booked in any of them.
+ */
+export interface SiteDef {
+  id: string;
+  use: "civic" | "park" | "square";
+  /** The building, for a civic site. */
+  kind?: CivicKind;
+  ring: string;
+  side: number;
+  half: -1 | 1;
+  /** Centre of the half row. */
+  x: number;
+  z: number;
+  facing: number;
+  width: number;
+  depth: number;
+  /** Centre of the building (civic) or of the centrepiece (the bandstand of a park, the fountain of a square). */
+  centre: { x: number; z: number };
+  /** Where the avatar stands to read about it: on the street in front. */
+  front: { x: number; z: number };
 }
 
 export type StreetKind = "plaza" | "avenue" | "street" | "lane";
@@ -295,14 +392,23 @@ export interface PathGraph {
 
 /** A ring of rows, as distances from the tree along a side's axis. */
 export interface RingLayout {
-  zone: "frontage" | PlotTier;
-  /** Street-side edge of the plots and their far edge. */
+  /** `frontage` (the square's own row) or the id of the ring in the plan. */
+  id: string;
+  /** Tier of the ring's houses and of its street's paving: null for the frontage. */
+  tier: PlotTier | null;
+  /** Street-side edge of the parcels and their far edge. */
   front: number;
   back: number;
   /** The street the ring faces: null for the frontage, which faces the square. */
   street: readonly [inner: number, outer: number] | null;
   /** Reach of a half row along the side, from the lane's axis. */
   reach: number;
+  /** Parcels on each half row, and their size. */
+  perHalf: number;
+  width: number;
+  depth: number;
+  /** Use of each half row (`2 × side + (half === -1 ? 0 : 1)`); empty for the frontage. */
+  uses: RowUse[];
 }
 
 export interface VillageLayout {
@@ -310,10 +416,12 @@ export interface VillageLayout {
   worldRadius: number;
   rings: RingLayout[];
   lots: LotDef[];
+  lotRows: LotRowDef[];
   shops: ShopDef[];
   billboards: BillboardDef[];
   rows: RowDef[];
   plots: ResidentialPlot[];
+  sites: SiteDef[];
   graph: PathGraph;
 }
 
@@ -333,6 +441,61 @@ const numbered = (n: number, count: number) => String(n).padStart(Math.max(2, St
 
 /** How many avenues the hand-placed scenery of the square is laid out for (see the note above `VILLAGE_PLAN`). */
 export const SCENERY_SIDES = 8;
+
+/** Rectangle in local world units (`[x0, x1, z0, z1]`; the front is local +z). */
+export type Rect = readonly [x0: number, x1: number, z0: number, z1: number];
+
+/**
+ * What each civic building is (IMPL-0031, PROPOSTA). Names are the village's own: no real company, brand or
+ * partner. `about` is what its panel says: what the building is, never a service, a price or an opening.
+ *
+ * `halfWidth` × `halfDepth`: half extents of the walls in voxels (the walls span `2 n + 1` u). `solid`: what
+ * blocks the avatar, around the building's centre (front = local +z); `apps/client/src/scene/colliders.test.ts`
+ * checks it against the drawn voxels. `screen`: the halls with a screen on the roof, and the height of that
+ * roof (the generator's model ends there; a test keeps the two together).
+ */
+export interface CivicSpec {
+  name: string;
+  about: string;
+  halfWidth: number;
+  halfDepth: number;
+  solid: readonly Rect[];
+  screen?: number;
+}
+const hall = (hw: number, hd: number, portico = false): Rect[] => [[-hw - 0.5, hw + 0.5, -hd - 0.5, hd + 0.5], ...(portico ? [[-hw - 0.5, hw + 0.5, hd + 0.5, hd + 1.5] as Rect] : [])];
+export const CIVIC: Record<CivicKind, CivicSpec> = {
+  bank: { name: "Banco da Vila", about: "O prédio do banco, com colunas na frente.", halfWidth: 4, halfDepth: 3, solid: hall(4, 3, true) },
+  restaurant: { name: "Cantina da Vila", about: "A cantina, com toldo listrado e chaminé.", halfWidth: 4, halfDepth: 3, solid: hall(4, 3) },
+  gym: { name: "Academia da Vila", about: "A academia, com janelões para a rua.", halfWidth: 4, halfDepth: 3, solid: hall(4, 3) },
+  school: { name: "Escola da Vila", about: "A escola, com o sino na torre.", halfWidth: 7, halfDepth: 2, solid: hall(7, 2) },
+  cinema: { name: "Cine Vila", about: "O cinema, com a marquise iluminada.", halfWidth: 6, halfDepth: 2, solid: hall(6, 2), screen: 7 },
+  theatre: { name: "Teatro da Vila", about: "O teatro, com colunas e frontão.", halfWidth: 6, halfDepth: 2, solid: hall(6, 2, true) },
+  supermarket: { name: "Mercado da Vila", about: "O mercado, com a fachada de vitrines.", halfWidth: 9, halfDepth: 2, solid: hall(9, 2) },
+  hospital: { name: "Hospital da Vila", about: "O hospital, de dois andares.", halfWidth: 9, halfDepth: 2, solid: hall(9, 2) },
+  "sleigh-station": {
+    name: "Posto do Trenó",
+    about: "O posto dos trenós: feno para as renas, lanternas e um trenó estacionado. Na Vila tudo é a pé.",
+    halfWidth: 6,
+    halfDepth: 2,
+    // A cabin at one end, the posts of the canopy, the hay and the parked sled: the avatar walks under the canopy.
+    solid: [[-6.5, -2.5, -2.5, 0.5], [5.5, 6.5, -2.5, -1.5], [5.5, 6.5, 1.5, 2.5], [-6.5, -5.5, 1.5, 2.5], [0.5, 3.5, -2.5, -1.5], [-0.5, 3.5, 0.5, 1.5]],
+  },
+  mall: { name: "Galeria da Vila", about: "A galeria, com dois andares de vitrines.", halfWidth: 12, halfDepth: 3, solid: hall(12, 3), screen: 9 },
+  "sports-hall": { name: "Ginásio da Vila", about: "O ginásio de esportes, com o telhado em arco.", halfWidth: 11, halfDepth: 3, solid: hall(11, 3), screen: 8 },
+};
+/** How far behind the street's edge the front wall of a civic building stands: room for steps or a portico. */
+export const CIVIC_SETBACK = 1.5;
+
+/** What blocks the avatar under a board that stands on the ground, around its centre (it never turns). */
+export const BOARD_SOLID: Record<BoardFormat, readonly Solid[]> = {
+  rooftop: [],
+  // One mast in the middle: a board never turns with the row it stands on, and a mast fits whatever the row's angle.
+  outdoor: [[-0.5, 0.5, -0.5, 0.5, 0.25]],
+  lawn: [[-1.1, 1.1, -0.3, 0.3, 0.2]],
+  screen: [[-0.5, 0.5, -0.5, 0.5, 0.25]],
+};
+/** Height of the middle of a board that stands on the ground. */
+export const BOARD_HEIGHT: Record<BoardFormat, number> = { rooftop: SHOP_SIGN_HEIGHT, outdoor: 6, lawn: 1.75, screen: 6.25 };
 
 /**
  * Refuses a plan the layout cannot draw, with a message that names the field, instead of a village full of
@@ -364,14 +527,48 @@ export function assertPlan(plan: VillagePlan): void {
   if (!(Number.isFinite(plan.frontage.depth) && plan.frontage.depth >= 8)) fail(`frontage.depth must be at least 8 (the pad of a lot and its porch), got ${plan.frontage.depth}`);
   for (const tier of PLOT_TIERS) {
     const t = plan.tiers[tier];
-    count(`tiers.${tier}.perHalf`, t.perHalf);
-    positive(`tiers.${tier}.width`, t.width);
-    positive(`tiers.${tier}.depth`, t.depth);
     count(`tiers.${tier}.house.halfWidth`, t.house.halfWidth);
     count(`tiers.${tier}.house.halfDepth`, t.house.halfDepth);
     if (!(Number.isFinite(t.house.offset) && Number.isFinite(t.house.porch))) fail(`tiers.${tier}.house needs a number for offset and porch`);
     if (!(Number.isInteger(t.requirement.level) && t.requirement.level >= 1)) fail(`tiers.${tier}.requirement.level must be a whole number from 1, got ${t.requirement.level}`);
   }
+  const seen = new Set<string>();
+  let civic = 0;
+  plan.rings.forEach((ring, i) => {
+    const name = `rings[${i}]`;
+    if (!/^ring\d+$/.test(ring.id)) fail(`${name}.id must be "ring" and a number, got "${ring.id}"`);
+    if (seen.has(ring.id)) fail(`${name}.id "${ring.id}" is used twice`);
+    seen.add(ring.id);
+    if (!PLOT_TIERS.includes(ring.tier)) fail(`${name}.tier must be one of ${PLOT_TIERS.join(", ")}, got "${ring.tier}"`);
+    if (!(Number.isInteger(ring.perHalf) && ring.perHalf >= 1)) fail(`${name}.perHalf must be a whole number from 1, got ${ring.perHalf}`);
+    positive(`${name}.width`, ring.width);
+    positive(`${name}.depth`, ring.depth);
+    if (typeof ring.zoning !== "string" || ring.zoning.length !== 2 * plan.sides) fail(`${name}.zoning must have ${2 * plan.sides} letters (two per side), got ${JSON.stringify(ring.zoning)}`);
+    for (const letter of ring.zoning) if (!(letter in ZONING_LETTERS)) fail(`${name}.zoning has the letter "${letter}": use N, R, C, P or S`);
+    const site = ring.perHalf * ring.width;
+    if (ring.zoning.includes("N")) {
+      // A lot is a 7 × 7 pad with room for a porch 1 u in front of it, like the lots of the square.
+      if (ring.width < 7) fail(`${name}.width must be at least 7 for NGO lots (the pad of a lot), got ${ring.width}`);
+      if (ring.depth < 8) fail(`${name}.depth must be at least 8 for NGO lots (the pad of a lot and its porch), got ${ring.depth}`);
+    }
+    if (ring.zoning.includes("R")) {
+      const house = plan.tiers[ring.tier].house;
+      if (ring.width < 2 * house.halfWidth + 1) fail(`${name}.width must be at least ${2 * house.halfWidth + 1} for the ${ring.tier} house, got ${ring.width}`);
+    }
+    for (const letter of ring.zoning) {
+      if (letter !== "C") continue;
+      const kind = plan.civic[civic++];
+      if (!CIVIC_KINDS.includes(kind)) fail(`civic[${civic - 1}] must name a civic building for a C of ${ring.id}, got ${JSON.stringify(kind)}`);
+      const spec = CIVIC[kind];
+      if (site < 2 * spec.halfWidth + 3) fail(`${ring.id} is too narrow for the ${kind} (half row ${site} u, building ${2 * spec.halfWidth + 1} u and its side yards)`);
+      if (ring.depth < CIVIC_SETBACK + 2 * spec.halfDepth + 1) fail(`${ring.id} is too shallow for the ${kind} (depth ${ring.depth} u, building ${2 * spec.halfDepth + 1} u behind a setback of ${CIVIC_SETBACK} u)`);
+    }
+    if (ring.zoning.includes("P") || ring.zoning.includes("S")) {
+      if (site < 12) fail(`${name} is too narrow for a park or a square (half row ${site} u, at least 12 u)`);
+      if (ring.depth < 8) fail(`${name}.depth must be at least 8 for a park or a square, got ${ring.depth}`);
+    }
+  });
+  if (civic !== plan.civic.length) fail(`civic lists ${plan.civic.length} building(s) and the zoning has ${civic} C`);
 }
 
 /** Frame of side `s`: outward axis `n`, tangent `t` (counter-clockwise) and the rotation that faces the tree. */
@@ -386,7 +583,8 @@ const avenueCut = (plan: VillagePlan) => plan.avenueWidth / (2 * Math.cos(Math.P
 
 /**
  * Derives the whole village from a plan: rings (each as close to the tree as the previous one and its own
- * row length allow), lots, shops, billboards, residential plots and the street graph. Pure and deterministic.
+ * row length allow), lots, shops, residential plots, civic buildings, parks, squares, display boards and the
+ * street graph. Pure and deterministic.
  */
 export function layoutVillage(plan: VillagePlan): VillageLayout {
   assertPlan(plan);
@@ -402,15 +600,12 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
   const rings: RingLayout[] = [];
   const frontageReach = plan.laneWidth / 2 + plan.frontage.perHalf * plan.frontage.width;
   let front = Math.max(upToHalf(plan.squareApothem), fits(frontageReach));
-  rings.push({ zone: "frontage", front, back: front + plan.frontage.depth, street: null, reach: frontageReach });
-  for (const tier of PLOT_TIERS) {
-    const t = plan.tiers[tier];
-    // A tier without plots takes no room: no ring and no street.
-    if (t.perHalf === 0) continue;
-    const reach = plan.laneWidth / 2 + t.perHalf * t.width;
+  rings.push({ id: "frontage", tier: null, front, back: front + plan.frontage.depth, street: null, reach: frontageReach, perHalf: plan.frontage.perHalf, width: plan.frontage.width, depth: plan.frontage.depth, uses: [] });
+  for (const r of plan.rings) {
+    const reach = plan.laneWidth / 2 + r.perHalf * r.width;
     const behind = rings[rings.length - 1].back + plan.backYard;
     front = Math.max(behind + plan.streetWidth, fits(reach));
-    rings.push({ zone: tier, front, back: front + t.depth, street: [front - plan.streetWidth, front], reach });
+    rings.push({ id: r.id, tier: r.tier, front, back: front + r.depth, street: [front - plan.streetWidth, front], reach, perHalf: r.perHalf, width: r.width, depth: r.depth, uses: [...r.zoning].map((letter) => ZONING_LETTERS[letter]) });
   }
   const last = rings[rings.length - 1];
   const worldRadius = upToHalf(Math.hypot(last.back, last.reach) + plan.edge);
@@ -433,7 +628,7 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
     const along = half * (plan.laneWidth / 2 + (i + 0.5) * plan.frontage.width);
     const centre = at(s, frontage.front + 4.5, along);
     if (!isShop) {
-      lots.push({ id: `plaza-${numbered(lots.length + 1, lotCount)}`, slot: lots.length + 1, ...centre, facing: f.facing });
+      lots.push({ id: `plaza-${numbered(lots.length + 1, lotCount)}`, street: "plaza", slot: lots.length + 1, number: lots.length + 1, ...centre, facing: f.facing });
       continue;
     }
     const id = `shop-${numbered(shops.length + 1, shopCount)}`;
@@ -444,47 +639,109 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
       door: at(s, frontage.front - 0.5, along),
       keeper: { ...at(s, frontage.front - 0.2, along - 2.2), rot: f.facing },
     });
-    billboards.push({ id: `billboard-${numbered(billboards.length + 1, shopCount)}`, shopId: id, x: centre.x, y: SHOP_SIGN_HEIGHT, z: centre.z, point: at(s, frontage.front - 0.5, along - 3.4) });
+    billboards.push({ id: `billboard-${numbered(billboards.length + 1, shopCount)}`, format: "rooftop", shopId: id, grounded: false, x: centre.x, y: SHOP_SIGN_HEIGHT, z: centre.z, point: at(s, frontage.front - 0.5, along - 3.4) });
   }
 
-  // Residential rows: packed from the lane outwards, so what is left over is a verge beside the avenue.
-  // Ids are positional here too: the n-th plot of the tier, counter-clockwise from the east side.
+  // The rings: every half row is lots, houses or one site, by the ring's zoning. Rows are packed from the lane
+  // outwards, so what is left over is a verge beside the avenue. Ids are positional here too: the n-th lot of
+  // the ring, the n-th plot of the tier, the n-th civic building, park or square, counter-clockwise from the
+  // east side, ring by ring.
   const rows: RowDef[] = [];
-  for (const tier of PLOT_TIERS) {
-    const t = plan.tiers[tier];
-    const ring = rings.find((r) => r.zone === tier);
-    if (!ring) continue;
-    const plotCount = 2 * plan.sides * t.perHalf;
-    let slot = 0;
+  const lotRows: LotRowDef[] = [];
+  const sites: SiteDef[] = [];
+  const zoned = rings.slice(1);
+  const rowsOf = (use: RowUse, ring?: RingLayout) => (ring ? [ring] : zoned).reduce((n, r) => n + r.uses.filter((u) => u === use).length, 0);
+  const plotCount = (tier: PlotTier) => zoned.filter((r) => r.tier === tier).reduce((n, r) => n + rowsOf("residential", r) * r.perHalf, 0);
+  const plotSlot: Record<PlotTier, number> = { premium: 0, standard: 0, economy: 0 };
+  const siteSlot = { civic: 0, park: 0, square: 0 };
+  const siteCount = { civic: rowsOf("civic"), park: rowsOf("park"), square: rowsOf("square") };
+  /** Boards of the sites, numbered by format once every one is known. */
+  const boards: Array<Omit<BillboardDef, "id">> = [];
+  for (const ring of zoned) {
+    const tier = ring.tier!;
+    const house = plan.tiers[tier].house;
+    const ringLots = rowsOf("ngo", ring) * ring.perHalf;
+    let lotSlot = 0;
     for (let s = 0; s < plan.sides; s++) {
       const f = sideFrame(plan, s);
       for (const half of [-1, 1] as const) {
-        const plots: ResidentialPlot[] = [];
-        for (let i = 0; i < t.perHalf; i++) {
-          // Counter-clockwise order along the side: away from the avenue on the first half, away from the lane on the second.
-          const k = half === -1 ? t.perHalf - 1 - i : i;
-          const along = half * (plan.laneWidth / 2 + (k + 0.5) * t.width);
-          const middle = ring.front + t.depth / 2;
-          slot++;
-          plots.push({
-            id: `${tier}-${numbered(slot, plotCount)}`,
-            tier,
-            slot,
-            ...at(s, middle, along),
-            facing: f.facing,
-            width: t.width,
-            depth: t.depth,
-            front: at(s, ring.front - PLOT_FRONT_STEP, along),
-            house: at(s, middle - t.house.offset, along),
-            hearth: at(s, middle - t.house.offset + 1, along),
-          });
+        const use = ring.uses[2 * s + (half === -1 ? 0 : 1)];
+        /** Centre of parcel `i` of the half row along the side, in counter-clockwise order. */
+        const parcel = (i: number) => half * (plan.laneWidth / 2 + ((half === -1 ? ring.perHalf - 1 - i : i) + 0.5) * ring.width);
+        if (use === "ngo") {
+          const row: LotRowDef = { ring: ring.id, side: s, half, width: ring.width, lots: [] };
+          for (let i = 0; i < ring.perHalf; i++) {
+            lotSlot++;
+            // Like a lot of the square: the pad's centre 4.5 u behind the line where a porch ends, here the street's edge.
+            row.lots.push({ id: `${ring.id}-${numbered(lotSlot, ringLots)}`, street: ring.id, slot: lotSlot, number: lots.length + row.lots.length + 1, ...at(s, ring.front + 4.5, parcel(i)), facing: f.facing });
+          }
+          lots.push(...row.lots);
+          lotRows.push(row);
+        } else if (use === "residential") {
+          const plots: ResidentialPlot[] = [];
+          const middle = ring.front + ring.depth / 2;
+          for (let i = 0; i < ring.perHalf; i++) {
+            const along = parcel(i);
+            const slot = ++plotSlot[tier];
+            plots.push({
+              id: `${tier}-${numbered(slot, plotCount(tier))}`,
+              tier,
+              ring: ring.id,
+              slot,
+              ...at(s, middle, along),
+              facing: f.facing,
+              width: ring.width,
+              depth: ring.depth,
+              front: at(s, ring.front - PLOT_FRONT_STEP, along),
+              house: at(s, middle - house.offset, along),
+              hearth: at(s, middle - house.offset + 1, along),
+            });
+          }
+          rows.push({ tier, ring: ring.id, side: s, half, width: ring.width, depth: ring.depth, plots });
+        } else {
+          const width = ring.perHalf * ring.width, along = half * (plan.laneWidth / 2 + width / 2), middle = ring.front + ring.depth / 2;
+          const n = ++siteSlot[use];
+          const kind = use === "civic" ? plan.civic[n - 1] : undefined;
+          const id = `${use}-${numbered(n, siteCount[use])}`;
+          const spec = kind ? CIVIC[kind] : null;
+          // A civic building stands a setback behind the street; the centrepiece of a park or a square in its middle.
+          const centreAt = spec ? ring.front + CIVIC_SETBACK + spec.halfDepth + 0.5 : middle;
+          sites.push({ id, use, kind, ring: ring.id, side: s, half, ...at(s, middle, along), facing: f.facing, width, depth: ring.depth, centre: at(s, centreAt, along + (use === "park" ? -width / 4 : 0)), front: at(s, ring.front - PLOT_FRONT_STEP, along) });
+          const onStreet = (offset: number) => at(s, ring.front - PLOT_FRONT_STEP, along + offset);
+          if (spec) {
+            // A lawn sign beside the building, level with its front wall; a screen on the roof of the halls that have one.
+            // On the side of the avenue: towards the lane it would stand on the lane's paving.
+            const beside = half * (spec.halfWidth + 1.75);
+            boards.push({ format: "lawn", siteId: id, grounded: true, ...at(s, ring.front + CIVIC_SETBACK, along + beside), y: BOARD_HEIGHT.lawn, point: onStreet(beside) });
+            // The panel starts a unit above the roof, on two short legs.
+            if (spec.screen) boards.push({ format: "screen", siteId: id, grounded: false, ...at(s, centreAt, along), y: spec.screen + 1 + BOARD_FORMATS.screen.height / 2, point: onStreet(2.5) });
+          } else {
+            // A park: a street billboard at its back. A square: a screen. Both: a lawn sign near each end, by the street.
+            // The bandstand of a park stands a quarter of the row to one side, so its billboard takes the other side.
+            boards.push({ format: use === "park" ? "outdoor" : "screen", siteId: id, grounded: true, ...at(s, ring.back - (use === "park" ? 1.5 : 1), along + (use === "park" ? width / 4 : 0)), y: use === "park" ? BOARD_HEIGHT.outdoor : BOARD_HEIGHT.screen, point: onStreet(2.2) });
+            // 2 u behind the street's edge: a sign never turns, and on some sides its length points at the street.
+            for (const end of [-1, 1]) boards.push({ format: "lawn", siteId: id, grounded: true, ...at(s, ring.front + 2, along + end * (width / 2 - 1.5)), y: BOARD_HEIGHT.lawn, point: onStreet(end * (width / 2 - 1.5)) });
+          }
         }
-        rows.push({ tier, side: s, half, plots });
       }
     }
   }
+  // A street billboard where every other avenue ends, on the open ground beyond the last ring and beside the
+  // avenue, clear of its corridor (rule 1 of `SIGHTLINE` is about tall things on the avenue itself).
+  if (zoned.length > 0)
+    for (let s = 0; s < plan.sides; s += 2) {
+      const a = ((2 * s + 1) * Math.PI) / plan.sides;
+      const ax = Math.cos(a), az = Math.sin(a);
+      // The last rows end about `edge` u from the end of the world: the mast stands in that strip, behind their corner.
+      const out = worldRadius - plan.edge, beside = plan.avenueWidth / 2 + BOARD_FORMATS.outdoor.width / 2 + 0.5;
+      boards.push({ format: "outdoor", grounded: true, x: round2(out * ax - beside * az), y: BOARD_HEIGHT.outdoor, z: round2(out * az + beside * ax), point: { x: round2((out - 1) * ax), z: round2((out - 1) * az) } });
+    }
+  for (const format of ["outdoor", "lawn", "screen"] as const) {
+    const ofFormat = boards.filter((b) => b.format === format);
+    ofFormat.forEach((b, i) => billboards.push({ id: `${format}-${numbered(i + 1, ofFormat.length)}`, ...b }));
+  }
 
-  // Street graph: the round street of the plaza, the avenues, one polygon street per residential ring and the lanes.
+  // Street graph: the round street of the plaza, the avenues, one polygon street per ring and the lanes.
   const nodes: PathNode[] = [];
   const edges: PathEdge[] = [];
   const node = (id: string, p: { x: number; z: number }) => (nodes.push({ id, ...p }), id);
@@ -507,7 +764,7 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
     });
     link(prev, node(`avenue-${pad2(s + 1)}-end`, polar(worldRadius - 1, avenue)), "avenue", plan.avenueWidth);
     // Lane of side `s`: from the edge of the square, between the two plots of the frontage, across every street
-    // and out past the last ring. With no residential ring it meets no street, so it stays out of the graph.
+    // and out past the last ring. With no ring it meets no street, so it stays out of the graph.
     if (streets.length === 0) continue;
     let lane = node(`lane-${pad2(s + 1)}-square`, at(s, frontage.front - 2, 0));
     streets.forEach((apothem, k) => {
@@ -527,7 +784,7 @@ export function layoutVillage(plan: VillagePlan): VillageLayout {
     });
   }
 
-  return { plan, worldRadius, rings, lots, shops, billboards, rows, plots: rows.flatMap((r) => r.plots), graph: { nodes, edges } };
+  return { plan, worldRadius, rings, lots, lotRows, shops, billboards, rows, plots: rows.flatMap((r) => r.plots), sites, graph: { nodes, edges } };
 }
 
 /** The village in force, derived from `VILLAGE_PLAN`. */
@@ -539,10 +796,18 @@ export const STREET_INNER = VILLAGE_PLAN.ringStreet[0];
 export const STREET_OUTER = VILLAGE_PLAN.ringStreet[1];
 
 /**
- * Lots reserved for approved NGOs (DEC-028), on the square's frontage. Mirrors the `lots` rows (migrations
- * 0002, 0003 and 0012); a test keeps them in sync. `plaza-01`…`plaza-08` existed before the expansion.
+ * Lots reserved for approved NGOs (DEC-028): the square's frontage and the NGO rows of every ring. Mirrors the
+ * `lots` rows (migrations 0002, 0003, 0012 and 0015); a test keeps them in sync. `plaza-01`…`plaza-08` existed
+ * before the first expansion, `plaza-09`…`plaza-12` came with it, and the rings came with IMPL-0031.
  */
 export const LOTS: LotDef[] = VILLAGE.lots;
+/** The rows of lots on the rings (the lots of the square stand one to a half side). */
+export const LOT_ROWS: LotRowDef[] = VILLAGE.lotRows;
+/** Civic buildings, parks and squares (IMPL-0031, PROPOSTA). */
+export const SITES: SiteDef[] = VILLAGE.sites;
+const LOT_BY_ID = new Map(LOTS.map((lot) => [lot.id, lot]));
+/** The lot of an id, or undefined: ids are checked against the plan, never parsed. */
+export const lotById = (id: string): LotDef | undefined => LOT_BY_ID.get(id);
 export const SHOPS: ShopDef[] = VILLAGE.shops;
 export const BILLBOARDS: BillboardDef[] = VILLAGE.billboards;
 /** Residential plots (PROPOSTA). Mirrors the `residential_plots` rows (migration 0012); a test keeps them in sync. */
@@ -585,8 +850,44 @@ export const VILLAGE_NOTICES: readonly string[] = [
   "Brincar na Vila é de graça. Doar é sempre uma escolha.",
   "Conheça as ONGs ao redor da praça.",
   "A árvore da praça é o coração da Vila.",
+  "Cada casa de ONG tem uma história para contar.",
+  "Na Vila tudo é a pé: aproveite o passeio.",
+  "As avenidas levam sempre à árvore.",
+  "Gentileza é o enfeite que não sai de moda.",
 ];
-export const billboardNotice = (billboardId: string) => VILLAGE_NOTICES[Math.max(0, BILLBOARDS.findIndex((b) => b.id === billboardId)) % VILLAGE_NOTICES.length];
+/** What a lawn sign says: a few words, for a board two units wide. Fixed text of the village, like the notices. */
+export const SHORT_NOTICES: readonly string[] = ["Boas festas!", "Feliz Natal", "Paz na Vila", "Doar é escolha", "Brincar é grátis", "Bem-vindos"];
+const boardIndex = (billboardId: string) => Math.max(0, BILLBOARDS.findIndex((b) => b.id === billboardId));
+const noticesOf = (billboardId: string) => (BILLBOARDS[boardIndex(billboardId)]?.format === "lawn" ? SHORT_NOTICES : VILLAGE_NOTICES);
+/** The notice a board shows (a screen: the first of the ones it cycles through). */
+export const billboardNotice = (billboardId: string) => noticesOf(billboardId)[boardIndex(billboardId) % noticesOf(billboardId).length];
+/** How many notices a screen cycles through, and how long each one stays (seconds). */
+export const SCREEN_SLIDES = 2;
+export const SCREEN_SLIDE_SECONDS = 8;
+/** Every notice a board shows in turn: one, or `SCREEN_SLIDES` for a screen. */
+export const boardNotices = (billboardId: string): string[] => {
+  const board = BILLBOARDS[boardIndex(billboardId)];
+  const count = board?.format === "screen" ? SCREEN_SLIDES : 1;
+  const list = noticesOf(billboardId);
+  return Array.from({ length: count }, (_, k) => list[(boardIndex(billboardId) + k * 3) % list.length]);
+};
+
+/** A street as the UI names it: the square, or the street of a ring ("Rua 2"). Never the raw id. */
+export const streetLabel = (street: string): string => (street === "plaza" ? "Praça" : `Rua ${VILLAGE.rings.findIndex((r) => r.id === street)}`);
+
+/**
+ * Names of the parks and squares (PROPOSTA): the village's own, in the order they come around the village.
+ * A civic building takes its name from `CIVIC`.
+ */
+const PARK_NAMES = ["Parque dos Pinheiros", "Parque do Coreto", "Parque da Floresta", "Parque das Lanternas"] as const;
+const SQUARE_NAMES = ["Praça da Fonte", "Praça das Luzes", "Praça do Sino"] as const;
+const numberOf = (id: string) => Number(id.slice(id.lastIndexOf("-") + 1)) - 1;
+/** A civic building, a park or a square as its panel names it. */
+export function siteCopy(site: SiteDef): { name: string; about: string } {
+  if (site.kind) return { name: CIVIC[site.kind].name, about: CIVIC[site.kind].about };
+  if (site.use === "park") return { name: PARK_NAMES[numberOf(site.id) % PARK_NAMES.length], about: "Um parque com coreto, bancos e pinheiros." };
+  return { name: SQUARE_NAMES[numberOf(site.id) % SQUARE_NAMES.length], about: "Uma praça com fonte, bancos e postes." };
+}
 
 /** Hidden gifts (mission "find 2 gifts"). */
 export const GIFTS = [
@@ -608,8 +909,17 @@ const PLAZA_PINES: [number, number][] = [[10, 10], [-10, -10], [-11, 9.5]];
  */
 const roundAway = (v: number) => Math.sign(v) * Math.round(Math.abs(v) + 1e-9);
 const BELT = VILLAGE.rings[VILLAGE.rings.length - 1];
+/** A small pine in every park (IMPL-0031), behind its bench: the same model, sway and collider as the plaza's. */
+const PARK_PINES: [number, number][] = SITES.filter((site) => site.use === "park").map((site) => {
+  const ring = VILLAGE.rings.find((r) => r.id === site.ring)!;
+  const f = sideFrame(VILLAGE_PLAN, site.side);
+  const apothem = ring.back - 2.6, along = site.half * (VILLAGE_PLAN.laneWidth / 2 + site.width / 2) + 0.5;
+  return [Math.round(apothem * f.nx + along * f.tx), Math.round(apothem * f.nz + along * f.tz)];
+});
+const SMALL_PINES = PLAZA_PINES.length + PARK_PINES.length;
 export const PINES: [number, number][] = [
   ...PLAZA_PINES,
+  ...PARK_PINES,
   ...Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
     const f = sideFrame(VILLAGE_PLAN, s);
     const apothem = BELT.back + VILLAGE_PLAN.backYard + 3.5;
@@ -619,8 +929,8 @@ export const PINES: [number, number][] = [
     });
   }).flat(),
 ];
-/** Pine size by index: the three by the plaza stay small so they never hide the avatar from the camera. */
-export const pineIsTall = (i: number): boolean => i >= PLAZA_PINES.length;
+/** Pine size by index: the ones by the plaza and in the parks stay small so they never hide the avatar from the camera. */
+export const pineIsTall = (i: number): boolean => i >= SMALL_PINES;
 /** Where a pine stands: the drawn model and its collider both snap to whole voxels. */
 export const pineAt = ([x, z]: readonly [number, number]): Placed => ({ x: Math.round(x), z: Math.round(z) });
 
@@ -758,7 +1068,7 @@ export const STREET_LAMPS: [number, number][] = VILLAGE.rings.flatMap((ring) => 
   const reach = apothem * Math.tan(Math.PI / VILLAGE_PLAN.sides) - avenueCut(VILLAGE_PLAN) - 0.9;
   return Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
     const f = sideFrame(VILLAGE_PLAN, s);
-    return (ring.zone === "premium" ? [-1, 1] : ring.zone === "standard" ? [1] : [-1]).map((half): [number, number] => [round2(apothem * f.nx + half * reach * f.tx), round2(apothem * f.nz + half * reach * f.tz)]);
+    return (ring.tier === "premium" ? [-1, 1] : ring.tier === "standard" ? [1] : [-1]).map((half): [number, number] => [round2(apothem * f.nx + half * reach * f.tx), round2(apothem * f.nz + half * reach * f.tz)]);
   }).flat();
 });
 
@@ -850,9 +1160,6 @@ export function clampToWorld(x: number, z: number): [number, number] {
   return [x, z];
 }
 
-/** Rectangle in lot-local world units (`[x0, x1, z0, z1]`; the lot faces the plaza along local +z). */
-export type Rect = readonly [x0: number, x1: number, z0: number, z1: number];
-
 /**
  * Envelope of every generated chalet: walls up to ±3.5 and a porch that ends 4.5 u in front of the lot
  * centre. The client blocks the avatar with the real footprint of each house (`GenModel.solid`); this is
@@ -930,9 +1237,12 @@ function rowDressing(row: RowDef): DressingPart[] {
       solid: [-v / 2, (length - 0.5) * v, -v / 2, (thick - 0.5) * v, r],
     });
   };
-  const w = tier.width, d = tier.depth;
+  const w = row.width, d = row.depth;
   const wallHalf = tier.house.halfWidth + 0.5, wallDepth = 2 * tier.house.halfDepth + 1;
   const gap = Math.round((w - 2 * wallHalf) / v);
+  // A gap of up to 2.5 u is closed whole. A wider one keeps a passage a route can be planned through, with a
+  // short stack beside the wall.
+  const filler = gap * v <= 2.5 ? gap : 4;
   row.plots.forEach((plot, i) => {
     if (row.tier === "premium") {
       // A wall from each side edge to the gate, set back from the front edge; pillars at the gate; two shrubs.
@@ -951,13 +1261,84 @@ function rowDressing(row: RowDef): DressingPart[] {
     }
     // Filler between this chalet and the next one of the row, as deep as the walls.
     if (row.tier !== "premium" && i + 1 < row.plots.length && gap > 0) {
-      part(plot, row.tier === "standard" ? "hedge" : "firewood", wallHalf + v / 2, tier.house.offset - wallDepth / 2 + v / 2, gap, Math.round(wallDepth / v));
+      part(plot, row.tier === "standard" ? "hedge" : "firewood", wallHalf + v / 2, tier.house.offset - wallDepth / 2 + v / 2, filler, Math.round(wallDepth / v));
     }
   });
   return out;
 }
 /** Every dressing part of the residential rows, in the order of `RESIDENTIAL_ROWS`. */
 export const RESIDENTIAL_DRESSING: DressingPart[] = RESIDENTIAL_ROWS.flatMap(rowDressing);
+
+/**
+ * A hedge between two neighbouring lots of a ring (IMPL-0031), as deep as their pads. Between two chalets the
+ * gap is wider than the avatar and too narrow to plan a route through; the hedge closes it, and tells one
+ * lot's garden from the next. Lots at least 11 u wide have open gardens instead.
+ */
+function lotRowDressing(row: LotRowDef): DressingPart[] {
+  const gap = row.width - 7;
+  if (gap >= 4) return [];
+  const v = DRESSING_VOXEL;
+  const thick = gap <= 2.5 ? 2 : Math.round((gap - 1) / v), length = Math.round(7 / v);
+  const ring = VILLAGE.rings.find((r) => r.id === row.ring)!;
+  const f = sideFrame(VILLAGE_PLAN, row.side);
+  const out: DressingPart[] = [];
+  for (let k = 1; k < row.lots.length; k++) {
+    // The boundary between parcel `k - 1` and parcel `k`, counted from the lane; the hedge grows towards +t.
+    const boundary = row.half * (VILLAGE_PLAN.laneWidth / 2 + k * row.width);
+    const apothem = ring.front + 1 + v / 2, along = boundary - ((thick - 1) * v) / 2;
+    out.push({ kind: "hedge", length, thick, rot: f.facing + Math.PI / 2, x: apothem * f.nx + along * f.tx, z: apothem * f.nz + along * f.tz, solid: [-v / 2, (length - 0.5) * v, -v / 2, (thick - 0.5) * v, 0] });
+  }
+  return out;
+}
+/** The hedges between the lots of the rings, in the order of `LOT_ROWS`. */
+export const LOT_DRESSING: DressingPart[] = LOT_ROWS.flatMap(lotRowDressing);
+
+/**
+ * What stands in a park or on a square besides its boards (IMPL-0031, PROPOSTA): a bandstand, a bench and a
+ * small pine (`PARK_PINES`); a fountain, two lamp posts and, where there is room, two benches. Each has a model in
+ * `apps/client/src/scene/villageModels.ts` (or reuses the plaza's) and blocks the avatar.
+ */
+export type SitePropKind = "bandstand" | "fountain" | "site-bench" | "site-lamp";
+export interface SiteProp extends Required<Placed> {
+  kind: SitePropKind;
+  siteId: string;
+}
+/** Footprint of each site prop around its centre. The bandstand and the fountain are solid: nobody walks into them. */
+export const SITE_PROP_SOLID: Record<SitePropKind, Solid> = {
+  bandstand: [-2.5, 2.5, -2.5, 2.5, 0.5],
+  fountain: [-2.5, 2.5, -2.5, 2.5, 1.5],
+  "site-bench": [-0.75, 0.75, -0.25, 0.25, 0.25],
+  // The pole plus the wreath on its +z side, like the plaza's lamps.
+  "site-lamp": [-0.55, 0.55, -0.35, 0.75, 0.55],
+};
+function siteProps(site: SiteDef): SiteProp[] {
+  if (site.use === "civic") return [];
+  const ring = VILLAGE.rings.find((r) => r.id === site.ring)!;
+  const f = sideFrame(VILLAGE_PLAN, site.side);
+  const mid = site.half * (VILLAGE_PLAN.laneWidth / 2 + site.width / 2);
+  /** A point of the site: `apothem` u behind the street's edge, `along` u from the middle of the row. */
+  const at = (kind: SitePropKind, apothem: number, along: number, rot = f.facing): SiteProp => ({
+    kind, siteId: site.id, rot,
+    x: round2((ring.front + apothem) * f.nx + (mid + along) * f.tx), z: round2((ring.front + apothem) * f.nz + (mid + along) * f.tz),
+  });
+  const w = site.width, d = site.depth;
+  // A park also has a small pine (`PARK_PINES`): it sways, so it is drawn with the other pines.
+  if (site.use === "park") return [at("bandstand", d / 2, -w / 4), at("site-bench", 1.2, 0)];
+  return [
+    at("fountain", d / 2, 0),
+    // Benches beside the fountain where the square is wide enough to walk around them.
+    ...(w >= 16 ? [-1, 1].map((end) => at("site-bench", d / 2, end * 5, f.facing + Math.PI / 2)) : []),
+    ...[-1, 1].map((end) => at("site-lamp", d - 1.5, end * (w / 2 - 1.2), 0)),
+  ];
+}
+/** Every prop of the parks and squares, in the order of `SITES`. */
+export const SITE_PROPS: SiteProp[] = SITES.flatMap(siteProps);
+
+/** Walls (and portico) of a civic building, around the building's own centre. */
+export function siteColliders(site: SiteDef): Obstacle[] {
+  if (!site.kind) return [];
+  return CIVIC[site.kind].solid.map(([x0, x1, z0, z1]) => footprint({ x: site.centre.x, z: site.centre.z, rot: site.facing }, x0, x1, z0, z1));
+}
 
 /** Something solid on the ground plane that blocks the avatar: a circle or a rounded rectangle. */
 export type Obstacle = Collider;
@@ -986,6 +1367,12 @@ export const OBSTACLES: Obstacle[] = [
   ...PLACED_PROPS.flatMap((p) => p.at.map((at) => solid(at, p.solid))),
   ...SHOPS.flatMap((shop) => SHOP_SOLID.map(([x0, x1, z0, z1]) => footprint({ x: shop.x, z: shop.z, rot: shop.facing }, x0, x1, z0, z1))),
   ...RESIDENTIAL_DRESSING.map((part) => solid(part, part.solid)),
+  // The rings (IMPL-0031): hedges between lots, civic buildings, what stands in the parks and squares, and the
+  // masts and lawn signs of the boards (a board never turns: it faces the camera).
+  ...LOT_DRESSING.map((part) => solid(part, part.solid)),
+  ...SITES.flatMap(siteColliders),
+  ...SITE_PROPS.map((prop) => solid(prop, SITE_PROP_SOLID[prop.kind])),
+  ...BILLBOARDS.filter((b) => b.grounded).flatMap((b) => BOARD_SOLID[b.format].map((rect) => solid({ x: b.x, z: b.z }, rect))),
 ];
 
 /**
@@ -999,14 +1386,17 @@ export const QUEST_OBSTACLES: Obstacle[] = [
 ];
 
 /** Ground under a point: what is painted there, and what a footstep sounds like. */
-export type GroundKind = "ice" | "plaza" | "ring-street" | "avenue" | "lane" | `street-${PlotTier}` | `path-${PlotTier}` | `yard-${PlotTier}` | "pad" | "snow";
+export type GroundKind =
+  | "ice" | "plaza" | "ring-street" | "avenue" | "lane" | `street-${PlotTier}` | `path-${PlotTier}` | `yard-${PlotTier}` | "pad" | "snow"
+  // The rings (IMPL-0031): the garden of an NGO lot, the forecourt of a civic building, a park and a square.
+  | "yard-lot" | "civic" | "park" | "square";
 
 const TWO_PI = Math.PI * 2;
 
 /**
- * What the ground is at a point (IMPL-0024): the same function paints the voxel ground and picks the footstep
- * sound. Paving is one of the cues of a tier: cobbles on the premium street and a stone path to each door,
- * packed snow on the standard street, trodden snow on the economy street.
+ * What the ground is at a point (IMPL-0024, IMPL-0031): the same function paints the voxel ground and picks
+ * the footstep sound. Paving is one of the cues of a tier: cobbles on the premium street and a paved path to
+ * each door, asphalt on the standard street, packed earth on the economy street (IMPL-0030).
  */
 export function groundAt(x: number, z: number): GroundKind {
   if (Math.hypot(x - POND.x, z - POND.z) <= POND.radius) return "ice";
@@ -1025,21 +1415,27 @@ export function groundAt(x: number, z: number): GroundKind {
   const frontage = VILLAGE.rings[0];
   if (apothem < frontage.front) return "snow";
   if (Math.abs(along) <= plan.laneWidth / 2) {
-    for (const ring of VILLAGE.rings) if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.zone as PlotTier}`;
+    for (const ring of VILLAGE.rings) if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.tier!}`;
     return "lane";
   }
   for (const ring of VILLAGE.rings) {
-    if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.zone as PlotTier}`;
+    if (ring.street && apothem >= ring.street[0] && apothem <= ring.street[1]) return `street-${ring.tier!}`;
     if (apothem < ring.front || apothem > ring.back || Math.abs(along) > ring.reach) continue;
-    if (ring.zone === "frontage") {
-      const centre = plan.laneWidth / 2 + (Math.floor((Math.abs(along) - plan.laneWidth / 2) / plan.frontage.width) + 0.5) * plan.frontage.width;
-      return Math.abs(Math.abs(along) - centre) <= 3.5 && apothem >= ring.front + 1 ? "pad" : "snow";
+    /** Middle, along the side, of the parcel the point is on. */
+    const centre = plan.laneWidth / 2 + (Math.floor((Math.abs(along) - plan.laneWidth / 2) / ring.width) + 0.5) * ring.width;
+    const off = Math.abs(Math.abs(along) - centre);
+    if (ring.tier === null) return off <= 3.5 && apothem >= ring.front + 1 ? "pad" : "snow";
+    const use = ring.uses[2 * s + (along < 0 ? 0 : 1)];
+    if (use === "civic" || use === "park" || use === "square") return use;
+    if (use === "ngo") {
+      // The pad of the lot and, in front of it, a paved step from the street as wide as a porch.
+      if (off <= 3.5 && apothem >= ring.front + 1 && apothem <= ring.front + 8) return "pad";
+      return off <= 2.5 && apothem < ring.front + 1 ? "pad" : "yard-lot";
     }
-    const tier = plan.tiers[ring.zone];
-    const centre = plan.laneWidth / 2 + (Math.floor((Math.abs(along) - plan.laneWidth / 2) / tier.width) + 0.5) * tier.width;
-    const door = ring.front + tier.depth / 2 - tier.house.offset - tier.house.halfDepth - 0.5;
-    if (ring.zone !== "economy" && Math.abs(Math.abs(along) - centre) <= 1 && apothem <= door) return `path-${ring.zone}`;
-    return `yard-${ring.zone}`;
+    const house = plan.tiers[ring.tier].house;
+    const door = ring.front + ring.depth / 2 - house.offset - house.halfDepth - 0.5;
+    if (ring.tier !== "economy" && off <= 1 && apothem <= door) return `path-${ring.tier}`;
+    return `yard-${ring.tier}`;
   }
   return "snow";
 }
@@ -1050,7 +1446,7 @@ export type Surface = "stone" | "packed" | "snow" | "ice";
 export function surfaceAt(x: number, z: number): Surface {
   const kind = groundAt(x, z);
   if (kind === "ice") return "ice";
-  if (kind === "plaza" || kind === "street-premium" || kind === "path-premium" || kind === "pad") return "stone";
+  if (kind === "plaza" || kind === "street-premium" || kind === "path-premium" || kind === "pad" || kind === "civic" || kind === "square") return "stone";
   if (kind === "ring-street" || kind === "avenue" || kind === "lane" || kind === "street-standard" || kind === "street-economy" || kind === "path-standard") return "packed";
   return "snow";
 }
@@ -1063,11 +1459,11 @@ export function surfaceAt(x: number, z: number): Surface {
  * 1. Avenues. Every avenue is a straight corridor to the tree: no tall thing stands within `margin` of its
  *    edges, from its far end to the tree's boughs. This is the rule that can fail: a pine, a lot or a row
  *    placed on an avenue's line breaks it.
- * 2. Plots. The walk along the street from the front of a residential plot to the avenue of its half row is
- *    at most `maxWalk` long. That stretch holding no tall thing is checked too, but it follows from the
+ * 2. Rings. The walk along the street from the front of a residential plot, of a lot of a ring or of a civic
+ *    building, park or square to the avenue of its half row is at most `maxWalk` long. That stretch holding no tall thing is checked too, but it follows from the
  *    layout (nothing is ever placed on a street), so only the length says something about a plan.
- * 3. Frontage. No tall thing stands between the porch line of a lot or a shop and the round street of the
- *    plaza, on the line towards the tree. It also follows from the layout (the band between them holds only
+ * 3. Frontage. No tall thing stands between the porch line of a lot of the square or a shop and the round
+ *    street of the plaza, on the line towards the tree. It also follows from the layout (the band between them holds only
  *    low scenery) and guards against a tall thing being placed there later.
  *
  * The rule does not say the tree is seen from every plot or lot. A plot sees its street, not the tree; and
@@ -1084,7 +1480,7 @@ export interface Sightline {
   width: number;
 }
 
-/** The avenue corridors (rule 1) and, per plot, lot and shop, the stretches of rules 2 and 3. */
+/** The avenue corridors (rule 1) and, per plot, lot, shop and site, the stretches of rules 2 and 3. */
 export function sightlines(village: VillageLayout = VILLAGE): { corridors: Sightline[]; fronts: Sightline[] } {
   const { plan, graph } = village;
   const pad2 = (n: number) => numbered(n, plan.sides);
@@ -1097,19 +1493,21 @@ export function sightlines(village: VillageLayout = VILLAGE): { corridors: Sight
   }
   const fronts: Sightline[] = [];
   const streets = village.rings.filter((r) => r.street);
-  for (const row of village.rows) {
-    const k = streets.findIndex((r) => r.zone === row.tier) + 1;
+  /** The stretch of rule 2: from a point of the street of `ring`, level with `p`, to the avenue of its half row. */
+  const walk = (id: string, ringId: string, side: number, half: -1 | 1, p: { x: number; z: number }) => {
+    const k = streets.findIndex((r) => r.id === ringId) + 1;
     const ring = streets[k - 1];
-    const f = sideFrame(plan, row.side);
+    const f = sideFrame(plan, side);
     const street = (ring.street![0] + ring.street![1]) / 2;
     // Avenue `s` runs between side `s` and side `s + 1`: the clockwise half row walks to avenue `s - 1`.
-    const avenue = nodeAt(`avenue-${pad2(((row.side + (row.half === 1 ? 0 : plan.sides - 1)) % plan.sides) + 1)}-street-${k}`);
-    for (const plot of row.plots) {
-      const along = plot.front.x * f.tx + plot.front.z * f.tz;
-      fronts.push({ id: plot.id, from: { x: street * f.nx + along * f.tx, z: street * f.nz + along * f.tz }, to: avenue, width: plan.streetWidth - 2 });
-    }
-  }
-  for (const p of [...village.lots, ...village.shops]) {
+    const avenue = nodeAt(`avenue-${pad2(((side + (half === 1 ? 0 : plan.sides - 1)) % plan.sides) + 1)}-street-${k}`);
+    const along = p.x * f.tx + p.z * f.tz;
+    fronts.push({ id, from: { x: street * f.nx + along * f.tx, z: street * f.nz + along * f.tz }, to: avenue, width: plan.streetWidth - 2 });
+  };
+  for (const row of village.rows) for (const plot of row.plots) walk(plot.id, row.ring, row.side, row.half, plot.front);
+  for (const row of village.lotRows) for (const lot of row.lots) walk(lot.id, row.ring, row.side, row.half, lot);
+  for (const site of village.sites) walk(site.id, site.ring, site.side, site.half, site.front);
+  for (const p of [...village.lots.filter((lot) => lot.street === "plaza"), ...village.shops]) {
     // From just outside the line where a porch ends (4.5 u in front of the pad's centre).
     const porch = { x: p.x + 4.8 * Math.sin(p.facing), z: p.z + 4.8 * Math.cos(p.facing) };
     fronts.push({ id: p.id, from: porch, to: towards(porch, plan.ringStreet[1]), width: 0 });

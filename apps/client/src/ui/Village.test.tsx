@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { attainableLevel } from "@vila/shared/game/progress";
-import { billboardNotice, BILLBOARDS, LOTS, PLOT_TIERS, plotLabel, RESIDENTIAL_PLOTS, SHOP_COPY, SHOPS, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { billboardNotice, BILLBOARDS, boardNotices, LOTS, PLOT_TIERS, plotLabel, RESIDENTIAL_PLOTS, SCREEN_SLIDES, SHOP_COPY, SHOPS, SHORT_NOTICES, siteCopy, SITES, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
 
 import { sim, walkRoute } from "../game/sim";
 import { useVila } from "../game/store";
@@ -20,7 +20,8 @@ import { isUnlisted, lotLabel, UNLISTED_LABEL } from "../lib/lots";
 import { Donation } from "./Donation";
 import { Explore } from "./Explore";
 import { Lot } from "./Lot";
-import { BillboardPanel, PlotPanel, PlotPanelView, ShopPanel } from "./Village";
+import { actionLabel } from "./Hud";
+import { BillboardPanel, PlotPanel, PlotPanelView, ShopPanel, SitePanel } from "./Village";
 
 /** Words that would turn a placeholder into a sale: none may appear on these panels. */
 const MONEY = /R\$|\bcomprar?\b|\bcompre\b|\bpreço\b|\bmoedas?\b|\bpagar\b|\bpagamento\b|\balug\w+\b|\bcarrinho\b/i;
@@ -39,11 +40,11 @@ describe("residential plot panel", () => {
   const NEUTRAL = "Os terrenos residenciais não têm dono. A posse por jogadores é uma proposta em estudo e ainda não foi decidida.";
 
   it.each(PLOT_TIERS)("says the plot, its neighbourhood and one neutral statement while ownership is off (%s)", (tier) => {
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier && p.slot === 12)!;
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier && p.slot === 3)!;
     const html = renderToStaticMarkup(<PlotPanel plotId={plot.id} />);
     const read = text(html);
     expect(read).toContain(NEUTRAL);
-    expect(read).toContain(`Terreno 12 · ${VILLAGE_PLAN.tiers[tier].label}`);
+    expect(read).toContain(`Terreno 3 · ${VILLAGE_PLAN.tiers[tier].label}`);
     expect(html).toContain('role="dialog"');
     // The id is there for tests and tools, not for the visitor.
     expect(html).toContain(`data-plot-id="${plot.id}"`);
@@ -66,9 +67,9 @@ describe("residential plot panel", () => {
   });
 
   it("is the same neutral panel when the API cannot be read or answers every plot unavailable", () => {
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-07")!;
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-05")!;
     const off = renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="unavailable" level={1} quests={false} />);
-    expect(off).toBe(renderToStaticMarkup(<PlotPanel plotId="economy-07" />));
+    expect(off).toBe(renderToStaticMarkup(<PlotPanel plotId="economy-05" />));
     // A state alone opens nothing: the requirement and the state appear only with the flag on.
     expect(renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="available" level={4} quests />)).toBe(off);
   });
@@ -148,18 +149,70 @@ describe("billboard panel", () => {
     expect(buttons(html)).toEqual([]);
   });
 
-  it("shows only notices of the village: short, no link, no brand, one per billboard", () => {
-    expect(new Set(BILLBOARDS.map((b) => billboardNotice(b.id))).size).toBe(BILLBOARDS.length);
+  it("shows only notices of the village: short, no link, no brand, and a different one on each board of a shop", () => {
+    const rooftop = BILLBOARDS.filter((b) => b.format === "rooftop");
+    expect(new Set(rooftop.map((b) => billboardNotice(b.id))).size).toBe(rooftop.length);
     for (const text of VILLAGE_NOTICES) {
       expect(text.length).toBeLessThanOrEqual(60);
       expect(/https?:|www\.|@|R\$|%/.test(text)).toBe(false);
     }
+    // A lawn sign is two units wide: a few words (IMPL-0031).
+    for (const text of SHORT_NOTICES) {
+      expect(text.length).toBeLessThanOrEqual(18);
+      expect(/https?:|www\.|@|R\$|%/.test(text)).toBe(false);
+    }
+    // Every board of every format shows text of those two lists, and a screen cycles through different ones.
+    for (const b of BILLBOARDS) {
+      const notices = boardNotices(b.id);
+      expect(notices, b.id).toHaveLength(b.format === "screen" ? SCREEN_SLIDES : 1);
+      expect(new Set(notices).size, b.id).toBe(notices.length);
+      expect(notices[0], b.id).toBe(billboardNotice(b.id));
+      for (const notice of notices) expect(b.format === "lawn" ? SHORT_NOTICES : VILLAGE_NOTICES, b.id).toContain(notice);
+    }
+  });
+
+  it.each(BILLBOARDS.map((b) => b.id))("says where %s stands, in words of the village and with no raw id", (id) => {
+    const read = text(renderToStaticMarkup(<BillboardPanel billboardId={id} />));
+    expect(read).toMatch(/Onde fica (No telhado d|Ao lado de: |Em: |No fim de uma avenida)/);
+    expect(read).toMatch(/^ (Placa da Vila|Telão da Vila) (Placa|Outdoor|Placa de jardim|Telão) \d+ /);
+    for (const notice of boardNotices(id)) expect(read).toContain(notice);
+  });
+});
+
+describe("civic buildings, parks and squares (IMPL-0031)", () => {
+  it.each(SITES.map((site) => site.id))("%s: its name, what it is, its street, and that it is scenery", (id) => {
+    const site = SITES.find((x) => x.id === id)!;
+    const { name, about } = siteCopy(site);
+    const html = renderToStaticMarkup(<SitePanel siteId={id} />);
+    const read = text(html);
+    expect(read).toContain(name);
+    expect(read).toContain(about);
+    expect(read).toMatch(/Onde fica Rua \d/);
+    expect(read).toContain(site.use === "civic" ? "Este prédio é cenário da Vila: não há atendimento e nada é vendido aqui." : "Nada é vendido na Vila.");
+    expect(html).toContain(`data-site-id="${id}"`);
+    expect(html).toContain('role="dialog"');
+    // Nothing that is not decided, no price, no raw id, nothing to press.
+    expect(PROMISE.test(read)).toBe(false);
+    expect(MONEY.test(read)).toBe(false);
+    expect(RAW.test(read)).toBe(false);
+    expect(buttons(html)).toEqual([]);
+  });
+
+  it("opens nothing for an id that is not a site", () => {
+    expect(renderToStaticMarkup(<SitePanel siteId="civic-99" />)).toBe("");
+  });
+
+  it("names each kind on the action button", () => {
+    const label = (id: string) => actionLabel({ kind: "site", siteId: id }, false);
+    expect(label(SITES.find((x) => x.use === "civic")!.id)).toBe("🏛️ Ver prédio");
+    expect(label(SITES.find((x) => x.use === "park")!.id)).toBe("🌲 Ver parque");
+    expect(label(SITES.find((x) => x.use === "square")!.id)).toBe("⛲ Ver praça");
   });
 });
 
 describe("the three panels behave like every other panel", () => {
   const PANELS = [
-    { state: { kind: "plot", plotId: "economy-07" }, element: <PlotPanel plotId="economy-07" /> },
+    { state: { kind: "plot", plotId: "economy-05" }, element: <PlotPanel plotId="economy-05" /> },
     { state: { kind: "shop", shopId: "shop-02" }, element: <ShopPanel shopId="shop-02" /> },
     { state: { kind: "billboard", billboardId: "billboard-02" }, element: <BillboardPanel billboardId="billboard-02" /> },
   ] as const;
@@ -203,7 +256,7 @@ describe("lot the API does not list yet", () => {
 
   it("labels it the same way in 3D: never as available", () => {
     expect(UNLISTED_LABEL).toBe("Terreno em preparação");
-    expect(LOTS.map((l) => lotLabel(eight, l.id))).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill(UNLISTED_LABEL)]);
+    expect(LOTS.map((l) => lotLabel(eight, l.id))).toEqual([...Array(8).fill("Terreno disponível"), ...Array(LOTS.length - 8).fill(UNLISTED_LABEL)]);
     expect(lotLabel({ ...eight, "plaza-03": { ...eight["plaza-03"], state: "published", ngo_name: "Associação Exemplo" } }, "plaza-03")).toBe("Associação Exemplo");
     // Before the API answers (or when it cannot be read) nothing is known to be unlisted.
     expect(isUnlisted({}, "plaza-12")).toBe(false);
@@ -241,28 +294,42 @@ describe("a published house on one of the new lots and the donations of IMPL-002
   });
 });
 
-describe("Explorar ONGs with the 12 lots of the frontage", () => {
+describe("Explorar ONGs with the lots of the square and of the rings", () => {
   /** One row per lot: its name and its state, as shown. */
   const rows = (lots: Record<string, LotInfo>) =>
     [...renderToStaticMarkup(<Explore lots={lots} />).matchAll(/<li><span><strong>(.*?)<\/strong><small>(.*?)<\/small><\/span><button class="btn btn--small">Ir até lá<\/button><\/li>/g)].map((m) => [m[1], m[2]]);
   const info = (id: string, state: LotInfo["state"], ngo_name: string | null = null) => ({ id, state, ngo_name }) as LotInfo;
 
-  it("lists every lot once, each with its way there", () => {
-    expect(LOTS).toHaveLength(12);
+  it("lists every lot once, each with its way there, under its street", () => {
+    expect(LOTS).toHaveLength(97);
     const all = Object.fromEntries(LOTS.map((l) => [l.id, info(l.id, "available")]));
-    expect(rows(all)).toEqual(LOTS.map((l) => [`Terreno ${l.slot}`, "Terreno disponível"]));
-    expect(new Set(LOTS.map((l) => l.slot)).size).toBe(12);
+    // The number people read is the lot's own in the whole village: no two lots show the same one.
+    expect(rows(all)).toEqual(LOTS.map((l) => [`Terreno ${l.number}`, "Terreno disponível"]));
+    expect(new Set(LOTS.map((l) => l.number)).size).toBe(97);
+    // One section a street: the square open, the streets with no house closed.
+    const html = renderToStaticMarkup(<Explore lots={all} />);
+    expect([...html.matchAll(/<summary><strong>(.*?)<\/strong><small>(.*?)<\/small><\/summary>/g)].map((m) => [m[1], m[2]])).toEqual([
+      ["Praça", "12 terrenos"], ["Rua 1", "7 terrenos"], ["Rua 2", "18 terrenos"], ["Rua 3", "30 terrenos"], ["Rua 4", "30 terrenos"],
+    ]);
+    expect(html.match(/<details class="lot-street" open="">/g)).toHaveLength(1);
+    expect(RAW.test(text(html))).toBe(false);
   });
 
   it("names a published house and counts it", () => {
     const all = Object.fromEntries(LOTS.map((l) => [l.id, info(l.id, "available")]));
     all["plaza-12"] = info("plaza-12", "published", "Associação Exemplo");
-    expect(rows(all).at(-1)).toEqual(["Associação Exemplo", "Casa publicada"]);
-    expect(renderToStaticMarkup(<Explore lots={all} />)).toContain("1 casa publicada na praça.");
+    all["ring3-17"] = info("ring3-17", "published", "Instituto Exemplo");
+    // A published house comes first in its street, and its street opens.
+    expect(rows(all)[0]).toEqual(["Associação Exemplo", "Casa publicada"]);
+    expect(rows(all).filter((r) => r[1] === "Casa publicada")).toEqual([["Associação Exemplo", "Casa publicada"], ["Instituto Exemplo", "Casa publicada"]]);
+    const html = renderToStaticMarkup(<Explore lots={all} />);
+    expect(html).toContain("2 casas publicadas na Vila.");
+    expect(html).toContain("<strong>Rua 3</strong><small>30 terrenos · 1 casa publicada</small>");
+    expect(html.match(/<details class="lot-street" open="">/g)).toHaveLength(2);
   });
 
   it("does not call a lot available when the API does not list it (a database before migration 0012)", () => {
     const eight = Object.fromEntries(LOTS.slice(0, 8).map((l) => [l.id, info(l.id, "available")]));
-    expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(4).fill(UNLISTED_LABEL)]);
+    expect(rows(eight).map((r) => r[1])).toEqual([...Array(8).fill("Terreno disponível"), ...Array(LOTS.length - 8).fill(UNLISTED_LABEL)]);
   });
 });

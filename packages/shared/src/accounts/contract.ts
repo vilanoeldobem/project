@@ -3,6 +3,7 @@
  * call them: the game (`apps/client`) and the backoffice dashboard (`apps/dash`, IMPL-0015). Types and pt-BR
  * labels only; no fetch, no DOM.
  */
+import { lotById } from "../game/world";
 import type { ApplicationFile } from "./files";
 import type { NgoApplication } from "./validate";
 
@@ -165,5 +166,9 @@ export interface ModerationTicket {
   expiresAt: string;
 }
 
-/** "plaza-03" → 3 (the number people see on the lot). */
-export const lotNumber = (lotId: string): number => Number(lotId.split("-")[1]);
+/**
+ * The number people see on a lot: "plaza-03" → 3, "ring1-01" → 13. It counts every lot of the village, the
+ * square first and then ring by ring (`LotDef.number`), so two lots never show the same number; an id that is
+ * not in the plan gives `NaN`.
+ */
+export const lotNumber = (lotId: string): number => lotById(lotId)?.number ?? Number.NaN;

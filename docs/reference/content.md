@@ -47,6 +47,7 @@
 | `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, parede lisa, em enxaimel, em tábuas ou em tijolos, base de pedra, venezianas, canteiro, varanda, guirlanda na porta, pingentes, neve só na cumeeira, chaminé de ardósia (âncora `chimney` = origem da fumaça) | ver `stats.json` |
 | `house-dormer`, `house-townhouse`, `house-terrace` | Casa com água-furtada, sobrado, casa com terraço | houses | os arquétipos das casas residenciais (IMPL-0030, PROPOSTA): janela acesa sobre a porta; dois andares sob telhado baixo; laje com mureta, floreiras e um cômodo no terraço | ver `stats.json` |
+| `civic-bank`, `civic-restaurant`, `civic-gym`, `civic-school`, `civic-cinema`, `civic-theatre`, `civic-supermarket`, `civic-hospital`, `civic-sleigh-station`, `civic-mall`, `civic-sports-hall` | Banco, Cantina, Academia, Escola, Cine, Teatro, Mercado, Hospital, Posto do Trenó, Galeria e Ginásio da Vila | civic | prédios cívicos ([IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md), **PROPOSTA**, cenário): a semente (o id do lugar) escolhe só cores de parede, friso, telhado e toldo; a forma é fixa e bate com o colisor em `CIVIC` (`world.ts`). Sem texto, logo ou marca. Orçamento da categoria: 2 400 voxels, 1 800 faces | ver `stats.json` |
 | `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
@@ -156,3 +157,22 @@ máximos contra o orçamento e custo de renderização. `?gallery&cat=props` abr
 
 [IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md) · [IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md) ·
 [architecture.md](architecture.md)
+
+## Modelos dos anéis que não são geradores com semente (IMPL-0031, PROPOSTA)
+
+Em `apps/client/src/scene/villageModels.ts`, com o colisor de cada um ao lado da colocação em
+`packages/shared/src/game/world.ts` (`SITE_PROP_SOLID`, `BOARD_SOLID`):
+
+| Modelo | Onde aparece | Colisor |
+|---|---|---|
+| `bandstand()` | coreto de cada parque (5 × 5 u, telhado em degraus) | caixa 5 × 5 |
+| `fountain()` | fonte de cada praça (bacia redonda de 5 u, voxels de 0,5 u) | caixa 5 × 5 de cantos arredondados |
+| `outdoorFrame()` | moldura do outdoor: painel de 8 × 4 u num mastro | o mastro (1 × 1) |
+| `screenFrame(base)` | fundo escuro do telão: num mastro (praças) ou em duas pernas sobre um telhado de altura `base` | o mastro; nenhum no telhado |
+| `lawnSign()` | placa de jardim de 2 × 1,5 u em duas estacas (voxels de 0,5 u) | caixa 2,2 × 0,6 |
+| `dressingModel("hedge")` | sebe entre dois terrenos de ONG vizinhos de um anel (`LOT_DRESSING`) | a pegada da sebe |
+
+Bancos e postes dos parques e das praças reutilizam `bench()` e `lamp()` da praça central; o pinheiro de cada
+parque entra na lista `PINES` e balança com os outros. Nenhuma placa gira: todas ficam de frente para a câmera.
+Tamanho das artes de cada formato de placa: [display-boards.md](display-boards.md).
+

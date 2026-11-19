@@ -8,6 +8,7 @@ import {
   PLACED_PROPS,
   FOREST_INNER,
   FOREST_OUTER,
+  WORLD_RADIUS,
   LAMPS,
   PALETTE as P,
   pineAt,
@@ -72,8 +73,9 @@ export function Pines() {
     // Size and position come from `world.ts`, which sizes each pine's collider from the same two facts.
     PINES.forEach((p, i) => add(pineIsTall(i) ? tall : small, pineAt(p).x, pineAt(p).z, i, false));
     const rnd = mulberry32(0xf0e57);
-    // The forest ring is longer now (IMPL-0024) and farther away: a third more trees keep it reading as a forest.
-    for (let i = 0; i < 120; i++) {
+    // The forest ring grows with the village (IMPL-0024, IMPL-0031): the same trees per unit of its length as the
+    // 120 it had around the village of radius 82.5.
+    for (let i = 0; i < Math.round((120 * WORLD_RADIUS) / 82.5); i++) {
       const a = rnd() * Math.PI * 2;
       const r = FOREST_INNER + rnd() * (FOREST_OUTER - FOREST_INNER);
       add(rnd() < 0.6 ? tall : small, Math.round(Math.cos(a) * r), Math.round(Math.sin(a) * r), i, true);

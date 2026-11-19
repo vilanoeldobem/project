@@ -19,3 +19,17 @@ export function lotLabel(lots: Readonly<Record<string, { state: string; ngo_name
   if (lot?.state === "published" && lot.ngo_name) return lot.ngo_name;
   return isUnlisted(lots, lotId) ? UNLISTED_LABEL : "Terreno disponível";
 }
+
+/**
+ * Developer preview of a full village (localhost and dev builds only, like `?envTime`): with `?villageDemo=full`
+ * every lot the API answered is drawn as a published house, so the render budget can be measured with every
+ * chalet on screen (IMPL-0031). The houses carry a label that says what they are, never the name of an
+ * organisation; nothing is written anywhere, and a deployed game ignores the parameter.
+ */
+export function withDemoHouses<T extends { id: string; state: string; ngo_name: string | null }>(lots: T[], search: string, allowed: boolean): T[] {
+  if (!allowed || new URLSearchParams(search).get("villageDemo") !== "full") return lots;
+  return lots.map((lot, i) => (lot.state === "published" ? lot : { ...lot, state: "published", ngo_name: `Casa de demonstração ${i + 1}` }));
+}
+
+/** Where the developer preview above may run: a dev build, or a local build opened on localhost. Never a deployed game. */
+export const demoAllowed = (): boolean => import.meta.env.DEV || (typeof location !== "undefined" && /^(localhost|127\.0\.0\.1)$/.test(location.hostname));

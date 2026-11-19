@@ -28,6 +28,8 @@ export type Panel =
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
   | { kind: "billboard"; billboardId: string }
+  // A civic building, a park or a square (IMPL-0031, PROPOSTA): what it is, and that it is scenery.
+  | { kind: "site"; siteId: string }
   // A character of the village (IMPL-0025, PROPOSTA): the fixed lines chosen when the dialogue opened.
   | { kind: "life"; charId: string; name: string; role: string; lines: string[] };
 
@@ -51,6 +53,7 @@ export type Nearby =
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
   | { kind: "billboard"; billboardId: string }
+  | { kind: "site"; siteId: string }
   // A character of the village that stands near (IMPL-0025, PROPOSTA): offered only when nothing above is in reach.
   | { kind: "life"; charId: string }
   | null;
@@ -72,6 +75,8 @@ export function sameNearby(a: Nearby, b: Nearby): boolean {
       return b.kind === "shop" && a.shopId === b.shopId;
     case "billboard":
       return b.kind === "billboard" && a.billboardId === b.billboardId;
+    case "site":
+      return b.kind === "site" && a.siteId === b.siteId;
     case "life":
       return b.kind === "life" && a.charId === b.charId;
     case "tree":

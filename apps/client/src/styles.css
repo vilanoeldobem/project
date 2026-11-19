@@ -273,8 +273,9 @@ kbd {
 .map-ground { fill: #f3e3c3; stroke: var(--sheet-line); stroke-width: 2; }
 .map-square { fill: #ead7b0; stroke: #d9c095; stroke-width: 2; }
 .map-ring { fill: none; stroke: #d9c4a0; }
+.map-street { fill: none; stroke: #d9c4a0; stroke-linejoin: round; }
 .map-plaza { fill: #f8e6bd; stroke: var(--gold); stroke-width: 2; }
-.map-avenue { stroke: #e6d4b4; stroke-width: 9; stroke-linecap: round; }
+.map-avenue { stroke: #d9c4a0; stroke-width: 9; stroke-linecap: round; }
 .map-dot { stroke: var(--pine); stroke-width: 1; }
 .map-dot[data-state="available"] { fill: var(--cream); }
 .map-dot[data-state="unknown"] { fill: #cfc6b4; }
@@ -285,6 +286,8 @@ kbd {
 .map-dot[data-state="premium"] { fill: #c9b58d; }
 .map-dot[data-state="standard"] { fill: #d5c4a2; }
 .map-dot[data-state="economy"] { fill: #e0d2b6; }
+.map-dot[data-state="civic"] { fill: #6f8fb3; }
+.map-dot[data-state="park"], .map-dot[data-state="square"] { fill: #7fb08a; }
 .map-here { fill: var(--red); stroke: #fff; stroke-width: 2; }
 .map-here__label { font: 800 12px var(--font); fill: var(--red); }
 .map-legend { list-style: none; padding: 0; margin: 0 0 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; font-weight: 700; font-size: 0.9rem; }
@@ -296,6 +299,8 @@ kbd {
 .map-swatch[data-state="under_review"] { background: var(--gold); }
 .map-swatch[data-state="shop"] { background: var(--red); }
 .map-swatch[data-state="plot"] { background: #d5c4a2; }
+.map-swatch[data-state="civic"] { background: #6f8fb3; border-radius: 3px; }
+.map-swatch[data-state="park"] { background: #7fb08a; border-radius: 3px; }
 .map-swatch[data-state="unknown"] { background: #cfc6b4; }
 
 /* Donor badges (P15). */
@@ -335,6 +340,9 @@ kbd {
 .lot-list span, .mission-list li > span:last-child { display: flex; flex-direction: column; }
 /* "Ir até lá": twelve rows on a phone, each button a full 44 px target (the small button alone is 36 px). */
 .lot-list .btn { min-height: 44px; flex: none; }
+.lot-street { margin: 8px 0; border: 2px solid var(--sheet-line); border-radius: 14px; padding: 4px 10px; }
+.lot-street > summary { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; min-height: 44px; padding: 8px 2px; cursor: pointer; }
+.lot-street > summary small { opacity: 0.8; }
 small { color: var(--ink-2); font-size: 0.82rem; }
 .mission-list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--cream-2); }
 .mission-list li > span:first-child { color: var(--gold); font-size: 1.2rem; -webkit-text-stroke: 0.5px var(--pine); }

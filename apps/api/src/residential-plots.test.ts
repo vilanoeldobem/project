@@ -1,6 +1,7 @@
 /**
- * Residential plots and the lots of the expanded village (IMPL-0024, PROPOSTA): the public read, the flag, the
- * seed of migration 0012 against the shared layout, and what the migration keeps of the lots that existed.
+ * Residential plots and the lots of the expanded village (IMPL-0024 and IMPL-0031, PROPOSTA): the public read,
+ * the flag, the seeds of migrations 0012 and 0015 against the shared layout, and what each migration keeps of
+ * the lots that existed.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,17 +28,24 @@ beforeEach(() => {
   env = { DB: db, ENVIRONMENT: "test", ACCOUNTS_ENABLED: "false", RESIDENTIAL_PLOTS_ENABLED: "false", ALLOWED_ORIGINS: ORIGIN };
 });
 
-describe("migration 0012 against the shared layout", () => {
-  it("seeds exactly the lots of the layout, in order", () => {
-    const rows = db.sql("SELECT id, street, slot, x, z, state, ngo_id FROM lots ORDER BY slot");
-    expect(rows).toEqual(LOTS.map((l) => ({ id: l.id, street: "plaza", slot: l.slot, x: l.x, z: l.z, state: "available", ngo_id: null })));
-    expect(rows).toHaveLength(12);
+const PLAZA = LOTS.filter((l) => l.street === "plaza");
+
+describe("migrations 0012 and 0015 against the shared layout", () => {
+  it("seeds exactly the lots of the layout, in order: the square first, then ring by ring", () => {
+    // The order of `GET /lots` (`ORDER BY street, slot`): `plaza` sorts before `ring1`…`ring4`.
+    const rows = db.sql("SELECT id, street, slot, x, z, state, ngo_id FROM lots ORDER BY street, slot");
+    expect(rows).toEqual(LOTS.map((l) => ({ id: l.id, street: l.street, slot: l.slot, x: l.x, z: l.z, state: "available", ngo_id: null })));
+    expect(rows).toHaveLength(97);
+    expect(db.sql("SELECT street, COUNT(*) AS n FROM lots GROUP BY street ORDER BY street")).toEqual([
+      { street: "plaza", n: 12 }, { street: "ring1", n: 7 }, { street: "ring2", n: 18 }, { street: "ring3", n: 30 }, { street: "ring4", n: 30 },
+    ]);
   });
 
   it("seeds exactly the residential plots of the layout", () => {
     const rows = db.sql(`SELECT id, tier, slot, x, z, facing FROM residential_plots ORDER BY CASE tier WHEN 'premium' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END, slot`);
     expect(rows).toEqual(layout);
-    expect(PLOT_TIERS.map((t) => rows.filter((r) => r.tier === t).length)).toEqual([16, 32, 64]);
+    // 0015 seeds the table again: about four parcels in five of the rings became NGO lots (IMPL-0031).
+    expect(PLOT_TIERS.map((t) => rows.filter((r) => r.tier === t).length)).toEqual([5, 12, 6]);
   });
 
   it("has no price and no ownership schema: the table holds an id, a tier and a position, nothing else (OQ-17)", () => {
@@ -61,7 +69,7 @@ describe("migration 0012 against the shared layout", () => {
     expect(old.sql("SELECT name, sql FROM sqlite_master WHERE name LIKE '%donation%' OR name LIKE '%payment%' OR name LIKE '%abacatepay%' ORDER BY name")).toEqual(before);
     expect(old.sql("SELECT ngo_id, payment_method, sub_account_id FROM ngo_payment_configs")).toEqual([{ ngo_id: NGO_ID, payment_method: "abacatepay", sub_account_id: "dev_sacc_11222333000181" }]);
     const rows = old.sql("SELECT id, slot, x, z, state, ngo_id FROM lots ORDER BY slot");
-    expect(rows.map(({ id, slot, x, z }) => ({ id, slot, x, z }))).toEqual(LOTS.map(({ id, slot, x, z }) => ({ id, slot, x, z })));
+    expect(rows.map(({ id, slot, x, z }) => ({ id, slot, x, z }))).toEqual(PLAZA.map(({ id, slot, x, z }) => ({ id, slot, x, z })));
     expect(rows.filter((r) => r.state !== "available")).toEqual([
       { id: "plaza-03", slot: 3, x: LOTS[2].x, z: LOTS[2].z, state: "published", ngo_id: NGO_ID },
       { id: "plaza-07", slot: 7, x: LOTS[6].x, z: LOTS[6].z, state: "under_review", ngo_id: null },
@@ -73,16 +81,51 @@ describe("migration 0012 against the shared layout", () => {
     expect(lots.find((l) => l.id === "plaza-03")).toMatchObject({ state: "published", ngo_id: NGO_ID, ngo_name: "Associação Exemplo", x: LOTS[2].x, z: LOTS[2].z });
     expect(lots.find((l) => l.id === "plaza-12")).toMatchObject({ state: "available", ngo_id: null, ngo_name: null });
   });
+
+  it("0015 adds the lots of the rings and seeds the plots again, and touches nothing that existed", async () => {
+    // The schema just before it, with a published house and an application on the square, and donations data.
+    const old = createD1({ upTo: 14 });
+    await old.prepare("INSERT INTO ngos (id, name, cnpj, summary, status) VALUES (?, 'Associação Exemplo', '11222333000181', 'Resumo', 'published')").bind(NGO_ID).run();
+    await old.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = 'plaza-03'").bind(NGO_ID).run();
+    await old.prepare("UPDATE lots SET state = 'under_review' WHERE id = 'plaza-11'").run();
+    await old.prepare("INSERT INTO ngo_payment_configs (ngo_id, payment_method, sub_account_id) VALUES (?, 'abacatepay', 'dev_sacc_11222333000181')").bind(NGO_ID).run();
+    const plaza = old.sql("SELECT * FROM lots ORDER BY slot");
+    expect(plaza).toHaveLength(12);
+    expect(old.sql("SELECT COUNT(*) AS n FROM residential_plots")).toEqual([{ n: 112 }]);
+    const others = () => old.sql("SELECT name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY name");
+    const schema = others();
+    old.migrate("0015_village_growth.sql");
+    // World structure only: no table, column or index changes, and every row of the square is as it was.
+    expect(others()).toEqual(schema);
+    expect(old.sql("SELECT * FROM lots WHERE street = 'plaza' ORDER BY slot")).toEqual(plaza);
+    expect(old.sql("SELECT ngo_id, payment_method, sub_account_id FROM ngo_payment_configs")).toEqual([{ ngo_id: NGO_ID, payment_method: "abacatepay", sub_account_id: "dev_sacc_11222333000181" }]);
+    // The rings: every new lot available, with no NGO; ids, streets, slots and places as the layout says.
+    const rings = old.sql("SELECT id, street, slot, x, z, state, ngo_id FROM lots WHERE street <> 'plaza' ORDER BY street, slot");
+    expect(rings).toEqual(LOTS.filter((l) => l.street !== "plaza").map((l) => ({ id: l.id, street: l.street, slot: l.slot, x: l.x, z: l.z, state: "available", ngo_id: null })));
+    expect(rings).toHaveLength(85);
+    expect(old.sql(`SELECT id, tier, slot, x, z, facing FROM residential_plots ORDER BY CASE tier WHEN 'premium' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END, slot`)).toEqual(layout);
+    // The public projection follows: the same house on the same lot, and the rings listed after the square.
+    env.DB = old;
+    const { lots } = (await (await get("/lots")).json()) as { lots: Array<Record<string, unknown>> };
+    expect(lots.map((l) => l.id)).toEqual(LOTS.map((l) => l.id));
+    expect(lots.find((l) => l.id === "plaza-03")).toMatchObject({ state: "published", ngo_id: NGO_ID, ngo_name: "Associação Exemplo" });
+    expect(lots.find((l) => l.id === "ring3-17")).toMatchObject({ street: "ring3", slot: 17, state: "available", ngo_id: null, ngo_name: null });
+  });
+
+  it("cannot be applied twice: the lots of the rings are unique by id and by (street, slot)", () => {
+    expect(() => db.migrate("0015_village_growth.sql")).toThrow(/UNIQUE|constraint/i);
+    expect(db.sql("SELECT COUNT(*) AS n FROM lots")).toEqual([{ n: 97 }]);
+  });
 });
 
-describe("a house on one of the four new lots and the donations of IMPL-0023", () => {
+describe("a house on one of the lots added after the first eight and the donations of IMPL-0023", () => {
   const info = `/ngos/${NGO_ID}/donation-info`;
   const publishOn = async (lot: string) => {
     await db.prepare("INSERT INTO ngos (id, name, cnpj, summary, status) VALUES (?, 'Associação Exemplo', '11222333000181', 'Resumo', 'published')").bind(NGO_ID).run();
     await db.prepare("UPDATE lots SET state = 'published', ngo_id = ? WHERE id = ?").bind(NGO_ID, lot).run();
   };
 
-  it.each(["plaza-09", "plaza-10", "plaza-11", "plaza-12"])("on %s: no donation route with the flag off, the house's own donation with it on", async (lot) => {
+  it.each(["plaza-09", "plaza-10", "plaza-11", "plaza-12", "ring1-01", "ring2-18", "ring3-17", "ring4-30"])("on %s: no donation route with the flag off, the house's own donation with it on", async (lot) => {
     await publishOn(lot);
     // Off (production and staging): the route does not exist, and the public lot is as before.
     env.DONATIONS_ENABLED = "false";

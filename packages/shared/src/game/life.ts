@@ -40,7 +40,7 @@ import { WEATHER_SLOT_MS, WEATHER_TRANSITION_MS } from "../environment/config";
 import { hash32, random01 } from "../environment/random";
 import { saoPauloSecondsOfDay } from "../environment/time";
 import { weatherAt } from "../environment/weather";
-import { groundAt, LAMPS, PADDOCKS, PATH_GRAPH, PINES, SHOPS, SLEIGH, VILLAGE, VILLAGE_PLAN, WOOD_YARD, sideFrame } from "./world";
+import { groundAt, LAMPS, PADDOCKS, PATH_GRAPH, pineIsTall, PINES, SHOPS, SLEIGH, VILLAGE, VILLAGE_PLAN, WOOD_YARD, sideFrame } from "./world";
 
 export { PADDOCKS } from "./world";
 
@@ -189,8 +189,15 @@ const link = (...ids: string[]) => {
   for (let i = 1; i < ids.length; i++) edges.push({ a: ids[i - 1], b: ids[i] });
 };
 
-const PREMIUM = VILLAGE.rings.find((r) => r.zone === "premium")!;
-const ECONOMY = VILLAGE.rings.find((r) => r.zone === "economy")!;
+// The rings the cast lives on (IMPL-0031): the half rows of these homes are residential in `VILLAGE_PLAN`, and a
+// test says so when a zoning change takes a house from under a character.
+const PREMIUM = VILLAGE.rings.find((r) => r.tier === "premium")!;
+const STANDARD = VILLAGE.rings.find((r) => r.tier === "standard")!;
+const ECONOMY = VILLAGE.rings.find((r) => r.tier === "economy")!;
+/** 1-based number of a ring's street, as the street graph names its nodes (`lane-03-street-2`). */
+const streetOf = (ring: typeof PREMIUM) => `street-${VILLAGE.rings.indexOf(ring)}`;
+/** Middle of the `k`-th plot of a half row of `ring`, counted from the lane, along the side. */
+const plotAlong = (ring: typeof PREMIUM, half: -1 | 1, k = 0) => half * (VILLAGE_PLAN.laneWidth / 2 + (k + 0.5) * ring.width);
 const streetAxis = (ring: typeof PREMIUM) => (ring.street![0] + ring.street![1]) / 2;
 
 /**
@@ -198,14 +205,19 @@ const streetAxis = (ring: typeof PREMIUM) => (ring.street![0] + ring.street![1])
  * street). The character stands in the gateway and goes in: an off-stage spot.
  */
 function home(s: number, along: number, ring: typeof PREMIUM, from: string): LifeSpotDef {
-  const id = `${ring.zone}:${s}:${along}`;
-  const row = node(`row:${id}`, sidePoint(s, streetAxis(ring), along), true);
-  const front = node(`front:${id}`, sidePoint(s, ring.front - 0.75, along));
-  link(from, row, front);
+  const id = `${ring.id}:${s}:${along}`;
   // Premium: the gate in the stone wall, 0.75 u inside the plot. Economy: the open yard in front of the door.
-  return { ...sidePoint(s, ring.front + (ring.zone === "premium" ? 0.6 : 0.7), along), look: sidePoint(s, ring.front + 4, along), activity: "rest", place: "home", via: front, inside: true };
+  // Standard: the yard beside the porch, which reaches to half a unit from the street (IMPL-0031): the way in
+  // leaves the street level with that yard, so it turns in square and never cuts the porch's corner.
+  const way = along + (ring.tier === "standard" ? 3.9 : 0);
+  const row = node(`row:${id}`, sidePoint(s, streetAxis(ring), way), true);
+  const front = node(`front:${id}`, sidePoint(s, ring.front - 0.75, way));
+  link(from, row, front);
+  return { ...sidePoint(s, ring.front + (ring.tier === "economy" ? 0.7 : 0.6), way), look: sidePoint(s, ring.front + 4, along), activity: "rest", place: "home", via: front, inside: true };
 }
-const premiumHome = (s: number, half: -1 | 1) => home(s, half * (VILLAGE_PLAN.laneWidth / 2 + VILLAGE_PLAN.tiers.premium.width / 2), PREMIUM, laneNode(s, "street-1"));
+const premiumHome = (s: number, half: -1 | 1) => home(s, plotAlong(PREMIUM, half), PREMIUM, laneNode(s, streetOf(PREMIUM)));
+/** A house of the second street, `k` plots from the lane; reached from the lane, or from `from` when given. */
+const standardHome = (s: number, half: -1 | 1, k = 0, from = laneNode(s, streetOf(STANDARD))) => home(s, plotAlong(STANDARD, half, k), STANDARD, from);
 
 const TREE = { x: 0, z: 0 };
 
@@ -363,13 +375,13 @@ const pen = (side: number, depth: number) => {
 };
 
 const SLEIGH_NAP = { x: -0.6, z: 18.1 };
-const LUMBER_HOME = home(6, VILLAGE_PLAN.laneWidth / 2 + VILLAGE_PLAN.tiers.economy.width / 2, ECONOMY, laneNode(6, "street-3"));
+const LUMBER_HOME = home(6, plotAlong(ECONOMY, 1), ECONOMY, laneNode(6, streetOf(ECONOMY)));
 const VILLAGER_1_HOME = (() => {
   // The pond lies on the lane of the north-east side, so this home is reached from the avenue beside it.
-  const along = -(VILLAGE_PLAN.laneWidth / 2 + VILLAGE_PLAN.tiers.premium.width / 2);
-  return home(7, along, PREMIUM, avenueNode(7, "street-1"));
+  return home(7, plotAlong(PREMIUM, -1), PREMIUM, avenueNode(7, streetOf(PREMIUM)));
 })();
-const OWL_PINE = { x: PINES[3][0], z: PINES[3][1], y: 11 };
+/** The first tall pine of the belt (the small ones of the plaza and of the parks come before it in the list). */
+const OWL_PINE = (([x, z]) => ({ x, z, y: 11 }))(PINES[PINES.findIndex((_, i) => pineIsTall(i))]);
 
 export const LIFE_GROUPS: LifeGroupDef[] = [
   { id: "sleigh", slot: 75 },
@@ -456,7 +468,7 @@ export const LIFE_CAST: LifeCharDef[] = [
   {
     id: "villager-2", kind: "villager", seed: "villager-2", group: "shop-3",
     spots: [
-      premiumHome(4, 1),
+      standardHome(4, 1),
       { x: -7, z: 2.5, look: TREE, activity: "watch", place: "tree", via: W0 },
       { x: -18.3, z: 3, look: { x: -20.5, z: 2.4 }, activity: "stand", place: "stall", via: W1 },
     ],
@@ -465,7 +477,7 @@ export const LIFE_CAST: LifeCharDef[] = [
   {
     id: "villager-3", kind: "villager", seed: "villager-3", group: "shop-1",
     spots: [
-      premiumHome(0, 1),
+      standardHome(0, 1),
       { x: 14.6, z: -2.6, look: TREE, activity: "stand", place: "square", via: E3 },
       { x: 18.4, z: -0.6, look: { x: 20.5, z: 0 }, activity: "stand", place: "stall", via: E2 },
       { x: 11, z: -2.6, look: TREE, activity: "watch", place: "tree", via: E3 },
@@ -475,7 +487,8 @@ export const LIFE_CAST: LifeCharDef[] = [
   {
     id: "villager-4", kind: "villager", seed: "villager-4", group: "pen-se",
     spots: [
-      premiumHome(1, -1),
+      // Next door to villager 3, at the end of the row: the avenue beside it leads to the pen.
+      standardHome(0, 1, 1, avenueNode(1, streetOf(STANDARD))),
       { ...pen(1, -1.1), look: pen(1, 2), activity: "feed", place: "paddock", via: SE2 },
       { ...sidePoint(1, 20.4, -1.5), look: TREE, activity: "stand", place: "square", via: SE1 },
       { ...sidePoint(1, 17.4, -3.2), look: TREE, activity: "watch", place: "square", via: SE1 },
@@ -486,7 +499,8 @@ export const LIFE_CAST: LifeCharDef[] = [
     // Two neighbours who meet at the south-west bench: the second makes the choices of the first.
     id: `villager-${5 + i}`, kind: "villager", seed: `villager-${5 + i}`, group: "bench-sw", mirrors: i ? "villager-5" : undefined,
     spots: [
-      premiumHome(3, half),
+      // Neighbours on the second street: the two houses of one half row.
+      standardHome(3, -1, i),
       // Each reaches its side of the bench without crossing the other's place.
       { ...sidePoint(3, half < 0 ? 10 : 9.5, half * 0.8), look: sidePoint(3, half < 0 ? 9.5 : 10, -half * 0.8), activity: "chat", place: "bench", via: half < 0 ? SW5 : SW6 },
       { ...sidePoint(3, 7.4, half * 0.8), look: TREE, activity: "watch", place: "tree", via: SW5 },

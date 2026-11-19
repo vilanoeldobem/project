@@ -113,6 +113,29 @@ requisição que falhou, presença sem conectar ou interface de conta visível c
 produção que ainda tenha a tela de boas-vindas ele falha: rode-o depois de publicar o jogo. Não cria
 conta nem grava nada.
 
+### 4.0 O que precisa ir junto na publicação da Vila com menos neve e quatro anéis (IMPL-0030, IMPL-0031)
+
+Ainda **não publicado**; vale para a primeira publicação que levar essas duas mudanças.
+
+1. **API e jogo juntos (IMPL-0030).** O clima mudou de versão (`WEATHER_ALGORITHM_VERSION = 2`) e os dois usam o
+   mesmo código compartilhado. Um jogo novo recusa o retrato de uma API antiga e fica "não sincronizado", com o
+   relógio do aparelho; nada quebra, mas cada visitante vê o seu próprio clima até a API subir. Publique a API
+   primeiro e o jogo em seguida.
+2. **Servidor de tempo real e jogo juntos (IMPL-0031).** O servidor limita a posição de cada visitante ao raio do
+   mundo, que passou de 82,5 u para 99 u. Com o servidor antigo, quem andar além de 82,5 u aparece parado na borda
+   antiga para os outros. Publique o servidor antes do jogo.
+3. **Migration 0015 (IMPL-0031), com autorização, depois da API.** Insere os 85 terrenos dos anéis e semeia de
+   novo as casas. A API desta versão não depende dela: sem a 0015, `/lots` lista os doze terrenos da praça e o jogo
+   mostra os dos anéis como "Terreno em preparação", sem enviar visita a eles. Aplicá-la **antes** da API é o que
+   não pode com as contas ligadas: a API antiga passaria a listar os terrenos dos anéis sem conhecer os seus ids, e
+   recusaria o lote inteiro de progresso de quem abrisse um deles (`400 bad_events`, como no
+   [§11.1](#111-ordem) da expansão anterior). Com as contas desligadas (produção hoje) nenhum progresso é enviado
+   e a ordem não importa. Depois de aplicada, mudar o plano dos anéis exige uma migration nova.
+4. **Abas abertas.** As salas não têm versão do mundo (limite conhecido da IMPL-0024): quem estava com o jogo aberto
+   vê os outros andando fora da sua Vila até recarregar.
+
+Ordem que atende aos quatro pontos: API → (0015, com autorização) → servidor → jogo → painel → site.
+
 ### 4.1 Primeiro deploy da separação (IMPL-0009)
 
 Mudança incompatível: a API perdeu o prefixo `/api`, então cliente e API vão juntos. Ordem obrigatória:

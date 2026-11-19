@@ -7,41 +7,49 @@ import { pressScene, startPress } from "../game/clicks";
 import { WALK } from "../lib/controls";
 import { selectVisitorAt } from "../lib/moderation";
 import { solidMaterial } from "./environment/materials";
-import { groundRuns } from "./groundRuns";
+import { GROUND_SECTORS, groundPiece, type GroundRun, groundRuns } from "./groundRuns";
+
+/** One flat mesh of ground runs: a quad per run, coloured per vertex. */
+function runsGeometry(runs: readonly GroundRun[]): BufferGeometry {
+  const positions = new Float32Array(runs.length * 12), normals = new Float32Array(runs.length * 12), colors = new Float32Array(runs.length * 12);
+  const indices = new Uint32Array(runs.length * 6);
+  const tint = new Color();
+  const cache = new Map<string, [number, number, number]>();
+  runs.forEach(([x0, x1, z, c], i) => {
+    let rgb = cache.get(c);
+    if (!rgb) cache.set(c, (rgb = [tint.set(c).r, tint.g, tint.b]));
+    const corners = [[x0 - 0.5, z - 0.5], [x0 - 0.5, z + 0.5], [x1 + 0.5, z + 0.5], [x1 + 0.5, z - 0.5]];
+    corners.forEach(([x, cz], k) => {
+      const o = (i * 4 + k) * 3;
+      positions[o] = x;
+      positions[o + 2] = cz;
+      normals[o + 1] = 1;
+      colors.set(rgb, o);
+    });
+    indices.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+  });
+  const g = new BufferGeometry();
+  g.setAttribute("position", new BufferAttribute(positions, 3));
+  g.setAttribute("normal", new BufferAttribute(normals, 3));
+  g.setAttribute("color", new BufferAttribute(colors, 3));
+  g.setIndex(new BufferAttribute(indices, 1));
+  g.computeBoundingSphere();
+  return g;
+}
 
 /**
- * Snowy ground: cobbled plaza, packed-snow streets, the paving of each tier and deep snow beyond (`groundAt`
- * in the shared world is the layout). One draw call.
+ * The ground of the village: warm paving on the plaza, dark streets with their kerbs, grass with patches of
+ * snow and snow at the edge of the world (`groundAt` in the shared world is the layout, `groundRuns` the
+ * paint; IMPL-0030). Drawn in pieces (IMPL-0031): the middle of the village and one sector for each side, so
+ * the camera, which sees a stretch of the village at a time, draws that stretch of ground and not all of it.
  */
 export function Ground() {
-  const geometry = useMemo(() => {
-    const runs = groundRuns(Math.ceil(WORLD_RADIUS) + 3);
-    const positions = new Float32Array(runs.length * 12), normals = new Float32Array(runs.length * 12), colors = new Float32Array(runs.length * 12);
-    const indices = new Uint32Array(runs.length * 6);
-    const tint = new Color();
-    const cache = new Map<string, [number, number, number]>();
-    runs.forEach(([x0, x1, z, c], i) => {
-      let rgb = cache.get(c);
-      if (!rgb) cache.set(c, (rgb = [tint.set(c).r, tint.g, tint.b]));
-      const corners = [[x0 - 0.5, z - 0.5], [x0 - 0.5, z + 0.5], [x1 + 0.5, z + 0.5], [x1 + 0.5, z - 0.5]];
-      corners.forEach(([x, cz], k) => {
-        const o = (i * 4 + k) * 3;
-        positions[o] = x;
-        positions[o + 2] = cz;
-        normals[o + 1] = 1;
-        colors.set(rgb, o);
-      });
-      indices.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
-    });
-    const g = new BufferGeometry();
-    g.setAttribute("position", new BufferAttribute(positions, 3));
-    g.setAttribute("normal", new BufferAttribute(normals, 3));
-    g.setAttribute("color", new BufferAttribute(colors, 3));
-    g.setIndex(new BufferAttribute(indices, 1));
-    g.computeBoundingSphere();
-    return g;
+  const pieces = useMemo(() => {
+    const byPiece: GroundRun[][] = Array.from({ length: GROUND_SECTORS + 1 }, () => []);
+    for (const run of groundRuns(Math.ceil(WORLD_RADIUS) + 3)) byPiece[groundPiece(run)].push(run);
+    return byPiece.filter((runs) => runs.length > 0).map(runsGeometry);
   }, []);
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => pieces.forEach((g) => g.dispose()), [pieces]);
   // A new press starts with nothing picked, also one that never reaches the ground (a roof against the sky):
   // the listener runs before the scene's own, so a visitor picked by an earlier press never mutes this one.
   useEffect(() => {
@@ -50,7 +58,9 @@ export function Ground() {
   }, []);
   return (
     <group>
-      <mesh geometry={geometry} material={solidMaterial} receiveShadow />
+      {pieces.map((geometry, i) => (
+        <mesh key={i} geometry={geometry} material={solidMaterial} receiveShadow />
+      ))}
       <PressDisc />
     </group>
   );

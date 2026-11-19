@@ -1027,17 +1027,59 @@ Three stacked local branches. No push, deploy, remote migration or flag flip.
 
 ## Phase 2 — `feat/village-growth` (shared, api, client, migration 0015)
 
-- [ ] Plan as a list of rings with a zoning string per ring; frontage and square untouched
-- [ ] Lot ids `ring<N>-NN`, village-wide lot number, id checks read `LOTS`
-- [ ] Migration 0015 (84 lots, residential plots re-seeded) and seed-sync tests on the migrated state
-- [ ] Civic buildings (11 generators, `civic` budget), parks and squares, colliders and audit
-- [ ] Display surfaces: rooftop, outdoor, lawn sign, LED screen; one atlas, one draw call; artwork sizes documented
-- [ ] Rendering: one baked block per ring and side, ground and lit meshes in sectors, forest and snowfield
-- [ ] Navigation: larger grid, scratch cap and pinned numbers re-measured
-- [ ] UI: panels for civic buildings and parks, Explore grouped by street, map from the rings
-- [ ] Village life: homes and routes on the new rings
-- [ ] Gates, browser checks, budget with every lot published (localhost-only hook)
-- [ ] Docs: ADR 0031, references, OQ-18, OQ-19, new open questions, AGENTS.md, CHANGELOG
+- [x] Plan as a list of rings with a zoning string per ring; frontage and square untouched
+- [x] Lot ids `ring<N>-NN`, village-wide lot number, id checks read `LOTS` (`lotById`, `lotNumber`)
+- [x] Migration 0015 (85 lots, residential plots re-seeded) and seed-sync tests on the text and on SQLite
+- [x] Civic buildings (11 generators, `civic` budget), parks and squares, colliders and audit
+- [x] Display boards: rooftop, outdoor, lawn sign, screen; one atlas, two draw calls; artwork sizes documented
+- [x] Rendering: one baked block per ring and side, NGO chalets baked per side, ground in nine pieces, forest
+- [x] Navigation: larger grid, scratch cap 7 MB, expansion cap 150 000, pinned numbers re-measured
+- [x] UI: panel for civic buildings, parks and squares; board panel for every format; Explore by street; map
+- [x] Village life: homes of villagers 2 to 6 on the second street, lumberjack on the outer ring
+- [x] Gates, browser checks, budget with every lot published (`?villageDemo=full`, local builds only)
+- [x] Docs: ADR 0031, display-boards reference, api, storage, architecture, content, deploy, OQ-18, OQ-19, OQ-22,
+      AGENTS.md, CHANGELOG, README
+
+### Review (2026-11-19)
+
+- Result: radius 99, 97 NGO lots (12 on the square, 85 on four rings), 23 houses (80.8 % of the parcels for
+  NGOs, 79 % of the ground), 11 civic buildings, 3 parks, 2 squares, 37 boards. `plaza-01`…`plaza-12` and the
+  square did not move (pinned test).
+- Different from the approved plan: 97 / 23 instead of 96 / 24 (ten characters live in houses, five of them on
+  the first ring); zoning arranged by hand under that constraint instead of a seeded shuffle; 7 street billboards
+  instead of 8; ADR numbers 0030 and 0031 (0029 was taken by the brand logo).
+- Gates: typecheck clean; tests 1 886 (shared 275, api 470, client 910, dash 151, server 71, site 9); build of
+  every app clean.
+- Browser (system Chrome, local Workers on private ports): `verify.mjs`, `verify-collisions.mjs`,
+  `verify-life.mjs`, `verify-boards.mjs` (12 screens at two sizes, the API named on its private port; P04 skipped:
+  no published NGO in the local database), `verify-shop.mjs` and `smoke-api.sh` pass. Fixed on the way: the
+  smoke script asked for `economy-64` (now `economy-06`, in both layouts), `verify-life.mjs` had the old radius
+  and the old wood yard, `verify-collisions.mjs` the old radius and a firewood stack that is gone.
+- Budget, medium preset, every pass: with the lots free at most 106 calls / 162 844 triangles on the views
+  sampled; with a house on every one of the 97 lots, 139 / 194 584 at the spawn zoomed out at 06:20 and
+  137 / 217 480 on the second street. `verify.mjs` now asserts three full-village views.
+- Navigation, idle laptop, Node: field build 20 ms with the lots free (820 colliders), 23 ms with every chalet;
+  3 000 random plans median 0.95 ms, p99 8.5 ms, worst 13.5 ms; scratch 6.3 MB.
+- Tried and reverted: chalet blocks per quarter of a ring (153 calls, 280 000 triangles); patches of snow on
+  roofs (phase 1).
+- Not done: a phone measurement; GPU memory; a full room of 40 with the full village (`verify-fullroom.mjs` not
+  run); the dashboard's scripts; `verify-accounts.mjs` and `verify-quests.mjs` (they walk to places of the
+  square, which did not move, but they were not run); occlusion samples are geometric, not measured in a browser.
+- Owner's call before production: migration 0015 (not applied anywhere remote), how many rings open at launch
+  (OQ-19, DEC-035), what boards may show (OQ-18), the civic buildings (OQ-22).
+
+### Lessons
+
+- A browser page that never loads may be the preview server, not the app: `curl` it before reading the bundle.
+  A `wrangler dev` left running from an earlier step kept restarting a crashed `workerd` on the same port.
+- Stop a server through the task that started it. Killing its `workerd` child leaves the parent to respawn it.
+- Bigger blocks are not fewer draw calls: a block per quarter of a ring is always in the frustum and in the
+  shadow pass. Measure both counts before keeping a grouping.
+- A collider audit that skips models farther than a fixed distance from a point misses a hall 25 u long: derive
+  the reach from the model.
+- `pnpm build` writes the production client into `dist`: rebuild with `build:local` before a local browser check.
+- A "measured" sample set dies with the layout it was measured on. Say so and replace it with cases built from
+  geometry, labelled as not measured.
 
 ## Phase 3 — `feat/ngo-levels` (shared, api, client)
 

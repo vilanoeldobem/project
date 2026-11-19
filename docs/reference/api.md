@@ -1,7 +1,7 @@
 # API HTTP e servidor de tempo real
 
 > **Status:** Implementado (0.4.0; contas desligadas em produção por `ACCOUNTS_ENABLED`) · **Versão do software:** 0.4.0 ·
-> **Schema D1:** v14 · **Atualizado em:** 2026-11-14
+> **Schema D1:** v15 · **Atualizado em:** 2026-11-19
 > **Fonte de verdade:** `apps/api/src/{api,auth,mail,session,progress,ngo,files,ngo-photos,media-storage,public-ngo,admin,backoffice,account-moderation,presence-moderation,donations,abacatepay,http}.ts`, `apps/api/src/api.test.ts`,
 > `apps/api/src/accounts.test.ts`, `apps/api/src/files.test.ts`, `apps/api/src/{account-moderation,presence-moderation,logo-removal}.test.ts`,
 > `packages/shared/src/accounts/{validate,files,contract,moderation,errors}.ts`, `apps/server/src/handler.ts`,
@@ -159,10 +159,14 @@ andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas n
 
 São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`plaza-08`) num banco antes da
 migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça
-([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)). A forma da resposta é a mesma em todo esquema. O
-jogo desenha os terrenos pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que
-a rota não lista (banco antes da 0012) aparece no jogo como "Terreno em preparação" (rótulo 3D, painel e lista
-"Explorar ONGs"), sem aceitar candidatura; o jogo não envia a visita a ele como progresso.
+([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md)), e **97** depois da 0015, que acrescenta os 85
+terrenos dos quatro anéis ([IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md)):
+`ring1-01`…`ring4-30`, com `street` igual ao id do anel e `slot` contado dentro dele. A ordem é `street, slot`: a
+praça primeiro, depois anel por anel. A forma da resposta é a mesma em todo esquema. O jogo desenha os terrenos
+pelas constantes compartilhadas (`LOTS`) e usa esta rota só para o estado: um terreno que a rota não lista (banco
+antes da 0012 ou da 0015) aparece no jogo como "Terreno em preparação" (rótulo 3D, painel e lista "Explorar ONGs"),
+sem aceitar candidatura; o jogo não envia a visita a ele como progresso. O número que a tela mostra ("Terreno 27")
+não vem desta rota: é a posição do terreno entre todos os da Vila (`lotNumber()` no código compartilhado).
 
 `ngo_id`, `ngo_name`, `ngo_summary` e `ngo_logo` só aparecem para ONG e terreno publicados; nos demais estados são `null`.
 
@@ -189,11 +193,12 @@ estado de cada um. Pública, sempre ligada, `Cache-Control: no-store`. **Nunca d
 | `x`, `z`, `facing` | centro do terreno e rotação (rad) que o vira para a rua em frente; espelham `RESIDENTIAL_PLOTS` |
 | `state` | `unavailable` enquanto a posse está desligada; com a bandeira ligada, `available` para o terreno cuja linha existe em `residential_plots`. `occupied` está reservado para a fase que trouxer a posse: nada o responde hoje |
 
-112 terrenos (16 premium, 32 padrão, 64 econômico), sempre na mesma ordem. O que cada faixa exige não está aqui: é
+23 terrenos (5 premium, 12 padrão, 6 econômico) desde a IMPL-0031, sempre na mesma ordem (eram 112 no plano da
+IMPL-0024). O que cada faixa exige não está aqui: é
 um requisito (um nível), guardado em `VILLAGE_PLAN` no código compartilhado, nunca um preço. Não há `POST`: nenhuma
 rota grava posse nesta versão (`405` para qualquer método além de `GET`, `HEAD` e `OPTIONS`).
 
-**De onde vem a resposta.** A lista é sempre o layout das constantes compartilhadas (`RESIDENTIAL_PLOTS`): os 112
+**De onde vem a resposta.** A lista é sempre o layout das constantes compartilhadas (`RESIDENTIAL_PLOTS`): os 23
 terrenos, na mesma ordem, com as posições do layout. A tabela só acrescenta estado.
 
 - Com a bandeira desligada (ou as contas desligadas, ou sem banco) a resposta é uma constante e **o banco não é

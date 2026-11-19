@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { type GroundKind, groundAt, PALETTE as P, WORLD_RADIUS } from "@vila/shared/game/world";
 
-import { cellColor, groundColor, groundRuns, ROAD_KINDS, ROAD_TONES, YARD_KINDS, YARD_TONES } from "./groundRuns";
+import { cellColor, GROUND_SECTORS, groundColor, groundPiece, groundRuns, ROAD_KINDS, ROAD_TONES, YARD_KINDS, YARD_TONES } from "./groundRuns";
 
 /** WCAG relative luminance of an sRGB hex colour. */
 function luminance(hex: string): number {
@@ -30,9 +30,25 @@ describe("ground runs (IMPL-0024)", () => {
   });
 
   it("stays within its budget: under half a quad per cell, whatever the village paints", () => {
-    // 23 000 cells; pavers alternate cell by cell, grass and roads merge into long runs.
+    // 32 700 cells over the village of four rings (IMPL-0031); pavers alternate cell by cell, grass and roads
+    // merge into long runs.
+    const cells = runs.reduce((n, [x0, x1]) => n + (x1 - x0 + 1), 0);
     expect(runs.length).toBeGreaterThan(3000);
-    expect(runs.length).toBeLessThan(11500);
+    expect(runs.length).toBeLessThan(cells / 2);
+    expect(runs.length).toBeLessThan(16000);
+  });
+
+  it("is drawn in pieces the camera can cull: the middle of the village and a sector for each side", () => {
+    const sizes = Array.from({ length: GROUND_SECTORS + 1 }, () => 0);
+    for (const run of runs) sizes[groundPiece(run)]++;
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(runs.length);
+    for (const n of sizes) expect(n).toBeGreaterThan(0);
+    // No piece is most of the ground, and the sectors are about the same size.
+    expect(Math.max(...sizes)).toBeLessThan(runs.length / 4);
+    expect(Math.max(...sizes.slice(1)) / Math.min(...sizes.slice(1))).toBeLessThan(1.6);
+    // A run is in the middle piece when its middle is, and never in two.
+    expect(groundPiece([-2, 2, 0, "#000000"])).toBe(0);
+    expect(groundPiece([60, 64, 1, "#000000"])).not.toBe(groundPiece([-64, -60, -1, "#000000"]));
   });
 
   it("is deterministic", () => {
