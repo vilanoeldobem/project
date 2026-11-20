@@ -87,8 +87,8 @@ const settings = (override: Record<string, unknown> = {}) =>
     fixedFeeCents: 80,
     ...override,
   });
-const ngoPayment = (override: Record<string, unknown> = {}) =>
-  call("POST", `/admin/ngos/${NGO}/payment-config`, { accountId: "admin", paymentMethod: "abacatepay", ngoPercentBps: 9500, fixedFeeCents: 80, ...override });
+const ngoPayment = (override: Record<string, unknown> = {}, ngoId = NGO) =>
+  call("POST", `/admin/ngos/${ngoId}/payment-config`, { accountId: "admin", paymentMethod: "abacatepay", ngoPercentBps: 9500, fixedFeeCents: 80, ...override });
 /** A Pix request; each call is a new logical request unless the body carries its own `idempotencyKey`. */
 const pix = (body: Record<string, unknown>, user: string | null = null) => call("POST", "/donations/pix", { idempotencyKey: crypto.randomUUID(), ...body }, user);
 
@@ -108,11 +108,11 @@ async function webhook(event: unknown, options: { secret?: string; signature?: s
     "X-Webhook-Signature": signature,
   }, raw);
 }
-const event = (id: string, name: string, chargeId: string, status: string) => ({
+const event = (id: string, name: string, chargeId: string, status: string, amount = 1000) => ({
   id,
   event: name,
   devMode: true,
-  data: { transparent: { id: chargeId, status, amount: 1000, platformFee: 80, receiptUrl: "https://pay.test/receipt" } },
+  data: { transparent: { id: chargeId, status, amount, platformFee: 80, receiptUrl: "https://pay.test/receipt" } },
 });
 
 /** Users, sessions and one published NGO on plaza-01. */
@@ -350,6 +350,64 @@ describe("Pix donations", () => {
     env.ENVIRONMENT = "production";
     expect((await call("POST", `/donations/${donation.id}/simulate`)).status).toBe(404);
   });
+});
+
+it("keeps the NGO and global splits and confirmed totals isolated across webhook replays", async () => {
+  const ngoB = "b0000000-0000-4000-8000-000000000002";
+  await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id) VALUES(?, 'ONG B', '22345678000149', 'published', 'applicant', 'plaza-02')").bind(ngoB).run();
+  await db.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-02'").bind(ngoB).run();
+  expect((await ngoPayment({ subAccountId: "sacc_a", ngoPercentBps: 9250, fixedFeeCents: 113 })).status).toBe(200);
+  expect((await ngoPayment({ subAccountId: "sacc_b" }, ngoB)).status).toBe(200);
+  expect((await settings({ subAccountId: "sacc_global", ngoPercentBps: 8750, fixedFeeCents: 89 })).status).toBe(200);
+  expect(calls).toEqual([]);
+
+  async function expectTotals(ngoCount: number, ngoCents: number, totalCount: number, totalCents: number) {
+    for (const [ngoId, confirmedDonations, confirmedAmountCents] of [[NGO, ngoCount, ngoCents], [ngoB, 0, 0]] as const) {
+      const response = await call("GET", `/ngos/${ngoId}/donation-info`, undefined, null, null);
+      expect(await response.json()).toMatchObject({ ngoId, enabled: true, confirmedDonations, confirmedAmountCents });
+    }
+    const publicTotals = await call("GET", "/indicators", undefined, null, null);
+    expect(await publicTotals.json()).toMatchObject({
+      indicators: expect.arrayContaining([
+        expect.objectContaining({ key: "confirmed_donations", value: totalCount }),
+        expect.objectContaining({ key: "confirmed_amount", value: totalCents }),
+      ]),
+    });
+  }
+
+  // Each rate applies to the gross cents before the fixed deduction. Both vectors include a fractional cent.
+  const cases = [
+    { kind: "ngo", ngoId: NGO, name: "Associação Exemplo", sub: "sacc_a", gross: 10001, bps: 9250, fixed: 113, ngo: 9137, vila: 864, charge: "pix_char_1", totalCount: 1, totalCents: 10001 },
+    { kind: "global", ngoId: null, name: "Instituto Parceiro", sub: "sacc_global", gross: 3333, bps: 8750, fixed: 89, ngo: 2827, vila: 506, charge: "pix_char_2", totalCount: 2, totalCents: 13334 },
+  ] as const;
+  await expectTotals(0, 0, 0, 0);
+  for (const c of cases) {
+    const idempotencyKey = crypto.randomUUID();
+    const response = await pix({ targetKind: c.kind, ngoId: c.ngoId, amountCents: c.gross, idempotencyKey }, "donor");
+    expect(response.status).toBe(201);
+    const { donation } = (await response.json()) as { donation: { id: string } };
+    expect(calls.at(-1)).toMatchObject({
+      path: "/v2/transparents/create",
+      body: { method: "PIX", data: { externalId: donation.id, metadata: { donationId: donation.id, targetKind: c.kind }, amount: c.gross, splits: [{ subAccountId: c.sub, amount: c.ngo }] } },
+    });
+    const snapshot = {
+      id: donation.id, provider_charge_id: c.charge, target_kind: c.kind, ngo_id: c.ngoId,
+      recipient_name: c.name, sub_account_id: c.sub, amount_cents: c.gross,
+      ngo_percent_bps: c.bps, fixed_fee_cents: c.fixed, ngo_share_cents: c.ngo, vila_share_cents: c.vila,
+    };
+    expect(db.sql("SELECT * FROM donation_intents WHERE idempotency_key=?", idempotencyKey)).toMatchObject([{ ...snapshot, state: "created" }]);
+    expect(db.sql("SELECT * FROM donations WHERE id=?", donation.id)).toMatchObject([{ ...snapshot, status: "pending" }]);
+
+    const paid = event(`log_${c.kind}`, "transparent.completed", c.charge, "PAID", c.gross);
+    for (const expected of [{ ok: true, applied: true }, { ok: true, duplicate: true }]) {
+      const delivery = await webhook(paid);
+      expect(delivery.status).toBe(200);
+      expect(await delivery.json()).toEqual(expected);
+      expect(db.sql("SELECT * FROM donations WHERE id=?", donation.id)).toMatchObject([{ ...snapshot, status: "paid" }]);
+      await expectTotals(1, 10001, c.totalCount, c.totalCents);
+    }
+  }
+  expect(count("abacatepay_webhook_events")).toBe(2);
 });
 
 describe("webhook reconciliation", () => {
