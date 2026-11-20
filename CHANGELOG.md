@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — documentação de acesso do visitante
+
+- [N4.1 · Cadastro, sessão e retorno ao jogo](docs/implementation/visitor-account-access.md), com roteiro local e matriz das cinco ações da #65.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
