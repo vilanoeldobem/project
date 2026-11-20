@@ -26,9 +26,10 @@ export function lotLabel(lots: Readonly<Record<string, { state: string; ngo_name
  * chalet on screen (IMPL-0031). The houses carry a label that says what they are, never the name of an
  * organisation; nothing is written anywhere, and a deployed game ignores the parameter.
  */
-export function withDemoHouses<T extends { id: string; state: string; ngo_name: string | null }>(lots: T[], search: string, allowed: boolean): T[] {
+export function withDemoHouses<T extends { id: string; state: string; ngo_name: string | null; ngo_level?: number | null }>(lots: T[], search: string, allowed: boolean): T[] {
   if (!allowed || new URLSearchParams(search).get("villageDemo") !== "full") return lots;
-  return lots.map((lot, i) => (lot.state === "published" ? lot : { ...lot, state: "published", ngo_name: `Casa de demonstração ${i + 1}` }));
+  // The five levels of the building in turn (IMPL-0032), so the preview also shows and measures every level.
+  return lots.map((lot, i) => (lot.state === "published" ? lot : { ...lot, state: "published", ngo_name: `Casa de demonstração ${i + 1}`, ngo_level: 1 + (i % 5) }));
 }
 
 /** Where the developer preview above may run: a dev build, or a local build opened on localhost. Never a deployed game. */

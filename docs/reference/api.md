@@ -83,7 +83,7 @@ Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control
 
 ```json
 { "accounts": false, "quests": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
-  "residentialPlots": false, "donations": false }
+  "residentialPlots": false, "donations": false, "ngoLevels": false }
 ```
 
 `accounts` é `true` só quando `ACCOUNTS_ENABLED = "true"`. Com `false`, o jogo esconde toda a interface de conta
@@ -123,6 +123,10 @@ terrenos residenciais é **PROPOSTA** ([IMPL-0024](../decisions/0024-village-exp
 rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` responde. É o mesmo valor do campo
 `enabled` daquela rota, em qualquer esquema e sem banco (`/config` não lê o banco).
 
+`ngoLevels` é `true` só com `NGO_LEVELS_ENABLED = "true"` **e** `DONATIONS_ENABLED = "true"`
+([IMPL-0032](../decisions/0032-ngo-building-levels.md), **PROPOSTA**, desligada em produção e homologação): com
+ela, `GET /lots` informa o nível da casa de cada ONG publicada. Não depende de `accounts`.
+
 `donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
 existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
 (IMPL-0002) e nenhuma rota `/donations/*` existe. Doações são **PROPOSTA**
@@ -154,8 +158,25 @@ andamento mudam o `state` do terreno (`application_sent`, `under_review`), mas n
 
 ```json
 { "lots": [ { "id": "plaza-01", "street": "plaza", "slot": 1, "x": 30.5, "z": 5,
-              "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null, "ngo_logo": null } ] }
+              "state": "available", "ngo_id": null, "ngo_name": null, "ngo_summary": null, "ngo_logo": null,
+              "ngo_level": null } ] }
 ```
+
+`ngo_level` ([IMPL-0032](../decisions/0032-ngo-building-levels.md), **PROPOSTA**): o nível da casa da ONG
+publicada, de 1 a 5, calculado do total confirmado das doações daquela ONG (a mesma soma de
+`GET /ngos/:id/donation-info`: `donations` com `status = 'paid'`). **O valor nunca vem nesta rota, só o nível.**
+É `null` em qualquer um destes casos: `NGO_LEVELS_ENABLED` ou `DONATIONS_ENABLED` desligada (produção e
+homologação hoje), terreno sem ONG publicada, ou banco sem a tabela `donations` (antes da migration 0011). O jogo
+desenha `null` como nível 1. Uma ONG publicada sem doação confirmada é nível 1; um estorno pode baixar o nível.
+Os limites são marcadores do responsável técnico, em `packages/shared/src/game/ngo-level.ts`:
+
+| Nível | Total confirmado a partir de |
+|---:|---:|
+| 1 | R$ 0 |
+| 2 | R$ 500 |
+| 3 | R$ 2.500 |
+| 4 | R$ 10.000 |
+| 5 | R$ 50.000 |
 
 São os terrenos reservados a ONGs aprovadas (DEC-028): 8 linhas (`plaza-01`…`plaza-08`) num banco antes da
 migração 0012, 12 (`plaza-01`…`plaza-12`) depois dela, que também move os oito primeiros para a fachada da praça

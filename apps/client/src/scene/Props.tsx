@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
 import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
+import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 import { openFromScene, visit } from "../game/clicks";
@@ -12,7 +13,7 @@ import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
 import { hudChrome, underChrome } from "../lib/hud-chrome";
 import { lotLabel } from "../lib/lots";
-import { type MergeItem, MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
+import { joinLitRoles, type MergeItem, MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
 import { sideOf } from "./sectors";
 import { modelExtent, partAt } from "./shadowCasters";
 import { Smoke } from "./environment/Particles";
@@ -20,7 +21,7 @@ import { villager } from "./gen/characters";
 import { donationPanel, ornamentCrate, reindeerBell } from "./gen/quest-items";
 import type { GenModel } from "./gen/types";
 import { gift as generateGift, lantern as generateLantern } from "./gen/props";
-import { house } from "./gen/houses";
+import { NGO_LABEL_HEIGHT, ngoBuilding } from "./gen/ngoBuilding";
 import { bench, BULBS, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
@@ -71,9 +72,11 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const isPublished = (id: string) => info[id]?.state === "published" && !!info[id]?.ngo_name;
   const published = useMemo(() => LOTS.filter((l) => isPublished(l.id)), [info]);
   const available = useMemo(() => LOTS.filter((l) => !isPublished(l.id)), [info]);
-  // Each published NGO gets its own chalet, seeded by the lot id: same house for every visitor, no branding.
-  const homes = useMemo(() => published.map((lot) => ({ lot, model: house(lot.id) })), [published]);
-  const blocks = useMemo(() => {
+  // Each published NGO gets its own building, seeded by the lot id: same house for every visitor, no branding.
+  // Its level (IMPL-0032, PROPOSTA) comes from the API and is 1 while the feature is off.
+  const levels = published.map((lot) => asNgoLevel(info[lot.id]?.ngo_level)).join();
+  const homes = useMemo(() => published.map((lot) => ({ lot, level: asNgoLevel(info[lot.id]?.ngo_level), model: ngoBuilding(lot.id, info[lot.id]?.ngo_level) })), [published, levels]);
+  const { blocks, lit } = useMemo(() => {
     const byBlock = new Map<string, { lots: LotDef[]; items: MergeItem[] }>();
     for (const { lot, model } of homes) {
       // A block for each side of each ring, and for each quarter of the square, whose twelve chalets stand
@@ -85,9 +88,9 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
       let b = byBlock.get(key);
       if (!b) byBlock.set(key, (b = { lots: [], items: [] }));
       b.lots.push(lot);
-      b.items.push({ voxels: model.voxels, size: model.size, glow: model.glow, placements: [{ x: lot.x, z: lot.z, rot: lot.facing }] });
+      b.items.push({ voxels: model.voxels, size: model.size, glow: model.glow, emissive: model.emissive, placements: [{ x: lot.x, z: lot.z, rot: lot.facing }] });
     }
-    return [...byBlock.values()].map((b) => ({
+    const blocks = [...byBlock.values()].map((b) => ({
       lots: b.lots,
       geometries: mergeVoxelModels(b.items),
       casters: b.items.flatMap((item) => {
@@ -95,6 +98,10 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         return item.placements.map((at) => partAt(at.x, at.z, reach, height));
       }),
     }));
+    // The windows and the strings of lights of every block are two meshes for the whole village, like the rows of
+    // houses: a block of its own for them was two more draw calls for every block in view (148 of the 150 of the
+    // budget on the second street, with a house on every lot and the lights of the upper levels, IMPL-0032).
+    return { blocks, lit: joinLitRoles(blocks.map((b) => b.geometries)) };
   }, [homes]);
   const chimneys = useMemo(
     () =>
@@ -144,6 +151,16 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
           <MergedVoxels geometries={block.geometries} casters={block.casters} />
         </group>
       ))}
+      <group
+        onClick={(e) => {
+          if (published.length === 0) return;
+          e.stopPropagation();
+          const lot = published.reduce((a, b) => (Math.hypot(b.x - e.point.x, b.z - e.point.z) < Math.hypot(a.x - e.point.x, a.z - e.point.z) ? b : a));
+          openFromScene({ kind: "lot", lotId: lot.id });
+        }}
+      >
+        <MergedVoxels geometries={lit} />
+      </group>
       {available.length > 0 && (
         <group onClick={click(available)}>
           <Voxels voxels={marker} placements={place(available)} />
@@ -154,7 +171,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]}>
             {/* A label is mounted only near the avatar, like the villagers' (see `Label`): the village has 97 lots. */}
-            <Label y={pub ? 7.5 : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} radius={pub ? undefined : FREE_LOT_LABEL_RADIUS} />
+            <Label y={pub ? NGO_LABEL_HEIGHT[asNgoLevel(info[lot.id]?.ngo_level)] : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} radius={pub ? undefined : FREE_LOT_LABEL_RADIUS} />
           </group>
         );
       })}

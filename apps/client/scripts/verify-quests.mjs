@@ -8,12 +8,14 @@
  * Needs: `pnpm --filter @vila/api dev` (:8787, QUESTS_V1_ENABLED=true, ENVIRONMENT=development),
  * `pnpm --filter @vila/server dev` (:8788) and `pnpm --filter @vila/client dev` (:5173).
  * Usage: node apps/client/scripts/verify-quests.mjs [client=http://localhost:5173] [api=http://localhost:8787]
+ *        VILA_API_PERSIST_TO=/path/to/state when that API was started with `wrangler dev --persist-to`.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
@@ -33,8 +35,10 @@ const fail = (message) => {
 };
 
 const apiDir = new URL("../../api/", import.meta.url).pathname;
+// An API that keeps its data elsewhere (`wrangler dev --persist-to <dir>`): the same directory, as in verify-accounts.mjs.
+const persistTo = process.env.VILA_API_PERSIST_TO;
 const sql = (command) =>
-  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", "--command", command], { cwd: apiDir, stdio: "pipe" });
+  execFileSync(`${apiDir}node_modules/.bin/wrangler`, ["d1", "execute", "vilanoeldobem", "--local", ...(persistTo ? ["--persist-to", persistTo] : []), "--command", command], { cwd: apiDir, stdio: "pipe" });
 /** Local test fixtures only: the NGOs created by this script and by verify-accounts.mjs. */
 const resetLocalNgos = () =>
   sql(
@@ -135,7 +139,9 @@ async function newPage(name) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${name}: ${m.text()}`));
+  // The Google tag is not under test (OQ-13): its hosts are answered here and its console noise skipped.
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
+  await isolateAnalytics(page);
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   return page;
 }

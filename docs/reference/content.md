@@ -48,6 +48,7 @@
 | `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, parede lisa, em enxaimel, em tábuas ou em tijolos, base de pedra, venezianas, canteiro, varanda, guirlanda na porta, pingentes, neve só na cumeeira, chaminé de ardósia (âncora `chimney` = origem da fumaça) | ver `stats.json` |
 | `house-dormer`, `house-townhouse`, `house-terrace` | Casa com água-furtada, sobrado, casa com terraço | houses | os arquétipos das casas residenciais (IMPL-0030, PROPOSTA): janela acesa sobre a porta; dois andares sob telhado baixo; laje com mureta, floreiras e um cômodo no terraço | ver `stats.json` |
 | `civic-bank`, `civic-restaurant`, `civic-gym`, `civic-school`, `civic-cinema`, `civic-theatre`, `civic-supermarket`, `civic-hospital`, `civic-sleigh-station`, `civic-mall`, `civic-sports-hall` | Banco, Cantina, Academia, Escola, Cine, Teatro, Mercado, Hospital, Posto do Trenó, Galeria e Ginásio da Vila | civic | prédios cívicos ([IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md), **PROPOSTA**, cenário): a semente (o id do lugar) escolhe só cores de parede, friso, telhado e toldo; a forma é fixa e bate com o colisor em `CIVIC` (`world.ts`). Sem texto, logo ou marca. Orçamento da categoria: 2 400 voxels, 1 800 faces | ver `stats.json` |
+| `ngo-level-1` … `ngo-level-5` | Casa de ONG, níveis 1 a 5 | houses | a casa de um terreno de ONG ([IMPL-0032](../decisions/0032-ngo-building-levels.md), **PROPOSTA**): `ngoBuilding(semente, nível)` usa a semente do terreno em todos os níveis, então parede, telhado, porta e lado da chaminé são os mesmos; mudam a planta (5 × 5, 7 × 5, 7 × 7), os andares (1, 1, 2, 2, 3) e, nos níveis 4 e 5, a torre de pedra, as luzes e a estrela. Sem telhado alpino; interior preenchido; dentro de `HOUSE_ENVELOPE` | ver `stats.json` |
 | `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
@@ -61,8 +62,9 @@
 | `sweater` | Suéter (camada) | cosmetics | padrão (floco de neve, listras, zigue-zague, bolinhas), cores | 12 / 38 |
 
 Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gift-palm`, `gift-bench`,
-`gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
-casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
+`gift-street`). Cada terreno com ONG publicada recebe a casa de `ngoBuilding()` com a semente = id do terreno
+(`plaza-01`…, `ring1-01`…) no nível que a API informa (nível 1 com a função desligada,
+[IMPL-0032](../decisions/0032-ngo-building-levels.md)): a mesma casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
 fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua).
 `house()` devolve também `solid`: os retângulos das paredes e da varanda, que viram os colisores do chalé
 ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)).

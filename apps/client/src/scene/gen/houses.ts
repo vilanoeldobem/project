@@ -52,6 +52,8 @@ export interface HouseOptions {
   halfDepth?: number;
   /** One floor and no A-frame roof. */
   low?: boolean;
+  /** How many floors, whatever the seed and `low` say (the levels of an NGO's building, IMPL-0032). */
+  floors?: 1 | 2 | 3;
   /** Chance of a porch (0 = never, 1 = always). */
   porch?: number;
   /** false = the roof ends at the side walls (cottages standing close together). */
@@ -73,7 +75,7 @@ export function house(seed: Seed, options: HouseOptions = {}): GenModel {
   const hx = options.halfWidth ?? drawnX, hz = options.halfDepth ?? drawnZ;
   const tall = r.chance(0.35);
   const archetype = options.archetype ?? "classic";
-  const floors = archetype === "townhouse" ? 2 : archetype === "terrace" ? 1 : tall && !options.low ? 2 : 1;
+  const floors = options.floors ?? (archetype === "townhouse" ? 2 : archetype === "terrace" ? 1 : tall && !options.low ? 2 : 1);
   const wall = r.pick(WALLS);
   const trim = r.pick([P.cream, V.creamShade, V.stoneWarm, V.woodDark].filter((c) => c !== wall));
   const roofColor = r.pick(ROOFS.filter((c) => c !== wall));

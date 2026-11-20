@@ -9,6 +9,21 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — casa da ONG em cinco níveis, conforme as doações confirmadas (IMPL-0032, **PROPOSTA**; atrás de `NGO_LEVELS_ENABLED`, desligada em produção e homologação; sem mudança de schema)
+
+- **`GET /lots` ganha `ngo_level`** (1 a 5, ou `null`): o total confirmado das doações de cada ONG publicada
+  transformado em nível. O valor nunca vem nessa rota. É `null` com `NGO_LEVELS_ENABLED` ou `DONATIONS_ENABLED`
+  desligada, em terreno sem ONG publicada e em banco sem a tabela de doações. `GET /config` ganha `ngoLevels`.
+- **Cinco construções** com as cores da própria ONG: cabana, chalé com varanda, casa de dois andares, a mesma com
+  torre de pedra e luzes, e três andares com estrela na torre. Todas cabem no terreno e têm o colisor do seu nível.
+- Limites (marcadores do responsável técnico, a decidir na OQ-23): R$ 500, R$ 2.500, R$ 10.000 e R$ 50.000.
+- A prévia local `?villageDemo=full` alterna os cinco níveis.
+
+### Changed — casa de ONG publicada (IMPL-0032)
+
+- Com os níveis desligados (o estado de produção), toda casa publicada é desenhada no nível 1, a cabana de 5 × 5.
+  Antes era um chalé de tamanho sorteado pela semente do terreno.
+
 ### Added — a Vila em quatro anéis: 80 % para ONGs, prédios cívicos, parques e placas (IMPL-0031, **PROPOSTA**; schema v15 no código, migration 0015 **não aplicada no remoto**)
 
 - **A Vila cresceu de 82,5 u para 99 u de raio**, em quatro anéis atrás da praça. O plano virou uma lista de anéis
