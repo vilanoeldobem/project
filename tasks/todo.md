@@ -1105,8 +1105,15 @@ Three stacked local branches. No push, deploy, remote migration or flag flip.
   level 3 507 / 670, level 4 526 / 678, level 5 679 / 762.
 - Changed on purpose: with the levels off (production), a published house is the level 1 cabin, not the chalet
   of a size drawn from the seed.
-- Not done: `verify-accounts.mjs` (it publishes an NGO through the dashboard; not run), a phone measurement, the
-  dashboard showing a level (it does not).
+- Run after the pull requests were opened, on this branch, each against a fresh local database:
+  `verify-accounts.mjs` (with `VILA_STUB_ANALYTICS=1`; an NGO applied, was approved in the dashboard and its house
+  stood on `plaza-01`), `verify-fullroom.mjs` (40 in the room: 103 calls, about 180 000 triangles),
+  `verify-quests.mjs` (15 quests, 545 XP), the dashboard's `verify.mjs` and `smoke-api.sh` pass. The quests check
+  now isolates the Google tag like the other local checks and takes `VILA_API_PERSIST_TO`. It still cannot run on
+  a database where `verify-accounts.mjs` ran with files on: its reset deletes those NGOs and trips a foreign key
+  (left as it is; a fresh database works).
+- Not done: the dashboard's `verify-moderation.mjs` and `verify-withdrawal.mjs` (each needs its own seeded API;
+  this work does not touch those flows), a phone measurement, the dashboard showing a level (it does not).
 - Owner's call: OQ-23 (whether a house may grow with money, the base, external payment pages, going down).
 
 ### Lessons
