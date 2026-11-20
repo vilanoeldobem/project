@@ -156,6 +156,9 @@ mostram avisos da Vila e nada mais.
 - **OQ-07** (2026-11-09, Augusto): direção de arte **vila nevada** (substitui o estudo "Natal brasileiro de verão").
   Implementada em [IMPL-0006](0006-christmas-environment-real-time-procedural-weather.md). Falta registrar como DEC no
   repositório de documentação, onde o guia visual ainda traz o verão como PROPOSTA.
+  Em 2026-11-19 o mesmo responsável pediu **menos neve** ("muito poluída de branco"): a neve virou detalhe
+  ([IMPL-0030](0030-thawed-village-and-readable-streets.md), PROPOSTA). A Vila segue de inverno, não de verão; a
+  DEC e a conciliação com o guia visual (cartão G16) continuam pendentes.
 - **OQ-06** (2026-11-08, Augusto): o código fica no repositório `vilanoeldobem`, separado da documentação; o
   repositório Git `vilanoeldobem_docs` substitui a pasta `D:\VILA NOEL DO BEM` — registrado como DEC-045 no
   repositório de documentação (PR #1, aguardando revisão). **Atualização 10/11/2026:** os repositórios atuais são

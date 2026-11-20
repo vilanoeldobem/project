@@ -47,7 +47,7 @@ describe("São Paulo time", () => {
   });
 });
 
-describe("weather v1", () => {
+describe("weather v2", () => {
   it("is deterministic for the same seed and time", () => {
     const t = Date.UTC(2026, 11, 24, 20, 13);
     expect(weatherAt(WEATHER_SEED, t, WEATHER_SLOT_MS, WEATHER_TRANSITION_MS)).toEqual(
@@ -64,9 +64,14 @@ describe("weather v1", () => {
       counts[a.kind] = (counts[a.kind] ?? 0) + 1;
     }
     expect(differ).toBeGreaterThan(1000);
-    expect(counts.SNOW / 4000).toBeGreaterThan(0.27);
-    expect(counts.SNOW / 4000).toBeLessThan(0.37);
-    expect(counts.BLIZZARD / 4000).toBeLessThan(0.08);
+    // Algorithm v2 (IMPL-0030): clear is the most common state, snow that falls is mostly light.
+    expect(counts.CLEAR_FROST / 4000).toBeGreaterThan(0.37);
+    expect(counts.CLEAR_FROST / 4000).toBeLessThan(0.47);
+    expect(counts.LIGHT_SNOW / 4000).toBeGreaterThan(0.25);
+    expect(counts.SNOW / 4000).toBeGreaterThan(0.1);
+    expect(counts.SNOW / 4000).toBeLessThan(0.18);
+    expect(counts.BLIZZARD / 4000).toBeLessThan(0.04);
+    for (const kind of Object.keys(counts)) expect(counts.CLEAR_FROST, kind).toBeGreaterThanOrEqual(counts[kind]);
   });
 
   it("keeps every numeric parameter within [0, 1] and wind within [0, 2π)", () => {
@@ -217,7 +222,7 @@ describe("snapshot contract", () => {
     const snap = localSnapshot(123);
     expect(parseSnapshot(JSON.parse(JSON.stringify(snap)))).toMatchObject({ serverTimeMs: 123 });
     expect(parseSnapshot({ ...snap, timezone: "UTC" })).toBeNull();
-    expect(parseSnapshot({ ...snap, weatherAlgorithmVersion: 2 })).toBeNull();
+    expect(parseSnapshot({ ...snap, weatherAlgorithmVersion: snap.weatherAlgorithmVersion + 1 })).toBeNull();
     expect(parseSnapshot({ ...snap, weatherTransitionMs: snap.weatherSlotDurationMs + 1 })).toBeNull();
     expect(parseSnapshot(null)).toBeNull();
   });

@@ -37,10 +37,11 @@ export function rotate(v: Voxel[], quarter: number): Voxel[] {
 }
 
 /**
- * Snow on every exposed top: adds a snow voxel above the highest voxel of each column, where `keep`
- * allows (lets generators leave gaps so snow reads as patches, not a lid).
+ * Snow on exposed tops: adds a snow voxel above the highest voxel of each column, where `keep` allows. `keep`
+ * gets the column and the height of its top, so a generator can leave snow on a ridge and a few patches
+ * instead of a lid (IMPL-0030: snow is an accent).
  */
-export function snowCap(v: Voxel[], color: string, keep: (x: number, z: number) => boolean = () => true): Voxel[] {
+export function snowCap(v: Voxel[], color: string, keep: (x: number, z: number, y: number) => boolean = () => true): Voxel[] {
   const top = new Map<string, number>();
   for (const [x, y, z] of v) {
     const k = `${x},${z}`;
@@ -49,7 +50,7 @@ export function snowCap(v: Voxel[], color: string, keep: (x: number, z: number) 
   const out = [...v];
   for (const [k, y] of top) {
     const [x, z] = k.split(",").map(Number);
-    if (keep(x, z)) out.push([x, y + 1, z, color]);
+    if (keep(x, z, y)) out.push([x, y + 1, z, color]);
   }
   return out;
 }

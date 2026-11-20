@@ -23,6 +23,22 @@ export const PALETTE = {
   stoneDark: "#AEB6C1",
   street: "#B9C6D2",
   streetDark: "#A7B5C3",
+  // Ground of the thawed village (IMPL-0030, PROPOSAL): snow is an accent, and the streets are the darkest thing
+  // on the ground. Every road tone keeps a contrast of at least 3:1 against every yard tone (lawn, lawnDark,
+  // snow, snowShade); `apps/client/src/scene/groundRuns.test.ts` checks it.
+  asphalt: "#4A4E57",
+  asphaltDark: "#3E424B",
+  cobble: "#5A5650",
+  cobbleDark: "#4B4843",
+  brick: "#6A4F43",
+  brickDark: "#5A4238",
+  earthRoad: "#5C5046",
+  kerb: "#D9D4C8",
+  paver: "#B9A994",
+  paverDark: "#A6957F",
+  gravel: "#CBB99A",
+  lawn: "#A9BFA0",
+  lawnDark: "#9AB392",
   pineDark: "#174C42",
   pineLight: "#1F5E50",
   wood: "#8B5B41",
@@ -731,17 +747,18 @@ export const BENCHES: Required<Placed>[] = LAMPS.filter((_, i) => i % 2 === 1).m
 
 /**
  * Street lamps at the corners where the avenues cross the ring streets, on the verge behind the inner row
- * (same model as the plaza lamps). The lamp style is one of the cues of a tier: both corners of every side
- * on the premium street, one on the standard street, none on the economy street (its cottages carry a
- * lantern on a stake instead).
+ * (same model as the plaza lamps). The number of lamps is one of the cues of a tier: both corners of every
+ * side on the premium street, one on the standard street and one, at the other corner, on the economy street
+ * (IMPL-0030: a street with no lamp could not be told from its yards at night; its cottages keep the lantern
+ * on a stake).
  */
 export const STREET_LAMPS: [number, number][] = VILLAGE.rings.flatMap((ring) => {
-  if (!ring.street || ring.zone === "economy") return [];
+  if (!ring.street) return [];
   const apothem = ring.street[0] - 0.75;
   const reach = apothem * Math.tan(Math.PI / VILLAGE_PLAN.sides) - avenueCut(VILLAGE_PLAN) - 0.9;
   return Array.from({ length: VILLAGE_PLAN.sides }, (_, s) => {
     const f = sideFrame(VILLAGE_PLAN, s);
-    return (ring.zone === "premium" ? [-1, 1] : [1]).map((half): [number, number] => [round2(apothem * f.nx + half * reach * f.tx), round2(apothem * f.nz + half * reach * f.tz)]);
+    return (ring.zone === "premium" ? [-1, 1] : ring.zone === "standard" ? [1] : [-1]).map((half): [number, number] => [round2(apothem * f.nx + half * reach * f.tx), round2(apothem * f.nz + half * reach * f.tz)]);
   }).flat();
 });
 

@@ -32,7 +32,7 @@ export function tree(): Voxel[] {
         const edge = d2 >= (r - 0.5) * (r - 0.5);
         const ornament = edge && (x * 7 + z * 13 + y * 5) % 9 === 0;
         const light = edge && !ornament && (x * 3 + z * 5 + y) % 7 === 0;
-        const snowy = !edge && d2 > above * above + above && (x * 5 + z * 3 + y) % 3 !== 0;
+        const snowy = !edge && d2 > above * above + above && (x * 5 + z * 3 + y) % 3 === 0;
         const c = ornament
           ? P.red
           : light
@@ -64,7 +64,8 @@ export function pine(tall = false): Voxel[] {
         const d2 = x * x + z * z;
         if (d2 > r * r + r * 0.5) continue;
         const exposed = d2 > above * above + above * 0.5 || i === layers.length - 1;
-        v.push([x, y, z, exposed && (x + z + i) % 2 === 0 ? PINE_SNOW : i % 2 ? P.pineLight : P.pineDark]);
+        // Snow on a third of the exposed boughs (IMPL-0030: an accent, the pine stays green).
+        v.push([x, y, z, exposed && (((x + 2 * z + i) % 3) + 3) % 3 === 0 ? PINE_SNOW : i % 2 ? P.pineLight : P.pineDark]);
       }
   });
   return v;

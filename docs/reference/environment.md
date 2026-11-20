@@ -1,7 +1,7 @@
 # Ambiente: hora, clima e efeitos
 
 > **Status:** Implementado (Unreleased) — **PROPOSTA** ([IMPL-0006](../decisions/0006-christmas-environment-real-time-procedural-weather.md))
-> · **Atualizado em:** 2026-11-10
+> · **Atualizado em:** 2026-11-19 (clima v2 e neve como detalhe, [IMPL-0030](../decisions/0030-thawed-village-and-readable-streets.md))
 > **Fonte de verdade:** `packages/shared/src/environment/` (lógica pura, testada), `apps/client/src/environment/`
 > (navegador), `apps/client/src/scene/environment/` (renderização), `apps/api/src/api.ts`
 
@@ -47,23 +47,28 @@ Relógio: amostra `t0`/`t1` com `performance.now()` em volta de `GET https://api
 rápido/lento); erro maior → salto. Ressincroniza a cada 3 min e ao voltar à aba; sem servidor, usa o relógio do
 aparelho e o painel "Ambiente" avisa.
 
-## 4. Clima v1
+## 4. Clima v2
 
-| Estado | Rótulo | Neve | Névoa | Peso |
-|---|---|---:|---:|---:|
-| `CLEAR_FROST` | Céu limpo e geada | 0 | 0,02 | 12% |
-| `LIGHT_SNOW` | Neve leve | 0,20 | 0,12 | 30% |
-| `SNOW` | Nevando | 0,48 | 0,26 | 32% |
-| `HEAVY_SNOW` | Neve forte | 0,78 | 0,48 | 18% |
-| `BLIZZARD` | Nevasca mágica | 1,00 | 0,76 | 5% |
-| `MISTY_FROST` | Névoa gelada | 0,12 | 0,60 | 3% |
+| Estado | Rótulo | Neve | Névoa | Peso | Peso na v1 |
+|---|---|---:|---:|---:|---:|
+| `CLEAR_FROST` | Céu limpo e geada | 0 | 0,02 | 42% | 12% |
+| `LIGHT_SNOW` | Neve leve | 0,20 | 0,12 | 30% | 30% |
+| `SNOW` | Nevando | 0,48 | 0,26 | 14% | 32% |
+| `HEAVY_SNOW` | Neve forte | 0,78 | 0,48 | 7% | 18% |
+| `BLIZZARD` | Nevasca mágica | 1,00 | 0,76 | 2% | 5% |
+| `MISTY_FROST` | Névoa gelada | 0,12 | 0,60 | 5% | 3% |
+
+Algoritmo **v2** (`WEATHER_ALGORITHM_VERSION = 2`, IMPL-0030, PROPOSTA): só os pesos mudaram; céu limpo é o estado
+mais comum e a neve que cai é quase sempre leve. A névoa do clima soma `0,012 × névoa` à densidade base de 0,006
+(era 0,024). Cliente e API precisam estar na mesma versão: um retrato de outra versão é recusado e o cliente fica
+"não sincronizado" (publicar os dois juntos).
 
 Janela de 45 min, transição de 5 min a partir do início da janela. Valores são coordenadas de direção de arte (0..1),
 não unidades físicas. Aurora: 35% das janelas `CLEAR_FROST` e nos eventos; só aparece com o céu escuro. Névoa
 limitada a `MAX_FOG_DENSITY` (0,03) para o avatar e os terrenos próximos continuarem visíveis.
 
 Limitação conhecida: janelas sorteadas de forma independente podem ir de céu limpo a nevasca (a transição esconde o
-corte). Correlação entre janelas seria o algoritmo v2.
+corte). Correlação entre janelas seria um algoritmo futuro.
 
 ## 5. Eventos programados (PROPOSTA)
 

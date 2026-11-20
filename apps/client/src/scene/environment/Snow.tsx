@@ -97,11 +97,11 @@ export function Snow() {
         uMotion: U.uMotion,
         uFall: { value: 0 },
         uDensity: { value: 0 },
-        uSize: { value: 0.24 },
+        uSize: { value: 0.2 },
         uCenter: { value: new Vector3() },
         uBox: { value: BOX },
         uColor: { value: new Vector3(1, 1, 1) },
-        uOpacity: { value: 0.9 },
+        uOpacity: { value: 0.75 },
       },
     });
     return { geometry: g, material: m };

@@ -12,7 +12,8 @@ export const WORLD_ID = "vila-noel-do-bem";
 export const TIME_ZONE = "America/Sao_Paulo";
 export const TIME_SCALE = 1;
 export const CONFIG_VERSION = 1;
-export const WEATHER_ALGORITHM_VERSION = 1;
+/** 2 = the odds of IMPL-0030 (clear most often). A client and an API on different versions do not sync: deploy both. */
+export const WEATHER_ALGORITHM_VERSION = 2;
 
 /** Stable FNV-1a hash of the world id: the seed is derived, never random. */
 export function seedFromWorldId(worldId: string): number {

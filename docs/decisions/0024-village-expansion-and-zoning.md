@@ -123,6 +123,9 @@ Centro**, **Bairro do Meio** e **Bairro da Floresta**. Painéis mostram um rótu
 12 · Bairro da Floresta") em vez do id; o id fica em atributos `data-` para testes e scripts. A tabela abaixo usa os
 ids internos.
 
+> As linhas "Rua", "Caminho até a porta" e "Poste" desta tabela foram substituídas pela
+> [IMPL-0030](0030-thawed-village-and-readable-streets.md) (ruas escuras, cascalho, poste também na rua econômica).
+
 | | Premium | Padrão | Econômico |
 |---|---|---|---|
 | Rua | pedra (como a praça) | neve batida | neve pisada |

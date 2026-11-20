@@ -6,12 +6,23 @@
 import type { Placed } from "@vila/shared/game/collision";
 import { DRESSING_VOXEL, type DressingKind, type DressingPart, PALETTE as P, type ResidentialPlot, VILLAGE_PLAN } from "@vila/shared/game/world";
 
-import { house } from "./gen/houses";
+import { type Archetype, house } from "./gen/houses";
 import { V } from "./gen/palette";
+import { Rng } from "./gen/rng";
 import type { GenModel } from "./gen/types";
 import type { Voxel } from "./models";
 
 const residences = new Map<string, GenModel>();
+
+/**
+ * The shape of the house on a plot (IMPL-0030, PROPOSTA): about half the plots keep the classic chalet and the
+ * others draw a dormer, a townhouse or a terrace, so a row is not one model repeated. Seeded by the plot id
+ * with a stream of its own: the same house for every visitor, and the chalet's other choices do not move.
+ */
+export function archetypeOf(plotId: string): Archetype {
+  const roll = new Rng(plotId, "archetype").float();
+  return roll < 0.5 ? "classic" : roll < 0.7 ? "dormer" : roll < 0.85 ? "townhouse" : "terrace";
+}
 
 /**
  * The chalet drawn on a residential plot: seeded by the plot id, with the footprint of its tier. Decor: nobody
@@ -21,7 +32,7 @@ export function residence(plot: Pick<ResidentialPlot, "id" | "tier">): GenModel 
   let model = residences.get(plot.id);
   if (!model) {
     const { halfWidth, halfDepth, porch, eaves } = VILLAGE_PLAN.tiers[plot.tier].house;
-    const drawn = house(plot.id, { halfWidth, halfDepth, porch, eaves, low: true, ridgeAlongStreet: true });
+    const drawn = house(plot.id, { halfWidth, halfDepth, porch, eaves, low: true, ridgeAlongStreet: true, archetype: archetypeOf(plot.id) });
     residences.set(plot.id, (model = { ...drawn, voxels: fillInterior(drawn.voxels, halfWidth, halfDepth) }));
   }
   return model;
@@ -74,7 +85,7 @@ export function dressingModel(kind: DressingKind, length: number, thick: number)
     case "stone-wall":
       each((x, z) => {
         v.push([x, 0, z, P.stoneDark], [x, 1, z, (x + z) % 2 ? P.stone : V.stoneWarm]);
-        if (x % 3 !== 1) v.push([x, 2, z, P.snow]);
+        if (x % 5 === 2) v.push([x, 2, z, P.snow]);
       });
       break;
     case "gate-pillar":
@@ -99,7 +110,7 @@ export function dressingModel(kind: DressingKind, length: number, thick: number)
     case "hedge":
       each((x, z) => {
         for (let y = 0; y < 3; y++) v.push([x, y, z, mottle(x, y, z, P.pineDark, P.pineLight)]);
-        if ((x * 3 + z * 5) % 4 !== 0) v.push([x, 3, z, P.snow]);
+        if ((x * 3 + z * 5) % 5 === 0) v.push([x, 3, z, P.snow]);
       });
       break;
     case "stake":
@@ -108,7 +119,7 @@ export function dressingModel(kind: DressingKind, length: number, thick: number)
     case "firewood":
       each((x, z) => {
         v.push([x, 0, z, z % 2 ? P.trunk : P.wood], [x, 1, z, z % 2 ? V.woodDark : P.trunk]);
-        if ((x + z) % 3 === 0) v.push([x, 2, z, P.snow]);
+        if ((x + z) % 5 === 0) v.push([x, 2, z, P.snow]);
       });
       break;
   }
@@ -138,8 +149,8 @@ export function billboardFrame(): Voxel[] {
   for (const x of [-3, 3]) v.push([x, 7, 0, V.woodDark], [x, 8, 0, V.woodDark]);
   // The board the notice is drawn on (a flat panel just in front of it), blank from behind.
   for (let x = -2; x <= 2; x++) v.push([x, 7, 0, P.cream], [x, 8, 0, P.cream]);
-  // Two lamps over the panel and snow along the top bar.
+  // Two lamps over the panel and a little snow on the top bar.
   v.push([-2, 10, 0, P.gold], [2, 10, 0, P.gold]);
-  for (const x of [-3, -1, 0, 1, 3]) v.push([x, 10, 0, P.snow]);
+  for (const x of [-3, 0, 3]) v.push([x, 10, 0, P.snow]);
   return v;
 }
