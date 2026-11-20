@@ -176,7 +176,8 @@ const JPEG_WITH_EXIF = Buffer.from(
 );
 
 /** Uploads on in the API in use (IMPL-0017)? An API that does not know them has no `files` in `/config`. */
-const filesOn = (await (await fetch(`${apiUrl}/config`)).json()).files === true;
+const config = await (await fetch(`${apiUrl}/config`)).json();
+const filesOn = config.files === true;
 if (!filesOn) console.log("note: /config says files are off in this API; the upload steps are skipped");
 
 // Local only: drop applications left by earlier runs of this script (they would use up the 12 lots). Their file
@@ -384,6 +385,19 @@ await click(a.getByRole("button", { name: "Continuar" }));
 if (!(await visible(a.getByText("Confirme os três requisitos"), 10000))) errors.push("applicant: declarations not enforced");
 for (const label of ["CNPJ ativo", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos recebidos"]) await a.getByLabel(label).check();
 await a.getByLabel("Como os recursos podem ser confirmados? *").fill("Extratos mensais da conta da organização e relatório conciliável.");
+const paymentMode = a.getByRole("combobox", { name: /Meio de recebimento de doações/ });
+const paymentUrl = a.getByRole("textbox", { name: /Link de doação da organização/ });
+if (config.donations) {
+  await paymentMode.selectOption("external_link");
+  await paymentUrl.fill("https://example.org/doar");
+  await paymentMode.selectOption("abacatepay");
+  if (await paymentUrl.count()) errors.push("applicant: switching back to AbacatePay kept the external link input");
+  await paymentMode.selectOption("external_link");
+  if (await paymentUrl.inputValue()) errors.push("applicant: switching back to an external link restored the discarded URL");
+  await paymentUrl.fill("https://example.org/doar");
+} else if (await paymentMode.count() || await paymentUrl.count()) {
+  errors.push("applicant: payment fields visible with donations off");
+}
 await click(a.getByRole("button", { name: "Continuar" }));
 await a.getByLabel("Resumo (público após aprovação) *").fill("Oficinas de leitura para crianças do bairro.");
 if (!(await visible(a.getByText("Após a aprovação, nome, resumo, descrição, áreas de atuação e projetos ficarão públicos na Vila. Não inclua dados pessoais nesses textos."), API_WAIT))) errors.push("applicant: public-content disclosure missing");
@@ -508,9 +522,19 @@ if (!(await visible(a.getByText("Envie o relatório de recursos de 2025")))) err
 // Sending again makes a new version (file changes made versions too, so the number is read, not assumed).
 const { revision } = (await ownApplication(a)).application;
 await click(a.getByRole("button", { name: "Editar e reenviar" }));
-for (let i = 0; i < 3; i++) await click(a.getByRole("button", { name: "Continuar" }));
+await click(a.getByRole("button", { name: "Continuar" }));
+if (config.donations) {
+  if (await paymentMode.inputValue() !== "external_link" || await paymentUrl.inputValue() !== "https://example.org/doar")
+    errors.push("applicant: the external link was missing when editing the application");
+  await paymentMode.selectOption("abacatepay");
+}
+for (let i = 0; i < 2; i++) await click(a.getByRole("button", { name: "Continuar" }));
 await click(a.getByRole("button", { name: "Enviar candidatura" }));
 await a.getByText(`versão ${revision + 1}`, { exact: false }).waitFor({ timeout: API_WAIT });
+if (config.donations) {
+  const { ngoPayment } = (await ownApplication(a)).application;
+  if (ngoPayment?.method !== "abacatepay" || ngoPayment.donationUrl) errors.push("applicant: the API did not clear the old link after the route change");
+}
 if (filesOn && (await storedFiles(a)) !== "logo:image/png document:image/png") errors.push(`files: sending the application again changed its files ("${await storedFiles(a)}")`);
 
 // 4. Admin (dashboard) approves the new version, only after ticking the three checks.

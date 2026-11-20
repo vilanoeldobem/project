@@ -118,6 +118,10 @@ describe("NGO application (P12; DEC-015)", () => {
     const valid = validateApplication({ ...base, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar" }, TODAY);
     expect(valid.errors).toEqual({});
     expect([valid.value.paymentMethod, valid.value.donationUrl]).toEqual(["external_link", "https://ong.org.br/doar"]);
+    const off = validateApplication({ ...base, paymentMethod: "external_link", donationUrl: "" }, TODAY, false);
+    expect(off.errors).toEqual({});
+    expect(off.value).not.toHaveProperty("paymentMethod");
+    expect(off.value).not.toHaveProperty("donationUrl");
     // Both fields belong to step 2, so the wizard jumps there on an error.
     expect([APPLICATION_STEP.paymentMethod, APPLICATION_STEP.donationUrl]).toEqual([2, 2]);
   });

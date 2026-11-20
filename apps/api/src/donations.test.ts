@@ -677,6 +677,25 @@ describe("the application keeps the requested payment mode", () => {
     expect(db.sql("SELECT payment_method,donation_url FROM ngo_payment_configs")[0]).toEqual({ payment_method: "abacatepay", donation_url: "" });
   });
 
+  it("accepts a stale payment field while donations are off and keeps the saved choice on a later resubmission", async () => {
+    const body = { ...APPLICATION, accountId: "applicant" };
+    expect((await call("POST", "/ngo/application", body, "applicant")).status).toBe(201);
+    const id = db.sql("SELECT id FROM ngos WHERE applicant_id='applicant'")[0].id;
+    const requestChanges = () => db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(id).run();
+    const stored = () => db.sql("SELECT payment_method,donation_url FROM ngo_payment_configs WHERE ngo_id=?", id)[0];
+    const original = { payment_method: "external_link", donation_url: APPLICATION.donationUrl };
+    await requestChanges();
+    env.DONATIONS_ENABLED = "false";
+    expect((await call("POST", "/ngo/application", { ...body, donationUrl: "" }, "applicant")).status).toBe(200);
+    expect(stored()).toEqual(original);
+
+    await requestChanges();
+    env.DONATIONS_ENABLED = "true";
+    const { paymentMethod, donationUrl, ...withoutPreference } = body;
+    expect((await call("POST", "/ngo/application", withoutPreference, "applicant")).status).toBe(200);
+    expect(stored()).toEqual(original);
+  });
+
   it("touches no donation table while the flag is off", async () => {
     env.DONATIONS_ENABLED = "false";
     await db.prepare("UPDATE lots SET state='available' WHERE id='plaza-02'").run();
