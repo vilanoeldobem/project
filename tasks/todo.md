@@ -1130,10 +1130,30 @@ Three stacked local branches. No push, deploy, remote migration or flag flip.
 Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0032). No flag changes. PR #63
 (quest epilogue) is not part of it: it conflicts with `main` and is left as it is.
 
-- [ ] Release commit on `release/0.7.0`: CHANGELOG, versions, README, ROADMAP, versioning doc; gates; PR; CI; merge
-- [ ] Tag `v0.7.0` on the merge commit
-- [ ] Before touching production: rollback targets (`wrangler deployments list` per app) and a D1 restore bookmark
-- [ ] Deploy in the documented order: API, migrations 0014 + 0015, realtime server, game, dashboard, site
-- [ ] After: `/health`, `/config`, `/lots` (97), `/residential-plots` (23), `smoke-api.sh`, `verify-live.mjs`,
+- [x] Release commit on `release/0.7.0`: CHANGELOG, versions, README, ROADMAP, versioning doc; gates; PR; CI; merge
+- [x] Tag `v0.7.0` on the merge commit
+- [x] Before touching production: rollback targets (`wrangler deployments list` per app) and a D1 restore bookmark
+- [x] Deploy in the documented order: API, migrations 0014 + 0015, realtime server, game, dashboard, site
+- [x] After: `/health`, `/config`, `/lots` (97), `/residential-plots` (23), `smoke-api.sh`, `verify-live.mjs`,
       the site and dashboard checks against production
-- [ ] Record the release in `docs/reference/releases.md`, the deploy guide, README and AGENTS.md (docs PR)
+- [x] Record the release in `docs/reference/releases.md`, the deploy guide, README and AGENTS.md (docs PR)
+
+### Review (release 0.7.0)
+
+- Merged as PR #70 (`9a80a83`), signed tag `v0.7.0`. Deployed 2026-11-20 02:36 to 02:40 UTC in the documented order.
+  Versions: api `18175b13`, server `34d9553b`, game `a898ab26`, dash `c87dd18b`, site `85a2a25f`.
+- Production D1 went from v13 to v15 (0014 and 0015). Restore bookmark taken before:
+  `000000ac-00000000-00005129-a1911c147386babb9d8f02c202dbb4ef`. Before: 12 lots, 112 plots, no NGO, no account.
+  After: 97 lots, 23 plots.
+- Production checks: `/health` 0.7.0, `/config` all off (`ngoLevels: false`), `smoke-api.sh` 17/17, the dashboard
+  check passes; `verify-live.mjs` and the site check fail only on the Google destinations the CSP blocks (OQ-13),
+  as in 0.6.0.
+- Not done: a phone test; walking the rings in the deployed game; OQ-19 was still open when 0015 was applied.
+- No flag was changed. PR #63 was left as it is (it conflicts with `main`).
+
+### Lessons (release 0.7.0)
+
+- Take the rollback targets and the D1 bookmark before the first deploy, not before the migration: they are the
+  first lines of the release record and cannot be read back afterwards.
+- A release commit should not state what production will be: write "in the code" there and record production in
+  the follow-up docs change, after it was observed.
