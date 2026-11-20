@@ -1124,3 +1124,16 @@ Three stacked local branches. No push, deploy, remote migration or flag flip.
   in a test: otherwise "the same NGO, bigger" becomes "a different house".
 - A steep roof on a small house can be taller than a low roof on a big one: assert the order of the heights.
 
+
+## Release 0.7.0 (2026-11-19) — asked by the technical owner: "do everything to release new version"
+
+Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0032). No flag changes. PR #63
+(quest epilogue) is not part of it: it conflicts with `main` and is left as it is.
+
+- [ ] Release commit on `release/0.7.0`: CHANGELOG, versions, README, ROADMAP, versioning doc; gates; PR; CI; merge
+- [ ] Tag `v0.7.0` on the merge commit
+- [ ] Before touching production: rollback targets (`wrangler deployments list` per app) and a D1 restore bookmark
+- [ ] Deploy in the documented order: API, migrations 0014 + 0015, realtime server, game, dashboard, site
+- [ ] After: `/health`, `/config`, `/lots` (97), `/residential-plots` (23), `smoke-api.sh`, `verify-live.mjs`,
+      the site and dashboard checks against production
+- [ ] Record the release in `docs/reference/releases.md`, the deploy guide, README and AGENTS.md (docs PR)
