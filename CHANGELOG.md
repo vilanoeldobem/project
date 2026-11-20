@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added
+
+- [Dicionário de contagem da Vila](docs/reference/indicator-sources.md), com as fontes de presença, progresso e doações, o tratamento de repetições e as definições pendentes da #65.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations

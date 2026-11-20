@@ -137,7 +137,7 @@ respondem `503 schema_outdated`.
 ### GET /indicators
 
 Indicadores públicos (P02, DEC-027). `value: null` quando não há fonte verificável; a interface mostra "—" e `note`.
-Cache 30 s.
+Cache 30 s. O [dicionário de contagem da Vila](indicator-sources.md) detalha as unidades, os recortes financeiros e a cobertura de cada indicador da #65.
 
 | key | Fonte | Valor na 0.4.0 |
 |---|---|---|
