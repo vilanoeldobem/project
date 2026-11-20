@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — produção na 0.7.0 e no schema D1 v15
+
+- **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
+  → servidor → jogo → painel → site, com autorização do responsável técnico. As migrations `0014` e `0015` foram
+  aplicadas em produção (v13 → v15), com ponto de restauração registrado em `docs/reference/releases.md`. Nenhuma
+  bandeira mudou.
+
 ## [0.7.0] - 2026-11-19
 
 **A Vila em quatro anéis, com menos neve, ruas legíveis e casas de ONG em cinco níveis**
@@ -40,7 +47,7 @@ em computador; nenhum teste em celular foi feito.
 - Com os níveis desligados (o estado de produção), toda casa publicada é desenhada no nível 1, a cabana de 5 × 5.
   Antes era um chalé de tamanho sorteado pela semente do terreno.
 
-### Added — a Vila em quatro anéis: 80 % para ONGs, prédios cívicos, parques e placas (IMPL-0031, **PROPOSTA**; schema v15 no código, migration 0015 **não aplicada no remoto**)
+### Added — a Vila em quatro anéis: 80 % para ONGs, prédios cívicos, parques e placas (IMPL-0031, **PROPOSTA**; schema v15; migration 0015 aplicada em produção na publicação da 0.7.0)
 
 - **A Vila cresceu de 82,5 u para 99 u de raio**, em quatro anéis atrás da praça. O plano virou uma lista de anéis
   com um zoneamento por meia fileira; acrescentar um anel não move nem renomeia nada do que existe.
@@ -111,8 +118,8 @@ em computador; nenhum teste em celular foi feito.
   só para administradores, auditadas, sem chamar o provedor. Uma intenção que guarda a cobrança do provedor nunca é
   encerrada (`409 intent_has_charge`), nem o evento que espera por ela é dispensado: a repetição com a mesma chave
   conclui a doação.
-- **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): **não aplicada no remoto**; entra
-  com a publicação que traz este código. Com as doações ligadas e o banco em v13, as rotas de doação respondem
+- **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): aplicada em produção na publicação da
+  0.7.0. Com as doações ligadas e o banco em v13, as rotas de doação respondem
   `503 schema_outdated`.
 
 ### Changed — produção no schema D1 v13

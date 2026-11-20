@@ -6,10 +6,9 @@
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v15 no código, v13 em produção**: `0004` a `0012` aplicadas no deploy da 0.5.0 e a `0013` em 2026-11-15, depois
-da 0.6.0; ver [releases.md](releases.md). A `0014` entra no remoto junto com a publicação que a usa, e a `0015` (terrenos dos anéis, IMPL-0031) junto
-com a publicação da Vila em quatro anéis. As tabelas da
-`0013` e a coluna da `0014` só são lidas pelas rotas de doação, desligadas). O histórico aplicado identifica o schema real e
+(**v15 no código e em produção**: `0004` a `0012` aplicadas no deploy da 0.5.0, a `0013` em 2026-11-15, depois da
+0.6.0, e a `0014` e a `0015` na publicação da 0.7.0, em 2026-11-20 02h37 UTC; ver [releases.md](releases.md). As
+tabelas da `0013` e a coluna da `0014` só são lidas pelas rotas de doação, desligadas). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 

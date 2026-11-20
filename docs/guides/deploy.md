@@ -1,7 +1,7 @@
 # Publicar na Cloudflare
 
-> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-14
+> **Status:** Implementado (0.7.0) · **Versão do software:** 0.7.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-19
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
 
@@ -22,13 +22,13 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
 
-**Último deploy: 2026-11-14**, versão 0.6.0, os cinco Workers a partir da `main` (`9d32fbc`, tag `v0.6.0`), na
-ordem API → servidor → jogo → painel → site, **sem migration remota** naquele momento; a `0013` foi aplicada logo
-depois, em 2026-11-15 01h27 UTC, com autorização (D1 de produção na **v13**; ponto de restauração anterior no
-[releases.md](../reference/releases.md)). Antes disso a `0013`
-(intenção durável de doação, só lida com `DONATIONS_ENABLED` ligada) não foi aplicada. Contas e todas as propostas
-seguem desligadas. O `smoke-api.sh` passa (17/17); o `verify-live.mjs` falha só pelos destinos do Google bloqueados
-pela CSP (OQ-13). A 0.5.0 (`e4771c4`) aplicou as migrations `0004` a `0012` e criou o bucket R2.
+**Último deploy: 2026-11-19**, versão 0.7.0, os cinco Workers a partir da `main` (`9a80a83`, tag `v0.7.0`), na
+ordem API → migrations `0014` e `0015` → servidor → jogo → painel → site, com autorização (2026-11-20 02h36 a 02h40
+UTC). D1 de produção na **v15**: 97 terrenos de ONG e 23 terrenos residenciais; ponto de restauração anterior no
+[releases.md](../reference/releases.md). Contas e todas as propostas seguem desligadas, inclusive
+`NGO_LEVELS_ENABLED`. O `smoke-api.sh` passa (17/17); o `verify-live.mjs` e o `verify.mjs` do site falham só pelos
+destinos do Google bloqueados pela CSP (OQ-13). A 0.6.0 (`9d32fbc`, 2026-11-14) foi publicada sem migration; a `0013`
+foi aplicada em 2026-11-15. A 0.5.0 (`e4771c4`) aplicou as migrations `0004` a `0012` e criou o bucket R2.
 O registro completo de cada publicação (commit, hosts, schema, R2, bandeiras por Worker, conferências e o que não
 foi verificado) fica em [reference/releases.md](../reference/releases.md).
 
@@ -115,7 +115,8 @@ conta nem grava nada.
 
 ### 4.0 O que precisa ir junto na publicação da Vila com menos neve e quatro anéis (IMPL-0030, IMPL-0031)
 
-Ainda **não publicado**; vale para a primeira publicação que levar essas duas mudanças.
+**Publicado em 2026-11-19 (0.7.0)**, na ordem abaixo, com a migration `0015` aplicada. O texto fica como registro
+do que essa publicação exigiu.
 
 1. **API e jogo juntos (IMPL-0030).** O clima mudou de versão (`WEATHER_ALGORITHM_VERSION = 2`) e os dois usam o
    mesmo código compartilhado. Um jogo novo recusa o retrato de uma API antiga e fica "não sincronizado", com o

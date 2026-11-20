@@ -1,7 +1,7 @@
 # Publicações em produção
 
-> **Status:** Implementado · **Versão do software:** 0.6.0 · **Schema D1:** v13 ·
-> **Atualizado em:** 2026-11-14
+> **Status:** Implementado · **Versão do software:** 0.7.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-19
 > **Fonte de verdade:** "Último deploy" em [guides/deploy.md](../guides/deploy.md), `apps/*/wrangler.jsonc` (bandeiras),
 > `migrations/`, `CHANGELOG.md`
 
@@ -9,6 +9,58 @@ Uma tabela por publicação em produção, da mais nova para a mais antiga. Cada
 **registro do deploy** (o que quem publicou anotou), **código** (`wrangler.jsonc` do commit publicado) ou
 **observado** (requisição pública feita na data indicada). Uma bandeira lida no código é o valor que o deploy
 enviou; ela não prova o comportamento. Um binding presente não prova que o recurso funciona.
+
+## 0.7.0 — 2026-11-19
+
+| Item | Valor | Fonte |
+|---|---|---|
+| Data | 2026-11-19, 23h36 a 23h40 (BRT); `wrangler` registra 2026-11-20 02h36 a 02h40 UTC | registro do deploy |
+| Commit | `9a80a83` (`main`, merge do PR #70, `release/0.7.0`), tag `v0.7.0` | registro do deploy |
+| Autorização | pedido do responsável técnico nesta data, cobrindo os cinco deploys e as migrations remotas | registro do deploy |
+| Ordem | API → migrations `0014` e `0015` → servidor → jogo → painel → site ([deploy §4.0](../guides/deploy.md#40-o-que-precisa-ir-junto-na-publicação-da-vila-com-menos-neve-e-quatro-anéis-impl-0030-impl-0031)) | registro do deploy |
+| Versões (`wrangler`) | api `18175b13` · server `34d9553b` · jogo `a898ab26` · dash `c87dd18b` · site `85a2a25f` | registro do deploy |
+| Versões anteriores (alvo de rollback) | api `86dfa91c` · server `3c0916ac` · jogo `078e54ac` · dash `0c96668f` · site `c40e9282` | `wrangler deployments list` antes do deploy |
+| Workers e hosts | os mesmos da 0.5.0 | código |
+| Versão no ar | `GET api.*/health` → `"version":"0.7.0"`, `"environment":"production"`, `"db":true`, `"mail":false`, `"files":true` | observado em 2026-11-20 02h36 UTC |
+| D1 | de **v13** para **v15**: `0014_pending_event_hold_reason.sql` e `0015_village_growth.sql` aplicadas em 2026-11-20 02h37 UTC, depois da API. Ponto de restauração imediatamente antes: bookmark `000000ac-00000000-00005129-a1911c147386babb9d8f02c202dbb4ef` (`wrangler d1 time-travel restore vilanoeldobem --bookmark=…`) | registro do deploy |
+| D1, antes e depois | antes: 12 terrenos, 112 linhas em `residential_plots`, nenhuma ONG, nenhuma conta, nenhum evento de doação em espera. Depois: 97 terrenos (12 da praça, 85 dos anéis), 23 linhas em `residential_plots`; `wrangler d1 migrations list --remote` → "No migrations to apply" | consulta de contagem ao D1 remoto nesta data |
+| Clima | `GET api.*/environment` → `"weatherAlgorithmVersion":2`; API e jogo publicados em sequência (IMPL-0030) | observado em 2026-11-20 |
+| Raio do mundo | 99 u no servidor de tempo real e no jogo, publicados em sequência (IMPL-0031) | código |
+| Nova variável | `NGO_LEVELS_ENABLED = "false"` na API (IMPL-0032); nenhum binding novo em nenhum Worker | código (`git diff v0.6.0 v0.7.0 -- apps/*/wrangler.jsonc`) |
+| R2, e-mail, Durable Object | sem mudança desde a 0.5.0 | código |
+
+### Bandeiras em produção (0.7.0)
+
+Iguais às da 0.6.0, mais `NGO_LEVELS_ENABLED = "false"` na API. `GET api.*/config` respondeu, em 2026-11-20 02h36 UTC,
+depois do deploy:
+`{"accounts":false,"quests":false,"files":false,"withdrawal":false,"moderation":{"presence":false,"block":false},"residentialPlots":false,"donations":false,"ngoLevels":false}`.
+
+### Conferências (0.7.0)
+
+| Conferência | Data | Resultado | Fonte |
+|---|---|---|---|
+| Gates (`typecheck`, `test` com 1.932 testes, `build`) e CI do PR #70 | 2026-11-19 | passam | registro do deploy |
+| Locais, sobre a mesma árvore antes da troca do número da versão: `smoke-api.sh`, `verify` (pior vista com uma casa em cada terreno: 133 chamadas, 207 262 triângulos), `verify-collisions`, `verify-life`, `verify-boards`, `verify-shop`, `verify-accounts`, `verify-fullroom` (40 pessoas: 103 chamadas), `verify-quests`, `verify.mjs` do painel | 2026-11-19 | passam | registro do deploy |
+| `scripts/smoke-api.sh` contra produção | 2026-11-20 UTC | passa, 17/17 | observado |
+| `apps/client/scripts/verify-live.mjs` | 2026-11-20 UTC | falha só pelos 7 erros de CSP dos destinos do Google (OQ-13), como na 0.6.0; nada mais falha. A captura mostra a praça, o HUD e a presença "👥 1" | observado |
+| `apps/site/scripts/verify.mjs` contra `www.*` | 2026-11-20 UTC | falha só pelos mesmos destinos do Google bloqueados pela CSP do site (179 itens, todos desse tipo); nada mais falha | observado |
+| `apps/dash/scripts/verify.mjs` contra `dash.*` e `api.*` | 2026-11-20 UTC | passa (contas desligadas: sem tela de entrada para conferir) | observado |
+| `GET api.*/lots` e `/residential-plots` | 2026-11-20 UTC | 200; 97 terrenos (`plaza-01` primeiro, `ring4-30` por último), todos com `ngo_level: null`; 23 terrenos residenciais com `"enabled":false` | observado |
+| Raiz de cada host | 2026-11-20 UTC | `play.*` 200 · `www.*` 200 · `dash.*` 200 · `client.*` 302 → `play` · `app.*` 301 → `play` · domínio raiz 301 → `www`; `server.*/health` → `"rooms":true` | observado |
+
+### Não verificado (0.7.0)
+
+- Aparelhos reais (celular): nenhum teste. O desempenho da Vila maior foi medido só em computador.
+- Em produção só a chegada foi vista (`verify-live.mjs`): ninguém andou pelos anéis, abriu um prédio cívico, um
+  parque ou uma placa no jogo publicado. Essas conferências foram feitas localmente.
+- Sala cheia em produção: medida só localmente (`verify-fullroom.mjs`).
+- Mistura de abas antigas e novas na mesma sala durante a troca de versão: não exercitada.
+- `verify-moderation.mjs` e `verify-withdrawal.mjs` do painel: não rodados (fluxos não alterados, atrás de bandeiras
+  desligadas).
+- Coluna da `0014`: só as rotas de doação (desligadas) a leem; não exercitada em produção.
+- Ensaio de recuperação do D1 e homologação: sem registro (como nas versões anteriores).
+- A resposta do dono do produto à OQ-19 (plano final dos anéis e quantos abrem no lançamento) não existia quando a
+  `0015` foi aplicada: um plano diferente pede uma migration nova.
 
 ## 0.6.0 — 2026-11-14
 

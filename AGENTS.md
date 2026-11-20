@@ -147,7 +147,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
-  association and reads no table newer than the one it serves: production may run behind the code (v13 since 2026-11-15; `docs/reference/releases.md`). Never
+  association and reads no table newer than the one it serves: production may run behind the code (v15 since 2026-11-20 UTC, release 0.7.0; `docs/reference/releases.md`). Never
   join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
   `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
@@ -171,8 +171,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   id: look it up (`lotById`, `lotNumber`). They are stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
   `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`), and migration 0012 is applied in production (2026-11-14), so a plan
   change that moves or renumbers one needs a new migration that follows. Migration 0015 (the lots of the rings,
-  IMPL-0031) is **not applied remotely**: until it is, a change of the rings regenerates it; never apply it without
-  explicit approval. Lots and plots must stay in sync with the seed migrations (`0002_seed_lots.sql`,
+  IMPL-0031) is **applied in production** (2026-11-20 UTC, release 0.7.0): it is immutable now, and a change of the
+  rings needs a new migration that follows. Lots and plots must stay in sync with the seed migrations (`0002_seed_lots.sql`,
   `0012_village_expansion.sql`, `0015_village_growth.sql`; tests check the SQL text, the migrated
   tables and pin each id to its place), and the plan in force must keep the rules of
   `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by distance, the sightline rule, every
