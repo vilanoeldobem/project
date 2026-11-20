@@ -10,7 +10,9 @@ import {
   HOUSE_ENVELOPE,
   INTERACT_DISTANCE,
   BILLBOARDS,
+  LOT_DRESSING,
   LOT_INTERACT_DISTANCE,
+  LOT_ROWS,
   lotColliders,
   lotFront,
   LOTS,
@@ -23,6 +25,7 @@ import {
   QUEST_SPAWNS,
   RESIDENTIAL_PLOTS,
   SHOPS,
+  SITES,
   SPAWN,
   TREE_KEEP_OUT,
   TREE_RADIUS,
@@ -40,6 +43,13 @@ const SETS: Record<string, Collider[]> = {
 const FIELDS: Record<string, NavField> = Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, createNavField(set)]));
 const CONFIGS = Object.keys(SETS).map((name) => [name, SETS[name], FIELDS[name]] as const);
 const [OFF, QUESTS] = [CONFIGS[0], CONFIGS[1]];
+/** A civic building, and the hedge between the first two lots of a ring row, with the front of one of them (IMPL-0031). */
+const BANK = SITES.find((site) => site.kind === "bank")!;
+/** A point inside its front wall: a click in the middle of a deep building resolves to its nearest side, which may be the back. */
+const BANK_WALL = { x: BANK.centre.x + (BANK.front.x - BANK.centre.x) * 0.55, z: BANK.centre.z + (BANK.front.z - BANK.centre.z) * 0.55 };
+const HEDGE_PART = LOT_DRESSING[0];
+const HEDGE = { x: HEDGE_PART.x + Math.cos(HEDGE_PART.rot) * 3.25, z: HEDGE_PART.z - Math.sin(HEDGE_PART.rot) * 3.25 };
+const HEDGE_FROM = lotFront(LOT_ROWS.find((row) => row.width - 7 < 4 && row.lots.length > 1)!.lots[0]);
 
 interface Walk {
   arrived: boolean;
@@ -147,7 +157,9 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       ["an NPC, from the spawn", SPAWN.x, SPAWN.z, 5, 4, (x, z) => z > 4 && x < 5],
       ["the sleigh, from the street", -2, 16, -2, 20.2, (_, z) => z < 19],
       ["a shop, from the square", 5, 18, 5, 30.5, (_, z) => z < 27],
-      ["firewood between two cottages, from their street", 66.5, -19.5, 72.5, -19.5, (x) => x < 70],
+      // A civic building from the street in front of it, and the hedge between two lots of a ring from the front of one.
+      ["the front wall of a civic building, from its street", BANK.front.x, BANK.front.z, BANK_WALL.x, BANK_WALL.z, (x, z) => Math.hypot(x - BANK.front.x, z - BANK.front.z) < Math.hypot(x - BANK.centre.x, z - BANK.centre.z)],
+      ["the hedge between two lots, from their street", HEDGE_FROM.x, HEDGE_FROM.z, HEDGE.x, HEDGE.z, (x, z) => Math.hypot(x - HEDGE_FROM.x, z - HEDGE_FROM.z) < Math.hypot(HEDGE.x - HEDGE_FROM.x, HEDGE.z - HEDGE_FROM.z)],
     ];
     for (const [label, sx, sz, tx, tz, near] of cases) {
       const b = createBody(sx, sz), route = createRoute();
@@ -225,11 +237,11 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
 
   it("plans within a bounded number of grid nodes, and only on a click", () => {
     // Around the square, then the far corners of the village: plot fronts on opposite sides, the wood yard, the edge.
-    const far = [RESIDENTIAL_PLOTS[0], RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 1], RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 30], RESIDENTIAL_PLOTS[30]].map((p) => [p.front.x, p.front.z]);
+    const far = [RESIDENTIAL_PLOTS[0].front, RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 1].front, lotFront(LOTS[LOTS.length - 1]), lotFront(LOTS[LOTS.length - 40])].map((p) => [p.x, p.z]);
     const spots = [[SPAWN.x, SPAWN.z], [-23, 0], [2, 22.8], [22.5, 5.5], [-28, -14], [26, -12], [0, -15], [-33, 6], [14, 30], [0, 0], [30.5, 5], [20.5, 0], ...far, [0, -78], [-58, 58]];
     for (const [name, set, field] of CONFIGS) {
-      // The search space is the walkable region of the 0.25 u grid over the 82.5 u disc: at most 342 000 cells.
-      expect(field.walkable, name).toBeGreaterThan(150000);
+      // The search space is the walkable region of the 0.25 u grid over the 99 u disc: at most 493 000 cells.
+      expect(field.walkable, name).toBeGreaterThan(250000);
       expect(field.walkable, name).toBeLessThan(Math.PI * (WORLD_RADIUS / NAV.cell) ** 2);
       let worst = 0;
       const route = createRoute();
@@ -241,9 +253,9 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
           expect(route.count, `${name} waypoints`).toBeLessThan(40);
         }
       // In practice a fraction of the bound: the hardest of these 324 plans (every pair of the 18 spots above)
-      // stays under 60 000 expansions (measured: 31 124). The next test draws the pairs at random.
+      // stays under 90 000 expansions. The next test draws the pairs at random.
       expect(worst, name).toBeGreaterThan(0);
-      expect(worst, name).toBeLessThan(60000);
+      expect(worst, name).toBeLessThan(90000);
       // Walking never plans: the expansion count of the route is untouched by a whole walk.
       const b = createBody(SPAWN.x, SPAWN.z);
       planRoute(field, route, b.x, b.z, 26, -12);
@@ -256,8 +268,9 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
   it("stays within the bound for a seeded random sample of pairs across the village", () => {
     // The fixed spots above are places people go; a click can land anywhere. 3 000 pairs of open points drawn
     // with `mulberry32(40)` over the whole disc, every lot a chalet and the quests on (the fewest walkable cells,
-    // the most detours). Measured: the hardest pair expands 72 464 cells, about a third of the walkable region
-    // (in a sample of 18 000 pairs with `mulberry32(2026)`, 82 895). IMPL-0024 has the times.
+    // the most detours). Measured on the village of four rings (IMPL-0031, radius 99): the hardest pair expands
+    // 104 729 cells, about a third of the walkable region (290 507 cells); on the village of radius 82.5 it was
+    // 72 464. The bound grows with the area of the village: IMPL-0031 has the times.
     const [name, , field] = CONFIGS[2];
     const random = mulberry32(40);
     const point = (): [number, number] => {
@@ -277,7 +290,7 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
       longest = Math.max(longest, route.count);
     }
     expect(worst).toBeGreaterThan(60000);
-    expect(worst).toBeLessThan(100000);
+    expect(worst).toBeLessThan(150000);
     expect(worst).toBeLessThan(field.walkable / 2);
     expect(longest).toBeLessThan(40);
   }, 60_000); // 3 000 planned walks: 2.3 s idle, 6.3 s on a busy machine
@@ -285,7 +298,7 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
   it("allocates the search scratch on the first search that needs it, small, and gives it back when asked", () => {
     const [, , field] = CONFIGS[2];
     const route = createRoute();
-    const far = RESIDENTIAL_PLOTS[RESIDENTIAL_PLOTS.length - 30].front;
+    const far = lotFront(LOTS[LOTS.length - 1]);
     const plan = () => {
       planRoute(field, route, SPAWN.x, SPAWN.z, far.x, far.z);
       return [route.count, route.expanded, ...route.xs.slice(0, route.count), ...route.zs.slice(0, route.count)];
@@ -298,11 +311,12 @@ describe("planRoute + stepWalk (IMPL-0016)", () => {
     expect([route.expanded, searchScratchBytes()]).toEqual([0, 0]);
     // The same walk planned on a fresh scratch is the same walk.
     expect(plan()).toEqual(before);
-    // 10 bytes a cell over the grid, plus an open list and a path that grew with this search: under 5 MB
-    // (the first version of the expanded village kept 24 bytes a cell: 10.5 MB).
+    // 10 bytes a cell over the grid, plus an open list and a path that grew with this search: 6.3 MB over the
+    // 628 849 cells of the village of four rings (IMPL-0031; 4.4 MB at radius 82.5), under a cap of 7 MB. A ring
+    // more has to be measured before the cap moves again (the first expanded village kept 24 bytes a cell).
     const cells = (2 * Math.ceil(WORLD_RADIUS / NAV.cell) + 1) ** 2;
     expect(searchScratchBytes()).toBeGreaterThanOrEqual(10 * cells);
-    expect(searchScratchBytes()).toBeLessThan(5 * 1024 * 1024);
+    expect(searchScratchBytes()).toBeLessThan(7 * 1024 * 1024);
     // More than 255 searches in a row (the visit mark is one byte and starts over): still the same walk.
     for (let i = 0; i < 300; i++) planRoute(field, route, SPAWN.x, SPAWN.z, -23, 0);
     expect(route.expanded).toBeGreaterThan(0);

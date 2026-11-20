@@ -164,7 +164,8 @@ for (const [name, time, weather] of [["morning", "09:40", "LIGHT_SNOW"], ["after
   report.scenes[name] = { people: people.length, animals: out.length - people.length, drawn: r.drawn, owl: out.some((c) => c.id === "owl-1") };
   check(r.on, `${name}: the characters are off`);
   check(r.drawn > 0, `${name}: nobody is drawn at the spawn`);
-  for (const c of out) check(Number.isFinite(c.x) && Math.hypot(c.x, c.z) < 83, `${name}: ${c.id} is outside the world`);
+  // The world is 99 u in radius since the village of four rings (IMPL-0031); the owl's pine stands on its edge.
+  for (const c of out) check(Number.isFinite(c.x) && Math.hypot(c.x, c.z) < 99.5, `${name}: ${c.id} is outside the world`);
   await shot(page, `life-${name}`);
   await page.close();
 }
@@ -191,7 +192,7 @@ const when = (id, point, from, within = 0.6) =>
     [id, point, from, within]
   );
 const TALKS = [
-  { id: "lumberjack", at: [3.5, -78.1], from: "08:00", action: "Conversar com o lenhador", title: "Lenhador", lines: ["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", "Nada é vendido na Vila."] },
+  { id: "lumberjack", at: [3.5, -93.6], from: "08:00", action: "Conversar com o lenhador", title: "Lenhador", lines: ["Eu corto e empilho lenha aqui, na beira da floresta.", "O pátio da lenha está fechado.", "Nada é vendido na Vila."] },
   { id: "shopkeeper-2", at: [7.2, 25.8], from: "10:00", action: "Conversar com lojista", title: "Lojista", lines: ["Este lugar se chama Oficina de Brinquedos. O tema é brinquedos e lembranças.", "A loja está fechada.", "Nada é vendido na Vila."] },
   { id: "santa", at: [-0.3, 16.4], from: "11:00", action: "Conversar com Papai Noel", title: "Papai Noel", lines: ["Ho, ho, ho! Que alegria ver você na Vila.", "Estou cuidando do trenó e das renas.", "Cada casa em volta da praça é de uma ONG. Conheça no seu tempo."] },
   { id: "villager-5", at: [-6.51, 7.64], from: "14:00", action: "Conversar com morador", title: "Morador da Vila", lines: ["Boa tarde! Está caindo uma neve fininha, boa para passear.", "Paramos aqui no banco para pôr a conversa em dia.", null], click: true },

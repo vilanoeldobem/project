@@ -11,7 +11,7 @@ Este repositório contém o código; a definição do produto vive no repositór
 > Doações estão **desabilitadas** até a definição e o contrato da instituição parceira (PEN-004)
 > e do provedor de pagamento (PEN-006). Visual, paleta e logo são provisórios (DEC-023/024).
 
-**Versão atual: 0.6.0** (2026-11-14) · schema D1 v14 no código, v13 em produção (contas e propostas desligadas em produção) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
+**Versão atual: 0.6.0** (2026-11-14) · schema D1 v15 no código, v13 em produção (contas e propostas desligadas em produção) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
 prazo oficial **30/11/2026** (DEC-043)
 
 **Site:** <https://www.vilanoeldobem.com.br> · **Jogo:** <https://play.vilanoeldobem.com.br>
@@ -22,7 +22,7 @@ prazo oficial **30/11/2026** (DEC-043)
 |---|---|---|
 | P01 Praça + doação global | Praça voxel, árvore central, três entradas (Explorar ONGs, Jogar, Doação global). Moradores, Papai Noel, duendes, lojistas, o lenhador e animais andam pela Vila com rotinas fixas, iguais para todos, como PROPOSTA ([IMPL-0025](docs/decisions/0025-village-life.md)) | **Parcial** — doação sem pagamento |
 | P02 Indicadores públicos | Indicadores com "—" quando não há fonte verificável | **Parcial** |
-| P03 Terrenos | 12 terrenos de ONG na fachada da praça, estado lido do D1; "Candidatar minha ONG" em terreno disponível. Em volta, lojas, placas e 112 terrenos residenciais como PROPOSTA (posse desligada, [IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md)) | **Parcial** |
+| P03 Terrenos | 97 terrenos de ONG (12 na fachada da praça e 85 em quatro anéis), estado lido do D1; "Candidatar minha ONG" em terreno disponível. Em volta, lojas, 23 casas (posse desligada), prédios cívicos, parques e placas como PROPOSTA ([IMPL-0024](docs/decisions/0024-village-expansion-and-zoning.md), [IMPL-0031](docs/decisions/0031-village-rings-zoning-civic-buildings-and-boards.md); os terrenos dos anéis dependem da migration 0015, ainda não aplicada em produção) | **Parcial** |
 | P04 HUD da ONG + minijogo | Painel da casa publicada; "Jogar gratuitamente" | **Parcial** |
 | P09 Minijogos | Jogo da Memória | **Parcial** (1 jogo) |
 | P12 Cadastro e análise de ONGs | Candidatura em 4 etapas no jogo; análise no painel administrativo (`apps/dash`), decisões auditadas | **Implementado, desligado em produção** ([IMPL-0011](docs/decisions/0011-accounts-magic-link-ngo-review.md)); painel publicado em 2026-11-12 ([IMPL-0015](docs/decisions/0015-dash-backoffice-app.md)) |

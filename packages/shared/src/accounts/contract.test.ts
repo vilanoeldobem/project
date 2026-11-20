@@ -18,6 +18,11 @@ describe("account API contract", () => {
   it("reads the lot number people see from the lot id", () => {
     expect(lotNumber("plaza-03")).toBe(3);
     expect(lotNumber("plaza-08")).toBe(8);
+    // The lots of the rings (IMPL-0031) count on from the twelve of the square.
+    expect(lotNumber("plaza-12")).toBe(12);
+    expect(lotNumber("ring1-01")).toBe(13);
+    expect(lotNumber("ring4-30")).toBe(97);
+    expect(Number.isNaN(lotNumber("ring9-01"))).toBe(true);
   });
 });
 

@@ -6,6 +6,7 @@
  * Error messages are user-facing pt-BR copy.
  */
 
+import { lotById } from "../game/world";
 import { validateExternalDonationUrl, type NgoPaymentMethod } from "../donations/contract";
 
 export interface Registration {
@@ -194,7 +195,8 @@ export function validateApplication(
   }
   if (value.projects.some((p) => p.title.length < 3 || p.title.length > 80 || p.description.length > 400))
     errors.projects = "Cada projeto precisa de um título (3 a 80 caracteres) e descrição de até 400.";
-  if (!/^plaza-\d{2}$/.test(value.lotId)) errors.lotId = "Escolha um terreno disponível.";
+  // An id of the plan in force (the square or a ring): never parsed, so a new ring needs no change here.
+  if (!lotById(value.lotId)) errors.lotId = "Escolha um terreno disponível.";
   return { value, errors };
 }
 

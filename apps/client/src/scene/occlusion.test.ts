@@ -2,24 +2,17 @@
  * When the camera cannot see the avatar (IMPL-0024): the pure test behind the see-through tint and behind the
  * "look at the sky" camera, against the scene's own models.
  *
- * The cases under "street points" were measured in the real scene during the review of the first version
- * (issue #41): 1 440 points along the avenues, lanes and ring streets, with a ray from the camera at rest
- * (24 u up and 21 u south of a point 1 u over the avatar's feet) to the avatar's chest and head against every
- * mesh drawn, `plaza-03` published. The first version's rule (a building footprint up to 6 u south of the
- * avatar) agreed with those rays on 1 230 of them; the samples below are from each kind of disagreement and
- * from both kinds of agreement.
- *
- * Nine of the 48 samples changed when the houses of the residential rows got their archetypes and lost most
- * of their roof snow (IMPL-0030): a townhouse is two floors where a chalet stood, a terrace has no ridge, and
- * a roof without its snow is one voxel lower. Those nine carry the answer of the same segment test against the
- * new models (four now hidden behind a taller house, five now in view over a lower one); they were not
- * measured again in the browser, so the names of their groups describe the first measurement, not them:
- * (53.68, 22.23), (52.97, 41.07), (-61.63, 32.42), (28.68, -46.27), (28.16, 28.16), (-29.26, 29.26),
- * (-36.96, 38), (23.72, 66.5) and (51.8, 51.8).
+ * The first version of this file carried 48 street points measured in the real scene during the review of the
+ * expanded village (issue #41): rays from the camera at rest to the avatar's chest and head against every mesh
+ * drawn. Those points stood on the streets of the village of IMPL-0024; the village of four rings (IMPL-0031)
+ * has other streets and other buildings, so the samples were retired with it. The cases under "around the
+ * buildings of the rings" are built from the geometry instead: where each hall stands, how tall it is and where
+ * the camera at rest is (24 u up and 21 u south of a point 1 u over the avatar's feet). They have not been
+ * measured against the drawn meshes in a browser.
  */
 import { describe, expect, it } from "vitest";
 
-import { PATH_GRAPH, RESIDENTIAL_PLOTS, SHOPS, SPAWN } from "@vila/shared/game/world";
+import { CIVIC, PATH_GRAPH, RESIDENTIAL_PLOTS, SHOPS, type SiteDef, SITES, SPAWN } from "@vila/shared/game/world";
 
 import { AVATAR_CHEST, AVATAR_HEAD, avatarHidden, blocksSegment, clearSkyOffset, columnsOf, type Offset, occluderAt, SEE_THROUGH_HOLD, seeThroughShown, segmentBlocked } from "./occlusion";
 import { sceneBuildings, sceneOccluders } from "./sceneColliders";
@@ -70,28 +63,41 @@ describe("a segment against one model", () => {
   });
 });
 
-describe("street points measured in the scene (camera at rest, plaza-03 published)", () => {
-  // [x, z, chest or head hidden]
-  const cases: Record<string, Array<[number, number, 0 | 1]>> = {
-    "in plain view, and the first rule agreed": [
-      [14.56, 6.03, 0], [22.23, 53.68, 0], [0, 35.25, 0], [-20.12, -8.33, 0], [-26.71, -64.47, 0], [0, -42.92, 0],
-      [37.5, -0.78, 0], [27.07, 25.97, 0], [-34.75, 18.28, 0], [-66.5, 13.01, 0], [-28.09, -65.96, 0], [52.48, -22.47, 0],
-    ],
-    "in plain view, where the first rule drew a red silhouette": [
-      [53.68, 22.23, 1], [-38.01, 38.01, 0], [36.93, -36.93, 0], [52.97, 41.07, 1], [37.83, 56.22, 0], [-32.42, 61.63, 0],
-      [-44.32, 49.73, 0], [-61.63, 32.42, 1], [-29.71, -45.24, 0], [-47.56, -46.48, 0], [28.68, -46.27, 1], [34.58, -59.47, 0],
-    ],
-    "hidden, and the first rule agreed": [
-      [55.03, 22.79, 1], [28.16, 28.16, 0], [-29.26, 29.26, 0], [-33.75, 0, 1], [-45.43, -45.43, 1], [34.74, -34.74, 1],
-      [16.83, 53, 1], [23.72, 66.5, 0], [-3.83, 66.5, 1], [-3.88, -37.5, 1], [32.7, 22.1, 1], [-27.22, 49.5, 1],
-    ],
-    "hidden, where the first rule drew nothing (corners, diagonal rows)": [
-      [56.75, 0, 1], [51.8, 51.8, 0], [-26.25, 0, 1], [-42.25, -42.25, 1], [50.74, -50.73, 1], [48.34, 26.61, 1],
-      [42.14, 32.82, 1], [27.64, 47.31, 1], [-26.61, 48.34, 1], [-32.82, 42.14, 1], [-36.96, 38, 0], [-45.24, 29.71, 1],
-    ],
-  };
-  it.each(Object.keys(cases))("%s", (name) => {
-    for (const [x, z, truth] of cases[name]) expect(hidden(x, z), `(${x}, ${z})`).toBe(truth === 1);
+/** The halls of the rings with walls all around (the sleigh station is a canopy on posts: the avatar walks under it). */
+const HALLS = SITES.filter((site) => site.kind && site.kind !== "sleigh-station");
+/** How far north of a hall's centre its wall is, on the line due north through the centre (halls stand at any of eight angles). */
+function northWall(site: SiteDef): number {
+  const { halfWidth, halfDepth } = CIVIC[site.kind!];
+  const sin = Math.abs(Math.sin(site.facing)), cos = Math.abs(Math.cos(site.facing));
+  return Math.min(sin > 1e-6 ? (halfWidth + 0.5) / sin : Infinity, cos > 1e-6 ? (halfDepth + 0.5) / cos : Infinity);
+}
+
+describe("around the buildings of the rings (camera at rest, plaza-03 published)", () => {
+  it.each(HALLS.map((site) => [site.kind!, site] as const))("hides the avatar a step north of the %s, whichever way the hall faces", (_, site) => {
+    // The camera is south of the avatar and above it: 1.2 u behind a wall the line to the chest is still about
+    // 2.5 u up when it reaches the wall, and every hall is at least 5 u tall.
+    const z = site.centre.z - northWall(site) - 1.2;
+    expect(hidden(site.centre.x, z), `(${site.centre.x}, ${z.toFixed(2)})`).toBe(true);
+  });
+
+  it("shows the avatar on the street in front of a hall that faces south, and hides it in front of one that faces north", () => {
+    // A hall on the north of the village faces south, towards the tree: its street is on the camera's side.
+    const north = HALLS.filter((site) => site.centre.z < -30 && Math.abs(site.centre.x) < 40);
+    const south = HALLS.filter((site) => site.centre.z > 30 && Math.abs(site.centre.x) < 60);
+    expect(north.length).toBeGreaterThan(0);
+    expect(south.length).toBeGreaterThan(0);
+    for (const site of north) expect(hidden(site.front.x, site.front.z), `${site.kind} front`).toBe(false);
+    // On the south the hall stands between the camera and its own street.
+    for (const site of south) expect(hidden(site.front.x, site.front.z), `${site.kind} front`).toBe(true);
+  });
+
+  it("leaves the avatar in view at most junctions of an avenue and a ring street, and at every one north of the tree", () => {
+    const junctions = PATH_GRAPH.nodes.filter((n) => /^avenue-\d+-street-\d$/.test(n.id));
+    expect(junctions.length).toBe(32);
+    // A hall or a house may stand right south of a junction on the south and on the sides of the village.
+    expect(junctions.filter((n) => hidden(n.x, n.z)).length).toBeLessThan(junctions.length / 4);
+    // North of the tree what stands by a junction is behind the avatar.
+    for (const node of junctions.filter((n) => n.z < -40 && Math.abs(n.x) < 40)) expect(hidden(node.x, node.z), node.id).toBe(false);
   });
 });
 
@@ -114,13 +120,14 @@ describe("the avatar and the camera", () => {
     expect(hidden(0, 8)).toBe(false);
   });
 
-  it("is hidden on the street behind a row seen from its back, and not on the same street beside a lane", () => {
-    // South side: the economy cottages stand between the camera and their own street.
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-19")!;
+  it("is hidden close behind a house seen from its back, and not on the same street beside a lane", () => {
+    // South side: a cottage of the outer ring stands between the camera and the ground just north of its wall.
+    // (Its street is in view now: the plots of that ring are deeper than the first plan's, IMPL-0031.)
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
     expect(plot.front.z).toBeGreaterThan(60);
-    expect(hidden(plot.front.x, plot.front.z)).toBe(true);
+    expect(hidden(plot.house.x, plot.house.z - 3.5)).toBe(true);
     // The lane of that side is a gap in the row: seen.
-    const lane = PATH_GRAPH.nodes.find((n) => n.id === "lane-03-street-3")!;
+    const lane = PATH_GRAPH.nodes.find((n) => n.id === "lane-03-street-4")!;
     expect(hidden(lane.x, lane.z)).toBe(false);
     // North side: the same row is behind the avatar, and hides nothing.
     const north = RESIDENTIAL_PLOTS.find((p) => p.tier === "economy" && p.front.z < -60 && Math.abs(p.front.x) < 12)!;
@@ -136,7 +143,7 @@ describe("the avatar and the camera", () => {
   it("counts the chest and the head, never the feet alone", () => {
     // 4.4 u north of a south-side cottage's north wall the line to the feet still crosses the roof, the lines to
     // the chest and the head pass over the ridge.
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-19")!;
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
     let feetOnly = 0;
     for (let d = 0; d <= 8; d += 0.25) {
       const x = plot.house.x, z = plot.house.z - 2.5 - d;
@@ -152,7 +159,7 @@ describe("the avatar and the camera", () => {
   });
 
   it("follows the camera: zoomed all the way out, the line is the same line, longer", () => {
-    for (const [x, z] of [[0, -6], [23.72, 66.5], [14.56, 6.03]]) expect(avatarHidden(OCCLUDERS, x, 1 + 24 * 1.6, z + 21 * 1.6, x, z)).toBe(hidden(x, z));
+    for (const [x, z] of [[0, -6], [16.5, 83], [14.56, 6.03]]) expect(avatarHidden(OCCLUDERS, x, 1 + 24 * 1.6, z + 21 * 1.6, x, z)).toBe(hidden(x, z));
   });
 
   it("costs little: every street point of the review in a few milliseconds", () => {
@@ -160,14 +167,15 @@ describe("the avatar and the camera", () => {
       const a = PATH_GRAPH.nodes.find((n) => n.id === e.a)!, b = PATH_GRAPH.nodes.find((n) => n.id === e.b)!;
       return Array.from({ length: 12 }, (_, i) => [a.x + ((b.x - a.x) * i) / 12, a.z + ((b.z - a.z) * i) / 12]);
     });
-    expect(points.length).toBe(1440);
+    expect(points.length).toBe(12 * PATH_GRAPH.edges.length);
     const t = performance.now();
     let on = 0;
     for (const [x, z] of points) if (hidden(x, z)) on++;
     // About 3 ms on the machine of the review; the bound only catches a change of order of magnitude.
     expect(performance.now() - t).toBeLessThan(250);
-    // Hidden on a minority of the street points (the review measured 17 % with rays in the scene).
-    expect(on / points.length).toBeGreaterThan(0.1);
+    // Hidden on a minority of the street points: 7 % in the village of four rings, where most rows are lots
+    // with no chalet yet (the review of the first plan measured 17 % with rays in the scene, 112 chalets drawn).
+    expect(on / points.length).toBeGreaterThan(0.03);
     expect(on / points.length).toBeLessThan(0.25);
   });
 });
@@ -260,9 +268,9 @@ describe("the look-at-the-sky camera", () => {
     for (const node of PATH_GRAPH.nodes.filter((n) => /^avenue-\d+-plaza$/.test(n.id))) expect(pick(node.x, node.z), node.id).toBe(OFFSETS[0]);
   });
 
-  it("rises over the roofs at the three street points of the review, where the low view was blocked", () => {
-    // North economy street, east premium street, south standard street: a chalet stands 10 u south of each.
-    for (const [x, z] of [[0, -66.5], [37.5, 6], [-10, 53]]) {
+  it("rises over the roof where a hall stands where the low camera would be", () => {
+    // The low camera sits 10 u south of the avatar: 10 u north of the middle of a hall it would be inside the hall.
+    for (const [x, z] of HALLS.filter((site) => ["mall", "hospital", "school"].includes(site.kind!)).map((site) => [site.centre.x, site.centre.z - 10])) {
       expect(clear(x, z, OFFSETS[0]), `low view at (${x}, ${z})`).toBe(false);
       const chosen = pick(x, z);
       expect(chosen, `(${x}, ${z})`).not.toBe(OFFSETS[0]);

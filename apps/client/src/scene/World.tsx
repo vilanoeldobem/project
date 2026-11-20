@@ -20,7 +20,7 @@ import { RenderStats } from "./RenderStats";
 import { ShadowCulling } from "./ShadowCulling";
 import { ChristmasTree, DonationLectern, Gifts, Lamps, Lots, QuestItems, QuestNpcs } from "./Props";
 import { LightStrings, PlacedProps, Mountains, Pines, Pond, Sleigh, Snowfield, Snowmen } from "./Scenery";
-import { Billboards, Residences, Shops } from "./Village";
+import { Billboards, Rings, Shops } from "./Village";
 
 // Bloom (high/ultra only) loads on demand: low/medium devices never download the post-processing code.
 const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default: m.PostFx })));
@@ -70,7 +70,7 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
         <Lots info={lots} />
         <Shops />
         <Billboards />
-        <Residences />
+        <Rings />
         <Gifts />
         <Footprints />
         <ClickMarker />

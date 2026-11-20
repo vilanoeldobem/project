@@ -193,9 +193,16 @@ describe("world helpers", () => {
     expect(surfaceAt(37.5, 6)).toBe("stone");
     expect(groundAt(53, 0)).toBe("street-standard");
     expect(groundAt(60, 0)).toBe("lane");
-    expect(groundAt(72, -22.5)).toBe("yard-economy");
-    expect(surfaceAt(72, -22.5)).toBe("snow");
     expect(groundAt(30.5, 5)).toBe("pad");
+    // The rings (IMPL-0031): the pad and the garden of a lot, the yard of a house, a civic forecourt, a park.
+    expect(groundAt(44, 7.5)).toBe("pad");
+    expect(groundAt(44, 12.5)).toBe("yard-lot");
+    expect(groundAt(10.5, 83)).toBe("yard-economy");
+    expect(surfaceAt(10.5, 83)).toBe("snow");
+    expect(groundAt(36.77, 26.16)).toBe("civic");
+    expect(surfaceAt(36.77, 26.16)).toBe("stone");
+    expect(groundAt(-11, -59)).toBe("park");
+    expect(groundAt(80, 0)).toBe("street-economy");
   });
 });
 

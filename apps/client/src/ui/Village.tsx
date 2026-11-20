@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { attainableLevel, levelOf } from "@vila/shared/game/progress";
-import { billboardNotice, BILLBOARDS, plotLabel, RESIDENTIAL_PLOTS, type ResidentialPlot, shopCopy, SHOPS, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { BILLBOARDS, type BoardFormat, boardNotices, plotLabel, RESIDENTIAL_PLOTS, type ResidentialPlot, shopCopy, SHOPS, siteCopy, SITES, streetLabel, VILLAGE_PLAN } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { fetchResidentialPlots, type PlotState } from "../lib/api";
@@ -107,20 +107,64 @@ export function ShopPanel({ shopId }: { shopId: string }) {
   );
 }
 
-/** Billboard: its notice as flat text and where it stands. The signs carry the village's own notices. */
+const BOARD_LABEL: Record<BoardFormat, string> = { rooftop: "Placa", outdoor: "Outdoor", lawn: "Placa de jardim", screen: "Telão" };
+
+/** Where a board stands, in words: the shop whose roof it is on, the park, square or building it belongs to, or the end of an avenue. */
+function boardPlace(board: (typeof BILLBOARDS)[number]): string {
+  if (board.shopId) return `No telhado da loja ${shopCopy(board.shopId).name}`;
+  const site = SITES.find((x) => x.id === board.siteId);
+  if (!site) return "No fim de uma avenida";
+  const { name } = siteCopy(site);
+  return site.use === "civic" ? (board.grounded ? `Ao lado de: ${name}` : `No telhado de: ${name}`) : `Em: ${name}`;
+}
+
+/**
+ * A display board: its notice as flat text and where it stands. The boards carry the village's own notices
+ * (PEN-008, OQ-18): no word here says that anything else could be shown, nor that it could not.
+ */
 export function BillboardPanel({ billboardId }: { billboardId: string }) {
-  const index = BILLBOARDS.findIndex((b) => b.id === billboardId);
-  if (index < 0) return null;
-  const shop = shopCopy(BILLBOARDS[index].shopId).name;
+  const board = BILLBOARDS.find((b) => b.id === billboardId);
+  if (!board) return null;
+  const ofFormat = BILLBOARDS.filter((b) => b.format === board.format);
+  const notices = boardNotices(billboardId);
   return (
-    <Panel kicker="Placa da Vila" title={`Placa ${index + 1}`}>
-      <div data-billboard-id={billboardId}>
-        <p className="lead">“{billboardNotice(billboardId)}”</p>
+    <Panel kicker={board.format === "screen" ? "Telão da Vila" : "Placa da Vila"} title={`${BOARD_LABEL[board.format]} ${ofFormat.indexOf(board) + 1}`}>
+      <div data-billboard-id={billboardId} data-board-format={board.format}>
+        {notices.map((notice) => (
+          <p className="lead" key={notice}>
+            “{notice}”
+          </p>
+        ))}
         <dl className="facts">
           <dt>Onde fica</dt>
-          <dd>No telhado da loja {shop}</dd>
+          <dd>{boardPlace(board)}</dd>
         </dl>
         <p>As placas mostram avisos da própria Vila.</p>
+      </div>
+    </Panel>
+  );
+}
+
+const SITE_KICKER = { civic: "Prédio da Vila", park: "Parque da Vila", square: "Praça da Vila" } as const;
+
+/**
+ * A civic building, a park or a square (IMPL-0031, PROPOSTA): its name, what it is and where it stands. It is
+ * scenery, and the panel says so in the words of today: nothing is served, sold or booked there, and no line
+ * says that it will be.
+ */
+export function SitePanel({ siteId }: { siteId: string }) {
+  const site = SITES.find((x) => x.id === siteId);
+  if (!site) return null;
+  const { name, about } = siteCopy(site);
+  return (
+    <Panel kicker={SITE_KICKER[site.use]} title={name}>
+      <div data-site-id={site.id} data-site-kind={site.kind ?? site.use}>
+        <p className="lead">{about}</p>
+        <dl className="facts">
+          <dt>Onde fica</dt>
+          <dd>{streetLabel(site.ring)}</dd>
+        </dl>
+        <p className="note">{site.use === "civic" ? "Este prédio é cenário da Vila: não há atendimento e nada é vendido aqui." : "Um lugar para passear. Nada é vendido na Vila."}</p>
       </div>
     </Panel>
   );

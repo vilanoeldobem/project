@@ -154,7 +154,7 @@ describe("the ground under the pointer", () => {
 
 describe("a tap on a chalet of a residential row", () => {
   // A cottage south of its street, seen from its back: its roof covers the street on the screen.
-  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-19")!;
+  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
   const street = { x: plot.front.x + 1, z: plot.front.z - 1 };
 
   it("walks to the tapped spot of the street when the roof under the finger covers paving", () => {
@@ -185,10 +185,12 @@ describe("a tap on a chalet of a residential row", () => {
     expect(state().target).toEqual(plot.front);
   });
 
-  it("covers a street from the camera: the roof ridge of a south row projects onto its street", () => {
-    // The camera at rest over the plot's front; the ray through the ridge of the cottage (5 u up) lands on paving.
+  it("covers a street from the camera: the top of a tall house of a south row projects onto its street", () => {
+    // The camera at rest over the plot's front; the ray through the top of a two-floor house (9 u up, the most a
+    // house of a row may be) lands on paving. The ridge of a one-floor cottage (5 u) lands on its own yard since
+    // the plots of the outer ring got deeper (IMPL-0031): the rule matters for the tall houses and the halls.
     const cam = { x: plot.front.x, y: 25, z: plot.front.z + 21 };
-    const ridge = { x: plot.house.x, y: 5, z: plot.house.z };
+    const ridge = { x: plot.house.x, y: 9, z: plot.house.z };
     const ground = groundUnder(cam, { x: ridge.x - cam.x, y: ridge.y - cam.y, z: ridge.z - cam.z })!;
     expect(groundAt(ground.x, ground.z)).toBe("street-economy");
   });
@@ -202,7 +204,7 @@ describe("a press on the scene, as the ground under it sees it", () => {
   const nobody = () => false, visitor = () => true;
   const press = (intersections: typeof OPEN_GROUND, pick: () => boolean) => pressScene({ intersections, own: ground, x: 20, z: 20, pick });
 
-  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-19")!;
+  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
   const yard = { x: plot.house.x, z: plot.house.z + 1 };
   const street = { x: plot.front.x + 1, z: plot.front.z - 1 };
   const npc = NPCS[0];

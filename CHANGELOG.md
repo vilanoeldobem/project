@@ -9,6 +9,38 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — a Vila em quatro anéis: 80 % para ONGs, prédios cívicos, parques e placas (IMPL-0031, **PROPOSTA**; schema v15 no código, migration 0015 **não aplicada no remoto**)
+
+- **A Vila cresceu de 82,5 u para 99 u de raio**, em quatro anéis atrás da praça. O plano virou uma lista de anéis
+  com um zoneamento por meia fileira; acrescentar um anel não move nem renomeia nada do que existe.
+- **97 terrenos de ONG e 23 casas** (80,8 % das parcelas para ONGs; eram 12 terrenos e 112 casas). Os doze terrenos
+  da praça ficaram onde estavam, com os mesmos ids. Os novos são `ring1-01`…`ring4-30`; o número na tela conta todos
+  os terrenos da Vila ("Terreno 13" é o primeiro do primeiro anel).
+- **Onze prédios cívicos como cenário** (banco, cantina, academia, escola, cinema, teatro, mercado, hospital, Posto
+  do Trenó, galeria e ginásio), **três parques e duas praças**. Cada um tem nome, painel próprio ("Ver prédio",
+  "Ver parque", "Ver praça") e a frase de que nada é vendido nem atendido ali. O Posto do Trenó ocupa o lugar do
+  posto de gasolina pedido: a Vila segue sem veículos.
+- **37 placas em quatro formatos** (placa de telhado, outdoor, placa de jardim e telão), com o tamanho das artes
+  definido em `docs/reference/display-boards.md`. Todas mostram avisos da própria Vila; arte de terceiros não está
+  implementada e depende da OQ-18.
+- **Migration 0015:** insere os 85 terrenos dos anéis e semeia `residential_plots` de novo; não toca nos terrenos da
+  praça. `GET /lots` passa a listar 97 terrenos depois dela, a praça primeiro; `GET /residential-plots` lista 23.
+- **Explorar ONGs** agrupa os terrenos por rua, com as casas publicadas primeiro; o mapa (P10) mostra as ruas dos
+  anéis, os prédios e os parques.
+- **Prévia local `?villageDemo=full`** (só em build local ou de desenvolvimento): desenha uma casa em cada terreno
+  para medir o orçamento de desenho; uma Vila publicada ignora o parâmetro.
+
+### Changed — desenho e navegação para a Vila maior (IMPL-0031)
+
+- Os chalés das ONGs publicadas passam a ser assados em blocos (um por lado de cada anel), em vez de uma malha por
+  chalé; o chão é desenhado em nove pedaços; tudo o que fica nos anéis é um bloco por anel e por lado. Com uma casa
+  em cada um dos 97 terrenos, a pior vista medida tem 139 chamadas de desenho e 217 480 triângulos (limites: 150 e
+  250 000).
+- Navegação: a grade passou de 436 921 para 628 849 células e a memória de busca de 4,4 MB para 6,3 MB; os limites
+  dos testes subiram para 7 MB e 150 000 células expandidas.
+- O rótulo "Terreno disponível" aparece só a menos de 13 u do avatar.
+- **Publicar junto:** o servidor de tempo real com o cliente (o limite de posição acompanha o raio do mundo).
+
 ### Changed — cena: menos neve, ruas legíveis e casas variadas (IMPL-0030, **PROPOSTA**; sem mudança de schema)
 
 - **A neve virou detalhe.** O chão da Vila passa a ser grama com geada e manchas de neve, a praça é de pedra

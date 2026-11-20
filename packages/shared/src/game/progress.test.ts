@@ -37,14 +37,22 @@ describe("missions (DEC-042)", () => {
 describe("world", () => {
   it("lot positions match the seed migrations", () => {
     // 0002 seeds the first eight lots with legacy ids `praca-NN`; 0003 renames them to `plaza-NN`; 0012 moves
-    // them to the square's frontage and adds the others (IMPL-0024). `village.test.ts` checks 0012 row by row,
-    // residential plots included, and `apps/api` checks the migrated tables themselves.
-    for (const lot of LOTS.slice(0, 8)) {
+    // them to the square's frontage and adds four more (IMPL-0024); 0015 adds the lots of the rings
+    // (IMPL-0031). `village.test.ts` checks 0012 and 0015 row by row, residential plots included, and
+    // `apps/api` checks the migrated tables themselves.
+    const plaza = LOTS.filter((l) => l.street === "plaza");
+    for (const lot of plaza.slice(0, 8)) {
       expect(seed).toContain(`('praca-${String(lot.slot).padStart(2, "0")}', 'praca', ${lot.slot},`);
       expect(expansion).toContain(`UPDATE lots SET x = ${lot.x}, z = ${lot.z} WHERE id = '${lot.id}';`);
     }
-    for (const lot of LOTS.slice(8)) expect(expansion).toContain(`('${lot.id}', 'plaza', ${lot.slot}, ${lot.x}, ${lot.z})`);
-    expect(LOTS.map((l) => l.slot)).toEqual(LOTS.map((_, i) => i + 1));
+    for (const lot of plaza.slice(8)) expect(expansion).toContain(`('${lot.id}', 'plaza', ${lot.slot}, ${lot.x}, ${lot.z})`);
+    expect(plaza.map((l) => l.slot)).toEqual(plaza.map((_, i) => i + 1));
+    // The number people read counts every lot of the village, the square first.
+    expect(LOTS.map((l) => l.number)).toEqual(LOTS.map((_, i) => i + 1));
+  });
+
+  it("clamps the walk to the world of four rings (IMPL-0031)", () => {
+    expect(WORLD_RADIUS).toBe(99);
   });
 
   it("keeps the avatar inside the world and outside the tree", () => {

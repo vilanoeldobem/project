@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { lotNumber } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import { formatBrl } from "@vila/shared/donations/contract";
 import { questState } from "@vila/shared/game/quests";
@@ -42,7 +43,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
     useVila.getState().record("newest-house-visit", lotId);
     useVila.getState().notify("Visita registrada! Leve a notícia a Dona Guida.");
   }, [info?.state, info?.ngo_name, lotId]);
-  const n = Number(lotId.split("-")[1]);
+  const n = lotNumber(lotId);
   const accounts = useAccount((s) => s.enabled);
   const donations = useAccount((s) => s.donations);
   const ngoId = info?.state === "published" ? (info.ngo_id ?? null) : null;

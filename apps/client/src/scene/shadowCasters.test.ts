@@ -7,7 +7,7 @@ import { Frustum, Matrix4, OrthographicCamera, PerspectiveCamera, Sphere, Vector
 import { describe, expect, it } from "vitest";
 
 import { mulberry32 } from "@vila/shared/environment/random";
-import { type DressingKind, PLOT_TIERS, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
+import { type DressingKind, LOTS, PLOT_TIERS, RESIDENTIAL_PLOTS } from "@vila/shared/game/world";
 
 import { pine } from "./models";
 import { CASTER_SLACK, type CasterPart, castsShadow, type KeyShadow, modelExtent, partAt, reachesShadowBox, SHADOW_BOX, shadowReachesView, viewPlanes } from "./shadowCasters";
@@ -115,13 +115,14 @@ describe("a block casts a shadow", () => {
   });
 
   it("is why the far rows stay out: one sphere around a whole row reaches the box, none of its chalets does", () => {
-    // A row of the economy ring south of the square, seen from the spawn with the sun in the west.
+    // The row of the second ring south of the square (four lots since IMPL-0031), seen from the spawn with the
+    // sun in the west.
     const sun: KeyShadow = { on: true, x: 0, z: 9, ...SUNS[0] };
-    const row = RESIDENTIAL_PLOTS.filter((p) => p.tier === "economy" && p.z > 60 && Math.abs(p.x) < 30);
-    expect(row.length).toBeGreaterThanOrEqual(6);
-    const parts = row.map((p) => partAt(p.house.x, p.house.z, 5, 8));
-    const cx = row.reduce((a, p) => a + p.house.x, 0) / row.length, cz = row.reduce((a, p) => a + p.house.z, 0) / row.length;
-    const whole: CasterPart = { x: cx, y: 4, z: cz, r: Math.max(...row.map((p) => Math.hypot(p.house.x - cx, p.house.z - cz))) + 6 };
+    const row = [...RESIDENTIAL_PLOTS.map((p) => p.house), ...LOTS].filter((p) => p.z > 56 && p.z < 64 && Math.abs(p.x) < 20);
+    expect(row.length).toBeGreaterThanOrEqual(4);
+    const parts = row.map((p) => partAt(p.x, p.z, 5, 8));
+    const cx = row.reduce((a, p) => a + p.x, 0) / row.length, cz = row.reduce((a, p) => a + p.z, 0) / row.length;
+    const whole: CasterPart = { x: cx, y: 4, z: cz, r: Math.max(...row.map((p) => Math.hypot(p.x - cx, p.z - cz))) + 6 };
     expect(lightFrustum(sun).intersectsSphere(new Sphere(new Vector3(whole.x, whole.y, whole.z), whole.r))).toBe(true);
     expect(castsShadow(sun, EVERYWHERE, parts)).toBe(false);
   });

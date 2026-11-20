@@ -16,10 +16,10 @@ const shadeAt = (x: number, z: number) => Math.sin(x * 0.21 - z * 0.33) * Math.c
 /** Where people walk between rows of plots: the round street, the avenues and the street of every ring. */
 export const ROAD_KINDS: readonly GroundKind[] = ["ring-street", "avenue", "street-premium", "street-standard", "street-economy"];
 /** Unpaved ground beside a road: what a road has to stand out from. */
-export const YARD_KINDS: readonly GroundKind[] = ["yard-premium", "yard-standard", "yard-economy", "snow"];
+export const YARD_KINDS: readonly GroundKind[] = ["yard-premium", "yard-standard", "yard-economy", "yard-lot", "park", "snow"];
 const ROADS = new Set<GroundKind>(ROAD_KINDS);
 /** Ground that takes no kerb: every paving and the pond. */
-const PAVED = new Set<GroundKind>([...ROAD_KINDS, "lane", "plaza", "pad", "path-premium", "path-standard", "ice"]);
+const PAVED = new Set<GroundKind>([...ROAD_KINDS, "lane", "plaza", "pad", "path-premium", "path-standard", "ice", "civic", "square"]);
 
 /** The tones each kind of ground may be painted with (the contrast test reads this, not the painter's branches). */
 export const ROAD_TONES: readonly string[] = [P.asphalt, P.asphaltDark, P.cobble, P.cobbleDark, P.earthRoad, P.brickDark];
@@ -73,8 +73,19 @@ export function groundColor(kind: GroundKind, x: number, z: number): string {
     case "street-economy":
       return noiseAt(x, z) < -0.5 ? P.brickDark : P.earthRoad;
     case "path-premium":
-    case "pad":
+    case "square":
       return checker(x, z, P.paver, P.paverDark);
+    case "pad":
+      // One tone: the pad of every lot is drawn over it (`Lots`), and what shows is the step in front of a porch.
+      return P.paver;
+    case "civic":
+      // The forecourt of a civic building: gravel from the street to its walls.
+      return P.gravel;
+    case "yard-lot":
+      return lawn(x, z, 0.6);
+    case "park":
+      // A park is the greenest ground of the village: the darker grass, with little snow.
+      return noiseAt(x, z) > 0.75 ? P.snowShade : shadeAt(x, z) > -0.3 ? P.lawnDark : P.lawn;
     case "path-standard":
       return P.gravel;
     case "yard-premium":
@@ -109,6 +120,17 @@ export function cellColor(x: number, z: number, kindAt: (x: number, z: number) =
 
 /** One run of ground cells of the same colour along x: `[x0, x1, z, colour]` (cell `n` spans `n ± 0.5`). */
 export type GroundRun = [x0: number, x1: number, z: number, color: string];
+
+/** Pieces the ground is drawn in: the square and its frontage, and a sector for each side of the village. */
+export const GROUND_SECTORS = 8;
+/** Radius of the middle piece: the square, its festive band and the frontage. */
+export const GROUND_CORE = 36;
+/** The piece a run belongs to, by its middle: 0 = the middle of the village, 1…`GROUND_SECTORS` = a sector around it. */
+export function groundPiece([x0, x1, z]: GroundRun): number {
+  const x = (x0 + x1) / 2;
+  if (Math.hypot(x, z) <= GROUND_CORE) return 0;
+  return 1 + ((Math.floor(((Math.atan2(z, x) + Math.PI) / (2 * Math.PI)) * GROUND_SECTORS) % GROUND_SECTORS) + GROUND_SECTORS) % GROUND_SECTORS;
+}
 
 /**
  * The ground as runs of equal colour, row by row. The ground is flat, so neighbouring cells of one colour

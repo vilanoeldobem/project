@@ -6,7 +6,7 @@
  */
 import { SPAWN, VILLAGE_PLAN } from "@vila/shared/game/world";
 
-import { avenueLines, MAP_SIZE, mapDots, mapToSvg, octagonPoints, SCALE } from "../game/map";
+import { avenueLines, MAP_SIZE, mapDots, mapToSvg, octagonPoints, ringStreets, SCALE } from "../game/map";
 import { sim } from "../game/sim";
 import { useVila } from "../game/store";
 import type { LotInfo } from "../lib/api";
@@ -19,7 +19,9 @@ const LEGEND = [
   { state: "available", label: "Terreno disponível" },
   { state: "under_review", label: "Em análise" },
   { state: "shop", label: "Loja (fechada)" },
-  { state: "plot", label: "Terreno residencial" },
+  { state: "plot", label: "Casa" },
+  { state: "civic", label: "Prédio da Vila" },
+  { state: "park", label: "Parque ou praça" },
   { state: "unknown", label: "Sem informação" },
 ] as const;
 
@@ -56,6 +58,9 @@ export function MapPanel({ lots = {} }: { lots?: Record<string, LotInfo> }) {
     >
       <svg className="village-map" role="img" aria-label="Mapa da Vila" viewBox={`0 0 ${MAP_SIZE} ${MAP_SIZE}`}>
         <rect className="map-ground" x={0} y={0} width={MAP_SIZE} height={MAP_SIZE} rx={18} />
+        {ringStreets().map((street) => (
+          <polygon key={street.id} className="map-street" points={octagonPoints(street.apothem)} strokeWidth={street.width} />
+        ))}
         <polygon className="map-square" points={octagonPoints(VILLAGE_PLAN.squareApothem * SCALE)} />
         <circle
           className="map-ring"
@@ -69,7 +74,7 @@ export function MapPanel({ lots = {} }: { lots?: Record<string, LotInfo> }) {
           <line key={k} className="map-avenue" x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} />
         ))}
         {dots.map((dot) =>
-          dot.kind === "shop" ? (
+          dot.kind === "shop" || dot.kind === "site" ? (
             <rect
               key={dot.id}
               className="map-dot"
@@ -79,7 +84,7 @@ export function MapPanel({ lots = {} }: { lots?: Record<string, LotInfo> }) {
               y={dot.y - dot.r}
               width={dot.r * 2}
               height={dot.r * 2}
-              transform={`rotate(45 ${dot.x} ${dot.y})`}
+              transform={dot.kind === "shop" ? `rotate(45 ${dot.x} ${dot.y})` : undefined}
               rx={1.5}
             >
               <title>{dot.label}</title>

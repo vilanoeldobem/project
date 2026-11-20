@@ -92,6 +92,13 @@ describe("NGO application (P12; DEC-015)", () => {
     expect(validateApplication({ ...VALID_APP, tags: ["constructor", "toString", "__proto__", "health"] }, TODAY).value.tags).toEqual(["health"]);
   });
 
+  it("accepts a lot of the square or of a ring, and nothing that is not a lot of the plan (IMPL-0031)", () => {
+    for (const lotId of ["plaza-01", "plaza-12", "ring1-01", "ring2-18", "ring4-30"]) expect(validateApplication({ ...VALID_APP, lotId }, TODAY).errors, lotId).toEqual({});
+    // Ids that look right and are not in the plan, other kinds of place, and junk.
+    for (const lotId of ["plaza-13", "ring1-08", "ring5-01", "premium-01", "shop-01", "civic-01", "plaza-1", "PLAZA-01", ""])
+      expect(validateApplication({ ...VALID_APP, lotId }, TODAY).errors.lotId, JSON.stringify(lotId)).toBe("Escolha um terreno disponível.");
+  });
+
   it("requires all three DEC-015 declarations", () => {
     const { errors } = validateApplication({ ...VALID_APP, declarations: { activeCnpj: true, oneYear: true } }, TODAY);
     expect(errors.declarations).toBeDefined();

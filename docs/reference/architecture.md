@@ -1,7 +1,7 @@
 # Arquitetura
 
-> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v14 ·
-> **Atualizado em:** 2026-11-14
+> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-19
 > **Fonte de verdade:** `apps/client/`, `apps/api/`, `apps/server/`, `apps/site/`, `apps/dash/`, `packages/shared/`,
 > `migrations/`
 
@@ -125,16 +125,21 @@ cabeça do avatar e girada com a peça.
 | Loja | caixa 7 × 7 | paredes; o toldo e a moldura da placa ficam acima da cabeça |
 | Muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha | caixas pela pegada (voxels de 0,5 u) | o que distingue as faixas residenciais (`RESIDENTIAL_DRESSING`); cerca-viva e lenha fecham o vão entre dois chalés |
 | Pilha de lenha (pátio da lenha) | caixa 3,5 × 1,5 | |
-| Presentes, itens de quest, lago, borda do mundo | nenhum | a borda é o limite `WORLD_RADIUS = 82,5` |
+| Sebe entre dois terrenos de ONG de um anel | caixa pela pegada (voxels de 0,5 u) | `LOT_DRESSING` (IMPL-0031): fecha o vão entre dois chalés vizinhos |
+| Prédio cívico | caixas das paredes e do pórtico (`CIVIC[kind].solid`) | a forma do modelo é fixa por tipo; o Posto do Trenó tem a cabana, três postes, o feno e o trenó, e passa-se por baixo da cobertura |
+| Coreto, fonte, banco e poste de parque ou praça | `SITE_PROP_SOLID` | o pinheiro do parque entra em `PINES` |
+| Outdoor e telão no chão; placa de jardim | o mastro (1 × 1); caixa 2,2 × 0,6 | `BOARD_SOLID`; nenhuma placa gira |
+| Presentes, itens de quest, lago, borda do mundo | nenhum | a borda é o limite `WORLD_RADIUS = 99` |
 
 `apps/client/src/scene/colliders.test.ts` compara cada modelo desenhado com o seu colisor nos dois sentidos: nenhum
 voxel sólido fica mais de 0,3 u fora de um colisor e nenhum contorno de colisor fica a mais de 0,35 u de um voxel.
 
 **Navegação** (`shared/game/navigation.ts`):
 
-- `createNavField(colisores)`: grade de 0,25 u sobre o disco do mundo (82,5 u de raio: ≈ 437 000 células); célula
+- `createNavField(colisores)`: grade de 0,25 u sobre o disco do mundo (99 u de raio: 628 849 células); célula
   livre = avatar a pelo menos 0,25 u de todo colisor. Refeita só quando os colisores mudam (casa publicada,
-  bandeira das quests): ≈ 8 ms com os ≈ 550 colisores da Vila.
+  bandeira das quests): ≈ 20 ms com os 820 colisores da Vila de quatro anéis (era ≈ 8 ms com ≈ 550 no raio de
+  82,5 u; [IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md)).
 - `planRoute`: resolve o destino (o clique, ou o ponto caminhável mais próximo, do lado de quem chega), vai em linha
   reta se ele está à vista, senão A* na grade e "puxar a corda" para sobrarem poucos trechos retos. Limite: as
   células caminháveis (≈ 200 000); medido em 18 000 pares aleatórios de pontos livres (IMPL-0024): mediana de
@@ -225,19 +230,28 @@ posicionais: só são estáveis enquanto o plano não muda, e depois da migratio
 uma migration nova. Decisão, números e o que fica para depois em
 [IMPL-0024](../decisions/0024-village-expansion-and-zoning.md).
 
+**Desde a IMPL-0031 o plano é uma lista de anéis** (`VILLAGE_PLAN.rings`), cada um com um zoneamento de uma letra
+por meia fileira (N = terrenos de ONG, R = casas, C = prédio cívico, P = parque, S = praça). O plano em vigor tem
+quatro anéis e 99 u de raio; acrescentar um anel ao fim da lista não move nem renomeia nada. O que pode mudar
+sozinho passou a ser: o zoneamento e as medidas de cada anel, um anel a mais, a planta da casa de cada faixa, a
+largura das ruas, o quintal e a borda. Decisão e números em
+[IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md).
+
 | Peça | Onde | Constante |
 |---|---|---|
-| 8 avenidas (a 22,5° + 45°·k) e 8 travessas (no meio de cada lado) | da praça à borda | `PATH_GRAPH` (80 nós, 120 arestas) |
+| 8 avenidas (a 22,5° + 45°·k) e 8 travessas (no meio de cada lado) | da praça à borda | `PATH_GRAPH` (96 nós, 152 arestas) |
 | Fachada da praça: 12 terrenos de ONG e 4 lojas | 26 a 34 u do centro, ao longo de cada lado | `LOTS`, `SHOPS` |
-| Placas (uma por loja, no telhado) | sobre as lojas | `BILLBOARDS`, `VILLAGE_NOTICES` |
-| Anéis residenciais: 16 `premium`, 32 `standard`, 64 `economy` (ids internos; na tela, "Bairro do Centro", "Bairro do Meio" e "Bairro da Floresta") | 39,5–49,5 / 55–63 / 68,5–75,5 u | `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS`, `plotLabel()` |
+| Placas: 37 em quatro formatos (telhado das lojas, outdoor, placa de jardim, telão) | lojas, parques, praças, prédios e fim de quatro avenidas | `BILLBOARDS`, `BOARD_FORMATS`, `VILLAGE_NOTICES`, `SHORT_NOTICES`; medidas das artes em [display-boards.md](display-boards.md) |
+| Quatro anéis zoneados: 85 terrenos de ONG (`ring1-NN`…`ring4-NN`), 23 casas (5 `premium`, 12 `standard`, 6 `economy`: ids internos; na tela, "Bairro do Centro", "Bairro do Meio" e "Bairro da Floresta"), 11 prédios cívicos, 3 parques e 2 praças | 39,5–49,5 / 55–63 / 68,5–76,5 / 82–91 u | `VILLAGE.rings`, `LOT_ROWS`, `RESIDENTIAL_PLOTS`, `RESIDENTIAL_ROWS`, `SITES`, `SITE_PROPS`, `plotLabel()`, `siteCopy()`, `streetLabel()` |
 | O que distingue as faixas | junto a cada casa | `RESIDENTIAL_DRESSING` (peças), `groundAt()` (calçamento), `STREET_LAMPS` |
 | Pátio da lenha, lugar do lojista, lugar da lareira | ponta da travessa norte; ao lado de cada porta; dentro de cada casa | `WOOD_YARD`, `ShopDef.keeper`, `ResidentialPlot.hearth` |
 
 - **Cena** (`scene/Village.tsx`): `Shops` (as quatro lojas e as molduras numa malha por papel de material),
-  `Billboards` (os avisos numa textura de canvas, uma chamada de desenho), `Residences` (112 chalés e 256 peças
-  assados em 24 blocos, um por faixa de cada lado; as janelas e as lanternas de todos os blocos em duas malhas
-  para a Vila inteira). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor (`groundRuns.ts`): ruas
+  `Billboards` (os avisos de todas as placas numa textura de canvas, `boardAtlas.ts`; duas chamadas de desenho:
+  as impressas e os telões), `Rings` (casas, sebes, cercas, prédios cívicos, coretos, fontes e molduras das
+  placas assados num bloco por anel e por lado; as janelas e as lanternas de todos os blocos em duas malhas para
+  a Vila inteira). Os chalés das ONGs publicadas (`Lots`, em `Props.tsx`) também são assados em blocos: um por
+  lado em cada anel e um por quarto da praça. O chão é desenhado em nove pedaços (o miolo e um setor por lado). `Ground` pinta o chão por `groundAt()` em faixas de mesma cor (`groundRuns.ts`): ruas
   escuras, meio-fio claro em toda célula sem calçamento encostada numa rua, cruzamentos calçados, grama com manchas
   de neve e neve na borda do mundo ([IMPL-0030](../decisions/0030-thawed-village-and-readable-streets.md); o teste
   exige contraste de 3:1 entre todo tom de rua e todo tom de quintal). Um bloco residencial ou um
@@ -280,7 +294,8 @@ uma migration nova. Decisão, números e o que fica para depois em
   do HUD (comparado a cada 6 quadros com as caixas do HUD, relidas no máximo a cada 400 ms). Num celular o HUD
   ocupa o alto e o pé da tela, e o rótulo da árvore caía embaixo dele no spawn.
 - **Colisores da cena:** `scene/sceneColliders.ts` monta a lista que o avatar contorna (obstáculos fixos, NPCs e
-  atril com as quests, terrenos de ONG e os 112 chalés residenciais); `scene/colliders.test.ts` audita essa mesma
+  atril com as quests, terrenos de ONG, as 23 casas e, dentro dos obstáculos fixos, prédios, sebes, coretos,
+  fontes e placas dos anéis); `scene/colliders.test.ts` audita essa mesma
   lista contra os voxels desenhados, então tirar um tipo de colisor dela falha num teste unitário.
 - **Regra de vista** (`SIGHTLINE`, `sightlines()`): (1) toda avenida é um corredor livre de coisa alta (chalé,
   loja, pinheiro) até as ramas da árvore; (2) da frente de todo terreno residencial, a avenida fica a no máximo
@@ -374,7 +389,7 @@ A tabela aditiva `ngo_withdrawals` marca a retirada sem mudar `ngos.status` (con
 privadas projetam o estado efetivo `withdrawn`. No mesmo batch, a retirada incrementa a revisão, libera os
 terrenos efetivamente associados e grava uma auditoria. **As projeções públicas de uma ONG exigem o terreno
 publicado e não leem essa tabela**: a ONG retirada some de `/lots`, `/indicators`, do perfil, do logo e das
-fotos, e as rotas públicas respondem igual nos schemas v3 a v14. As rotas de candidatura e análise leem a tabela
+fotos, e as rotas públicas respondem igual nos schemas v3 a v15. As rotas de candidatura e análise leem a tabela
 e respondem `503 schema_outdated` sem a migration 0009. O texto que o admin escreve é a mensagem lida pela
 organização; não entra em resposta pública nem na auditoria. O jogo precisa recarregar para atualizar uma cena
 aberta; não há broadcast de retirada nem alteração de XP ou missões.
