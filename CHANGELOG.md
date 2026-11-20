@@ -9,6 +9,22 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-19
+
+**A Vila em quatro anéis, com menos neve, ruas legíveis e casas de ONG em cinco níveis**
+([IMPL-0030](docs/decisions/0030-thawed-village-and-readable-streets.md),
+[IMPL-0031](docs/decisions/0031-village-rings-zoning-civic-buildings-and-boards.md),
+[IMPL-0032](docs/decisions/0032-ngo-building-levels.md)), o logotipo em teste nas três aplicações
+([IMPL-0029](docs/decisions/0029-brand-logo-in-the-apps.md)) e a conciliação endurecida das doações
+([IMPL-0028](docs/decisions/0028-donation-durable-intent.md)). Schema D1 **v15** no código: as migrations `0014`
+(motivo da espera de um evento de doação, aditiva) e `0015` (terrenos dos anéis e casas semeadas de novo) vão para
+produção nesta publicação, com autorização; o que foi aplicado e observado fica em
+[`docs/reference/releases.md`](docs/reference/releases.md). O clima mudou de versão (`WEATHER_ALGORITHM_VERSION = 2`)
+e o raio do mundo passou a 99 u: API, servidor de tempo real e jogo são publicados juntos, nessa ordem. Tudo o que é
+**PROPOSTA** segue como proposta: contas, arquivos e fotos de ONG, retirada, bloqueio, remoção de visitante, terrenos
+residenciais, doações e os níveis da casa da ONG (`NGO_LEVELS_ENABLED`) seguem **desligados**. Desempenho medido só
+em computador; nenhum teste em celular foi feito.
+
 ### Added — casa da ONG em cinco níveis, conforme as doações confirmadas (IMPL-0032, **PROPOSTA**; atrás de `NGO_LEVELS_ENABLED`, desligada em produção e homologação; sem mudança de schema)
 
 - **`GET /lots` ganha `ngo_level`** (1 a 5, ou `null`): o total confirmado das doações de cada ONG publicada
