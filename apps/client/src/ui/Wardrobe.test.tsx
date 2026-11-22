@@ -8,7 +8,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { COSMETICS_V2, isPaid } from "@vila/shared/game/cosmetics-v2";
-
 import { SHOW_PAID_PREVIEWS, Wardrobe } from "./Wardrobe";
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");

@@ -9,7 +9,9 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-- **Livro IV da saga v2, O Bosque e o Lago:** 45 entradas de b04-c1-01 a b04-c3-04, 1.050 XP, 8 NPCs, 4 props e 6 cosméticos; o caminho branco abre o Livro V. (PROPOSTA, atrás das flags, desligado.)
+### Added — Livro IV da saga v2: O Bosque e o Lago (PROPOSTA, atrás das flags existentes, desligado)
+
+- **45 entradas** de `b04-c1-01` a `b04-c3-04`, 1.050 XP, 8 NPCs de quest, 4 props voxel e 6 cosméticos; o caminho branco abre o Livro V.
 
 ### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
 

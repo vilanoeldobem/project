@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MISSIONS } from "@vila/shared/game/progress";
-import { QUESTS } from "@vila/shared/game/quests";
+import { STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 
 import { devVar, productionVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
@@ -275,7 +275,7 @@ describe("server XP (P14, DEC-042)", () => {
   });
 
   it("knows the event ids of every mission and quest", () => {
-    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual([...MISSIONS, ...QUESTS].map((m) => m.id).sort());
+    expect(Object.keys(KNOWN_EVENTS).sort()).toEqual([...MISSIONS.map((m) => m.id), ...STORY_CATALOG.quests.map((q) => q.id)].sort());
   });
 
   it("accepts a full quest chain once and replays it without extra XP", async () => {
