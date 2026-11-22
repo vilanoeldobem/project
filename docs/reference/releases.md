@@ -1,6 +1,6 @@
 # Publicações em produção
 
-> **Status:** Implementado · **Versão do software:** 0.8.0 · **Schema D1:** v15 ·
+> **Status:** Implementado · **Versão do software:** 0.9.0 · **Schema D1:** v15 ·
 > **Atualizado em:** 2026-11-22
 > **Fonte de verdade:** "Último deploy" em [guides/deploy.md](../guides/deploy.md), `apps/*/wrangler.jsonc` (bandeiras),
 > `migrations/`, `CHANGELOG.md`
@@ -9,6 +9,30 @@ Uma tabela por publicação em produção, da mais nova para a mais antiga. Cada
 **registro do deploy** (o que quem publicou anotou), **código** (`wrangler.jsonc` do commit publicado) ou
 **observado** (requisição pública feita na data indicada). Uma bandeira lida no código é o valor que o deploy
 enviou; ela não prova o comportamento. Um binding presente não prova que o recurso funciona.
+
+## 0.9.0 — 2026-11-22
+
+| Item | Valor | Fonte |
+|---|---|---|
+| Data | 2026-11-22, 17h35 a 17h38 (BRT); 20h35 a 20h38 UTC | registro do deploy |
+| Commit | `43b8f90` (`main`, merge do PR #108, `release/0.9.0`), tag `v0.9.0` | registro do deploy |
+| Autorização | confirmação do responsável técnico nesta data ("yes" ao lançar e publicar a 0.9.0) | registro do deploy |
+| Ordem | API → servidor → jogo → painel → site; nenhuma migration | registro do deploy |
+| Versões (`wrangler`) | api `a3d85d8e` · server `69036204` · jogo `4819195e` · dash `9e4502ae` · site `01e42eb8` | registro do deploy |
+| Versões anteriores (alvo de rollback) | api `351baeac` · server `d168137b` · jogo `07726b7f` · dash `c4a7fa09` · site `d95d444a` | registro da 0.8.0 |
+| Versão no ar | `GET api.*/health` → `"version":"0.9.0"`, `"environment":"production"`, `"db":true` | observado em 2026-11-22 20h38 UTC |
+| D1 | **v15**, sem mudança | código (`migrations/`) |
+| Bandeiras | iguais às da 0.8.0; `/config` respondeu tudo `false` | observado |
+| R2, e-mail, Durable Object | sem mudança | código |
+
+### Conferências (0.9.0)
+
+| Conferência | Data | Resultado | Fonte |
+|---|---|---|---|
+| `sh scripts/smoke-api.sh` | 2026-11-22 | 19/19 | observado |
+| `node apps/client/scripts/verify-live.mjs` | 2026-11-22 | 7 falhas, todas dos destinos do Google bloqueados pela CSP (OQ-13), como na 0.8.0 | observado |
+| `verify-budget.mjs` local antes do merge | 2026-11-22 | pior vista: 111 chamadas, 202 906 triângulos (orçamento 150 / 250 000) | registro do PR #107 |
+| `verify.mjs` local | — | **não rodado**: a porta 8787 seguia ocupada por outro projeto local | registro do deploy |
 
 ## 0.8.0 — 2026-11-22
 

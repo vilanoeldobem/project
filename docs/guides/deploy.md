@@ -22,11 +22,10 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
 
-**Último deploy: 2026-11-22**, versão 0.8.0, os cinco Workers a partir da `main` (`6d4e4fc`, tag `v0.8.0`), na
-ordem API → servidor → jogo → painel → site, sem migration, com autorização (19h05 a 19h07 UTC). D1 de produção
-segue na **v15**. Contas e todas as propostas seguem desligadas. O `smoke-api.sh` passa (19/19, com as rotas
-`/ready`); o `verify-live.mjs` falha só pelos destinos do Google bloqueados pela CSP (OQ-13). A 0.7.0 (`9a80a83`,
-2026-11-19) aplicou as migrations `0014` e `0015`.
+**Último deploy: 2026-11-22**, versão 0.9.0, os cinco Workers a partir da `main` (`43b8f90`, tag `v0.9.0`), na
+ordem API → servidor → jogo → painel → site, sem migration, com autorização (20h35 a 20h38 UTC). D1 de produção
+segue na **v15**. Contas e todas as propostas seguem desligadas. O `smoke-api.sh` passa (19/19); o `verify-live.mjs`
+falha só pelos destinos do Google bloqueados pela CSP (OQ-13). A 0.8.0 (`6d4e4fc`) foi publicada no mesmo dia.
 O registro completo de cada publicação (commit, hosts, schema, R2, bandeiras por Worker, conferências e o que não
 foi verificado) fica em [reference/releases.md](../reference/releases.md).
 
