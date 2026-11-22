@@ -1178,3 +1178,26 @@ Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0
   first lines of the release record and cannot be read back afterwards.
 - A release commit should not state what production will be: write "in the code" there and record production in
   the follow-up docs change, after it was observed.
+
+---
+
+# Task: merge the open PRs, finish 0.7.1 items, block look, cleanup, docs sync, release — 2026-11-22
+
+## Plan
+- [x] Review and merge the 16 open PRs (#72–#77, #79–#88); later #91–#93
+- [x] A. Wardrobe follow-ups from the #48 review (PR #89)
+- [x] C. Readiness routes `/ready` on the API and the realtime server (PR #90)
+- [x] Block look: face light, per-block shade, block edges (IMPL-0033, PR #94)
+- [x] Dead code: v1 wardrobe rules, unused exports (PR #95)
+- [x] Docs in sync: AGENTS.md map and flags, quests-v2 status, roadmap, changelog, broken paths
+- [ ] Release 0.8.0 (features since 0.7.0; no migration, no flag change) and deploy the five Workers
+
+## Review
+- Chaining resolved merges let CI run once for many PRs; GitHub marks each PR merged in order.
+- Coarser voxel grid was not applied: buildings and pines already use 1 u blocks; the small-grid models are small
+  objects (IMPL-0033 records why).
+
+## Lessons
+- zsh eats `:r` in `$var:refs/...`; write `${var}:refs/...`.
+- Timing tests (`files.test.ts`, the concurrent-intent test) fail while local Workers load the machine; rerun alone.
+- Port 8787 can be taken by another local project: never kill it; use the scripts' other ports or skip.

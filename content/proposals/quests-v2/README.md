@@ -1,7 +1,7 @@
 # quests-v2: saga das Longas Noites
 
-> **Status: PROPOSTA.** O runtime do spine está implementado atrás de `VITE_QUESTS_V2_ENABLED` / `?quests2=1` no
-> cliente e `QUESTS_V2_ENABLED` na API, desligado em produção e homologação. As dez fatias de livro começam vazias.
+> **Status: PROPOSTA.** O runtime do spine e os dez livros estão implementados atrás de `VITE_QUESTS_V2_ENABLED` /
+> `?quests2=1` no cliente e `QUESTS_V2_ENABLED` na API, desligados em produção e homologação.
 > Nada aqui é decisão de produto: catálogo, XP e conteúdo continuam pendentes de aprovação.
 
 ## Índice das fatias
@@ -24,7 +24,7 @@
 | 13 | revisão jurídica | `story/13-revisao-juridica` | auditoria e correções |
 | 14 | integração | `story/14-integracao` | playthrough, índice, documentação |
 
-Status de cada livro: `pending`. O spine é a única fatia que edita arquivos compartilhados. Cada livro edita somente
+Estado: fatias 00 a 10 integradas; 11 a 13 pendentes; 14 em andamento ([quests-v2.md §7](../../../docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)). O spine é a única fatia que edita arquivos compartilhados. Cada livro edita somente
 o próprio módulo, a própria pasta de conteúdo, os próprios 4 props, os próprios 6 cosméticos e os próprios testes; a
 única exceção compartilhada é uma linha no `CHANGELOG.md` em `[Unreleased]`.
 

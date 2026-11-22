@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-19 · **Versão atual:** 0.7.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-22 · **Versão atual:** 0.7.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -85,22 +85,27 @@ atrás da bandeira `ACCOUNTS_ENABLED`, que fica `"false"` em produção até a r
 **Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio verificado no
 Resend, com a chave `RESEND_API_KEY` no Worker ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
 
-### Correções pós-0.6.0 (0.7.1) — próximo
+### Correções pós-0.6.0 — A e C integrados em 2026-11-22 (PRs #89 e #90); publicação a seguir
 
 Ordem recomendada (2026-11-15, renumerada em 2026-11-19): **A → C → publicação 0.7.1 → B** (marco seguinte).
 
-- **A. Provador P08, pendências da revisão do PR #48.** Foco do teclado depois de "Equipar" (manter no cartão ou
+- **A. Provador P08, pendências da revisão do PR #48 — integrado (PR #89).** Ficou de fora: manter `hat-holly` por
+  nível (a regra de desbloqueio é do produto; a mudança está registrada no CHANGELOG). Foco do teclado depois de "Equipar" (manter no cartão ou
   `contentKey` no `Panel`); o selo "Grátis" lido pelo leitor de tela (`aria-describedby`); a migração v1 → v2 que tira
   `hat-holly` de quem só tinha o nível 2 (manter um caminho por nível ou avisar no CHANGELOG); a exclusividade
   vestido × blusa/calça aplicada também em `parseLook`, para todo visual remoto; guarda de item pago em `wear()` e
   testes de comportamento no lugar do teste tautológico; conferir a fresta visual em y = 0 embaixo do vestido.
-- **C. Saúde real das dependências.** `/health` continua leve (o processo responde); uma rota de prontidão separada
+- **C. Saúde real das dependências — integrado (PR #90), `GET /ready` na API e no servidor.** `/health` continua leve (o processo responde); uma rota de prontidão separada
   faz uma leitura de verdade no D1, no R2 e na sala (auditoria §7.6).
 - **Publicação 0.7.1.** Leva A e C. O endurecimento das doações (PR #59, IMPL-0028) e a migration `0014` foram com
   a 0.7.0 (2026-11-19; registro em [`docs/reference/releases.md`](docs/reference/releases.md)). Bandeiras seguem como
   estão.
 
-### HUD da ONG e segundo jogo (0.7.x) — depois da 0.7.1
+Integrados na mesma janela: os dez livros da saga v2 (PRs #79 a #88, PROPOSTA, desligados; pendências em
+[quests-v2.md §7](docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)) e o visual de blocos
+([IMPL-0033](docs/decisions/0033-block-look.md)).
+
+### HUD da ONG e segundo jogo — depois da próxima publicação
 
 Antes de começar, ler as pranchas P04 e P09 e o registro de decisões em `vilanoeldobem/docs`; o que não estiver
 CONFIRMADO entra como PROPOSTA.

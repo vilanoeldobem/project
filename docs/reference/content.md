@@ -137,7 +137,7 @@ gratuitos") e "Só o que eu tenho". A loja continua **fechada** e nada é vendid
 pagas do catálogo ficam **ocultas** até a PEN-022 (decisão de 14/11/2026, `SHOW_PAID_PREVIEWS = false`): oito cartões
 gratuitos por categoria, sem selo "Pago", "Ver compra" ou texto de compra; a presença recusa um visual com item pago.
 A compra paga é o D21/PEN-022. O teste da
-P08 é `scripts/verify-shop.mjs`. Os geradores `hat`/`scarf`/`sweater` da tabela da seção 3 são só da galeria de
+P08 é `apps/client/scripts/verify-shop.mjs`. Os geradores `hat`/`scarf`/`sweater` da tabela da seção 3 são só da galeria de
 desenvolvimento; o catálogo usa os modelos explícitos desta seção.
 
 O visual viaja pela presença (IMPL-0008) como um código compacto de ids do catálogo (IMPL-0027): os outros visitantes
