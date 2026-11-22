@@ -24,6 +24,14 @@ Cada versão indica o schema D1 que entrega.
 - **Nota de migração:** quem tinha só o gorro de azevinho do nível 2 (`hat-holly`, v1) recebe `helmet-holly`, que no
   catálogo v2 se ganha visitando um terreno; até lá o visual volta ao gorro padrão.
 
+### Added — prontidão das dependências (auditoria §7.6)
+
+- **`GET /ready` na API**: um `SELECT 1` no D1 e um `head` no bucket R2 (de uma chave que nunca existe); `503` quando
+  algo falha, sem mensagem de erro. `/health` continua leve.
+- **`GET /ready` no servidor de tempo real**: a sala `plaza-0` responde a um ping da memória, sem WebSocket nem
+  storage.
+- `scripts/smoke-api.sh` confere as duas rotas.
+
 ### Added — Livro I da saga v2: A Chegada (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b01-c1-01` a `b01-c3-04`, 1.050 XP, 11 NPCs de mundo (8 novos), 4 props voxel e 6 cosméticos; a primeira página do Caderno abre o Livro II.

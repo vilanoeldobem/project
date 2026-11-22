@@ -82,6 +82,19 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("VillageRoom readiness ping", () => {
+  it("answers from memory: no socket, no join, no storage", async () => {
+    const sockets: FakeSocket[] = [];
+    const { room, storageUse } = wake(sockets);
+    const res = await room.fetch(new Request("https://room.internal/ready"));
+    expect(res.status).toBe(204);
+    expect(sockets).toEqual([]);
+    expect(storageUse).toEqual([]);
+    // Anything else without an upgrade is still refused.
+    expect((await room.fetch(new Request("https://room.internal/?i=0"))).status).toBe(426);
+  });
+});
+
 describe("VillageRoom idle timeout", () => {
   it("closes only the idle connection with 4002 'idle' and tells the others it left", async () => {
     const a = new FakeSocket({ id: 1, room: 0, seen: T0 }), b = new FakeSocket({ id: 2, room: 0, seen: T0 });
