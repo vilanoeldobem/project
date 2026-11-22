@@ -9,10 +9,10 @@ import { MANIFEST } from "../manifest";
 import { settleMilestonesIn } from "../milestones";
 import { worldStatesIn } from "../states";
 import { ALL_WORLD, STORY_WORLD } from "../world";
-import { NPCS as NPCS_B01 } from "./book-01";
-import { NPCS as NPCS_B02 } from "./book-02";
-import { NPCS as NPCS_B03 } from "./book-03";
-import { NPCS as NPCS_B04 } from "./book-04";
+import { COSMETICS as COSMETICS_B01, NPCS as NPCS_B01 } from "./book-01";
+import { COSMETICS as COSMETICS_B02, NPCS as NPCS_B02 } from "./book-02";
+import { COSMETICS as COSMETICS_B03, NPCS as NPCS_B03 } from "./book-03";
+import { COSMETICS as COSMETICS_B04, NPCS as NPCS_B04 } from "./book-04";
 import { COSMETICS, INTERACTIONS, MILESTONES, NPCS, OBSTACLES, QUESTS, SPAWNS, STATES } from "./book-05";
 
 const manifest = MANIFEST.filter((entry) => entry.book === 5);
@@ -278,7 +278,10 @@ describe("book V cosmetics", () => {
       ["special", ["special-promise-book"]],
     ] as const) {
       expect(v2(slot).slice(0, v1(slot).length)).toEqual(v1(slot));
-      expect(v2(slot).slice(v1(slot).length, v1(slot).length + ids.length).map((c) => c.id)).toEqual([...ids]);
+      const start = v1(slot).length;
+      const earlier = [...COSMETICS_B01, ...COSMETICS_B02, ...COSMETICS_B03, ...COSMETICS_B04].filter((c) => c.slot === slot).map((c) => c.id);
+      const expected = [...earlier, ...ids];
+      expect(v2(slot).slice(start, start + expected.length).map((c) => c.id)).toEqual(expected);
     }
   });
 });
