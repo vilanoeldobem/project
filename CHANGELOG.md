@@ -9,6 +9,17 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — provador (P08), pendências da revisão do PR #48
+
+- O foco do teclado fica no cartão depois de "Equipar" (antes caía no `body` quando o botão virava "Em uso").
+- O nome do cartão diz se o visual é grátis ou pago ("Provar Gorro, grátis"), para o leitor de tela.
+- A presença aplica a regra do vestido a todo visual recebido: com vestido, blusa e calça voltam ao padrão
+  (`parseLook`), como no próprio provador.
+- Testes de comportamento no lugar do teste tautológico: um item pago aparece na prévia, mas nunca fica no visual
+  salvo nem na presença.
+- **Nota de migração:** quem tinha só o gorro de azevinho do nível 2 (`hat-holly`, v1) recebe `helmet-holly`, que no
+  catálogo v2 se ganha visitando um terreno; até lá o visual volta ao gorro padrão.
+
 ### Added — Livro I da saga v2: A Chegada (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b01-c1-01` a `b01-c3-04`, 1.050 XP, 11 NPCs de mundo (8 novos), 4 props voxel e 6 cosméticos; a primeira página do Caderno abre o Livro II.
