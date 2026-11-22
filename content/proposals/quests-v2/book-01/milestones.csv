@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b01-m1,A primeira promessa,missions,1,1,10,,praca-grande-arvore,1
+b01-m1,Dez promessas,missions,10,2,10,,praca-grande-arvore,1
+b01-m1,Vinte e cinco promessas,missions,25,3,10,,praca-grande-arvore,1
+b01-m1,Cinquenta promessas,missions,50,4,10,,praca-grande-arvore,1
+b01-m1,Cem promessas,missions,100,5,10,,praca-grande-arvore,1
+b01-m1,Cento e cinquenta promessas,missions,150,6,10,helmet-star,praca-grande-arvore,1
+b01-m2,A primeira troca,trades,1,1,10,,mercado-panetone,1
+b01-m2,Três trocas,trades,3,2,10,,mercado-panetone,1
+b01-m2,Cinco trocas,trades,5,3,10,,mercado-panetone,1
+b01-m2,Oito trocas,trades,8,4,10,,mercado-panetone,1
+b01-m2,Dez trocas,trades,10,5,10,,mercado-panetone,1
+b01-m2,Doze trocas,trades,12,6,10,hand-left-fair,mercado-panetone,1

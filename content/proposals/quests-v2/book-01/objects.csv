@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+silent-bell,Sino mudo,world_prop,done,book-01-silent-bell,props,b01-c1-04;b01-c3-01;b01-r1-05;b01-r1-08,1,silent-bell,220,600,0.25,use,none,"Sino de praça em estrutura de madeira, sem badalo; some depois da missão, por isso não tem collider permanente."
+bell-parts,Peças do sino,quest_item,done,book-01-bell-parts,props,b01-c1-02;b01-s1,3,bell-parts,40,110,0.18,pickup,none,Badalo e duas cordas enroladas; também usado como fios do cachecol.
+recipe-page,Página da receita,quest_item,done,book-01-recipe-page,props,b01-c2-02;b01-s5,3,recipe-page,30,80,0.18,pickup,none,Página dobrada com linhas de tinta e mancha de farinha; sem texto legível.
+panettone,Panetone,quest_item,done,book-01-panettone,props,b01-c2-03;b01-c2-04;b01-c3-01;b01-r2-08,2,panettone,45,120,0.18,pickup,none,"Panetone em forma de papel, cúpula alta, açúcar e frutas cristalizadas."

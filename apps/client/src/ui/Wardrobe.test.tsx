@@ -7,21 +7,25 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { COSMETICS_V2, isPaid } from "@vila/shared/game/cosmetics-v2";
 import { SHOW_PAID_PREVIEWS, Wardrobe } from "./Wardrobe";
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+const freeCount = COSMETICS_V2.filter((c) => !isPaid(c)).length;
+const helmetFree = COSMETICS_V2.filter((c) => c.slot === "helmet" && !isPaid(c)).length;
+const handLeftFree = COSMETICS_V2.filter((c) => c.slot === "handLeft" && !isPaid(c)).length;
 
 describe("the wardrobe (P08)", () => {
-  it("shows the ten categories, the eight free cards and the free inventory", () => {
+  it("shows the ten categories, the free cards of the first category and the free inventory", () => {
     const html = renderToStaticMarkup(<Wardrobe />);
     const read = text(html);
-    expect(html).toContain('data-owned="10" data-free="80"');
+    expect(html).toContain(`data-owned="10" data-free="${freeCount}"`);
     expect((html.match(/aria-pressed=/g) ?? []).length).toBe(10);
-    expect((html.match(/data-item-id=/g) ?? []).length).toBe(8);
+    expect((html.match(/data-item-id=/g) ?? []).length).toBe(helmetFree);
     for (const label of ["Capacete", "Blusa", "Calça", "Vestido", "Sapato", "Costas", "Rosto", "Mão esquerda", "Mão direita", "Especial"]) {
       expect(read).toContain(label);
     }
-    expect(read).toContain("No inventário: 10 de 80 visuais gratuitos.");
+    expect(read).toContain(`No inventário: 10 de ${freeCount} visuais gratuitos.`);
     expect(read).toContain("Só o que eu tenho");
   });
 
@@ -41,7 +45,7 @@ describe("the wardrobe (P08)", () => {
     const shop = renderToStaticMarkup(<Wardrobe shopId="shop-02" />);
     const read = text(shop);
     expect((shop.match(/aria-pressed=/g) ?? []).length).toBe(2);
-    expect((shop.match(/data-item-id=/g) ?? []).length).toBe(8);
+    expect((shop.match(/data-item-id=/g) ?? []).length).toBe(handLeftFree);
     expect(read).toContain("Mão esquerda");
     expect(read).toContain("Mão direita");
     expect(read).not.toContain("Capacete");

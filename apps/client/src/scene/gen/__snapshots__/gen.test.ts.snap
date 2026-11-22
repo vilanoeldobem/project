@@ -1,5 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`generator snapshots > bell-parts keeps the output of fixed seeds stable 1`] = `
+[
+  "2c8d6514",
+  "b6e981cd",
+  "9e00efd0",
+]
+`;
+
 exports[`generator snapshots > bird keeps the output of fixed seeds stable 1`] = `
 [
   "b0a4500d",
@@ -256,6 +264,14 @@ exports[`generator snapshots > owl keeps the output of fixed seeds stable 1`] = 
 ]
 `;
 
+exports[`generator snapshots > panettone keeps the output of fixed seeds stable 1`] = `
+[
+  "48264009",
+  "418890fc",
+  "3106d5e",
+]
+`;
+
 exports[`generator snapshots > panettone-stand keeps the output of fixed seeds stable 1`] = `
 [
   "ec241412",
@@ -320,6 +336,14 @@ exports[`generator snapshots > rabbit keeps the output of fixed seeds stable 1`]
 ]
 `;
 
+exports[`generator snapshots > recipe-page keeps the output of fixed seeds stable 1`] = `
+[
+  "cefd530d",
+  "76cb9de6",
+  "271e7c4f",
+]
+`;
+
 exports[`generator snapshots > reindeer keeps the output of fixed seeds stable 1`] = `
 [
   "f0623d66",
@@ -349,6 +373,14 @@ exports[`generator snapshots > signpost keeps the output of fixed seeds stable 1
   "42b3f731",
   "50b3e32c",
   "7d06da62",
+]
+`;
+
+exports[`generator snapshots > silent-bell keeps the output of fixed seeds stable 1`] = `
+[
+  "ec065736",
+  "472ba19",
+  "92a1a779",
 ]
 `;
 

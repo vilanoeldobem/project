@@ -7,6 +7,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { COSMETICS_V2, isPaid } from "@vila/shared/game/cosmetics-v2";
 import { attainableLevel } from "@vila/shared/game/progress";
 import { billboardNotice, BILLBOARDS, boardNotices, LOTS, PLOT_TIERS, plotLabel, RESIDENTIAL_PLOTS, SCREEN_SLIDES, SHOP_COPY, SHOPS, SHORT_NOTICES, siteCopy, SITES, VILLAGE_NOTICES, VILLAGE_PLAN } from "@vila/shared/game/world";
 
@@ -117,10 +118,12 @@ describe("shop panel (P08 provador)", () => {
     expect(read).toContain("Nada é vendido na Vila.");
     expect(html).toContain(`data-shop-id="${id}"`);
     expect(html).toContain('data-board="P08"');
-    // Paid previews are hidden until PEN-022 (SHOW_PAID_PREVIEWS): eight free cards per category, no paid card.
-    expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(8);
+    // Paid previews are hidden until PEN-022 (SHOW_PAID_PREVIEWS): only free cards in the first category.
+    const first = slots[0];
+    const freeCards = COSMETICS_V2.filter((c) => c.slot === first && !isPaid(c)).length;
+    expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(freeCards);
     expect(html).not.toContain('data-sale="paid"');
-    expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + 8); // category buttons + first category cards
+    expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + freeCards); // category buttons + first category cards
     expect(RAW.test(read)).toBe(false);
     expect(PROMISE.test(read)).toBe(false);
     // No price, currency, payment, purchase or rent anywhere in a shop (AGENTS.md: a shop is never an offer).
