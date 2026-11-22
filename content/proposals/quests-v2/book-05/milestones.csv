@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b05-m1,A primeira partida,departures,1,1,10,,estacao-treno,5
+b05-m1,Três partidas,departures,3,2,10,,estacao-treno,5
+b05-m1,Cinco partidas,departures,5,3,10,,estacao-treno,5
+b05-m1,Oito partidas,departures,8,4,10,,estacao-treno,5
+b05-m1,Dez partidas,departures,10,5,10,,estacao-treno,5
+b05-m1,Doze partidas,departures,12,6,10,back-travel,estacao-treno,5
+b05-m2,O primeiro fio,threads,1,1,10,,casa-fio-vale-vento-branco,5
+b05-m2,Três fios,threads,3,2,10,,casa-fio-vale-vento-branco,5
+b05-m2,Cinco fios,threads,5,3,10,,casa-fio-vale-vento-branco,5
+b05-m2,Oito fios,threads,8,4,10,,casa-fio-vale-vento-branco,5
+b05-m2,Dez fios,threads,10,5,10,,casa-fio-vale-vento-branco,5
+b05-m2,Doze fios,threads,12,6,10,back-thread,casa-fio-vale-vento-branco,5

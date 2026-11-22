@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+back-travel,back,Mochila de Viagem,marco,false,b05-m1-06,40,140
+back-thread,back,Manto de Fios,marco,false,b05-m2-06,40,140
+special-promise-book,special,Caderno de Promessas,missao,false,b05-c3-04,40,140
+shoes-aurora,shoes,Botas Aurora,premium,true,,40,140
+shoes-frost,shoes,Botas de Geada,premium,true,,40,140
+shoes-dawn,shoes,Botas do Amanhecer,premium,true,,40,140

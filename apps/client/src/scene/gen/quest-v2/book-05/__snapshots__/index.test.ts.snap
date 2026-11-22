@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book V props > ice-flower keeps the gallery seeds stable 1`] = `
+[
+  "8103a11",
+  "acb7b463",
+  "7073ff9",
+  "336e0ddf",
+  "7556306d",
+  "ea8754d7",
+  "ae4c4c45",
+  "e3f389ef",
+]
+`;
+
+exports[`book V props > silver-shuttle keeps the gallery seeds stable 1`] = `
+[
+  "b678c35",
+  "f20779f9",
+  "1431afb2",
+  "e8a02137",
+  "1e72baad",
+  "be6481ae",
+  "ddf8ed55",
+  "2c52dcb6",
+]
+`;
+
+exports[`book V props > star-map keeps the gallery seeds stable 1`] = `
+[
+  "f0ccb701",
+  "fd0ea428",
+  "2d94f9a7",
+  "bf972484",
+  "3b60213b",
+  "36ebe752",
+  "da5886c0",
+  "dbb553ca",
+]
+`;
+
+exports[`book V props > suitcase keeps the gallery seeds stable 1`] = `
+[
+  "1f8931c8",
+  "e2146058",
+  "7338f5cc",
+  "a0abe931",
+  "51ae269e",
+  "3929980b",
+  "abd096e",
+  "85f0f551",
+]
+`;

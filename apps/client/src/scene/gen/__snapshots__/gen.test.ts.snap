@@ -216,6 +216,14 @@ exports[`generator snapshots > ice-duck keeps the output of fixed seeds stable 1
 ]
 `;
 
+exports[`generator snapshots > ice-flower keeps the output of fixed seeds stable 1`] = `
+[
+  "8c0779d7",
+  "f89f9e1b",
+  "6a09ebb3",
+]
+`;
+
 exports[`generator snapshots > lake-lantern keeps the output of fixed seeds stable 1`] = `
 [
   "4262d993",
@@ -464,11 +472,35 @@ exports[`generator snapshots > silent-bell keeps the output of fixed seeds stabl
 ]
 `;
 
+exports[`generator snapshots > silver-shuttle keeps the output of fixed seeds stable 1`] = `
+[
+  "9e41146",
+  "ec83c6cd",
+  "872bb7c0",
+]
+`;
+
 exports[`generator snapshots > sled keeps the output of fixed seeds stable 1`] = `
 [
   "30b095e7",
   "c11c2da",
   "bccd9138",
+]
+`;
+
+exports[`generator snapshots > star-map keeps the output of fixed seeds stable 1`] = `
+[
+  "7dbaa04e",
+  "bb7adb2a",
+  "1f65212e",
+]
+`;
+
+exports[`generator snapshots > suitcase keeps the output of fixed seeds stable 1`] = `
+[
+  "ee8ad546",
+  "7934b6d2",
+  "ebe53d9f",
 ]
 `;
 
