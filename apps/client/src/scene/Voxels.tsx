@@ -104,6 +104,7 @@ export function voxelGeometries(
     g.setAttribute("normal", new BufferAttribute(m.normals, 3));
     g.setAttribute("color", new BufferAttribute(m.colors, 3));
     if (m.centers) g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
+    g.setAttribute("aFace", new BufferAttribute(m.face, 2));
     g.setIndex(new BufferAttribute(m.indices, 1));
     g.computeBoundingSphere();
     return g;

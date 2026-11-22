@@ -146,3 +146,43 @@ idleMaterial.onBeforeCompile = (shader) => {
     );
 };
 idleMaterial.customProgramCacheKey = () => "vila-idle";
+
+/**
+ * Block edges (IMPL-0033): a thin, darker line around every voxel face, so blocks of one colour read one by one
+ * instead of melting into a slab. Drawn from `aFace` (the face corner, 1..2 on each axis; mesher.ts), which costs
+ * no triangle and no draw call. The line keeps about one pixel on screen up close and fades out where a block is
+ * only a few pixels wide, so far blocks never shimmer. A geometry without `aFace` (read as 0) draws no line.
+ */
+export const BLOCK_EDGE = { width: 0.06, strength: 0.2 } as const;
+
+const EDGE_VERTEX = "attribute vec2 aFace;\nvarying vec2 vFace;";
+const EDGE_FRAGMENT = /* glsl */ `
+#include <color_fragment>
+if (vFace.x > 0.5) {
+  vec2 vilaUv = vFace - 1.0;
+  vec2 vilaPx = fwidth(vilaUv);
+  vec2 vilaEdge = min(vilaUv, 1.0 - vilaUv);
+  vec2 vilaLine = 1.0 - smoothstep(max(vec2(${BLOCK_EDGE.width.toFixed(3)}), vilaPx), max(vec2(${BLOCK_EDGE.width.toFixed(3)}), vilaPx) * 1.8, vilaEdge);
+  float vilaFar = 1.0 - smoothstep(0.08, 0.25, max(vilaPx.x, vilaPx.y));
+  diffuseColor.rgb *= 1.0 - ${BLOCK_EDGE.strength.toFixed(3)} * max(vilaLine.x, vilaLine.y) * vilaFar;
+}`;
+
+/** Adds the block edges to a material, after whatever its own `onBeforeCompile` does. */
+function withBlockEdges(material: MeshStandardMaterial, key: string): void {
+  const own = material.onBeforeCompile.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    own(shader, renderer);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\n${EDGE_VERTEX}`)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFace = aFace;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vFace;")
+      .replace("#include <color_fragment>", EDGE_FRAGMENT);
+  };
+  material.customProgramCacheKey = () => `${key}-edges`;
+}
+
+withBlockEdges(solidMaterial, "vila-solid");
+withBlockEdges(windowMaterial, "vila-window");
+withBlockEdges(foliageMaterial, "vila-foliage");
+withBlockEdges(idleMaterial, "vila-idle");
