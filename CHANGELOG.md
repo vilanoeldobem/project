@@ -9,7 +9,7 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Added - Livro III da saga v2: O Tempo e as Cartas (PROPOSTA, atrás das flags existentes, desligado)
+### Added — Livro III da saga v2: O Tempo e as Cartas (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b03-c1-01` a `b03-c3-04`, 1.050 XP, 8 NPCs de quest, 4 props voxel e 6 cosméticos; a saída `b03-c3-04` abre o Livro IV.
 

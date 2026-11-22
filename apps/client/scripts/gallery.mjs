@@ -6,8 +6,9 @@
  */
 import { mkdirSync } from "node:fs";
 
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { chromium } from "playwright-core";
+
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const [url = "http://localhost:8799", ...cats] = process.argv.slice(2);
 const categories = cats.length ? cats : ["props", "houses", "characters", "animals", "cosmetics"];

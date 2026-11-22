@@ -119,7 +119,8 @@ describe("shop panel (P08 provador)", () => {
     expect(html).toContain(`data-shop-id="${id}"`);
     expect(html).toContain('data-board="P08"');
     // Paid previews are hidden until PEN-022 (SHOW_PAID_PREVIEWS): only free cards in the first category.
-    const freeCards = COSMETICS_V2.filter((c) => c.slot === slots[0] && !isPaid(c)).length;
+    const first = slots[0];
+    const freeCards = COSMETICS_V2.filter((c) => c.slot === first && !isPaid(c)).length;
     expect((html.match(/data-item-id=/g) ?? [])).toHaveLength(freeCards);
     expect(html).not.toContain('data-sale="paid"');
     expect((html.match(/data-slot="/g) ?? []).length).toBe(slots.length + freeCards); // category buttons + first category cards
