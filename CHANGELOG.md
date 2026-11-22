@@ -19,6 +19,10 @@ Cada versão indica o schema D1 que entrega.
 - **Um objeto voxel novo**, `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u, 80/200), para a coleta dos
   dois ramos e a entrega final.
 
+### Added
+
+- Teste de doações com duas ONGs e uma parceira global fictícias. Confere o destino e o valor do split de cada Pix e os totais confirmados após a reentrega do webhook.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
