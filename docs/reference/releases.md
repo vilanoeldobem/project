@@ -1,7 +1,7 @@
 # Publicações em produção
 
-> **Status:** Implementado · **Versão do software:** 0.7.0 · **Schema D1:** v15 ·
-> **Atualizado em:** 2026-11-19
+> **Status:** Implementado · **Versão do software:** 0.8.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-22
 > **Fonte de verdade:** "Último deploy" em [guides/deploy.md](../guides/deploy.md), `apps/*/wrangler.jsonc` (bandeiras),
 > `migrations/`, `CHANGELOG.md`
 
@@ -9,6 +9,35 @@ Uma tabela por publicação em produção, da mais nova para a mais antiga. Cada
 **registro do deploy** (o que quem publicou anotou), **código** (`wrangler.jsonc` do commit publicado) ou
 **observado** (requisição pública feita na data indicada). Uma bandeira lida no código é o valor que o deploy
 enviou; ela não prova o comportamento. Um binding presente não prova que o recurso funciona.
+
+## 0.8.0 — 2026-11-22
+
+| Item | Valor | Fonte |
+|---|---|---|
+| Data | 2026-11-22, 16h05 a 16h07 (BRT); 19h05 a 19h07 UTC | registro do deploy |
+| Commit | `6d4e4fc` (`main`, merge do PR #97, `release/0.8.0`), tag `v0.8.0` | registro do deploy |
+| Autorização | pedido do responsável técnico nesta data ("release nova versão") e confirmação explícita antes do deploy | registro do deploy |
+| Ordem | API → servidor → jogo → painel → site; nenhuma migration | registro do deploy |
+| Versões (`wrangler`) | api `351baeac` · server `d168137b` · jogo `07726b7f` · dash `c4a7fa09` · site `d95d444a` | registro do deploy |
+| Versões anteriores (alvo de rollback) | api `18175b13` · server `34d9553b` · jogo `a898ab26` · dash `c87dd18b` · site `85a2a25f` | `wrangler deployments list` antes do deploy |
+| Versão no ar | `GET api.*/health` → `"version":"0.8.0"`, `"environment":"production"`, `"db":true`, `"mail":false`, `"files":true` | observado em 2026-11-22 19h05 UTC |
+| Prontidão | `GET api.*/ready` → `{"ok":true,"checks":{"db":"ok","files":"ok"}}`; `GET server.*/ready` → `{"ok":true,"rooms":"ok"}` | observado em 2026-11-22 19h05 UTC |
+| D1 | **v15**, sem mudança | código (`migrations/`) |
+| Nova variável | `QUESTS_V2_ENABLED = "false"` passa a constar no `wrangler.jsonc` da API (antes ausente, com o mesmo efeito) | código (`git diff v0.7.0 v0.8.0 -- apps/*/wrangler.jsonc`) |
+| R2, e-mail, Durable Object | sem mudança | código |
+
+### Bandeiras em produção (0.8.0)
+
+Iguais às da 0.7.0. `GET api.*/config` respondeu, em 2026-11-22 19h07 UTC:
+`{"accounts":false,"quests":false,"questsV2":false,"files":false,"withdrawal":false,"moderation":{"presence":false,"block":false},"residentialPlots":false,"donations":false,"ngoLevels":false}`.
+
+### Conferências (0.8.0)
+
+| Conferência | Data | Resultado | Fonte |
+|---|---|---|---|
+| `sh scripts/smoke-api.sh` | 2026-11-22 19h07 UTC | 19/19 (inclui as duas rotas `/ready`) | observado |
+| `node apps/client/scripts/verify-live.mjs` | 2026-11-22 | falha só pelos destinos do Google bloqueados pela CSP (OQ-13), como na 0.7.0 | observado |
+| `verify.mjs` local antes do deploy | — | **não rodado**: a porta 8787 estava ocupada por outro projeto local; os gates do CI e os testes locais passaram, e o visual de blocos foi conferido no Chrome local | registro do deploy |
 
 ## 0.7.0 — 2026-11-19
 
