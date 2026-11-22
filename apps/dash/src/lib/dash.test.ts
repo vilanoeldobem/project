@@ -143,7 +143,7 @@ describe("API client", () => {
     const api = createApi(BASE, fetcher);
     await api.donationOverview();
     await api.saveDonationSettings({ accountId: "u1", primaryNgoName: "Instituto Parceiro", primaryNgoCnpj: "11444777000161", ngoPercentBps: 9500, fixedFeeCents: 80 });
-    await api.saveNgoPayment("abc", { accountId: "u1", paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true, ngoPercentBps: 9500, fixedFeeCents: 80 });
+    await api.saveNgoPayment("abc", { accountId: "u1", revision: 2, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true, ngoPercentBps: 9500, fixedFeeCents: 80 });
     await api.registerExternalProof({ accountId: "u1", ngoId: "abc", amountCents: 200, proofReference: "Comprovante 1" });
     expect(sent.map((s) => [s.init.method, s.url.slice(BASE.length)])).toEqual([
       ["GET", "/admin/donations/overview"],
@@ -153,6 +153,7 @@ describe("API client", () => {
     ]);
     expect(JSON.parse(String(sent[2].init.body))).toEqual({
       accountId: "u1",
+      revision: 2,
       paymentMethod: "external_link",
       donationUrl: "https://ong.org.br/doar",
       linkValidated: true,

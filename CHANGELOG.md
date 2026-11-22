@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Fixed — Recebimento das ONGs
+
+- A troca de CNPJ invalida a configuração do beneficiário para novos Pix. O painel financeiro exige a revisão atual da candidatura e os pagamentos anteriores preservam seu destino.
+
 ### Added — Livro I da saga v2: A Chegada (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b01-c1-01` a `b01-c3-04`, 1.050 XP, 11 NPCs de mundo (8 novos), 4 props voxel e 6 cosméticos; a primeira página do Caderno abre o Livro II.

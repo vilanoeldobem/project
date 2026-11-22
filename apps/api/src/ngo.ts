@@ -142,6 +142,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
    */
   const statements = [db.prepare("PRAGMA defer_foreign_keys = true")];
   if (current) {
+    const writeToken = newId();
     statements.push(
       db.prepare(
         `UPDATE lots SET state = 'application_sent', ngo_id = ? WHERE id = ? AND (state = 'available' OR ngo_id = ?)
@@ -150,9 +151,17 @@ export async function submitApplication(request: Request, env: Env, today = new 
       db.prepare(
         `UPDATE ngos SET name = ?, cnpj = ?, cnpj_opened_on = ?, city = ?, summary = ?, description = ?, funds_confirmation = ?,
                 declarations = ?, tags = ?, projects = ?, requested_lot_id = ?, status = 'submitted', revision = ?,
-                review_note = NULL, updated_at = ? WHERE id = ? AND ${EDITABLE} AND revision = ? AND ${LOT_HELD}`
-      ).bind(...fields, revision, now, ngoId, current.revision, value.lotId, ngoId)
+                review_note = NULL, updated_at = ?, file_write_token = ? WHERE id = ? AND ${EDITABLE} AND revision = ? AND ${LOT_HELD}`
+      ).bind(...fields, revision, now, writeToken, ngoId, current.revision, value.lotId, ngoId)
     );
+    // A disabled payments feature can still have a previously confirmed beneficiary. Pre-0011 has none.
+    if (current.cnpj !== value.cnpj && (donationsEnabled || await db.prepare(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ngo_payment_configs'"
+    ).first())) {
+      statements.push(db.prepare(`UPDATE ngo_payment_configs SET sub_account_id = NULL, link_validated = 0, updated_at = ?
+        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)`)
+        .bind(now, ngoId, ngoId, writeToken));
+    }
     if (current.requested_lot_id && current.requested_lot_id !== value.lotId)
       statements.push(
         db.prepare(
@@ -180,7 +189,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
     ).bind(newId(), user.id, current ? "ngo.resubmit" : "ngo.submit", `ngo:${ngoId}`, JSON.stringify({ lot: value.lotId, revision }), ngoId, revision)
   );
   // IMPL-0023 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
-  // nothing from migration 0011 is touched, so the application flow still works on the schema production has.
+  // preferences stay untouched; a change of holder still revokes its old verification above.
   if (donationsEnabled) {
     const method = value.paymentMethod ?? "abacatepay";
     const url = method === "external_link" ? value.donationUrl ?? "" : "";

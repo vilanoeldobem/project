@@ -296,8 +296,9 @@ export function Review({
       {/* IMPL-0023 (PROPOSTA): only while the donations flag is on and the NGO is still in the village. */}
       {donationsOn && a.status !== "withdrawn" && (
         <NgoPaymentConfig
-          key={`${a.id}:${a.ngoPayment?.updatedAt ?? "new"}`}
+          key={`${a.id}:${a.revision}:${a.ngoPayment?.updatedAt ?? "new"}`}
           ngoId={id}
+          revision={a.revision}
           accountId={accountId}
           requested={{ method: a.paymentMethod, donationUrl: a.donationUrl }}
           payment={a.ngoPayment}

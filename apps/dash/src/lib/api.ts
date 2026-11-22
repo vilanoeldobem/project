@@ -168,6 +168,7 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
       id: string,
       body: {
         accountId: string;
+        revision: number;
         paymentMethod: "abacatepay" | "external_link";
         donationUrl?: string;
         linkValidated?: boolean;
