@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VIII cosmetics > dress-summer keeps its fixed layer 1`] = `"3b017ccb"`;
+
+exports[`book VIII cosmetics > face-paint keeps its fixed layer 1`] = `"557e7f02"`;
+
+exports[`book VIII cosmetics > hand-left-aurora keeps its fixed layer 1`] = `"b484dee2"`;
+
+exports[`book VIII cosmetics > hand-left-frost keeps its fixed layer 1`] = `"e34191ab"`;
+
+exports[`book VIII cosmetics > hand-left-summer-star keeps its fixed layer 1`] = `"1e561816"`;
+
+exports[`book VIII cosmetics > special-apron keeps its fixed layer 1`] = `"bce8660f"`;

@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b08-m1,O primeiro verão,summers,1,1,10,,jardim-sol,8
+b08-m1,Três verões,summers,3,2,10,,jardim-sol,8
+b08-m1,Cinco verões,summers,5,3,10,,jardim-sol,8
+b08-m1,Sete verões,summers,7,4,10,,jardim-sol,8
+b08-m1,Nove verões,summers,9,5,10,,jardim-sol,8
+b08-m1,Onze verões,summers,11,6,10,dress-summer,jardim-sol,8
+b08-m2,A primeira estação,seasons,1,1,10,,mercado-estacoes,8
+b08-m2,Duas estações,seasons,2,2,10,,mercado-estacoes,8
+b08-m2,Três estações,seasons,3,3,10,,mercado-estacoes,8
+b08-m2,Quatro estações,seasons,4,4,10,,mercado-estacoes,8
+b08-m2,Cinco estações,seasons,5,5,10,,mercado-estacoes,8
+b08-m2,Seis estações,seasons,6,6,10,special-apron,mercado-estacoes,8
