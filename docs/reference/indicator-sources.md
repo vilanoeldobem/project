@@ -85,6 +85,29 @@ Na revisão indicada acima, **6 testes focalizados de API/progresso e 3 de prese
 (cd apps/server && ./node_modules/.bin/vitest run --maxWorkers=1 src/room.test.ts -t 'assigns anonymous ids|also after a reconnect|removes only members idle')
 ```
 
+## MET-01 · Conferência interna por destino e fonte
+
+Para conferir os registros da base D1 local, aplique as migrações e execute a [consulta por destino](../../apps/api/scripts/summarize-paid-donations.sql) a partir da raiz:
+
+```sh
+pnpm db:migrate:local
+pnpm --filter @vila/api exec wrangler d1 execute vilanoeldobem --local --file scripts/summarize-paid-donations.sql
+```
+
+A consulta lê as doações cujo estado atual é `paid`, desde o início daquela base, inclusive as de sandbox. A linha `global` representa a parceira da Vila. Cada linha `ngo` usa o ID da ONG gravado na doação e continua presente após a retirada da casa. Uma ONG cadastrada sem valores elegíveis aparece com zeros. Se uma exclusão física anterior apagou o vínculo da cobrança, os valores dirigidos sem ID ficam na linha `ngo` de ID nulo. O `total` já inclui global e ONGs uma vez.
+
+As colunas `pix_count` e `pix_gross_cents` contam cobranças Pix e somam seu bruto em centavos, antes das tarifas e da divisão. As colunas `proof_count` e `proof_amount_cents` contam registros manuais e somam os valores documentados. Uma referência repetida pode corresponder a dois registros manuais. A equipe deve conferir as referências antes de interpretar registros como pagamentos distintos. A consulta mantém as fontes separadas e a liquidação depende do extrato.
+
+Exemplo local com um Pix global de R$ 10,00, um Pix dirigido de R$ 7,25 e um comprovante de R$ 5,00 para a mesma ONG. A confirmação do Pix dirigido chega duas vezes e a casa é retirada em seguida.
+
+| Destino | Cobranças Pix pagas | Bruto Pix (centavos) | Registros de comprovantes | Valor documentado (centavos) |
+|---|---:|---:|---:|---:|
+| Global | 1 | 1.000 | 0 | 0 |
+| ONG retirada | 1 | 725 | 1 | 500 |
+| Total | 2 | 1.725 | 1 | 500 |
+
+Um estorno posterior do Pix global reduz o total Pix para uma cobrança e 725 centavos. A evidência externa continua em 500 centavos. Com a base legível e vazia, os quatro valores do total são zero. Uma falha na leitura ou na aplicação das migrações deixa a conferência indisponível. Para a publicação da MET-01, seguem abertas as decisões de público, período e qual valor comunicar.
+
 ## Primeiro PR de implementação e decisões que faltam
 
 **N5.2 proposta: quantidade de doações globais confirmadas, em um ambiente identificado.** Reusar D1 e o contrato de disponibilidade de `/indicators`. A definição candidata é uma cobrança no destino global em estado atual `paid`. Não exige migração nem evento de cliente. Nicolas e Augusto escolhem primeiro o público (P02 público ou painel administrativo). Bernard ratifica o significado de “confirmada”, e a frente de conciliação N3 valida a origem financeira.

@@ -12,6 +12,7 @@ Cada versão indica o schema D1 que entrega.
 ### Added
 
 - [Ensaio de conciliação de Pix no D1 local](docs/reference/indicator-sources.md#fin-01--conferir-uma-cobrança-dirigida-no-d1-local), com comparação do destino, estado e valores em centavos por cobrança fictícia.
+- A conferência interna no D1 mostra quantidade e valor bruto de Pix globais, dirigidos e totais, preserva o histórico de ONGs retiradas e apresenta os comprovantes externos em colunas próprias.
 
 ## [0.8.0] - 2026-11-22
 
