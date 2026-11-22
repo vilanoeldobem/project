@@ -192,6 +192,14 @@ exports[`generator snapshots > log-pile keeps the output of fixed seeds stable 1
 ]
 `;
 
+exports[`generator snapshots > lost-hour keeps the output of fixed seeds stable 1`] = `
+[
+  "346312f3",
+  "40c20725",
+  "b6e2d722",
+]
+`;
+
 exports[`generator snapshots > mailbox keeps the output of fixed seeds stable 1`] = `
 [
   "698c216e",
@@ -344,6 +352,14 @@ exports[`generator snapshots > shop keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > short-candle keeps the output of fixed seeds stable 1`] = `
+[
+  "96e9b5f4",
+  "94bdf11d",
+  "ac792988",
+]
+`;
+
 exports[`generator snapshots > signpost keeps the output of fixed seeds stable 1`] = `
 [
   "42b3f731",
@@ -360,11 +376,27 @@ exports[`generator snapshots > sled keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > small-notebook keeps the output of fixed seeds stable 1`] = `
+[
+  "66bcf353",
+  "214831f4",
+  "7ce9ab3a",
+]
+`;
+
 exports[`generator snapshots > sweater keeps the output of fixed seeds stable 1`] = `
 [
   "5423be7",
   "9e70b488",
   "a2b16383",
+]
+`;
+
+exports[`generator snapshots > time-gear keeps the output of fixed seeds stable 1`] = `
+[
+  "c1250b8",
+  "d413822c",
+  "fcf5f492",
 ]
 `;
 
