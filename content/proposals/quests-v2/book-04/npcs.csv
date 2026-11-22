@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, praça",villager,storyteller,5,4,-2.246,4,Toda história começa com alguém que para para ouvir.
+seu-raul,Seu Raul,Guarda do bosque,"Parque dos Pinheiros, entrada",villager,seu-raul,-15.75,-55.5,0.277,4,"O bosque fala baixo, mas não esquece."
+fia,Fia,Guia do bosque,"Parque dos Pinheiros, clareira",villager,fia,-18.6,-55.2,0.325,4,Cada pegada conta uma história.
+brasa,Brasa,Rena de nariz de brasa,"Parque dos Pinheiros, ninho",villager,brasa,-13.0,-55.8,0.229,4,A neve faz barulho. Eu prefiro ouvir você.
+pond-keeper,Aurora,Vigia do lago,"Lago Espelho, margem norte",villager,pond-keeper,16.3,-10.4,-1.004,4,A água devolve o que a gente lembra.
+seu-elias,Seu Elias,Carteiro aposentado,"Colina do Correio, ponte do vale",villager,seu-elias,11.4,-3.6,-1.265,4,A ponte lembra de cada entrega.
+lia,Lia,Criança do coro,"Praça da Grande Árvore, coreto",villager,lia,2.6,-5.2,-0.464,4,Eu canto baixinho para acertar.
+nina,Nina,Sineira,"Campanário, torre dos sinos",villager,nina,-5.4,8.8,2.591,4,O coro espera uma voz.

@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b04-m1,A primeira pegada,trails,1,1,10,,bosque-pinheiros,4
+b04-m1,Três pegadas,trails,3,2,10,,bosque-pinheiros,4
+b04-m1,Cinco pegadas,trails,5,3,10,,bosque-pinheiros,4
+b04-m1,Dez pegadas,trails,10,4,10,,bosque-pinheiros,4
+b04-m1,Quinze pegadas,trails,15,5,10,,bosque-pinheiros,4
+b04-m1,Vinte pegadas,trails,20,6,10,pants-snowboot,bosque-pinheiros,4
+b04-m2,A primeira lanterna,lanterns,1,1,10,,lago-espelho,4
+b04-m2,Três lanternas,lanterns,3,2,10,,lago-espelho,4
+b04-m2,Sete lanternas,lanterns,7,3,10,,lago-espelho,4
+b04-m2,Quatorze lanternas,lanterns,14,4,10,,lago-espelho,4
+b04-m2,Vinte e uma lanternas,lanterns,21,5,10,,lago-espelho,4
+b04-m2,Vinte e oito lanternas,lanterns,28,6,10,hand-left-lake-lantern,lago-espelho,4

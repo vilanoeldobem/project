@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+frost-flower,Flor de gelo,quest_item,done,book-04-frost-flower,props,b04-c1-02;b04-c1-03;b04-c2-03;b04-c3-04;b04-r1-02;b04-r1-03;b04-r1-05;b04-r1-07;b04-s1,1,frost-flower,80,200,0.18,use,none,"Flor de gelo com pétalas claras e centro quente; marca pegadas, o nome de Brasa e o caminho branco."
+lake-lantern,Lanterna do lago,world_prop,done,book-04-lake-lantern,props,b04-c2-02;b04-c2-04;b04-c3-03;b04-r2-02;b04-r2-06;b04-r2-07,3,lake-lantern,180,480,0.22,use,none,"Lanterna de margem com poste curto, núcleo emissivo e neve no topo; seis usos no lago e na ponte."
+bridge-plank,Tábua da ponte,quest_item,done,book-04-bridge-plank,props,b04-c3-02;b04-c3-03,3,bridge-plank,60,160,0.2,pickup,none,"Pilha de tábuas amarradas com corda, sem texto; coleta e travessia."
+ice-duck,Pato de gelo,world_prop,done,book-04-ice-duck,props,b04-r2-03;b04-s4,1,ice-duck,160,420,0.22,use,none,"Pato esculpido em gelo sobre base de neve, bico claro e asa assimétrica; guarda a segunda luz."
