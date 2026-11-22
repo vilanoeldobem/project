@@ -110,7 +110,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
   if (user.files_deleting) throw new HttpError(409, "account_deleting");
   const body = await readJson(request, 32_000);
   assertAccount(body, user);
-  const { value, errors } = validateApplication(body, today);
+  const donationsEnabled = env.DONATIONS_ENABLED === "true";
+  const { value, errors } = validateApplication(body, today, donationsEnabled);
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
   const current = await myApplication(env, user.id);
@@ -180,12 +181,14 @@ export async function submitApplication(request: Request, env: Env, today = new 
   );
   // IMPL-0023 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
   // nothing from migration 0011 is touched, so the application flow still works on the schema production has.
-  if (env.DONATIONS_ENABLED === "true") {
+  if (donationsEnabled) {
     const method = value.paymentMethod ?? "abacatepay";
     const url = method === "external_link" ? value.donationUrl ?? "" : "";
     statements.push(
-      db.prepare("INSERT OR IGNORE INTO ngo_payment_configs (ngo_id, payment_method, donation_url) SELECT id, ?, ? FROM ngos WHERE id = ? AND revision = ?").bind(method, url, ngoId, revision),
-      // A changed mode or link needs the administration's confirmation again.
+      db.prepare("INSERT OR IGNORE INTO ngo_payment_configs (ngo_id, payment_method, donation_url) SELECT id, ?, ? FROM ngos WHERE id = ? AND revision = ?").bind(method, url, ngoId, revision)
+    );
+    // An older client or a form that loaded with donations off sends no preference. Keep any existing one.
+    if (body.paymentMethod !== undefined) statements.push(
       db.prepare(`UPDATE ngo_payment_configs SET payment_method = ?, donation_url = ?,
         link_validated = CASE WHEN payment_method = ? AND donation_url = ? THEN link_validated ELSE 0 END, updated_at = ?
         WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ?)`)

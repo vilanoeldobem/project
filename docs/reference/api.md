@@ -495,11 +495,12 @@ vazio enquanto o envio estiver desligado).
 | | `city` | 2 a 60 caracteres |
 | 2. Documentos e comprovações | `declarations` | `{activeCnpj, oneYear, fundsConfirmable}`, os três `true` (os três critérios do DEC-015) |
 | | `fundsConfirmation` | como os recursos podem ser confirmados, 20 a 1000 caracteres |
+| | `paymentMethod`, `donationUrl` | Com `/config.donations` ligado, a ONG escolhe `abacatepay` (padrão) ou `external_link`. O link HTTPS público é obrigatório na segunda opção. Com a bandeira desligada, o formulário omite esses campos e a API ignora a preferência. Um reenvio sem escolha explícita preserva a rota já salva. |
 | 3. Apresentação e projetos | `summary` | 20 a 280 caracteres (aparece na casa) |
 | | `description` | 50 a 2000 caracteres |
 | | `tags` | 1 a 4 de `children`, `elderly`, `animals`, `education`, `health`, `food`, `housing`, `environment`, `culture`, `sport`, `disability`, `women` (DEC-028; lista **PROPOSTA**) |
 | | `projects` | até 3 (`[{title, description}]`, título 3–80, descrição até 400; extras ignorados) |
-| 4. Revisão e envio | `lotId` | `plaza-NN`, terreno `available` (ou o que a candidatura já ocupa) |
+| 4. Revisão e envio | `lotId` | ID de terreno da praça ou dos anéis no mapa vigente, em estado `available` (ou o que a candidatura já ocupa) |
 
 O CNPJ é numérico. A AbacatePay, que cria as subcontas de doação, não documenta o formato alfanumérico em vigor
 desde julho de 2026 (IN RFB 2.229/2024, 12 caracteres alfanuméricos + 2 dígitos); até o provedor confirmar o
