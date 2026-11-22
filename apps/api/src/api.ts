@@ -147,7 +147,7 @@ export interface Env {
   DONATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
 
-export const VERSION = "0.7.0";
+export const VERSION = "0.8.0";
 
 export interface LotRow {
   id: string;
