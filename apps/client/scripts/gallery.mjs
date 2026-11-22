@@ -6,6 +6,7 @@
  */
 import { mkdirSync } from "node:fs";
 
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { chromium } from "playwright-core";
 
 const [url = "http://localhost:8799", ...cats] = process.argv.slice(2);
@@ -16,8 +17,9 @@ const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=s
 const errors = [];
 for (const cat of categories) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await isolateAnalytics(page);
   page.on("pageerror", (e) => errors.push(`${cat}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && errors.push(`${cat}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${cat}: ${m.text()}`));
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
