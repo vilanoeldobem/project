@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — epílogo e pós-jogo (sessão 11)
+
+- **Epílogo e pós-jogo**: o catálogo v2 passa a exigir b05-c3-04 para as seis cadeias do epílogo v1, adiciona as 12 missões pg1-01 a pg2-06 (240 XP) e a cena final com créditos, atrás das flags existentes; sem migration e sem mudança de bandeira.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**

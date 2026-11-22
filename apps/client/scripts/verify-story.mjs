@@ -205,6 +205,14 @@ async function playPostgame(page) {
     fail(`postgame: expected 12 entries, got ${entries.length} (session 11)`);
     return;
   }
+  // A standalone postgame check starts from a finished save: without this seed, a book NPC offers its
+  // Book I quest before the postgame one and the verifier would play the wrong chain.
+  const postgameIds = new Set(entries.map((entry) => entry.id));
+  const prerequisites = (await story(page))
+    .filter((entry) => entry.kind !== "milestone" && !postgameIds.has(entry.id))
+    .map((entry) => entry.id);
+  await page.evaluate((ids) => window.__vila.extra.seedStory(ids), prerequisites);
+  await page.waitForTimeout(300);
   let storyWorld = await world(page);
   for (const quest of entries) {
     try {

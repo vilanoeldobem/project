@@ -22,6 +22,7 @@ export type Panel =
   | { kind: "badges" }
   | { kind: "memory" }
   | { kind: "missions" }
+  | { kind: "finale" }
   | { kind: "indicators" }
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }

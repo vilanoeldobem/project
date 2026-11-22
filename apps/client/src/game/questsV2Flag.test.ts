@@ -69,10 +69,13 @@ describe("quests-v2 flag", () => {
     expect(page.questsV2Enabled()).toBe(false);
   });
 
-  it("records a v1 quest through the catalog engine while v2 is on", async () => {
+  it("records a v1 quest through the catalog engine after the v2 epilogue gate opens", async () => {
     stubPage({ accounts: false, quests: true, questsV2: true });
     const page = await load(true, true);
     await page.initAccount();
+    page.useVila.getState().record("harness-bells", "accept");
+    expect(page.useVila.getState().progress.seen["harness-bells:accept"]).toBeUndefined();
+    page.useVila.setState({ progress: { xp: 0, counters: {}, completed: { "b05-c3-04": true }, seen: {} } });
     page.useVila.getState().record("harness-bells", "accept");
     expect(page.useVila.getState().progress.seen["harness-bells:accept"]).toBe(true);
   });

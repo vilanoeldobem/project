@@ -17,7 +17,6 @@ import { chromium } from "playwright-core";
 
 import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
 if (!/localhost|127\.0\.0\.1/.test(url + apiUrl)) {
