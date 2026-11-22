@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book X props > lost-hour keeps the gallery seeds stable 1`] = `
+[
+  "7324053c",
+  "fedaa50f",
+  "9733db62",
+  "8c693366",
+  "32f8667b",
+  "d2d11d1b",
+  "3758dd9e",
+  "92be993a",
+]
+`;
+
+exports[`book X props > short-candle keeps the gallery seeds stable 1`] = `
+[
+  "bffb3310",
+  "944967c1",
+  "a177e27e",
+  "b2e4db53",
+  "f46a175c",
+  "2c0f2b44",
+  "ed9aba9c",
+  "1a53c535",
+]
+`;
+
+exports[`book X props > small-notebook keeps the gallery seeds stable 1`] = `
+[
+  "ad0f66b8",
+  "88f98e15",
+  "3327acd2",
+  "950f1ffe",
+  "5028a4e9",
+  "f76d0615",
+  "e64503a8",
+  "914a1fc2",
+]
+`;
+
+exports[`book X props > time-gear keeps the gallery seeds stable 1`] = `
+[
+  "280fc178",
+  "a8e0b477",
+  "f094102c",
+  "8f3b3c1d",
+  "5478b612",
+  "11965fd1",
+  "4c5e05b3",
+  "b8ad72b0",
+]
+`;
