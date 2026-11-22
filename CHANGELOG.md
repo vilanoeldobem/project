@@ -31,6 +31,11 @@ Cada versão indica o schema D1 que entrega.
 
 - [Evidência do provador gratuito e matriz de compra de cosméticos](docs/implementation/wardrobe-inventory-qa.md) para a N6.1 da #65.
 
+### Fixed
+
+- O cadastro de ONG só pede o meio de recebimento quando a API aceita a configuração. Ao trocar de link próprio
+  para AbacatePay, a candidatura grava a nova escolha e descarta o link anterior.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations

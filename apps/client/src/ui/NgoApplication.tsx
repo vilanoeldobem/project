@@ -12,7 +12,6 @@ import { type Application, lotNumber, STATUS_LABEL } from "@vila/shared/accounts
 import { errorText } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { APPLICATION_STEP, formatBrDate, maskBrDate, NGO_TAGS, parseBrDate, type NgoApplication, type NgoTag, validateApplication } from "@vila/shared/accounts/validate";
-import type { NgoPaymentMethod } from "@vila/shared/donations/contract";
 import { LOTS } from "@vila/shared/game/world";
 
 import { useVila } from "../game/store";
@@ -193,9 +192,11 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
   const [error, setError] = useState("");
   const [lots, setLots] = useState<LotInfo[]>([]);
   const filesOn = useAccount((s) => s.files);
+  const donationsOn = useAccount((s) => s.donations);
   useEffect(() => void fetchLots().then((r) => r && setLots(r.lots)), []);
   const available = useMemo(() => LOTS.filter((l) => l.id === heldLot || lots.find((x) => x.id === l.id)?.state === "available"), [lots, heldLot]);
-  const errors = validateApplication(form, new Date()).errors;
+  const validate = () => validateApplication(form, new Date(), donationsOn);
+  const { errors } = validate();
   const stepErrors = (n: number) => Object.fromEntries(Object.entries(errors).filter(([k]) => APPLICATION_STEP[k as keyof NgoApplication] === n));
   const set = <K extends keyof NgoApplication>(k: K, v: NgoApplication[K]) => setForm({ ...form, [k]: v });
   const next = () => {
@@ -204,7 +205,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
     if (!Object.keys(found).length) setStep(step + 1);
   };
   const submit = async () => {
-    const found = validateApplication(form, new Date()).errors;
+    const { value, errors: found } = validate();
     if (Object.keys(found).length) {
       setShown(found);
       setStep(Math.min(...Object.keys(found).map((k) => APPLICATION_STEP[k as keyof NgoApplication])));
@@ -213,7 +214,7 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
     setBusy(true);
     setError("");
     try {
-      const { application } = await api.submitApplication(validateApplication(form, new Date()).value);
+      const { application } = await api.submitApplication(value);
       useVila.getState().notify("Candidatura enviada! A administração da Vila vai analisar.");
       onDone(application);
     } catch (e) {
@@ -284,37 +285,39 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
             <Field label="Como os recursos podem ser confirmados? *" error={shown.fundsConfirmation} hint="Ex.: extratos da conta da organização, relatório conciliável, página de campanha identificada.">
               <textarea value={form.fundsConfirmation} onChange={(e) => set("fundsConfirmation", e.target.value)} maxLength={1000} rows={4} />
             </Field>
-            <Field
-              label="Meio de recebimento de doações"
-              error={shown.paymentMethod}
-              hint="A administração confere esta configuração antes de a casa receber qualquer doação."
-            >
-              <select
-                value={form.paymentMethod ?? "abacatepay"}
-                onChange={(e) => {
-                  const next: NgoPaymentMethod = e.target.value === "external_link" ? "external_link" : "abacatepay";
-                  set("paymentMethod", next);
-                  // The link only exists in the "link próprio" mode: switching back clears it.
-                  if (next === "abacatepay") set("donationUrl", "");
-                }}
-              >
-                <option value="abacatepay">AbacatePay (Subconta Pix com CNPJ da ONG)</option>
-                <option value="external_link">Link próprio de pagamento (HTTPS)</option>
-              </select>
-            </Field>
-            {(form.paymentMethod ?? "abacatepay") === "external_link" && (
-              <Field
-                label="Link de doação da organização *"
-                error={shown.donationUrl}
-                hint="Página https:// da própria ONG. A administração abre e confere o link antes de ativá-lo."
-              >
-                <input
-                  value={form.donationUrl ?? ""}
-                  onChange={(e) => set("donationUrl", e.target.value)}
-                  maxLength={500}
-                  placeholder="https://ong.org.br/doar"
-                />
-              </Field>
+            {donationsOn && (
+              <>
+                <Field
+                  label="Meio de recebimento de doações"
+                  error={shown.paymentMethod}
+                  hint="A administração confere esta configuração antes de a casa receber qualquer doação."
+                >
+                  <select
+                    value={form.paymentMethod ?? "abacatepay"}
+                    onChange={(e) => {
+                      const paymentMethod = e.target.value === "external_link" ? "external_link" : "abacatepay";
+                      setForm((current) => ({ ...current, paymentMethod, donationUrl: "" }));
+                    }}
+                  >
+                    <option value="abacatepay">AbacatePay (Subconta Pix com CNPJ da ONG)</option>
+                    <option value="external_link">Link próprio de pagamento (HTTPS)</option>
+                  </select>
+                </Field>
+                {(form.paymentMethod ?? "abacatepay") === "external_link" && (
+                  <Field
+                    label="Link de doação da organização *"
+                    error={shown.donationUrl}
+                    hint="Página https:// da própria ONG. A administração abre e confere o link antes de ativá-lo."
+                  >
+                    <input
+                      value={form.donationUrl ?? ""}
+                      onChange={(e) => set("donationUrl", e.target.value)}
+                      maxLength={500}
+                      placeholder="https://ong.org.br/doar"
+                    />
+                  </Field>
+                )}
+              </>
             )}
             {filesOn ? (
               <p className="note">Depois de enviar a candidatura, você pode anexar o logo e documentos na tela da candidatura. É opcional.</p>
