@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b07-m1,A primeira travessia,bridges,1,1,10,,ponte-gelo,7
+b07-m1,Três travessias,bridges,3,2,10,,ponte-gelo,7
+b07-m1,Cinco travessias,bridges,5,3,10,,ponte-gelo,7
+b07-m1,Sete travessias,bridges,7,4,10,,ponte-gelo,7
+b07-m1,Nove travessias,bridges,9,5,10,,ponte-gelo,7
+b07-m1,Onze travessias,bridges,11,6,10,pants-bridge,ponte-gelo,7
+b07-m2,O primeiro eco,echoes,1,1,10,,vale-ecos,7
+b07-m2,Três ecos,echoes,3,2,10,,vale-ecos,7
+b07-m2,Cinco ecos,echoes,5,3,10,,vale-ecos,7
+b07-m2,Oito ecos,echoes,8,4,10,,vale-ecos,7
+b07-m2,Dez ecos,echoes,10,5,10,,vale-ecos,7
+b07-m2,Doze ecos,echoes,12,6,10,helmet-coral,vale-ecos,7

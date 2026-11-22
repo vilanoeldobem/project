@@ -15,7 +15,7 @@ describe("story world", () => {
   it("has unique ids in the story aggregate", () => {
     expect(STORY_NPC_IDS.size).toBe(STORY_WORLD.npcs.length);
     expect(new Set(STORY_WORLD.spawns.map((spawn) => spawn.id)).size).toBe(STORY_WORLD.spawns.length);
-    expect(new Set(STORY_WORLD.interactions.map((interaction) => interaction.id)).size).toBe(STORY_WORLD.interactions.length);
+    expect(new Set(STORY_WORLD.interactions.map((interaction) => `${interaction.questId}:${interaction.id}`)).size).toBe(STORY_WORLD.interactions.length);
     expect(STORY_OBJECT_IDS.size).toBeGreaterThanOrEqual(0);
   });
 

@@ -203,7 +203,7 @@ function validateBook(path) {
       if (!chapter) fail(`${id}: main id without chapter`);
       else {
         if (!byChapter.has(chapter)) byChapter.set(chapter, []);
-        byChapter.get(chapter).push({ id, order: Number(quest.ordem), xp });
+        byChapter.get(chapter).push({ ...quest, id, order: Number(quest.ordem), xp: Number(quest.xp) });
       }
     }
     if (kind === "regional") {

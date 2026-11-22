@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, casa da contadora",villager,storyteller,5,4,-2.2455,7,"Toda história começa com alguém que para para ouvir."
+seu-elias,Seu Elias,Carteiro aposentado,"Praça da Grande Árvore, ponte",villager,seu-elias,11.4,-3.6,-1.2649,7,A ponte lembra de cada entrega.
+tia-bete,Tia Bete,Padeira,"Praça da Grande Árvore, padaria",villager,tia-bete,-18,3.6,1.7682,7,O forno guarda o cheiro de ontem.
+dona-iris,Dona Íris,Tecelã,"Praça da Grande Árvore, tear",villager,dona-iris,0.5,13.8,-3.1054,7,O fio passa por quem lembra.
+nina,Nina,Sineira,"Praça da Grande Árvore, campanário",villager,nina,-5.4,8.8,2.5912,7,O coro espera uma voz.
+guardian,o Guardião,Guardião da Ponte de Gelo,"Ponte de Gelo, entrada",villager,guardian,66,-26,-1.1955,7,A ponte lembra o nome que eu esqueci.
+coral,Coral,Cantora do Vale dos Ecos,"Vale dos Ecos, fim da ponte",villager,coral,77,-31,-1.1881,7,Eu canto baixinho para o vale responder.
+eco,Eco,Menino que repete,"Vale dos Ecos, meio do vale",villager,eco,82,-34,-1.1777,7,"Eu repito tudo, menos o que esqueço."

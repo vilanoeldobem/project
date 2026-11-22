@@ -8,6 +8,14 @@ exports[`generator snapshots > bird keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > bridge-bell keeps the output of fixed seeds stable 1`] = `
+[
+  "b0794708",
+  "6d1a7208",
+  "35019755",
+]
+`;
+
 exports[`generator snapshots > cat keeps the output of fixed seeds stable 1`] = `
 [
   "5fc75e3c",
@@ -112,6 +120,14 @@ exports[`generator snapshots > dog keeps the output of fixed seeds stable 1`] = 
 ]
 `;
 
+exports[`generator snapshots > echo-shell keeps the output of fixed seeds stable 1`] = `
+[
+  "8bfd61f",
+  "20bec7b1",
+  "901c72a7",
+]
+`;
+
 exports[`generator snapshots > fence keeps the output of fixed seeds stable 1`] = `
 [
   "a03bc3b0",
@@ -173,6 +189,22 @@ exports[`generator snapshots > house-townhouse keeps the output of fixed seeds s
   "afc6dc39",
   "6681ed35",
   "8391136c",
+]
+`;
+
+exports[`generator snapshots > ice-plank keeps the output of fixed seeds stable 1`] = `
+[
+  "22df09f",
+  "6f4ebb1b",
+  "aebdf8b",
+]
+`;
+
+exports[`generator snapshots > ice-rope keeps the output of fixed seeds stable 1`] = `
+[
+  "c025c31a",
+  "ac504c14",
+  "da79060a",
 ]
 `;
 
