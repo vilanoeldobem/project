@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+pants-snowboot,pants,Calça Bota de Neve,marco,false,b04-m1-06,40,140
+hand-left-lake-lantern,handLeft,Lanterna do Lago,marco,false,b04-m2-06,40,140
+special-brasa,special,Brasa da Rena,missao,false,b04-c3-04,40,140
+dress-aurora,dress,Vestido Aurora,premium,true,,40,140
+dress-ice,dress,Vestido de Gelo,premium,true,,40,140
+dress-star,dress,Vestido Estrela,premium,true,,40,140

@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book IV cosmetics > dress-aurora keeps its fixed layer 1`] = `"13e639db"`;
+
+exports[`book IV cosmetics > dress-ice keeps its fixed layer 1`] = `"a705b6ea"`;
+
+exports[`book IV cosmetics > dress-star keeps its fixed layer 1`] = `"98677fe9"`;
+
+exports[`book IV cosmetics > hand-left-lake-lantern keeps its fixed layer 1`] = `"7c65ef96"`;
+
+exports[`book IV cosmetics > pants-snowboot keeps its fixed layer 1`] = `"5dfcadac"`;
+
+exports[`book IV cosmetics > special-brasa keeps its fixed layer 1`] = `"b16d653e"`;

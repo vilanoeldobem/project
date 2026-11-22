@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book IV props > bridge-plank keeps the gallery seeds stable 1`] = `
+[
+  "bfd5add2",
+  "baa2e383",
+  "eba30d76",
+  "81bd161d",
+  "b0d09421",
+  "1c749de7",
+  "1e9962e7",
+  "40a25bd",
+]
+`;
+
+exports[`book IV props > frost-flower keeps the gallery seeds stable 1`] = `
+[
+  "b35d8dc4",
+  "2ee1a423",
+  "7837f8c1",
+  "45936feb",
+  "27b2b039",
+  "9d41edf7",
+  "41b848c8",
+  "2d0c34e5",
+]
+`;
+
+exports[`book IV props > ice-duck keeps the gallery seeds stable 1`] = `
+[
+  "de28f1da",
+  "2ec43941",
+  "fd891f88",
+  "74558a0a",
+  "9dbb3ea9",
+  "a563090a",
+  "a81895f9",
+  "462dff41",
+]
+`;
+
+exports[`book IV props > lake-lantern keeps the gallery seeds stable 1`] = `
+[
+  "feb6497b",
+  "6d621180",
+  "30487aab",
+  "38f8fd9f",
+  "22de1587",
+  "1127f02d",
+  "e4f306df",
+  "38f8fd9f",
+]
+`;
