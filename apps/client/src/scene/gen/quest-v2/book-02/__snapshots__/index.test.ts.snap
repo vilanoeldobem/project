@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book II props > nameplate keeps the gallery seeds stable 1`] = `
+[
+  "3dd79bc2",
+  "4438badb",
+  "43f68cc",
+  "a7c4abe2",
+  "5ec151",
+  "40b71338",
+  "2ef324c9",
+  "2429e0",
+]
+`;
+
+exports[`book II props > rose keeps the gallery seeds stable 1`] = `
+[
+  "9636e83b",
+  "402e1569",
+  "89378a93",
+  "8fa6bda5",
+  "685c460c",
+  "289c1151",
+  "cd26bd03",
+  "37bbd3e9",
+]
+`;
+
+exports[`book II props > toy-reindeer keeps the gallery seeds stable 1`] = `
+[
+  "266be97e",
+  "626180c1",
+  "f06703f8",
+  "96382b7f",
+  "a20251d1",
+  "66b79c09",
+  "b58d6f5b",
+  "53e6f85f",
+]
+`;
+
+exports[`book II props > watering-can keeps the gallery seeds stable 1`] = `
+[
+  "90d2c025",
+  "bb9a1d9e",
+  "56f31d0b",
+  "82675e45",
+  "1f1d8ff8",
+  "87fb3c8e",
+  "93b0eec9",
+  "63d64ada",
+]
+`;

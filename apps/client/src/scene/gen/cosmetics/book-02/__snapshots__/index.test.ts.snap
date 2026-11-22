@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book II cosmetics > blouse-aurora keeps its fixed layer 1`] = `"45da2dd4"`;
+
+exports[`book II cosmetics > blouse-garden keeps its fixed layer 1`] = `"ebacb998"`;
+
+exports[`book II cosmetics > blouse-quilt keeps its fixed layer 1`] = `"2297bdc4"`;
+
+exports[`book II cosmetics > blouse-starlight keeps its fixed layer 1`] = `"78e7fbb6"`;
+
+exports[`book II cosmetics > blouse-velvet-night keeps its fixed layer 1`] = `"ca84237c"`;
+
+exports[`book II cosmetics > shoes-garden keeps its fixed layer 1`] = `"95573b1d"`;
