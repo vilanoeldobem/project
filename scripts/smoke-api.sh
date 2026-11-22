@@ -16,6 +16,7 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 # api
 check "GET api /health" 200 "$(code "$API/health")"
 curl -s "$API/health" | grep -q '"db":true' && echo "ok   D1 connected" || { echo "FAIL D1 not connected"; fail=1; }
+check "GET api /ready (D1 and R2 answer)" 200 "$(code "$API/ready")"
 check "GET api /indicators" 200 "$(code "$API/indicators")"
 check "GET api /lots" 200 "$(code "$API/lots")"
 curl -s "$API/lots" | grep -q '"id":"plaza-01"' && echo "ok   lots use English ids" || { echo "FAIL lots missing plaza-01"; fail=1; }
@@ -32,6 +33,7 @@ check "GET api /nope" 404 "$(code "$API/nope")"
 # server
 check "GET server /health" 200 "$(code "$SERVER/health")"
 curl -s "$SERVER/health" | grep -q '"rooms":true' && echo "ok   rooms bound" || { echo "FAIL rooms binding missing"; fail=1; }
+check "GET server /ready (a room answers)" 200 "$(code "$SERVER/ready")"
 check "GET server /room without Origin" 403 "$(code --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "$SERVER/room")"
 # client
 check "GET client / (SPA)" 200 "$(code "$CLIENT/")"

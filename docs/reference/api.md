@@ -77,6 +77,22 @@ dados públicos sem cookie. Em desenvolvimento local as duas listas vêm do scri
 Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (binding `FILES`,
 [IMPL-0017](../decisions/0017-ngo-files-r2.md)); não diz se o envio de arquivos está ligado — isso é `/config`.
 
+### GET /ready
+
+Prontidão de verdade (auditoria §7.6), separada do `/health`, que continua leve: o `/health` só diz que o Worker
+responde. `Cache-Control: no-store`. `200` quando tudo o que está ligado responde, `503` quando algo falha.
+
+```json
+{ "ok": true, "checks": { "db": "ok", "files": "off" } }
+```
+
+- `db`: um `SELECT 1` no D1. `fail` também quando o binding falta.
+- `files`: um `head` no bucket R2 de uma chave que nunca é gravada (`readiness-probe`). `off` quando o binding
+  `FILES` não existe; `off` não derruba a prontidão.
+
+Cada leitura tem 2 s (`READY_TIMEOUT_MS`, `apps/api/src/readiness.ts`). Nada é gravado, criado ou listado, e a
+resposta nunca traz a mensagem de erro, uma chave ou um nome de arquivo.
+
 ### GET /config
 
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
@@ -1182,6 +1198,16 @@ Só `GET`; outros métodos → `405`. Respostas HTTP com `Cache-Control: no-stor
 ```
 
 `rooms` diz se o binding `ROOMS` (Durable Object `VillageRoom`) existe.
+
+### GET /ready
+
+```json
+{ "ok": true, "rooms": "ok" }
+```
+
+Pede à sala `plaza-0` que responda a um ping (`/ready` interno, `204`) em até 2 s (`apps/server/src/ready.ts`).
+A sala responde da memória: sem WebSocket, sem entrar na sala, sem storage. `503` com `"rooms": "fail"` quando o
+binding falta, a sala não responde ou responde outra coisa.
 
 ### GET /room?i=N (WebSocket)
 

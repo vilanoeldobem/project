@@ -348,7 +348,7 @@ está a partir do relógio sincronizado e da semente do mundo, que já tinha.
 | Módulo | Responsabilidade |
 |---|---|
 | `index.ts` | Só o handler `fetch` (o runtime não aceita outros exports nomeados) |
-| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
+| `api.ts` | `handleApi`: roteador, CORS com credenciais só para origens exatas de `ALLOWED_ORIGINS`, rotas públicas `/health`, `/ready` (leitura real do D1 e do R2, `readiness.ts`), `/config`, `/indicators`, `/lots`, `/environment`, `/ngos/:id` e mídias aprovadas e a porta das rotas de conta (bandeira `ACCOUNTS_ENABLED`, `Origin` permitida, limite `AUTH_LIMITER` em `/auth/*`). `/environment` é a autoridade da hora (sem estado; IMPL-0006). Erros viram `500 {"error":"internal"}` e o log só tem rota e tipo |
 | `http.ts` | Respostas JSON, `HttpError` (código estável + `fields` em pt-BR), leitura de corpo JSON (`415`/`413`/`400`), lista de origens |
 | `crypto.ts` | UUID, token aleatório (256 bits por padrão; 192 bits em 32 caracteres para o bilhete de moderação), SHA-256 |
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
@@ -420,7 +420,7 @@ exatamente `DASH_ORIGIN`, o link abre `dash.*/#login=<token>` em vez do jogo; a 
 ## 4. Servidor de tempo real (`apps/server/src`)
 
 - `index.ts`: handler `fetch` e a classe `VillageRoom` (únicos exports aceitos pelo runtime).
-- `handler.ts`: `/health` e `/room?i=N`; confere `Upgrade: websocket`, `Origin` (lista exata `ALLOWED_ORIGINS`,
+- `handler.ts`: `/health`, `/ready` (ping da sala `plaza-0`, `ready.ts`) e `/room?i=N`; confere `Upgrade: websocket`, `Origin` (lista exata `ALLOWED_ORIGINS`,
   `originAllowed` em `env.ts`) e o
   número da sala antes de encaminhar ao Durable Object.
 - `room.ts` (lógica pura, testada) e `room-do.ts` (Durable Object `VillageRoom`, API de hibernação de WebSocket):

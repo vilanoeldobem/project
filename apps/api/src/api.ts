@@ -2,7 +2,8 @@
  * HTTP API of Vila Noel do Bem (api.vilanoeldobem.com.br, IMPL-0009; pure logic, testable without workerd).
  *
  * Public, read-only:
- *   GET /health      → { ok, version, environment, db, mail, files }
+ *   GET /health      → { ok, version, environment, db, mail, files }  (the Worker answers; nothing is touched)
+ *   GET /ready       → { ok, checks: { db, files } }: a real read of D1 and R2; 503 when one fails (readiness.ts)
  *   GET /config      → { accounts, quests, files, withdrawal, moderation, residentialPlots }  (feature flags the client needs)
  *   GET /indicators  → public indicators (P02, DEC-027); no verifiable source → null
  *   GET /lots        → village lots and, once approved and published, the occupying NGO (P03, DEC-028)
@@ -55,6 +56,7 @@ import { mailConfigured } from "./mail";
 import { getApplication, submitApplication } from "./ngo";
 import { getProgress, postEvents } from "./progress";
 import { publicNgo } from "./public-ngo";
+import { readiness } from "./readiness";
 import { residentialPlots, residentialPlotsEnabled } from "./residential-plots";
 import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 import { withdrawNgo } from "./ngo-withdrawal";
@@ -319,6 +321,10 @@ async function route(request: Request, env: Env): Promise<Response> {
     switch (pathname) {
       case "/health":
         return json({ ok: true, version: VERSION, environment: env.ENVIRONMENT ?? "unknown", db: Boolean(env.DB), mail: mailConfigured(env), files: Boolean(env.FILES) }, { headers: NO_STORE });
+      case "/ready": {
+        const ready = await readiness(env);
+        return json(ready, { status: ready.ok ? 200 : 503, headers: NO_STORE });
+      }
       case "/config": {
         const accounts = env.ACCOUNTS_ENABLED === "true";
         return json({

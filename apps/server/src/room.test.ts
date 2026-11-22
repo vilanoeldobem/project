@@ -337,6 +337,27 @@ describe("realtime routes", () => {
     expect(await (await req({}, "/health")).json()).toEqual({ ok: true, service: "server", rooms: false });
     expect((await req({}, "/nope")).status).toBe(404);
   });
+
+  it("is ready only when room 0 answers its ping", async () => {
+    const notReady = await req({}, "/ready");
+    expect(notReady.status).toBe(503);
+    expect(await notReady.json()).toEqual({ ok: false, rooms: "fail" });
+    const names: string[] = [];
+    const urls: string[] = [];
+    const rooms = (status: number | Error) =>
+      ({
+        idFromName: (name: string) => (names.push(name), name),
+        get: () => ({ fetch: async (url: string) => (urls.push(url), status instanceof Error ? Promise.reject(status) : new Response(null, { status })) }),
+      }) as unknown as DurableObjectNamespace;
+    const ready = (status: number | Error) => handle(new Request("https://server.example/ready"), { ...env, ROOMS: rooms(status) } as Env);
+    const res = await ready(204);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, rooms: "ok" });
+    expect(names).toEqual(["plaza-0"]);
+    expect(urls).toEqual(["https://room.internal/ready"]);
+    expect((await ready(426)).status).toBe(503);
+    expect((await ready(new Error("gone"))).status).toBe(503);
+  });
 });
 
 describe("looks", () => {
