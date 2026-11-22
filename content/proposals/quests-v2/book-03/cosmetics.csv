@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+back-postbag,back,Sacola do Carteiro,marco,false,b03-m1-06,40,140
+helmet-bell,helmet,Sino do Carteiro,marco,false,b03-m2-06,40,140
+blouse-post,blouse,Blusa do Correio,missao,false,b03-c3-04,40,140
+pants-aurora,pants,Calça Aurora,premium,true,,40,140
+pants-frost,pants,Calça Geada,premium,true,,40,140
+pants-gold-thread,pants,Calça Fio de Ouro,premium,true,,40,140
