@@ -65,11 +65,15 @@ Na revisão indicada acima, **6 testes focalizados de API/progresso e 3 de prese
 
 **N5.2 proposta: quantidade de doações globais confirmadas, em um ambiente identificado.** Reusar D1 e o contrato de disponibilidade de `/indicators`. A definição candidata é uma cobrança no destino global em estado atual `paid`. Não exige migração nem evento de cliente. Nicolas e Augusto escolhem primeiro o público (P02 público ou painel administrativo). Bernard ratifica o significado de “confirmada”, e a frente de conciliação N3 valida a origem financeira.
 
-```sql
-SELECT COUNT(*) AS n
-FROM donations
-WHERE target_kind = 'global' AND status = 'paid';
+### Consulta de diagnóstico em D1 local
+
+Na raiz do repositório, com as dependências instaladas e as migrações aplicadas à base local `vilanoeldobem`, execute:
+
+```sh
+pnpm --filter @vila/api exec wrangler d1 execute vilanoeldobem --local --file scripts/count-paid-global-pix.sql
 ```
+
+A [consulta](../../apps/api/scripts/count-paid-global-pix.sql) retorna uma linha. A coluna `paid_global_pix` conta as doações globais em estado atual `paid` na base local desta cópia do projeto. Um Pix global pago e um dirigido pago resultam em **1**, inclusive após repetir a confirmação. Um estorno do Pix global reduz esse exemplo a **0**. A base acessível e vazia também retorna **0**. Se a tabela ainda não existir ou a leitura falhar, o Wrangler encerra o comando com erro e a contagem fica indisponível.
 
 **Aceite proposto para N5.2.** Em base controlada, confirmar um Pix global, repetir sua confirmação e incluir um Pix pago dirigido como controle. Conferir as duas linhas de origem: o total geral deve ser 2 e o global, 1. Em base legível sem globais pagas, o indicador deve ser 0. Com a fonte indisponível, deve vir `null` com motivo. O consumidor exibe, respectivamente, “1”, “0” e “—”. Anexar a fixture e as respostas esperada e observada ao PR de implementação. Se a base misturar produção e sandbox, acordar o filtro de ambiente e incluí-lo no teste.
 
