@@ -141,8 +141,8 @@ export interface Env {
    */
   MODERATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   /**
-   * Workers rate limiting binding for `POST /donations/pix` (IMPL-0028), keyed by account id when signed in and by
-   * a SHA-256 of the client address otherwise (never stored or logged). Without it there is no limit.
+   * Workers rate limiting binding for `POST /donations/pix` (IMPL-0028), keyed by account id for new charges.
+   * Replaying an existing intent does not spend this quota.
    */
   DONATION_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
 }
@@ -309,7 +309,7 @@ async function route(request: Request, env: Env): Promise<Response> {
     if (accountRequest) return noStore(await accountRoute(request, env, url));
     if (serverRequest) return noStore(await consumeTicket(request, env));
     if (method === "POST") {
-      // Donations are open to visitors; each handler checks the flag and, when a browser sent one, the Origin.
+      // Donation routes check their own flags and Origin; Pix issuance also checks the donor session.
       if (pathname === "/donations/pix") return noStore(await createDonation(request, env));
       if (pathname === "/donations/redirect") return noStore(await recordRedirect(request, env));
       const simulate = /^\/donations\/([0-9a-f-]{36})\/simulate$/.exec(pathname);
@@ -333,7 +333,7 @@ async function route(request: Request, env: Env): Promise<Response> {
           moderation: { presence: accounts && env.PRESENCE_MODERATION_ENABLED === "true", block: accounts && env.ACCOUNT_BLOCK_ENABLED === "true" },
           // Ownership of residential plots (IMPL-0024, PROPOSTA): computed from the flags alone, like the others.
           residentialPlots: residentialPlotsEnabled(env),
-          // Donations work for visitors too, so this flag does not depend on ACCOUNTS_ENABLED.
+          // Public lookup, external redirects and reconciliation work independently of the account feature.
           donations: env.DONATIONS_ENABLED === "true",
           // Levels of the NGO buildings (IMPL-0032, PROPOSTA): a projection of the donations, on only with them.
           ngoLevels: ngoLevelsEnabled(env),
