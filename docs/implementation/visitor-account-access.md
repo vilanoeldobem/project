@@ -4,6 +4,8 @@
 
 Explorar continua livre nos dois pedidos. O formulário de cidadão já existe. Hoje, entrar recupera a conta e sincroniza os eventos de progresso compatíveis deste navegador. O link de acesso aponta para a entrada do jogo e não carrega a ação que o visitante estava tentando fazer. Essa distinção afeta as quatro ações da #65. [Tela de conta](https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/client/src/ui/Account.tsx) · [Inicialização e sincronização](https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/client/src/lib/account.ts)
 
+**Atualização de 22/11/2026.** O roteiro abaixo documenta a revisão de 20/11. A API passou a exigir conta para emitir um novo Pix. A consulta do painel, as cobranças anônimas anteriores e o clique em link externo conservam seus contratos. O retorno ao painel pelo cliente continua pendente. [Contrato atual de emissão](../decisions/0034-authenticated-pix-issuance.md)
+
 ## Roteiro executado
 
 Em Chromium 155, usamos o cliente compilado em modo `workers` e o handler real da API servido por HTTP em loopback no Node 24. Banco descartável do projeto (`createD1`, SQLite em memória com as migrations até a 0015). Contas ligadas em `ENVIRONMENT=test`, Resend sem chave e doações desligadas. Identidade fictícia. Não foi usado D1 remoto. [Fixture de banco](https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/api/test/d1.mjs) · [Testes da API](https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/api/src/accounts.test.ts)
