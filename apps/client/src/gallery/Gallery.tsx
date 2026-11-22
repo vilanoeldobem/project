@@ -14,7 +14,7 @@ import { byCategory } from "../scene/gen/catalog";
 import type { Category, GenModel, Generator } from "../scene/gen/types";
 import { Voxels } from "../scene/Voxels";
 
-const CATEGORIES: Category[] = ["props", "houses", "civic", "characters", "animals", "cosmetics"];
+const CATEGORIES: Category[] = ["props", "saga", "houses", "civic", "characters", "animals", "cosmetics"];
 const SEEDS = Array.from({ length: 8 }, (_, i) => `gallery-${i}`);
 const SPACING = 3.6;
 
