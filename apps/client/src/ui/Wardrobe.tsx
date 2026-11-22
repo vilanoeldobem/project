@@ -7,18 +7,21 @@
 import { useState } from "react";
 
 import {
-  COSMETICS,
   DEFAULT_LOOK,
   isPaid,
-  isUnlocked,
-  requirement,
   SLOT_LABELS,
   SLOTS,
   type Cosmetic,
   type Slot,
-  unlockedIds,
-  wear,
 } from "@vila/shared/game/cosmetics";
+import {
+  COSMETICS_V2,
+  isUnlockedIn,
+  requirementIn,
+  unlockedIdsIn,
+  wearIn,
+} from "@vila/shared/game/cosmetics-v2";
+import { STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import { useVila } from "../game/store";
 import { shopSlots } from "../game/wardrobe";
 import { AvatarPortrait } from "./AvatarPortrait";
@@ -57,12 +60,12 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
   const progress = useVila((s) => s.progress);
   const appearance = useVila((s) => s.appearance);
   const setLook = useVila((s) => s.setLook);
-  const owned = unlockedIds(progress);
-  const freeCount = COSMETICS.filter((c) => !isPaid(c)).length;
-  const ownedCount = COSMETICS.filter((c) => !isPaid(c) && isUnlocked(c, progress)).length;
-  const items = COSMETICS.filter((c) => c.slot === slot && (SHOW_PAID_PREVIEWS || !isPaid(c)) && (!onlyOwned || owned.has(c.id)));
-  const previewItem = preview ? COSMETICS.find((c) => c.id === preview) ?? null : null;
-  const previewLook = previewItem ? wear(look, previewItem.id) : look;
+  const owned = unlockedIdsIn(COSMETICS_V2, progress);
+  const freeCount = COSMETICS_V2.filter((c) => !isPaid(c)).length;
+  const ownedCount = COSMETICS_V2.filter((c) => !isPaid(c) && isUnlockedIn(COSMETICS_V2, c, progress)).length;
+  const items = COSMETICS_V2.filter((c) => c.slot === slot && (SHOW_PAID_PREVIEWS || !isPaid(c)) && (!onlyOwned || owned.has(c.id)));
+  const previewItem = preview ? COSMETICS_V2.find((c) => c.id === preview) ?? null : null;
+  const previewLook = previewItem ? wearIn(COSMETICS_V2, look, previewItem.id) : look;
 
   return (
     <div className="wardrobe" data-owned={ownedCount} data-free={freeCount} data-preview={preview ?? ""}>
@@ -136,11 +139,11 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
                   data-state={stateOf(c, on, open)}
                 >
                   <button type="button" className="item-card__thumb" aria-label={`Provar ${c.name}`} onClick={() => { setPreview(c.id); setPaidNote(false); }}>
-                    <AvatarPortrait look={wear(look, c.id)} appearance={appearance} size={5.5} label={c.name} />
+                    <AvatarPortrait look={wearIn(COSMETICS_V2, look, c.id)} appearance={appearance} size={5.5} label={c.name} />
                     <span>{c.name}</span>
                     <span className={`item-card__chip${paid ? " item-card__chip--paid" : ""}`}>{paid ? "Pago" : "Grátis"}</span>
                   </button>
-                  <p className="item-card__state">{on ? "Em uso" : open ? "Já disponível" : paid ? "" : requirement(c)}</p>
+                  <p className="item-card__state">{on ? "Em uso" : open ? "Já disponível" : paid ? "" : requirementIn(STORY_CATALOG, c)}</p>
                   {paid ? (
                     <button type="button" className="btn" onClick={() => setPaidNote(true)}>
                       Ver compra
@@ -154,7 +157,7 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
                       type="button"
                       className="btn btn--primary"
                       onClick={() => {
-                        setLook(wear(look, c.id));
+                        setLook(wearIn(COSMETICS_V2, look, c.id));
                         setPreview(null);
                         setPaidNote(false);
                       }}

@@ -24,6 +24,9 @@
  */
 import type { Progress } from "@vila/shared/game/progress";
 import { questState } from "@vila/shared/game/quests";
+import { questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import type { StoryCatalog, StoryWorld } from "@vila/shared/game/quests-v2/types";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import {
   BILLBOARDS,
   DONATION_PANEL,
@@ -66,6 +69,34 @@ export const LIFE_REACH = 2.4;
 export const PLOT_STILL_SPEED = 0.2;
 export const PLOT_KEEP_SPEED = 0.6;
 
+/**
+ * Precomputed targets of the v2 story world. Building the target objects and their indexes once keeps the
+ * frame loop allocation-free; tests can build a synthetic set with `storyNearby`.
+ */
+export interface StoryNearby {
+  world: StoryWorld;
+  catalog: StoryCatalog;
+  npcTargets: readonly Nearby[];
+  interactionTargets: readonly Nearby[];
+  npcOf: ReadonlyMap<unknown, number>;
+  interactionOf: ReadonlyMap<unknown, number>;
+}
+
+export function storyNearby(world: StoryWorld, catalog: StoryCatalog): StoryNearby {
+  const npcTargets = world.npcs.map((npc): Nearby => ({ kind: "npc", npcId: npc.id }));
+  const interactionTargets = world.interactions.map((interaction): Nearby => ({ kind: "quest", interactionId: interaction.id }));
+  return {
+    world,
+    catalog,
+    npcTargets,
+    interactionTargets,
+    npcOf: new Map(npcTargets.map((target, i) => [target, i])),
+    interactionOf: new Map(interactionTargets.map((target, i) => [target, i])),
+  };
+}
+
+export const STORY_NEARBY = storyNearby(STORY_WORLD, STORY_CATALOG);
+
 /** Interaction targets, built once: picking one allocates nothing. */
 const NEAR_NPC: Nearby[] = NPCS.map((n) => ({ kind: "npc", npcId: n.id }));
 const NEAR_QUEST: Nearby[] = QUEST_INTERACTIONS.map((i) => ({ kind: "quest", interactionId: i.id }));
@@ -96,7 +127,15 @@ const beats = (dist: number, prio: number, best: Nearby, bestDist: number, bestP
 const found = { dist: 0, prio: 0 };
 
 /** The target by the plain rules, with no memory of what was on offer. Fills `found`. */
-function strict(x: number, z: number, speed: number, quests: boolean, progress: Progress, life: LifeNearby | null): Nearby {
+function strict(
+  x: number,
+  z: number,
+  speed: number,
+  quests: boolean,
+  progress: Progress,
+  life: LifeNearby | null,
+  story: StoryNearby | null
+): Nearby {
   let best: Nearby = null;
   let bestDist = 0, bestPrio = 0;
   if (quests) {
@@ -104,12 +143,37 @@ function strict(x: number, z: number, speed: number, quests: boolean, progress: 
       const dist = Math.hypot(NPCS[i].x - x, NPCS[i].z - z);
       if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) (best = NEAR_NPC[i]), (bestDist = dist), (bestPrio = 1);
     }
+  }
+  if (story) {
+    for (let i = 0; i < story.world.npcs.length; i++) {
+      const npc = story.world.npcs[i];
+      const dist = Math.hypot(npc.x - x, npc.z - z);
+      if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) (best = story.npcTargets[i]), (bestDist = dist), (bestPrio = 1);
+    }
+  }
+  if (quests) {
     for (let i = 0; i < QUEST_INTERACTIONS.length; i++) {
       const ia = QUEST_INTERACTIONS[i];
       if (progress.seen[`${ia.questId}:${ia.id}`] || questState(progress, ia.questId) !== "active") continue;
       const dist = Math.hypot(ia.x - x, ia.z - z);
       if (dist < ia.radius && beats(dist, 2, best, bestDist, bestPrio)) (best = NEAR_QUEST[i]), (bestDist = dist), (bestPrio = 2);
     }
+  }
+  if (story) {
+    for (let i = 0; i < story.world.interactions.length; i++) {
+      const interaction = story.world.interactions[i];
+      if (
+        progress.seen[`${interaction.questId}:${interaction.id}`] ||
+        questStateIn(story.catalog, progress, interaction.questId) !== "active"
+      )
+        continue;
+      const dist = Math.hypot(interaction.x - x, interaction.z - z);
+      if (dist < interaction.radius && beats(dist, 2, best, bestDist, bestPrio)) {
+        (best = story.interactionTargets[i]), (bestDist = dist), (bestPrio = 2);
+      }
+    }
+  }
+  if (quests) {
     const panelDist = Math.hypot(DONATION_PANEL.x - x, DONATION_PANEL.z - z);
     if (panelDist < INTERACT_DISTANCE && beats(panelDist, 3, best, bestDist, bestPrio)) (best = NEAR_PANEL), (bestDist = panelDist), (bestPrio = 3);
   }
@@ -140,21 +204,49 @@ function strict(x: number, z: number, speed: number, quests: boolean, progress: 
 }
 
 /** Rank of the kind of `previous` and its distance, when it may stay on offer; `Infinity` when it may not. */
-function kept(previous: NonNullable<Nearby>, x: number, z: number, speed: number, quests: boolean, progress: Progress, life: LifeNearby | null): number {
+function kept(
+  previous: NonNullable<Nearby>,
+  x: number,
+  z: number,
+  speed: number,
+  quests: boolean,
+  progress: Progress,
+  life: LifeNearby | null,
+  story: StoryNearby | null
+): number {
   switch (previous.kind) {
     case "life":
       // Still there, still standing (`previousDist` is infinite once it walks off or goes off stage).
       return life && life.previousDist < LIFE_REACH + NEARBY_KEEP ? ((found.prio = 8), life.previousDist) : Infinity;
     case "npc": {
-      const n = NPCS[NPC_OF.get(previous) ?? -1];
-      const dist = n && quests ? Math.hypot(n.x - x, n.z - z) : Infinity;
+      const v1 = NPCS[NPC_OF.get(previous) ?? -1];
+      if (v1) {
+        const dist = quests ? Math.hypot(v1.x - x, v1.z - z) : Infinity;
+        return dist < INTERACT_DISTANCE + NEARBY_KEEP ? ((found.prio = 1), dist) : Infinity;
+      }
+      const index = story?.npcOf.get(previous);
+      const npc = index === undefined ? undefined : story?.world.npcs[index];
+      const dist = npc ? Math.hypot(npc.x - x, npc.z - z) : Infinity;
       return dist < INTERACT_DISTANCE + NEARBY_KEEP ? ((found.prio = 1), dist) : Infinity;
     }
     case "quest": {
-      const ia = QUEST_INTERACTIONS[QUEST_OF.get(previous) ?? -1];
-      if (!ia || !quests || progress.seen[`${ia.questId}:${ia.id}`] || questState(progress, ia.questId) !== "active") return Infinity;
-      const dist = Math.hypot(ia.x - x, ia.z - z);
-      return dist < ia.radius + NEARBY_KEEP ? ((found.prio = 2), dist) : Infinity;
+      const v1 = QUEST_INTERACTIONS[QUEST_OF.get(previous) ?? -1];
+      if (v1) {
+        if (!quests || progress.seen[`${v1.questId}:${v1.id}`] || questState(progress, v1.questId) !== "active") return Infinity;
+        const dist = Math.hypot(v1.x - x, v1.z - z);
+        return dist < v1.radius + NEARBY_KEEP ? ((found.prio = 2), dist) : Infinity;
+      }
+      const index = story?.interactionOf.get(previous);
+      const interaction = index === undefined ? undefined : story?.world.interactions[index];
+      if (
+        !interaction ||
+        !story ||
+        progress.seen[`${interaction.questId}:${interaction.id}`] ||
+        questStateIn(story.catalog, progress, interaction.questId) !== "active"
+      )
+        return Infinity;
+      const dist = Math.hypot(interaction.x - x, interaction.z - z);
+      return dist < interaction.radius + NEARBY_KEEP ? ((found.prio = 2), dist) : Infinity;
     }
     case "donation-panel": {
       const dist = quests ? Math.hypot(DONATION_PANEL.x - x, DONATION_PANEL.z - z) : Infinity;
@@ -184,11 +276,20 @@ function kept(previous: NonNullable<Nearby>, x: number, z: number, speed: number
  * function returned it, or `null`): it is what the hysteresis holds on to. `life`: the character of the village
  * that can be talked to from here, if any (IMPL-0025).
  */
-export function pickNearby(x: number, z: number, speed: number, quests: boolean, progress: Progress, previous: Nearby, life: LifeNearby | null = null): Nearby {
-  const best = strict(x, z, speed, quests, progress, life);
+export function pickNearby(
+  x: number,
+  z: number,
+  speed: number,
+  quests: boolean,
+  progress: Progress,
+  previous: Nearby,
+  life: LifeNearby | null = null,
+  story: StoryNearby | null = null
+): Nearby {
+  const best = strict(x, z, speed, quests, progress, life, story);
   if (!previous || best === previous) return best;
   const bestDist = found.dist, bestPrio = found.prio;
-  const dist = kept(previous, x, z, speed, quests, progress, life);
+  const dist = kept(previous, x, z, speed, quests, progress, life, story);
   if (dist === Infinity) return best;
   if (!best) return previous;
   const prio = found.prio;

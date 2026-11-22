@@ -6,10 +6,15 @@ import { debugAllowed } from "../environment/runtime";
 import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
 import { questsEnabled } from "./questsFlag";
+import { questsV2Enabled } from "./questsV2Flag";
 import { sim } from "./sim";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { type Panel, useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
+import { questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { MANIFEST } from "@vila/shared/game/quests-v2/manifest";
+import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 
 /** The panels the board screenshots open by name (`extra.panel`); the ones that need an id are built at call time. */
 const BOARD_PANELS: Record<string, Panel> = {
@@ -90,6 +95,74 @@ export function installDevtools() {
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
       /** Whether quests are on for this page: `?quests=1` and the API's `/config` both say so. */
       questsOn: () => questsEnabled(),
+      /** Whether story v2 is on for this page: `?quests2=1` and the API's `/config` both say so. */
+      questsV2On: () => questsV2Enabled(),
+      /** Every implemented story quest and milestone, with its state; the browser verifier reads this. */
+      story: () => {
+        const progress = useVila.getState().progress;
+        return [
+          ...STORY_CATALOG.quests.map((quest) => ({
+            id: quest.id,
+            book: "book" in quest ? quest.book : 0,
+            kind: "book" in quest ? quest.kind : "epilogue",
+            order: quest.order,
+            prerequisiteIds: "prerequisiteIds" in quest ? quest.prerequisiteIds : quest.prerequisiteId ? [quest.prerequisiteId] : [],
+            state: questStateIn(STORY_CATALOG, progress, quest.id),
+            xp: quest.xp,
+            title: quest.title,
+            objectiveType: quest.objectiveType,
+            objectiveEventIds: quest.objectiveEventIds,
+            target: quest.target,
+            giverNpcId: quest.giverNpcId,
+            turnInNpcId: quest.turnInNpcId,
+          })),
+          ...STORY_CATALOG.milestones.map((milestone) => ({
+            id: milestone.id,
+            book: milestone.book,
+            kind: "milestone",
+            order: milestone.order,
+            prerequisiteIds: [],
+            state: progress.completed[milestone.id] ? "completed" : "locked",
+            xp: milestone.xp,
+            threshold: milestone.threshold,
+            counterKey: milestone.counterKey,
+          })),
+        ];
+      },
+      storyManifest: () => ({ length: MANIFEST.length, ids: MANIFEST.map((entry) => entry.id) }),
+      storyWorld: () => ({
+        npcs: STORY_WORLD.npcs.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z, book: npc.book })),
+        spawns: STORY_WORLD.spawns.map((spawn) => ({ id: spawn.id, questId: spawn.questId, x: spawn.x, z: spawn.z, book: spawn.book })),
+        interactions: STORY_WORLD.interactions.map((interaction) => ({
+          id: interaction.id,
+          questId: interaction.questId,
+          kind: interaction.kind,
+          npcId: interaction.npcId ?? null,
+          x: interaction.x,
+          z: interaction.z,
+          radius: interaction.radius,
+          book: interaction.book,
+        })),
+      }),
+      storyState: () => [...worldStatesIn(STORY_CATALOG, useVila.getState().progress)],
+      /** Dev-only fixture: mark prerequisite quests completed so a book branch can start after its predecessor. */
+      seedStory: (ids) => {
+        const state = useVila.getState();
+        let xp = state.progress.xp;
+        const completed = { ...state.progress.completed };
+        let changed = false;
+        for (const id of ids as string[]) {
+          if (completed[id]) continue;
+          const quest = STORY_CATALOG.quests.find((candidate) => candidate.id === id);
+          const milestone = STORY_CATALOG.milestones.find((candidate) => candidate.id === id);
+          const entry = quest ?? milestone;
+          if (!entry) continue;
+          xp += entry.xp;
+          completed[id] = true;
+          changed = true;
+        }
+        if (changed) useVila.setState({ progress: { ...state.progress, xp, completed } });
+      },
       /** Opens a board panel by name (verify-boards.mjs); "lot" and "ngo" take an id as the second argument. */
       panel: (...args: never[]) => {
         const [kind, arg] = args as unknown as [string, string | undefined];

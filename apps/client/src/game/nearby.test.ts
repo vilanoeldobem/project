@@ -6,11 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import { createBody, MOTION } from "@vila/shared/game/motion";
 import { createNavField, createRoute, planRoute, stepWalk } from "@vila/shared/game/navigation";
-import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
+import { EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
+import type { StoryQuest, StoryWorld } from "@vila/shared/game/quests-v2/types";
 import { BILLBOARDS, lotFront, LOTS, PATH_GRAPH, PLACE_INTERACT_DISTANCE, RESIDENTIAL_PLOTS, SHOPS, SPAWN } from "@vila/shared/game/world";
 
 import { sceneColliders } from "../scene/sceneColliders";
-import { NEARBY_KEEP, pickNearby, PLOT_KEEP_SPEED, PLOT_STILL_SPEED } from "./nearby";
+import { NEARBY_KEEP, pickNearby, PLOT_KEEP_SPEED, PLOT_STILL_SPEED, storyNearby } from "./nearby";
 import { type Nearby } from "./store";
 
 const COLLIDERS = sceneColliders(new Set(), false);
@@ -171,5 +172,31 @@ describe("a walk down a residential street", () => {
         expect(w.share(w.now)).toBeGreaterThan(0.3);
       }
     });
+  });
+});
+
+describe("story v2 targets", () => {
+  const quest: StoryQuest = {
+    id: "v2-near", chainId: "v2", chainTitle: "V2", order: 1, track: "explore",
+    title: "V2", description: "Teste.", objectiveType: "interact", objectKind: "none",
+    target: 1, unit: "peça", xp: 20, giverNpcId: "npc", turnInNpcId: "npc",
+    dialogue: { offer: "Oferta.", turnIn: "Entrega." }, objectiveEventIds: ["v2-event"],
+    book: 1, chapter: 1, region: "praca-grande-arvore", kind: "main",
+    prerequisiteIds: [], worldState: null, theme: "chegada", audience: "todos",
+    metricTag: "historia-principal", accessibility: "interacao", reward: null,
+  };
+  const world: StoryWorld = {
+    npcs: [{ id: "story-npc", name: "Mestre", role: "Teste", seed: "story-npc", x: 40, z: 40, rot: 0, book: 1 }],
+    spawns: [],
+    interactions: [{ id: "v2-event", questId: "v2-near", objectId: "prop", x: 45, z: 45, radius: 3, book: 1, kind: "prop" }],
+    obstacles: [],
+  };
+  const story = storyNearby(world, { quests: [quest], milestones: [], minigames: [], quickMissions: [] });
+  const active: Progress = { ...EMPTY_PROGRESS, seen: { "v2-near:accept": true } };
+
+  it("offers a story NPC and an active story interaction", () => {
+    expect(pickNearby(40, 40, 0, false, EMPTY_PROGRESS, null, null, story)).toEqual({ kind: "npc", npcId: "story-npc" });
+    expect(pickNearby(45, 45, 0, false, active, null, null, story)).toEqual({ kind: "quest", interactionId: "v2-event" });
+    expect(pickNearby(45, 45, 0, false, EMPTY_PROGRESS, null, null, story)).toBeNull();
   });
 });

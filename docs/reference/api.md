@@ -82,7 +82,7 @@ Worker (nunca o valor). `files` diz se o bucket R2 está ligado ao Worker (bindi
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
 ```json
-{ "accounts": false, "quests": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
+{ "accounts": false, "quests": false, "questsV2": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
   "residentialPlots": false, "donations": false, "ngoLevels": false }
 ```
 
@@ -94,6 +94,11 @@ aviso "Contas desligadas" e só dados públicos. O painel lista todas as chaves 
 staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
 `quests` é `true` **e** a bandeira dele também está ligada (`VITE_QUESTS_V1_ENABLED=true` no build ou `?quests=1` em
 localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
+
+`questsV2` é `true` só quando `QUESTS_V2_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
+staging) e é independente de `quests`. O cliente só mostra a saga v2 quando `questsV2` é `true` **e** a bandeira dele
+também está ligada (`VITE_QUESTS_V2_ENABLED=true` no build ou `?quests2=1` em localhost/desenvolvimento). Ver
+[quests-v2.md](quests-v2.md).
 
 `files` é `true` só quando as contas estão ligadas, `NGO_FILES_ENABLED = "true"` **e** o bucket R2 está ligado ao
 Worker. Com `false`, o jogo e o painel não mostram nada de arquivo e as rotas de arquivo respondem

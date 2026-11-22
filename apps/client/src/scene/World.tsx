@@ -6,6 +6,7 @@ import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import { LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
 import { useQuestsEnabled } from "../game/questsFlag";
+import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
 import { Lighting } from "./environment/Lighting";
 import { Footprints, GameplayBursts, Sparkles } from "./environment/Particles";
@@ -35,6 +36,7 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
   const preset = usePreset();
   // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
   const quests = useQuestsEnabled();
+  const quests2 = useQuestsV2Enabled();
   // What blocks the avatar on each lot depends on whether its chalet is published (`scene/sceneColliders.ts`,
   // IMPL-0016). Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
   // The level of each building is part of the key (IMPL-0032): a taller house hides more and may block more.
@@ -73,7 +75,7 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
         <Lots info={lots} />
         <Shops />
         <Billboards />
-        <Rings />
+        <Rings story={quests2} />
         <Gifts />
         <Footprints />
         <ClickMarker />

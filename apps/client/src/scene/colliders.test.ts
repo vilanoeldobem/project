@@ -42,6 +42,7 @@ import {
   STREET_LAMPS,
   WORLD_RADIUS,
 } from "@vila/shared/game/world";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 
 import { villager } from "./gen/characters";
 import { civic } from "./gen/civic";
@@ -241,6 +242,8 @@ describe("collider audit (IMPL-0016)", () => {
     expect(HOME_COLLIDERS.length).toBeGreaterThanOrEqual(RESIDENTIAL_PLOTS.length);
     expect(none).toHaveLength(OBSTACLES.length + 5 * LOTS.length + HOME_COLLIDERS.length);
     expect(sceneColliders(new Set(), true)).toHaveLength(none.length + QUEST_OBSTACLES.length);
+    expect(sceneColliders(new Set(), false, false)).toEqual(none);
+    expect(sceneColliders(new Set(), false, true)).toHaveLength(none.length + STORY_WORLD.obstacles.length);
     for (const home of HOME_COLLIDERS) expect(none).toContain(home);
   }, WHOLE_VILLAGE);
 

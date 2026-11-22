@@ -7,6 +7,7 @@
 import type { Collider } from "@vila/shared/game/collision";
 import { asNgoLevel, type NgoLevel } from "@vila/shared/game/ngo-level";
 import { HOUSE_ENVELOPE, lotColliders, LOTS, OBSTACLES, pineAt, pineIsTall, PINES, plotColliders, QUEST_OBSTACLES, RESIDENTIAL_PLOTS, SHOPS, SITE_PROPS, SITES, WORLD_RADIUS } from "@vila/shared/game/world";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 
 import { civic } from "./gen/civic";
 import { ngoBuilding } from "./gen/ngoBuilding";
@@ -43,10 +44,11 @@ export const HOME_COLLIDERS: Collider[] = RESIDENTIAL_PLOTS.flatMap((plot) => pl
  * (PROPOSTA quests-v1), each lot (the walls and porch of a published chalet, from the footprint of the very
  * model `Lots` draws; otherwise the corner posts and the sign of its marker) and the residential chalets.
  */
-export function sceneColliders(published: Houses, quests: boolean): Collider[] {
+export function sceneColliders(published: Houses, quests: boolean, story = false): Collider[] {
   return [
     ...OBSTACLES,
     ...(quests ? QUEST_OBSTACLES : []),
+    ...(story ? STORY_WORLD.obstacles : []),
     ...LOTS.flatMap((lot) => lotColliders(lot, published.has(lot.id) ? (ngoBuilding(lot.id, levelIn(published, lot.id)).solid ?? HOUSE_ENVELOPE) : null)),
     ...HOME_COLLIDERS,
   ];

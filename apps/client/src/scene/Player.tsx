@@ -9,9 +9,12 @@ import { HEIGHT_SCALE } from "@vila/shared/game/appearance";
 import { MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
+import { questProgressIn, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { sim, walkRoute } from "../game/sim";
 import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
-import { pickNearby } from "../game/nearby";
+import { questsV2Enabled, useQuestsV2Enabled } from "../game/questsV2Flag";
+import { pickNearby, STORY_NEARBY } from "../game/nearby";
 import { lifeNear } from "../game/village-life";
 import { type Nearby, useVila } from "../game/store";
 import { attachZoomGestures } from "../lib/zoom-gestures";
@@ -101,8 +104,9 @@ export function Player({ published }: { published: string }) {
   const { shadows } = usePreset();
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
+  const storyOn = useQuestsV2Enabled();
   const houses = useMemo(() => housesOf(published), [published]);
-  const colliders = useMemo(() => sceneColliders(houses, questsOn), [houses, questsOn]);
+  const colliders = useMemo(() => sceneColliders(houses, questsOn, storyOn), [houses, questsOn, storyOn]);
   // What can hide the avatar from the camera. A new set is looked at afresh (`x: Infinity`).
   const occluders = useMemo(() => sceneOccluders(houses), [houses]);
   // The sky camera minds the buildings only: the tree and the pines belong in its picture.
@@ -165,6 +169,7 @@ export function Player({ published }: { published: string }) {
     const c = clock.current;
     const b = sim.body;
     const quests = questsEnabled();
+    const quests2 = questsV2Enabled();
 
     // ---- simulation: fixed steps, independent of the display refresh rate. An open panel pauses the walk;
     // the game menu does not (`walkRoute`).
@@ -207,6 +212,16 @@ export function Player({ published }: { published: string }) {
         ) {
           s.record("tree-promise-visit", "tree");
           s.notify("Você visitou a grande árvore · Volte a Dona Guida.");
+        }
+      }
+      if (quests2) {
+        for (const spawn of STORY_WORLD.spawns) {
+          if (progress.seen[`${spawn.questId}:${spawn.id}`] || questStateIn(STORY_CATALOG, progress, spawn.questId) !== "active") continue;
+          if (Math.hypot(spawn.x - b.x, spawn.z - b.z) >= GIFT_RADIUS) continue;
+          events.emit({ type: "gift", x: spawn.x, z: spawn.z });
+          s.record(spawn.questId, spawn.id);
+          const { count, target } = questProgressIn(STORY_CATALOG, useVila.getState().progress, spawn.questId);
+          s.notify(`${STORY_CATALOG.quests.find((q) => q.id === spawn.questId)?.objectName ?? "Item"} recolhido (${count}/${target})`);
         }
       }
     }
@@ -254,7 +269,16 @@ export function Player({ published }: { published: string }) {
     // ---- closest interaction (`game/nearby.ts`): one target, one action button. A residential plot is offered
     // only standing still, and the target on offer is held across the edge of its reach.
     // A character of the village that stands within talking reach comes last (IMPL-0025).
-    near.current = pickNearby(pose.x, pose.z, pose.speed, quests, useVila.getState().progress, near.current, lifeNear(pose.x, pose.z, near.current));
+    near.current = pickNearby(
+      pose.x,
+      pose.z,
+      pose.speed,
+      quests,
+      useVila.getState().progress,
+      near.current,
+      lifeNear(pose.x, pose.z, near.current),
+      quests2 ? STORY_NEARBY : null
+    );
     s.setNearby(near.current);
 
     // ---- see-through tint: shown while the camera cannot see the avatar's chest or head, and held for a moment
