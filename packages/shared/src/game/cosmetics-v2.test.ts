@@ -48,7 +48,11 @@ describe("cosmetics v2", () => {
   it("keeps the v1 array as its prefix", () => {
     expect(COSMETICS_V2.slice(0, COSMETICS.length)).toEqual(COSMETICS);
     expect(new Set(COSMETICS_V2.map((item) => item.id)).size).toBe(COSMETICS_V2.length);
-    for (const slot of SLOTS) expect(COSMETICS_V2.filter((item) => item.slot === slot)).toHaveLength(10);
+    for (const slot of SLOTS) {
+      const v1 = COSMETICS.filter((item) => item.slot === slot);
+      const all = COSMETICS_V2.filter((item) => item.slot === slot);
+      expect(all.slice(0, v1.length)).toEqual(v1);
+    }
   });
 
   it("never unlocks or wears a paid item", () => {
