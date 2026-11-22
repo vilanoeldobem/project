@@ -1,9 +1,10 @@
 /** Book I cosmetic layers and their catalogue wiring. */
 import { describe, expect, it } from "vitest";
 
-import { isPaid, type Cosmetic } from "@vila/shared/game/cosmetics";
+import { COSMETICS as COSMETICS_V1, isPaid, type Cosmetic } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, isUnlockedIn } from "@vila/shared/game/cosmetics-v2";
 import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
+import { COSMETICS as COSMETICS_B00 } from "@vila/shared/game/quests-v2/books/book-00-epilogue";
 import { COSMETICS } from "@vila/shared/game/quests-v2/books/book-01";
 import { seedOf } from "../../rng";
 
@@ -48,10 +49,17 @@ describe("book I cosmetics", () => {
   });
 
   it("keeps the v1 prefix and appends each slot in book order", () => {
-    const helmets = COSMETICS_V2.filter((c) => c.slot === "helmet").map((c) => c.id);
-    expect(helmets.slice(-4)).toEqual(["helmet-star", "helmet-aurora", "helmet-frost", "helmet-dawn"]);
-    expect(COSMETICS_V2.filter((c) => c.slot === "handLeft").at(-1)?.id).toBe("hand-left-fair");
-    expect(COSMETICS_V2.filter((c) => c.slot === "face").at(-1)?.id).toBe("face-snow-freckles");
+    const start = (slot: string) =>
+      COSMETICS_V1.filter((c) => c.slot === slot).length + COSMETICS_B00.filter((c) => c.slot === slot).length;
+    const v2 = (slot: string) => COSMETICS_V2.filter((c) => c.slot === slot);
+    expect(v2("helmet").slice(start("helmet"), start("helmet") + 4).map((c) => c.id)).toEqual([
+      "helmet-star",
+      "helmet-aurora",
+      "helmet-frost",
+      "helmet-dawn",
+    ]);
+    expect(v2("handLeft")[start("handLeft")]?.id).toBe("hand-left-fair");
+    expect(v2("face")[start("face")]?.id).toBe("face-snow-freckles");
   });
 
   it("unlocks the free items from their real milestones and mission", () => {

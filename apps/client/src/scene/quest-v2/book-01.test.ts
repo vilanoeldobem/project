@@ -17,7 +17,7 @@ describe("book I world", () => {
   it("has one collider per story NPC and no prop collider", () => {
     expect(OBSTACLES).toHaveLength(NPCS.length);
     for (const n of NPCS) expect(OBSTACLES.some((c) => Math.abs(c.x - n.x) < 1e-9 && Math.abs(c.z - n.z) < 1e-9)).toBe(true);
-    expect(sceneColliders(new Set<string>(), false, true)).toHaveLength(staticColliders.length + OBSTACLES.length);
+    expect(sceneColliders(new Set<string>(), false, true)).toHaveLength(staticColliders.length + STORY_WORLD.obstacles.length);
   });
 
   it("keeps every NPC and pickup clear of the static scene", () => {
@@ -52,12 +52,12 @@ describe("book I world", () => {
   });
 
   it("links every story record to its quest and to a real model", () => {
-    for (const spawn of STORY_WORLD.spawns) {
+    for (const spawn of SPAWNS) {
       expect(spawn.book).toBe(1);
       expect(STORY_CATALOG.quests.find((q) => q.id === spawn.questId)?.objectiveEventIds).toContain(spawn.id);
       expect(storyProp(spawn.objectId), spawn.objectId).toBeDefined();
     }
-    for (const interaction of STORY_WORLD.interactions) {
+    for (const interaction of INTERACTIONS) {
       expect(interaction.book).toBe(1);
       expect(STORY_CATALOG.quests.find((q) => q.id === interaction.questId)?.objectiveEventIds).toContain(interaction.id);
       if (interaction.objectId !== "none") expect(storyProp(interaction.objectId), interaction.objectId).toBeDefined();
