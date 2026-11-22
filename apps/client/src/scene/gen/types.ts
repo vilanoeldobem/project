@@ -1,7 +1,7 @@
 import type { Voxel } from "../models";
 import type { Seed } from "./rng";
 
-export type Category = "props" | "houses" | "civic" | "characters" | "animals" | "cosmetics";
+export type Category = "props" | "saga" | "houses" | "civic" | "characters" | "animals" | "cosmetics";
 
 /** A generated model, ready for `<Voxels>` (roles by colour, like the hand-made models). */
 export interface GenModel {

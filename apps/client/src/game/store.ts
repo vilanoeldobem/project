@@ -9,6 +9,7 @@ import { events } from "./events";
 import { questsEnabled } from "./questsFlag";
 import { questsV2Enabled } from "./questsV2Flag";
 import { planWalk, sim } from "./sim";
+import type { StoryGameId } from "./story-games";
 
 export type Panel =
   | { kind: "none" }
@@ -20,7 +21,8 @@ export type Panel =
   | { kind: "games" }
   | { kind: "map" }
   | { kind: "badges" }
-  | { kind: "memory" }
+  | { kind: "memory"; interactionId?: string; questId?: string; done?: string }
+  | { kind: "story-game"; gameId: StoryGameId; interactionId?: string; questId?: string; done?: string }
   | { kind: "missions" }
   | { kind: "indicators" }
   | { kind: "environment" }

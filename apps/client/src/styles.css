@@ -241,6 +241,7 @@ kbd {
 .sheet-cards .sheet-card { margin: 0; display: flex; flex-direction: column; gap: 2px; }
 .sheet-cards .sheet-card strong { font-size: 1.8rem; line-height: 1; color: var(--pine); }
 .sheet-cards .sheet-card span { font-weight: 800; }
+.sheet-cards .sheet-card .btn { margin-top: auto; align-self: flex-start; }
 .sheet-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 0; margin: 8px 0 14px; list-style: none; font-size: 0.85rem; font-weight: 800; }
 .sheet-steps li { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; border-radius: 999px; border: 2px solid var(--sheet-line); color: var(--ink-2); }
 .sheet-steps li + li::before { content: "›"; margin: 0 2px 0 -12px; color: var(--ink-2); }
@@ -365,6 +366,18 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 }
 .card--up { background: var(--cream); }
 .card--ok { background: #e4ecd9; border-color: var(--leaf); box-shadow: 0 3px 0 var(--leaf); }
+
+/* Story minigames (slice 12): word signals and a 44px target, never colour alone. */
+.game-board { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px; }
+.game-token { min-height: 44px; padding: 0.45em 0.8em; border: 2px solid var(--pine); border-radius: 12px; background: var(--cream); color: var(--pine); font-weight: 800; box-shadow: 0 3px 0 var(--pine); cursor: pointer; }
+.game-token[aria-pressed="true"] { background: var(--pine); color: var(--cream); }
+.game-answer { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+.game-answer li { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 12px; background: var(--cream-2); border: 2px solid var(--sheet-line); font-weight: 700; }
+.game-status { min-height: 1.5em; font-weight: 700; color: var(--ink-2); }
+.game-paused { padding: 18px; border: 2px dashed var(--pine); border-radius: 12px; background: var(--cream-2); font-weight: 700; }
+.game-tabs { display: flex; gap: 6px; margin: 6px 0 14px; }
+.game-tabs .btn--chip { flex: 1 1 0; }
+.game-tabs .btn--chip.is-on { background: var(--red); border-color: #6e1518; color: var(--cream); box-shadow: 0 3px 0 #6e1518; }
 
 /*
  * Phones. First row: what is happening now, with indicators, account and menu as icons on the right. Second
