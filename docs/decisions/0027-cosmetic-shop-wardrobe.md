@@ -37,10 +37,10 @@ sete itens gratuitos por missão ou nível e dois cartões pagos. São **100 ent
 cada slot é o primeiro item, o que também é o índice `0` do protocolo.
 
 Regras:
-- `isUnlocked` é sempre falso para `{ kind: "paid" }`; `unlockedIds` portanto só contém o que pode ser equipado.
+- `isUnlockedIn` (`cosmetics-v2.ts`) é sempre falso para `{ kind: "paid" }`; `unlockedIdsIn` portanto só contém o que pode ser equipado.
 - `wear(look, id)` é a única regra de sobreposição: um vestido repõe blusa e calça nos padrões; vestir blusa ou calça
   tira o vestido. As demais categorias são independentes.
-- `sanitizeLook` confere id, slot, posse e a regra acima; qualquer outro valor cai no padrão do slot.
+- `sanitizeLookIn` confere id, slot, posse e a regra acima; qualquer outro valor cai no padrão do slot.
 - Os itens gratuitos liberam por missão (`explore-gifts`, `play-memory`, `causes-visit-lot`) ou nível 2; nenhum se
   liga à missão de doação. Ao concluir uma missão, o aviso resume a leva ("… e mais N") em vez de listar 20 nomes.
 - O visual continua local ao navegador (`vila.look.v2`). A migração lê uma vez o `vila.look.v1`, leva `hat` para
