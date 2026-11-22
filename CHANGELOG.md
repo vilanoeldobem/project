@@ -32,6 +32,7 @@ Cada versão indica o schema D1 que entrega.
   parametrizado com paridade v1, marcos, minijogos, mundo e estados de mundo, cosméticos unidos (100 v1 + 60 dos
   livros), UI/API genéricas e verificador de navegador. `QUESTS_V2_ENABLED` e `VITE_QUESTS_V2_ENABLED` ficam
   desligados em produção e homologação; nenhuma história de livro é escrita nesta fatia.
+- **Livro V, A Longa Noite:** 45 entradas, 1.050 XP, 4 props e 6 cosméticos, atrás de `QUESTS_V2_ENABLED`; entrada `b05-c1-01`, saída `b05-c3-04`, que abre o epílogo.
 
 ## [0.7.0] - 2026-11-19
 
