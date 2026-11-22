@@ -356,8 +356,8 @@ it("keeps the NGO and global splits and confirmed totals isolated across webhook
   const ngoB = "b0000000-0000-4000-8000-000000000002";
   await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id) VALUES(?, 'ONG B', '22345678000149', 'published', 'applicant', 'plaza-02')").bind(ngoB).run();
   await db.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-02'").bind(ngoB).run();
-  expect((await ngoPayment({ subAccountId: "sacc_a", ngoPercentBps: 9250, fixedFeeCents: 113 })).status).toBe(200);
-  expect((await ngoPayment({ subAccountId: "sacc_b" }, ngoB)).status).toBe(200);
+  expect((await ngoPayment({ revision: 1, subAccountId: "sacc_a", ngoPercentBps: 9250, fixedFeeCents: 113 })).status).toBe(200);
+  expect((await ngoPayment({ revision: 1, subAccountId: "sacc_b" }, ngoB)).status).toBe(200);
   expect((await settings({ subAccountId: "sacc_global", ngoPercentBps: 8750, fixedFeeCents: 89 })).status).toBe(200);
   expect(calls).toEqual([]);
 
@@ -623,11 +623,11 @@ describe("an NGO's own payment link", () => {
   });
 
   it("is only usable after the admin validates the HTTPS link, and logs the redirect without crediting anything", async () => {
-    const invalid = await ngoPayment({ paymentMethod: "external_link", donationUrl: "http://localhost/doar", linkValidated: true });
+    const invalid = await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "http://localhost/doar", linkValidated: true });
     expect(invalid.status).toBe(400);
-    const unchecked = await ngoPayment({ paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar" });
+    const unchecked = await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar" });
     expect(unchecked.status).toBe(400);
-    const saved = await ngoPayment({ paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true });
+    const saved = await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true });
     expect(saved.status).toBe(200);
     expect(db.sql("SELECT payment_method,donation_url,link_validated,sub_account_id FROM ngo_payment_configs WHERE ngo_id=?", NGO)[0]).toEqual({
       payment_method: "external_link",
@@ -754,6 +754,75 @@ describe("the application keeps the requested payment mode", () => {
     expect(stored()).toEqual(original);
   });
 
+  const resubmit = (cnpj: string) => {
+    const { paymentMethod, donationUrl, ...fields } = APPLICATION;
+    return call("POST", "/ngo/application", { ...fields, cnpj, accountId: "owner", lotId: "plaza-01" }, "owner");
+  };
+  const approve = () => call("POST", `/admin/applications/${NGO}/decision`, {
+    action: "approve", revision: 2, checks: { activeCnpj: true, oneYear: true, fundsConfirmable: true },
+  });
+
+  it.each(["true", "false"])("requires a new beneficiary after a CNPJ change with donations %s", async (flag) => {
+    const target = { targetKind: "ngo", ngoId: NGO, amountCents: 1000 };
+    expect((await ngoPayment()).status).toBe(200);
+    expect((await pix(target)).status).toBe(201);
+    await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    env.DONATIONS_ENABLED = flag;
+    expect((await resubmit(PRIMARY_CNPJ)).status).toBe(200);
+    expect((await approve()).status).toBe(200);
+    env.DONATIONS_ENABLED = "true";
+    calls = [];
+    const refused = await pix(target);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ error: "ngo_payment_not_configured" });
+    expect(calls).toEqual([]);
+
+    const oldForm = await ngoPayment({ revision: 1, subAccountId: `sacc_${NGO_CNPJ}` });
+    expect(oldForm.status).toBe(409);
+    expect((await ngoPayment({ subAccountId: `sacc_${NGO_CNPJ}` })).status).toBe(400);
+    expect((await ngoPayment({ revision: 2 })).status).toBe(200);
+    expect((await pix(target)).status).toBe(201);
+    expect(calls.find((c) => c.path.endsWith("/transparents/create"))?.body?.data).toMatchObject({
+      splits: [{ subAccountId: `sacc_${PRIMARY_CNPJ}`, amount: 870 }],
+    });
+    expect(db.sql("SELECT sub_account_id FROM donations ORDER BY provider_charge_id").map((r) => r.sub_account_id))
+      .toEqual([`sacc_${NGO_CNPJ}`, `sacc_${PRIMARY_CNPJ}`]);
+  });
+
+  it("requires fresh review of a previously validated external link after the holder changes", async () => {
+    const link = { paymentMethod: "external_link", donationUrl: APPLICATION.donationUrl, linkValidated: true };
+    expect((await ngoPayment({ ...link, revision: 1 })).status).toBe(200);
+    await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    expect((await resubmit(PRIMARY_CNPJ)).status).toBe(200);
+    expect((await ngoPayment({ ...link, revision: 1 })).status).toBe(409);
+    expect((await ngoPayment(link)).status).toBe(400);
+    expect(db.sql("SELECT link_validated FROM ngo_payment_configs WHERE ngo_id=?", NGO)[0].link_validated).toBe(0);
+    expect((await ngoPayment({ ...link, revision: 2 })).status).toBe(200);
+  });
+
+  it("retains the verified beneficiary on a same-holder resubmission", async () => {
+    expect((await ngoPayment()).status).toBe(200);
+    await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    expect((await resubmit(NGO_CNPJ)).status).toBe(200);
+    expect((await approve()).status).toBe(200);
+    expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 1000 })).status).toBe(201);
+    expect(db.sql("SELECT sub_account_id FROM donations")[0].sub_account_id).toBe(`sacc_${NGO_CNPJ}`);
+  });
+
+  it("discards an in-flight beneficiary save if the application changes before the provider returns", async () => {
+    await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    const provider = globalThis.fetch;
+    vi.stubGlobal("fetch", async (...args: Parameters<typeof fetch>) => {
+      expect((await resubmit(PRIMARY_CNPJ)).status).toBe(200);
+      return provider(...args);
+    });
+    const response = await ngoPayment({ revision: 1 });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "stale_revision" });
+    expect(db.sql("SELECT sub_account_id FROM ngo_payment_configs WHERE ngo_id=?", NGO)[0].sub_account_id).toBeNull();
+    expect(db.sql("SELECT id FROM audit_events WHERE action = 'ngo.payment_config'")).toEqual([]);
+  });
+
   it("touches no donation table while the flag is off", async () => {
     env.DONATIONS_ENABLED = "false";
     await db.prepare("UPDATE lots SET state='available' WHERE id='plaza-02'").run();
@@ -767,7 +836,9 @@ describe("the application keeps the requested payment mode", () => {
       await legacy.exec(statement);
     await legacy.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-01'").bind(NGO).run();
     expect((await call("GET", "/ngo/application", undefined, "owner")).status).toBe(200);
-    expect(count("ngos")).toBe(1);
+    await legacy.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
+    expect((await resubmit(PRIMARY_CNPJ)).status).toBe(200);
+    expect(legacy.sql("SELECT cnpj FROM ngos WHERE id=?", NGO)[0].cnpj).toBe(PRIMARY_CNPJ);
   });
 });
 

@@ -321,12 +321,14 @@ function DonationHistory({ donations, redirects }: { donations: DonationRow[]; r
  */
 export function NgoPaymentConfig({
   ngoId,
+  revision,
   accountId,
   requested,
   payment,
   onSaved,
 }: {
   ngoId: string;
+  revision: number;
   accountId?: string;
   requested?: { method?: string; donationUrl?: string };
   payment?: NgoPayment;
@@ -351,6 +353,7 @@ export function NgoPaymentConfig({
     try {
       const saved = await api.saveNgoPayment(ngoId, {
         accountId,
+        revision,
         paymentMethod: method,
         ...(method === "external_link" ? { donationUrl: url, linkValidated: validated } : {}),
         ngoPercentBps: Math.round((parseDecimal(percent) ?? 0) * 100),

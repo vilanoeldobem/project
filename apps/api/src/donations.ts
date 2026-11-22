@@ -1015,11 +1015,12 @@ export async function adminUpdateNgoPayment(request: Request, env: Env, id: stri
   assertAccount(body, admin);
   const db = env.DB!;
   const ngo = await db
-    .prepare("SELECT n.id, n.name, n.cnpj, n.status, w.ngo_id AS withdrawn FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id WHERE n.id = ?")
+    .prepare("SELECT n.id, n.name, n.cnpj, n.revision, w.ngo_id AS withdrawn FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id WHERE n.id = ?")
     .bind(id)
-    .first<{ id: string; name: string; cnpj: string; status: string; withdrawn: string | null }>();
+    .first<{ id: string; name: string; cnpj: string; revision: number; withdrawn: string | null }>();
   if (!ngo) throw new HttpError(404, "not_found");
   if (ngo.withdrawn) throw new HttpError(409, "application_withdrawn");
+  if (body.revision !== undefined && body.revision !== ngo.revision) throw new HttpError(409, "stale_revision");
   const method = body.paymentMethod;
   if (method !== "abacatepay" && method !== "external_link")
     throw new HttpError(400, "invalid", { paymentMethod: "Escolha AbacatePay ou um link próprio da organização." });
@@ -1030,6 +1031,7 @@ export async function adminUpdateNgoPayment(request: Request, env: Env, id: stri
   if (method === "external_link") {
     const link = validateExternalDonationUrl(body.donationUrl);
     if (!link.url) throw new HttpError(400, "invalid", { donationUrl: link.error ?? "Informe um link HTTPS público válido da organização." });
+    if (body.revision === undefined) throw new HttpError(400, "revision_required");
     // Confirming the link is a human check; the box is required, not assumed.
     if (body.linkValidated !== true)
       throw new HttpError(400, "invalid", { linkValidated: "Abra o link e confirme que é uma página de doação da própria organização." });
@@ -1037,31 +1039,37 @@ export async function adminUpdateNgoPayment(request: Request, env: Env, id: stri
     linkValidated = 1;
   } else {
     const given = typeof body.subAccountId === "string" ? body.subAccountId.trim() : "";
+    if (given && body.revision === undefined) throw new HttpError(400, "revision_required");
     const givenError = given ? subAccountIdError(env, given) : null;
     if (givenError) throw new HttpError(400, "invalid", { subAccountId: givenError });
     subAccountId = given || (await createOrGetSubAccount(env, { name: ngo.name, taxId: ngo.cnpj, externalId: ngo.id })).id;
   }
   const now = new Date().toISOString();
-  await db.batch([
+  // Provisioning can finish after a resubmission. Save and audit only the identity this request read.
+  const sameBeneficiary = `EXISTS (SELECT 1 FROM ngos n WHERE n.id = ? AND n.revision = ? AND n.cnpj = ?
+    AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id))`;
+  const [saved] = await db.batch([
     db
       .prepare(
         `INSERT INTO ngo_payment_configs (ngo_id, payment_method, donation_url, sub_account_id, ngo_percent_bps, fixed_fee_cents, link_validated, updated_by, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE ${sameBeneficiary}
          ON CONFLICT(ngo_id) DO UPDATE SET payment_method = excluded.payment_method, donation_url = excluded.donation_url,
            sub_account_id = excluded.sub_account_id, ngo_percent_bps = excluded.ngo_percent_bps, fixed_fee_cents = excluded.fixed_fee_cents,
            link_validated = excluded.link_validated, updated_by = excluded.updated_by, updated_at = excluded.updated_at`
       )
-      .bind(id, method, donationUrl, subAccountId, split.ngoPercentBps, split.fixedFeeCents, linkValidated, admin.id, now),
+      .bind(id, method, donationUrl, subAccountId, split.ngoPercentBps, split.fixedFeeCents, linkValidated, admin.id, now, id, ngo.revision, ngo.cnpj),
     db
-      .prepare("INSERT INTO audit_events (id, actor, action, subject, detail) VALUES (?, ?, ?, ?, ?)")
+      .prepare(`INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE ${sameBeneficiary}`)
       .bind(
         newId(),
         admin.id,
         "ngo.payment_config",
         `ngo:${id}`,
-        JSON.stringify({ method, linkValidated: linkValidated === 1, ngoPercentBps: split.ngoPercentBps, fixedFeeCents: split.fixedFeeCents })
+        JSON.stringify({ method, linkValidated: linkValidated === 1, ngoPercentBps: split.ngoPercentBps, fixedFeeCents: split.fixedFeeCents }),
+        id, ngo.revision, ngo.cnpj
       ),
   ]);
+  if (!saved.meta.changes) throw new HttpError(409, "stale_revision");
   const payment = await readNgoPayment(env, id);
   return json({ payment }, { headers: NO_STORE });
 }

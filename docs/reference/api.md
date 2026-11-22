@@ -827,10 +827,15 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
 | `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
-| `POST /admin/ngos/:id/payment-config` | admin | `{accountId, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
+| `POST /admin/ngos/:id/payment-config` | admin | `{accountId, revision?, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
 | `POST /admin/donations/intents/:id/resolve` | admin | `{accountId, resolution: "failed" \| "abandoned"}` → `{intent: {id, state: "failed", lastError: "resolved_by_admin", resolution}}` (IMPL-0028) |
 | `POST /admin/donations/events/:id/dismiss` | admin | `{accountId}` → `{event: {id, dismissed: true}}` (IMPL-0028) |
+
+O painel envia a revisão exibida em `revision`. Para informar uma subconta manual ou validar um link de recebimento, esse campo é obrigatório
+(`400 revision_required` se ausente). Uma revisão vencida retorna `409 stale_revision`. A troca de CNPJ no
+reenvio revoga a conferência do destino. Novos Pix dirigidos aguardam uma nova configuração financeira;
+os já registrados continuam vinculados ao destino original.
 
 Regras:
 
