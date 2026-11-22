@@ -5,6 +5,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import countPaidGlobalPix from "../scripts/count-paid-global-pix.sql?raw";
 import { configuredVars, devVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { ABACATEPAY_PUBLIC_KEY, createOrGetSubAccount, createPixCharge } from "./abacatepay";
@@ -353,6 +354,8 @@ describe("Pix donations", () => {
 });
 
 it("keeps the NGO and global splits and confirmed totals isolated across webhook replays", async () => {
+  const globalPixCount = () => db.sql(countPaidGlobalPix)[0].paid_global_pix;
+  expect(globalPixCount()).toBe(0);
   const ngoB = "b0000000-0000-4000-8000-000000000002";
   await db.prepare("INSERT INTO ngos(id,name,cnpj,status,applicant_id,requested_lot_id) VALUES(?, 'ONG B', '22345678000149', 'published', 'applicant', 'plaza-02')").bind(ngoB).run();
   await db.prepare("UPDATE lots SET state='published',ngo_id=? WHERE id='plaza-02'").bind(ngoB).run();
@@ -398,6 +401,7 @@ it("keeps the NGO and global splits and confirmed totals isolated across webhook
     expect(db.sql("SELECT * FROM donation_intents WHERE idempotency_key=?", idempotencyKey)).toMatchObject([{ ...snapshot, state: "created" }]);
     expect(db.sql("SELECT * FROM donations WHERE id=?", donation.id)).toMatchObject([{ ...snapshot, status: "pending" }]);
 
+    expect(globalPixCount()).toBe(0);
     const paid = event(`log_${c.kind}`, "transparent.completed", c.charge, "PAID", c.gross);
     for (const expected of [{ ok: true, applied: true }, { ok: true, duplicate: true }]) {
       const delivery = await webhook(paid);
@@ -405,9 +409,13 @@ it("keeps the NGO and global splits and confirmed totals isolated across webhook
       expect(await delivery.json()).toEqual(expected);
       expect(db.sql("SELECT * FROM donations WHERE id=?", donation.id)).toMatchObject([{ ...snapshot, status: "paid" }]);
       await expectTotals(1, 10001, c.totalCount, c.totalCents);
+      expect(globalPixCount()).toBe(c.kind === "global" ? 1 : 0);
     }
   }
   expect(count("abacatepay_webhook_events")).toBe(2);
+  const refund = await webhook(event("log_global_refunded", "transparent.refunded", "pix_char_2", "REFUNDED", 3333));
+  expect(await refund.json()).toEqual({ ok: true, applied: true });
+  expect(globalPixCount()).toBe(0);
 });
 
 describe("webhook reconciliation", () => {
