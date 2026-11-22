@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import countPaidGlobalPix from "../scripts/count-paid-global-pix.sql?raw";
+import summarizePaidDonations from "../scripts/summarize-paid-donations.sql?raw";
 import { configuredVars, devVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { ABACATEPAY_PUBLIC_KEY, createOrGetSubAccount, createPixCharge } from "./abacatepay";
@@ -1344,4 +1345,44 @@ describe("shipping state", () => {
     expect(configuredVars("DONATIONS_ENABLED")).toEqual(["false", "false"]);
     expect(devVar("DONATIONS_ENABLED")).toBe("true");
   });
+});
+
+it("reports gross Pix and external evidence separately after an NGO leaves the village", async () => {
+  const report = () => db.sql(summarizePaidDonations);
+  const zero = { pix_count: 0, pix_gross_cents: 0, proof_count: 0, proof_amount_cents: 0 };
+  const global = { scope: "global", ngo_id: null, ...zero };
+  const ngo = { scope: "ngo", ngo_id: NGO, ...zero };
+  const total = { scope: "total", ngo_id: null, ...zero };
+  expect(() => createD1({ upTo: 10 }).sql(summarizePaidDonations)).toThrow(/no such table: donations/i);
+  expect(createD1().sql(summarizePaidDonations)).toEqual([global, total]);
+  expect(report()).toEqual([global, ngo, total]);
+
+  await settings({ subAccountId: "sacc_global" });
+  await ngoPayment({ revision: 1, subAccountId: "sacc_ngo" });
+  expect((await pix({ targetKind: "global", amountCents: 1000 }, "donor")).status).toBe(201);
+  expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 725 }, "donor")).status).toBe(201);
+  expect(report()).toEqual([global, ngo, total]);
+
+  const directed = event("log_directed", "transparent.completed", "pix_char_2", "PAID", 725);
+  await webhook(event("log_global", "transparent.completed", "pix_char_1", "PAID"));
+  await webhook(directed);
+  expect(await (await webhook(directed)).json()).toMatchObject({ duplicate: true });
+  expect((await call("POST", "/admin/donations/external-proof", {
+    accountId: "admin", ngoId: NGO, amountCents: 500, proofReference: "Synthetic proof",
+  })).status).toBe(201);
+  env.NGO_WITHDRAWAL_ENABLED = "true";
+  expect((await call("POST", `/admin/ngos/${NGO}/withdraw`, {
+    accountId: "admin", revision: 1, reason: "Synthetic withdrawal",
+  })).status).toBe(200);
+
+  const directedAmounts = { ...ngo, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 };
+  expect(report()).toEqual([
+    { ...global, pix_count: 1, pix_gross_cents: 1000 }, directedAmounts,
+    { ...total, pix_count: 2, pix_gross_cents: 1725, proof_count: 1, proof_amount_cents: 500 },
+  ]);
+  await webhook(event("log_refunded", "transparent.refunded", "pix_char_1", "REFUNDED"));
+  expect(report()).toEqual([
+    global, directedAmounts, { ...total, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 },
+  ]);
+  expect(calls.filter((entry) => entry.path.endsWith("/transparents/create"))).toHaveLength(2);
 });
