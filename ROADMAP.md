@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-22 · **Versão atual:** 0.8.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-22 · **Versão atual:** 0.9.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -33,9 +33,10 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Pranchas P01–P15, provador P08 e auditoria técnica (IMPL-0026..0028) | 0.6.0 | P01–P15, P08 | D20 | **Entregue** 2026-11-14 (prévias pagas ocultas; propostas desligadas) | 14/11 |
 | A Vila em quatro anéis, menos neve, níveis da casa da ONG e logotipo em teste (IMPL-0029..0032) | 0.7.0 | — | — | **Entregue** 2026-11-19 (propostas desligadas; sem teste em celular) | 19/11 |
 | Correções pós-0.6.0 (provador P08 e saúde das dependências), visual de blocos, saga v2 | 0.8.0 | P08 (acessibilidade) | D20 | **Entregue** (2026-11-22) | — |
-| HUD da ONG e segundo jogo | 0.9.x | P04 completo, P09 | D10, D24 | **Próximo** | 16–19/11 |
-| Doação e badges | 0.10.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
-| Rota A: social e personalização | 0.10.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
+| Visual de voxel: prédios refinados, chão, malha gulosa (IMPL-0035) | 0.9.0 | — | — | **Entregue** (2026-11-22) | — |
+| HUD da ONG e segundo jogo | 0.10.x | P04 completo, P09 | D10, D24 | **Próximo** | 16–19/11 |
+| Doação e badges | 0.11.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
+| Rota A: social e personalização | 0.11.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
 | QA e release candidate | 1.0.0-rc | todas entregues | Q01–Q09, M04 | Planejado | 24–27/11 |
 | Publicação | 1.0.0 | — | M05 | Planejado | 30/11 |
 
@@ -105,7 +106,7 @@ Integrados na mesma janela: os dez livros da saga v2 (PRs #79 a #88, PROPOSTA, d
 [quests-v2.md §7](docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)) e o visual de blocos
 ([IMPL-0033](docs/decisions/0033-block-look.md)).
 
-### HUD da ONG e segundo jogo (0.9.x) — próximo
+### HUD da ONG e segundo jogo (0.10.x) — próximo
 
 Antes de começar, ler as pranchas P04 e P09 e o registro de decisões em `vilanoeldobem/docs`; o que não estiver
 CONFIRMADO entra como PROPOSTA.
@@ -113,7 +114,7 @@ CONFIRMADO entra como PROPOSTA.
 **Escopo:** casa publicada com conteúdo real (descrição, fotos, projetos, painel de estatísticas — DEC-028/029) e
 segundo minijogo (Jogo da Velha, doc 23).
 
-### Doação e badges (0.10.0) — bloqueado
+### Doação e badges (0.11.0) — bloqueado
 
 **Escopo:** integração com o provedor da parceira (preferência por página de campanha identificada — PRP-015/016),
 estados da doação (iniciada → … → conciliada/devolvida/contestada), badges por doação confirmada (DEC-041).

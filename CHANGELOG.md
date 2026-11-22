@@ -9,6 +9,14 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-22
+
+**Casas e chão mais detalhados, malha gulosa, minijogos da saga e Pix só com conta**
+([IMPL-0035](docs/decisions/0035-greedy-meshing-refined-buildings-ground-detail.md),
+[IMPL-0034](docs/decisions/0034-authenticated-pix-issuance.md)). Schema D1 **v15**, o mesmo da 0.8.0: nenhuma
+migration e nenhuma bandeira nova. A saga v2 (PEN-025), as contas e as doações (PEN-004, PEN-006) seguem desligadas
+em produção.
+
 ### Changed — casas e chão mais detalhados, malha gulosa (IMPL-0035)
 
 - **Prédios refinados**: casas, chalés de ONG, lojas e prédios cívicos são desenhados em blocos de um terço, com vidro
