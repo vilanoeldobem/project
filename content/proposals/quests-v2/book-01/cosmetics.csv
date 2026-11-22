@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+helmet-star,helmet,Estrela da Chegada,marco,false,b01-m1-06,40,140
+hand-left-fair,handLeft,Cesta da Feira,marco,false,b01-m2-06,40,140
+face-snow-freckles,face,Sardas de Neve,missao,false,b01-c3-04,40,140
+helmet-aurora,helmet,Aurora da Vila,premium,true,,40,140
+helmet-frost,helmet,Coroa de Geada,premium,true,,40,140
+helmet-dawn,helmet,Coroa do Amanhecer,premium,true,,40,140

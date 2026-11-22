@@ -57,9 +57,9 @@ const story = (page) => page.evaluate(() => window.__vila.extra.story());
 const world = (page) => page.evaluate(() => window.__vila.extra.storyWorld());
 const teleport = (page, x, z) => page.evaluate(([px, pz]) => window.__vila.extra.teleport(px, pz), [x, z]);
 const stateOf = async (page, id) => (await story(page)).find((entry) => entry.id === id)?.state;
-const seen = (page, questId, eventId) => page.evaluate(([q, e]) => Boolean(window.__vila.extra.progress().seen[`${q}:${e}`]), [questId, eventId]);
+const seen = (page, questId, eventId) => page.evaluate(([q, e]) => Boolean(window.__vila.progress().seen[`${q}:${e}`]), [questId, eventId]);
 const waitSeen = (page, questId, eventId) =>
-  page.waitForFunction(([q, e]) => Boolean(window.__vila.extra.progress().seen[`${q}:${e}`]), [questId, eventId], { timeout: 15000 });
+  page.waitForFunction(([q, e]) => Boolean(window.__vila.progress().seen[`${q}:${e}`]), [questId, eventId], { timeout: 15000 });
 const waitState = (page, id, state) =>
   page.waitForFunction(([q, s]) => window.__vila.extra.story().some((entry) => entry.id === q && entry.state === s), [id, state], { timeout: 15000 });
 
@@ -162,7 +162,7 @@ async function playBook(page, book, seed) {
     if (needed.size > 0) await page.evaluate((ids) => window.__vila.extra.seedStory(ids), [...needed]);
     await page.waitForTimeout(300);
   }
-  const baseline = await page.evaluate(() => window.__vila.extra.progress().xp);
+  const baseline = await page.evaluate(() => window.__vila.progress().xp);
   let storyWorld = await world(page);
   for (let step = 0; step < 200; step++) {
     entries = await story(page);
@@ -194,7 +194,7 @@ async function playBook(page, book, seed) {
   const final = await story(page);
   const incomplete = final.filter((entry) => entry.book === book && ["main", "regional", "side"].includes(entry.kind) && entry.state !== "completed");
   if (incomplete.length > 0) fail(`book-${book}: unfinished ${incomplete.map((entry) => `${entry.id}:${entry.state}`).join(", ")}`);
-  const xp = (await page.evaluate(() => window.__vila.extra.progress().xp)) - baseline;
+  const xp = (await page.evaluate(() => window.__vila.progress().xp)) - baseline;
   const expected = narrative.reduce((sum, entry) => sum + entry.xp, 0);
   if (xp !== expected) fail(`book-${book}: XP delta ${xp}, expected ${expected}`);
 }
