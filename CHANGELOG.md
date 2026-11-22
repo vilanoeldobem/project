@@ -12,6 +12,7 @@ Cada versão indica o schema D1 que entrega.
 ### Added — Livro I da saga v2: A Chegada (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b01-c1-01` a `b01-c3-04`, 1.050 XP, 11 NPCs de mundo (8 novos), 4 props voxel e 6 cosméticos; a primeira página do Caderno abre o Livro II.
+- A verificação local da API confirma que a primeira missão do livro persiste no D1, mantém o progresso anterior e concede seus 20 XP uma única vez entre duas sessões.
 
 ### Added — Livro II da saga v2: As Casas e os Nomes (PROPOSTA, atrás das flags existentes, desligado)
 
