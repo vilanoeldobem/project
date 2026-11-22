@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+hand-right-hammer,handRight,Martelo da Fundação,marco,false,b09-m1-06,40,140
+face-origin-glasses,face,Óculos da Origem,marco,false,b09-m2-06,40,140
+shoes-archive,shoes,Botas do Arquivo,missao,false,b09-c3-04,40,140
+hand-right-aurora,handRight,Aurora na mão direita,premium,true,,40,140
+hand-right-frost,handRight,Geada na mão direita,premium,true,,40,140
+hand-right-origin-star,handRight,Estrela da Origem,premium,true,,40,140

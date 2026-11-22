@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, casa da contadora",villager,storyteller,5,4,-2.2455,9,"Toda história começa com alguém que para para ouvir."
+postmaster,Seu Nivaldo,Carteiro da Vila,"Praça da Grande Árvore, correio",villager,postmaster,4.5,11.8,-2.7773,9,Toda carta é uma promessa que viaja.
+tia-bete,Tia Bete,Padeira,"Praça da Grande Árvore, padaria",villager,tia-bete,-18,3.6,1.7682,9,O forno guarda o cheiro de ontem.
+dona-iris,Dona Íris,Tecelã,"Praça da Grande Árvore, tear",villager,dona-iris,0.5,13.8,-3.1054,9,O fio passa por quem lembra.
+mestre-fundo,Mestre Fundo,Mestre de obras da Pedra Fundamental,"Pedra Fundamental, obra",villager,mestre-fundo,19.8,50.2,-2.7659,9,A pedra enterrada guarda o primeiro passo.
+dona-pedra,Dona Pedra,Guardiã da pedra fundamental,"Pedra Fundamental, pedra",villager,dona-pedra,22.1,55.8,-2.7645,9,Cada pedra lembra quem a colocou.
+dona-clara,Dona Clara,Leitora de letras antigas,"Arquivo das Neves, mesa de leitura",villager,dona-clara,-21.5,49.6,2.7326,9,A letra antiga é de muitas mãos.
+arquivista,o Arquivista,Arquivista das Neves,"Arquivo das Neves, estante",villager,arquivista,-23.8,55.1,2.7339,9,O livro não tem autor. Tem vozes.
