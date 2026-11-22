@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 import { COSMETICS as COSMETICS_V1, isPaid, type Cosmetic } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, isUnlockedIn } from "@vila/shared/game/cosmetics-v2";
 import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
+import { COSMETICS as COSMETICS_B00 } from "@vila/shared/game/quests-v2/books/book-00-epilogue";
+import { COSMETICS as COSMETICS_B01 } from "@vila/shared/game/quests-v2/books/book-01";
+import { COSMETICS as COSMETICS_B02 } from "@vila/shared/game/quests-v2/books/book-02";
+import { COSMETICS as COSMETICS_B03 } from "@vila/shared/game/quests-v2/books/book-03";
+import { COSMETICS as COSMETICS_B04 } from "@vila/shared/game/quests-v2/books/book-04";
 import { COSMETICS } from "@vila/shared/game/quests-v2/books/book-05";
 import { measure } from "../../budget";
 import { seedOf } from "../../rng";
@@ -56,7 +61,10 @@ describe("book V cosmetics", () => {
       ["special", ["special-promise-book"]],
     ] as const) {
       expect(v2(slot).slice(0, v1(slot).length)).toEqual(v1(slot));
-      expect(v2(slot).slice(v1(slot).length, v1(slot).length + ids.length).map((c) => c.id)).toEqual([...ids]);
+      const start = v1(slot).length;
+      const earlier = [...COSMETICS_B00, ...COSMETICS_B01, ...COSMETICS_B02, ...COSMETICS_B03, ...COSMETICS_B04].filter((c) => c.slot === slot).map((c) => c.id);
+      const expected = [...earlier, ...ids];
+      expect(v2(slot).slice(start, start + expected.length).map((c) => c.id)).toEqual(expected);
     }
   });
 
