@@ -200,6 +200,14 @@ exports[`generator snapshots > gift keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > glass-flower keeps the output of fixed seeds stable 1`] = `
+[
+  "66520506",
+  "9c039650",
+  "d1a5e250",
+]
+`;
+
 exports[`generator snapshots > hat keeps the output of fixed seeds stable 1`] = `
 [
   "2e5bc3a",
@@ -504,6 +512,14 @@ exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] 
 ]
 `;
 
+exports[`generator snapshots > season-spice keeps the output of fixed seeds stable 1`] = `
+[
+  "dbfc5c0c",
+  "796ce918",
+  "b20cea79",
+]
+`;
+
 exports[`generator snapshots > shop keeps the output of fixed seeds stable 1`] = `
 [
   "abb3a99a",
@@ -560,11 +576,27 @@ exports[`generator snapshots > suitcase keeps the output of fixed seeds stable 1
 ]
 `;
 
+exports[`generator snapshots > summer-flower keeps the output of fixed seeds stable 1`] = `
+[
+  "9e476089",
+  "3ba11e9c",
+  "318eef0f",
+]
+`;
+
 exports[`generator snapshots > sun-cord keeps the output of fixed seeds stable 1`] = `
 [
   "4d878765",
   "1ad878e5",
   "106cefe4",
+]
+`;
+
+exports[`generator snapshots > sun-seed keeps the output of fixed seeds stable 1`] = `
+[
+  "cfa1983f",
+  "6d81c88d",
+  "4e841f1a",
 ]
 `;
 

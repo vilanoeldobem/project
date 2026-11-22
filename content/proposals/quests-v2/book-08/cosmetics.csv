@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+dress-summer,dress,Vestido de Verão,marco,false,b08-m1-06,40,140
+special-apron,special,Avental da Feira,marco,false,b08-m2-06,40,140
+face-paint,face,Pintura de Verão,missao,false,b08-c3-04,40,140
+hand-left-aurora,handLeft,Aurora na mão,premium,true,,40,140
+hand-left-frost,handLeft,Geada na mão,premium,true,,40,140
+hand-left-summer-star,handLeft,Estrela de Verão,premium,true,,40,140

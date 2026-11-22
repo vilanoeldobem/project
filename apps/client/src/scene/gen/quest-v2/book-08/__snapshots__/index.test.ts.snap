@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VIII props > glass-flower keeps the gallery seeds stable 1`] = `
+[
+  "ba18f991",
+  "dee8f564",
+  "b5bed832",
+  "af62c52a",
+  "7d62de96",
+  "109d64b9",
+  "d724b6b",
+  "5312a205",
+]
+`;
+
+exports[`book VIII props > season-spice keeps the gallery seeds stable 1`] = `
+[
+  "aa1570fa",
+  "1da6baa1",
+  "19cf7a1f",
+  "6897a3c4",
+  "a8516354",
+  "f2eddd2d",
+  "f44d53c5",
+  "5ef1ba0a",
+]
+`;
+
+exports[`book VIII props > summer-flower keeps the gallery seeds stable 1`] = `
+[
+  "7eb75c6b",
+  "8d813296",
+  "1b4eae70",
+  "e299e412",
+  "5df92d99",
+  "e3bf09f9",
+  "14c74bb6",
+  "55972bcb",
+]
+`;
+
+exports[`book VIII props > sun-seed keeps the gallery seeds stable 1`] = `
+[
+  "b909db1c",
+  "c41985ca",
+  "3638966",
+  "f610750b",
+  "e477fc2a",
+  "c24bb5c6",
+  "b91ad1c8",
+  "15d5d1b2",
+]
+`;
