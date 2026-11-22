@@ -20,7 +20,7 @@ const BASE = "https://pay.test/v2";
 const PRIMARY_CNPJ = "11444777000161";
 const NGO_CNPJ = "11222333000181";
 
-type ProviderCall = { path: string; body: Record<string, unknown> | null; authorization: string | null };
+type ProviderCall = { path: string; body: Record<string, unknown> | null; authorization: string | null; returnedSubAccountId?: string };
 let db: ReturnType<typeof createD1>;
 let env: Env;
 let calls: ProviderCall[];
@@ -37,11 +37,13 @@ function stubProvider(): void {
     const url = new URL(String(input));
     const body = init.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null;
     const headers = new Headers(init.headers);
-    calls.push({ path: url.pathname + url.search, body, authorization: headers.get("Authorization") });
+    const call: ProviderCall = { path: url.pathname + url.search, body, authorization: headers.get("Authorization") };
+    calls.push(call);
     if (url.pathname.endsWith("/sub-accounts/create")) {
       if (subAccountFailure) return reply(subAccountFailure.status, subAccountFailure.body);
       const taxId = String(body?.taxId ?? "");
-      return reply(200, { data: { id: `sacc_${taxId}`, devMode: true }, error: null, success: true });
+      call.returnedSubAccountId = `sacc_${taxId}`;
+      return reply(200, { data: { id: call.returnedSubAccountId, devMode: true }, error: null, success: true });
     }
     if (url.pathname.endsWith("/transparents/create")) {
       chargeCounter++;
@@ -211,6 +213,38 @@ describe("configuration", () => {
       sub_account_id: `sacc_${NGO_CNPJ}`,
       link_validated: 0,
     });
+  });
+
+  it("recovers the same NGO sub-account after the payment configuration transaction rolls back", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const subAccountId = `sacc_${NGO_CNPJ}`;
+    const beneficiary = { body: { taxId: NGO_CNPJ, externalId: NGO }, returnedSubAccountId: subAccountId };
+    const provisioning = () => calls.filter((c) => c.path.endsWith("/sub-accounts/create"));
+    const audits = () => db.sql("SELECT actor, subject FROM audit_events WHERE action = 'ngo.payment_config'");
+    const directedPix = { targetKind: "ngo", ngoId: NGO, amountCents: 1000 };
+
+    // Fail the audit after the configuration write in the same D1 batch.
+    await db.exec(`CREATE TEMP TRIGGER fail_payment_audit BEFORE INSERT ON audit_events
+      WHEN NEW.action = 'ngo.payment_config'
+      BEGIN SELECT RAISE(ABORT, 'fixture audit failure'); END`);
+    expect((await ngoPayment({ revision: 1 })).status).toBe(500);
+    expect(provisioning()).toMatchObject([beneficiary]);
+    expect(count("ngo_payment_configs")).toBe(0);
+    expect(audits()).toEqual([]);
+    expect((await pix(directedPix)).status).toBe(409);
+    expect(chargeCounter).toBe(0);
+
+    await db.exec("DROP TRIGGER fail_payment_audit");
+    expect((await ngoPayment({ revision: 1 })).status).toBe(200);
+    expect(provisioning()).toMatchObject([beneficiary, beneficiary]);
+    expect(db.sql("SELECT ngo_id, sub_account_id FROM ngo_payment_configs")).toEqual([
+      { ngo_id: NGO, sub_account_id: subAccountId },
+    ]);
+    expect(audits()).toEqual([{ actor: "admin", subject: `ngo:${NGO}` }]);
+    expect((await pix(directedPix)).status).toBe(201);
+    expect(calls.filter((c) => c.path.endsWith("/transparents/create"))).toMatchObject([
+      { body: { data: { splits: [{ subAccountId, amount: 870 }] } } },
+    ]);
   });
 
   it("falls back to the sandbox marker when AbacatePay has not enabled sub-accounts yet (never in production)", async () => {

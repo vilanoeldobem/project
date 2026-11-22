@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added
+
+- Teste da retomada do recebimento de Pix pela ONG após falha na gravação da auditoria: o provedor simulado devolve a mesma subconta, o D1 registra um único vínculo e a cobrança seguinte usa esse destino.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**
