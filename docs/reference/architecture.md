@@ -71,7 +71,7 @@ neste aparelho." com "Tentar de novo" (recarrega a página). O HUD fica fora des
 continuam funcionando em HTML. Se o navegador tira o contexto gráfico da página (`webglcontextlost`),
 `lib/context-watch.ts` mostra "Os gráficos da Vila pararam por um instante. Voltando…"; se o contexto não volta em
 8 s, aparece a mesma tela de falha. O registro do erro guarda só o tipo (`world_unavailable`), nunca a mensagem.
-`scripts/verify-recovery.mjs` confere os quatro casos em Chrome real.
+`apps/client/scripts/verify-recovery.mjs` confere os quatro casos em Chrome real.
 
 ### 2.1 Loop por quadro (`Player`)
 
@@ -473,7 +473,7 @@ sem carregar Three.js:
 | Comportamento | `public/theme.js` | Aplica o tema salvo antes do primeiro quadro (CSP sem script inline) |
 
 Preferências do visitante ficam em `vila.site.theme.v1` e `vila.site.snow.v1` (por aparelho). A verificação
-(`scripts/verify.mjs`, Chrome real) cobre `/` e `/404.html` em oito larguras, dois temas, interação, ordem do
+(`apps/site/scripts/verify.mjs`, Chrome real) cobre `/` e `/404.html` em oito larguras, dois temas, interação, ordem do
 teclado e contraste do anel de foco, o que a neve pinta (ligada, desligada, movimento reduzido), zoom de texto,
 cores forçadas, contraste alto, página sem JavaScript e impressão.
 

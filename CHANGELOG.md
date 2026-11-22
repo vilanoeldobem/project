@@ -90,31 +90,24 @@ Cada versão indica o schema D1 que entrega.
 - **Um objeto voxel novo**, `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u, 80/200), para a coleta dos
   dois ramos e a entrega final.
 
-### Added
+### Added — doações e ONGs: testes, diagnósticos e documentação (#65, PROPOSTA, doações desligadas)
 
-- Teste de doações com duas ONGs e uma parceira global fictícias. Confere o destino e o valor do split de cada Pix e os totais confirmados após a reentrega do webhook.
+- Teste de doações com duas ONGs e uma parceira global fictícias: confere o destino e o valor do split de cada Pix e
+  os totais confirmados após a reentrega do webhook.
+- Consulta de diagnóstico que conta os Pix globais pagos no D1 local (`apps/api/scripts/count-paid-global-pix.sql`),
+  com o comando no dicionário de indicadores.
+- [Contrato de beneficiário para o Pix](docs/reference/ngo-beneficiary-contract.md): as três rotas de recebimento, a
+  recuperação do vínculo e as decisões pendentes.
+- [Dicionário de contagem da Vila](docs/reference/indicator-sources.md): fontes de presença, progresso e doações, o
+  tratamento de repetições e as definições pendentes.
+- [Evidência do provador gratuito e matriz de compra de cosméticos](docs/implementation/wardrobe-inventory-qa.md).
+- [Cadastro, sessão e retorno ao jogo](docs/implementation/visitor-account-access.md), com roteiro local e matriz das
+  cinco ações.
 
-### Added
-
-- [Contrato de beneficiário para o Pix](docs/reference/ngo-beneficiary-contract.md), com as três rotas de recebimento, a recuperação do vínculo e as decisões pendentes da #65.
-
-### Added
-
-- [Evidência do provador gratuito e matriz de compra de cosméticos](docs/implementation/wardrobe-inventory-qa.md) para a N6.1 da #65.
-
-### Fixed
+### Fixed — candidatura de ONG
 
 - O cadastro de ONG só pede o meio de recebimento quando a API aceita a configuração. Ao trocar de link próprio
   para AbacatePay, a candidatura grava a nova escolha e descarta o link anterior.
-
-### Added — documentação de acesso do visitante
-
-- [N4.1 · Cadastro, sessão e retorno ao jogo](docs/implementation/visitor-account-access.md), com roteiro local e matriz das cinco ações da #65.
-
-### Added
-
-- [Dicionário de contagem da Vila](docs/reference/indicator-sources.md), com as fontes de presença, progresso e doações, o tratamento de repetições e as definições pendentes da #65.
-- Consulta de diagnóstico para contar os Pix globais pagos em D1 local, com o comando no dicionário.
 
 ### Changed — produção na 0.7.0 e no schema D1 v15
 

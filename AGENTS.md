@@ -14,6 +14,29 @@ dash.vilanoeldobem.com.br; IMPL-0015) and `packages/shared` (pure logic used by 
 (`docs/decisions/registro-de-decisoes.md`, DEC-001..). Read [`docs/specs/README.md`](docs/specs/README.md)
 before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 
+## Where things are
+
+| Area | Path | Notes |
+|---|---|---|
+| Pure shared logic | `packages/shared/src/{game,net,accounts,donations,environment}` | no DOM, three.js or Workers runtime |
+| Village plan, lots, palette | `packages/shared/src/game/world.ts` (`VILLAGE_PLAN`, `PALETTE`) | layout is derived, never scattered |
+| Missions v1, story v2 | `packages/shared/src/game/quests.ts`, `quests-v2/` (`catalog.ts`, `books/book-NN.ts`) | content mirrors in `content/proposals/quests-v{1,2}/` |
+| Cosmetics | `packages/shared/src/game/cosmetics.ts` (v1 list), `cosmetics-v2.ts` (unified catalogue and its rules, `*In`) | the game uses the unified catalogue only |
+| Game UI and state | `apps/client/src/ui/`, `apps/client/src/game/store.ts` | zustand; one `Nearby` action (`ui/Hud.tsx`) |
+| Voxel rendering | `apps/client/src/scene/` (`mesher.ts`, `Voxels.tsx`, `environment/materials.ts`, `gen/`) | block look: IMPL-0033 |
+| API routes | `apps/api/src/api.ts` (router) and one module per area beside it | `/health` is light, `/ready` reads D1 and R2 |
+| Realtime presence | `apps/server/src/` (`handler.ts`, `room-do.ts`, `room.ts`) | memory only; `/ready` pings room 0 |
+| Backoffice | `apps/dash/src/` | admin UI lives only here |
+| Migrations | `migrations/NNNN_name.sql` | production is on v15 (0015) |
+| Product docs | `docs/reference/` (behaviour), `docs/decisions/` (ADRs, open questions) | code wins; fix the doc in the same change |
+
+### Feature flags (API `wrangler.jsonc`; all `"false"` in production and staging)
+
+`ACCOUNTS_ENABLED`, `QUESTS_V1_ENABLED`, `QUESTS_V2_ENABLED`, `NGO_FILES_ENABLED`, `NGO_PHOTOS_ENABLED`,
+`NGO_WITHDRAWAL_ENABLED`, `ACCOUNT_BLOCK_ENABLED`, `PRESENCE_MODERATION_ENABLED` (also on the realtime server),
+`RESIDENTIAL_PLOTS_ENABLED`, `DONATIONS_ENABLED`, `NGO_LEVELS_ENABLED`. `GET /config` reports what the apps may show.
+Local `pnpm --filter @vila/api dev` turns most of them on. Never flip one remotely without explicit approval.
+
 ## Build, test, lint (all must pass before claiming done)
 
 ```bash
@@ -33,6 +56,10 @@ node apps/client/scripts/verify-recovery.mjs http://localhost:8799     # 3D vill
 node apps/client/scripts/verify-fullroom.mjs                           # 40 people in one room, distinct/shared looks, render budget (local only; needs the server)
 node apps/client/scripts/verify-boards.mjs http://localhost:8799       # the P01–P15 screens at 1440 and 390, screenshots (local only)
 node apps/client/scripts/verify-shop.mjs http://localhost:8799         # the P08 provador: four shops, preview, equip, inventory (local only)
+node apps/client/scripts/verify-quests.mjs http://localhost:5173       # missions v1 end to end (local only; `pnpm --filter @vila/client dev`)
+node apps/client/scripts/verify-story.mjs http://localhost:5173 book-01 # one story-v2 book end to end (local only; minigame steps need slice 12)
+node apps/client/scripts/gallery.mjs http://localhost:8799 props       # screenshots of generated models by category (local only)
+node content/proposals/quests-v2/validate-slice.mjs content/proposals/quests-v2/book-01   # a book's CSVs against the manifest
 # after a deploy only (not a pre-merge gate; verify.mjs above is local only):
 node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
 pnpm --filter @vila/dash dev:worker                             # dash   → :8797 (build --mode workers)
@@ -51,9 +78,11 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 
 - Respect the status of every product statement: **CONFIRMADO**, **PROPOSTA**, **HIPÓTESE**,
   **PENDENTE**. Never ship a proposal as if it were approved; label it in code comments and docs.
-- **No fake money flows.** No donate/purchase button may simulate a completed payment. Until a
-  partner contract and payment provider exist (PEN-004, PEN-006), donation buttons stay disabled
-  with an honest note (IMPL-0002).
+- **No fake money flows.** No donate/purchase button may simulate a completed payment. The Pix integration
+  ([IMPL-0023](docs/decisions/0023-donations-abacatepay.md), hardened in IMPL-0028) is dark code behind
+  `DONATIONS_ENABLED` ("false" in production and staging) until a partner contract and the provider are confirmed
+  (PEN-004, PEN-006); with the flag off, donation buttons stay disabled with an honest note (IMPL-0002). The local
+  `/donations/:id/simulate` route never exists in production. Cosmetics are never sold (PEN-022, OQ-21).
 - Global donation goes to **one** partner institution; never say it is split among the Vila's NGOs
   (DEC-010..013). Per-NGO donation goes to that NGO only. Playing is never a donation (DEC-029).
 - **No invented numbers.** A public indicator without a verifiable source returns `null` and is
@@ -61,6 +90,13 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - Progression (DEC-042): events are idempotent by unique id; a mission grants its XP once; a donation
   alone grants no XP; levels must be reachable without donating. Logic lives in
   `packages/shared/src/game/progress.ts` and is covered by tests.
+- Story v2, "saga das Longas Noites" ([docs/reference/quests-v2.md](docs/reference/quests-v2.md)), is
+  **PROPOSTA** (PEN-025): ten books (`quests-v2/books/book-01.ts` … `book-10.ts`, 45 entries each) behind
+  `QUESTS_V2_ENABLED` / `VITE_QUESTS_V2_ENABLED` (`?quests2=1` locally), off in production. Ids come from the
+  manifest (`quests-v2/manifest.ts`, 484 ids) and are progress event ids stored in D1: never rename one. A book edits
+  only its own module, content folder, props, cosmetics and tests; shared changes go through the integration slice.
+  Dialogue follows the same copy rules as village life (fixed pt-BR text, no AI, no pressure to stay, return,
+  donate or spend). Paid cosmetics in a book stay `unlock.kind: "paid"`: never unlocked, worn or sent on the wire.
 - Only an authorised admin publishes/removes NGOs or applies sanctions (DEC-037); every admin
   mutation writes `audit_events`.
 - Accounts (IMPL-0011) stay behind `ACCOUNTS_ENABLED` ("false" in production) until the owner records the LGPD /
@@ -117,7 +153,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - The look of the village ([IMPL-0030](docs/decisions/0030-thawed-village-and-readable-streets.md), **PROPOSTA**):
   snow is an accent and roads are the darkest thing on the ground. `apps/client/src/scene/groundRuns.test.ts` keeps
   a contrast of at least 3:1 between every road tone and every yard tone and the share of snow tones under a fifth:
-  a new ground colour goes through `PALETTE` and those lists, never a free hex value.
+  a new ground colour goes through `PALETTE` and those lists, never a free hex value. The block look
+  ([IMPL-0033](docs/decisions/0033-block-look.md)) lives in the mesher and the shared materials (light by face, a
+  deterministic shade per block, block edges from `aFace`): a new voxel geometry built outside `voxelGeometries`
+  should carry `aFace` too, and a model's voxel `size` changes only with its collider, budget and snapshot.
 - Village life ([IMPL-0025](docs/decisions/0025-village-life.md)) is **PROPOSTA**: the cast, its names, its routines
   and what it says are config and copy of the technical owner until the product owner answers OQ-20. **No language
   model or other AI service** drives a character or writes a line: behaviour is a schedule
@@ -151,6 +190,9 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
   `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
+- `GET /health` (API and realtime server) only says the Worker answers; `GET /ready` does a real read (D1
+  `SELECT 1`, an R2 `head` of a key that never exists, a ping to presence room 0) and answers 503 when one fails.
+  Keep both read-only and never put an error message, key or file name in the answer.
 - D1 is the only persistent server-side database; the private R2 bucket `FILES` holds only the bytes of NGO
   application files (IMPL-0017, PROPOSTA, behind `NGO_FILES_ENABLED`): every read goes through the API, the bucket
   never gets a public URL, no file name is stored, and `ngo_files` in D1 decides who may read what. Proposed

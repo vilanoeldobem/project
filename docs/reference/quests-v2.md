@@ -1,7 +1,7 @@
 # Story v2: runtime e catálogo
 
-> **Status:** PROPOSTA, runtime do spine implementado atrás de flags; conteúdo dos livros pendente. **Atualizado em:**
-> 2026-11-21. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
+> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime e os dez livros implementados (PRs #79 a
+> #88); epílogo novo, pós-jogo e minijogos da saga pendentes (§7). **Atualizado em:** 2026-11-22. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
 > `apps/client/src/game/questsV2Flag.ts`, `apps/api/src/progress.ts`; o epílogo continua em
 > [quests.md](quests.md) e `quests.ts`.
 
@@ -78,6 +78,26 @@ são ignorados e o resto é gravado; id desconhecido dá `400`.
 O epílogo é o catálogo v1, importado sem edição. A última missão principal, `b05-c3-04`, libera as seis cadeias do
 epílogo; a ordem é livre e a cena final espera as seis. O módulo `book-00-epilogue.ts` recebe o pós-jogo e a cena
 final na sessão 11, sem editar `catalog.ts` nem `progress.ts`.
+
+## 7. Estado das fatias (2026-11-22)
+
+| Fatia | Estado |
+|---|---|
+| 00, spine | integrada (PR #78) |
+| 01 a 10, livros | integrados (PRs #79 a #88): 45 entradas, 4 props e 6 cosméticos cada; 450 entradas e 10.500 XP |
+| 11, epílogo e pós-jogo | pendente: `book-00-epilogue.ts` está vazio; o epílogo jogável é o catálogo v1 |
+| 12, arte, cosméticos e minijogos | pendente: os minijogos da saga não estão registrados no jogo, então `verify-story.mjs` para no primeiro objetivo de minijogo de cada livro (no Livro I, `b01-r1-04`) |
+| 13, revisão jurídica | pendente |
+| 14, integração | em andamento: esta referência, o índice de `content/proposals/quests-v2/` e o CHANGELOG |
+
+Lacunas conhecidas, registradas pelos livros e ainda sem código:
+
+- O jogo não calcula os contadores dos marcos (`missions`, `trades`) nem chama `settleMilestonesIn`; os testes
+  cobrem a regra e a recompensa.
+- Os estados de mundo de cada livro (por exemplo `bell-rung`, `market-open`) são calculados e testados, mas nenhum
+  prop persistente é desenhado conforme o estado.
+- Um objetivo de minijogo deve registrar o event id do alvo `kind: "minigame"` da missão ativa, não só o `eventId`
+  do catálogo de minijogos.
 
 ## Ver também
 
