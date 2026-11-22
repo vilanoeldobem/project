@@ -9,6 +9,13 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-22
+
+**Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**
+([IMPL-0033](docs/decisions/0033-block-look.md)). Schema D1 **v15**, o mesmo da 0.7.0: nenhuma migration e nenhuma
+bandeira nova em produção (`QUESTS_V2_ENABLED = "false"` passa a constar no `wrangler.jsonc` da API). Os dez livros da
+saga (PEN-025) e as doações (PEN-004, PEN-006) seguem desligados; o provador recebe as pendências da revisão do PR #48.
+
 ### Removed — código morto
 
 - As regras do catálogo v1 de visuais (`isUnlocked`, `unlockedIds`, `wear`, `sanitizeLook`, `requirement` em
