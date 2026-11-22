@@ -28,7 +28,8 @@ export function Shell({ route, user, onSignOut, children }: { route: Route; user
       </button>
       <header className="top">
         <p className="top__brand">
-          <strong>Vila Noel do Bem</strong> <span>Painel administrativo</span>
+          <img className="top__brand-logo" src="/logo-vilanoeldobem.png" width={380} height={360} alt="Vila Noel do Bem" />
+          <span>Painel administrativo</span>
         </p>
         <div className="top__user">
           {user ? (

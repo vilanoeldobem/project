@@ -65,6 +65,8 @@ describe("sign-in", () => {
     expect(page).toContain("E-mail da sua conta");
     expect(page).toMatch(/<button class="btn btn--primary" disabled="">Enviar link de acesso<\/button>/);
     expect(count(page, "<input")).toBe(1);
+    expect(count(page, 'src="/logo-vilanoeldobem.png"')).toBe(1);
+    expect(page).toContain('alt="Vila Noel do Bem"');
     expect(page).not.toMatch(/Criar conta<\/button>|<nav/);
   });
 
@@ -126,6 +128,7 @@ describe("shell", () => {
     expect(count(page, 'aria-current="page"')).toBe(1);
     expect(page).toContain("@ana_lima");
     expect(page).not.toMatch(/ana@example\.com|Ana Lima/);
+    expect(count(page, 'src="/logo-vilanoeldobem.png"')).toBe(1);
     // The first focusable element is the skip link.
     expect(page.indexOf("Pular para o conteúdo")).toBeLessThan(page.indexOf("<nav"));
   });

@@ -46,12 +46,15 @@ const LEGS = [
   ["south-west avenue, between two lots of the frontage", -28, -14],
   ["behind the sleigh and the reindeer", 2, 22.8],
   ["north-east avenue, past the pond", 26, -12],
-  // The expanded village (IMPL-0024): streets, a plot front of each tier, the wood yard, and all the way back.
-  ["premium street, behind the frontage", 37.5, 6],
+  // The village of four rings (IMPL-0024, IMPL-0031): the streets, a house front, a lot front, the front of a
+  // civic building, the wood yard beyond the last ring, and all the way back.
+  ["first street, behind the frontage", 37.5, 6],
   ["front of premium-01", 38.75, -7.5],
-  ["front of standard-10, on the far side", 6.25, 54.25],
-  ["front of economy-01, the farthest plot", 67.75, -22.5],
-  ["end of the northern lane, by the wood yard", 0, -78],
+  ["second street, on the far side", 6.25, 54.25],
+  ["third street, east", 67.75, -22.5],
+  ["front of economy-02, on the outer street", 16.5, 81.25],
+  ["front of the bank", 32.7, 22.1],
+  ["end of the northern lane, by the wood yard", 0, -93],
   ["just behind the lamp post south of the spawn", 0, 13.8],
   ["back to the spawn", 0, 9],
 ];
@@ -67,11 +70,13 @@ const BLOCKED = [
   { name: "market-stall", from: [15, 0], click: [20.5, 0], at: [20.5, 0], range: [1.5, 2.1] },
   { name: "snowman", from: [6, 9], click: [9.5, 4], at: [9.5, 4], range: [1.3, 1.9] },
   { name: "sleigh", from: [-2.2, 16], click: [-2.2, 20.2], at: [-2.2, 20.2], range: [1.7, 2.3] },
-  // The expanded village (IMPL-0024): a shop's wall, the firewood between two cottages, the log pile.
+  // The village of four rings (IMPL-0024, IMPL-0031): a shop's wall, the hedge between two lots (1 u thick, the
+  // pads beside it are open while the lots are free), the fountain of the first square, the log pile.
   { name: "shop", from: [5, 24], click: [5, 30.5], at: [5, 30.5], range: [3.95, 4.55] },
-  { name: "firewood", from: [66.5, -19.5], click: [72.5, -19.5], at: [72.5, -19.5], range: [2.95, 3.55] },
-  { name: "log-pile", from: [3.5, -77], click: [3.5, -80], at: [3.5, -80], range: [1.2, 1.8] },
-  { name: "outside-the-world", from: [18, 18], click: [200, 200], at: [0, 0], range: [82.1, 82.51] },
+  { name: "hedge", from: [53, -11], click: [59.5, -11], at: [59.5, -11], range: [0.95, 1.6] },
+  { name: "fountain", from: [-32.7, -22.1], click: [-36.77, -26.16], at: [-36.77, -26.16], range: [2.9, 3.9] },
+  { name: "log-pile", from: [3.5, -92.5], click: [3.5, -95.5], at: [3.5, -95.5], range: [1.2, 1.8] },
+  { name: "outside-the-world", from: [18, 18], click: [200, 200], at: [0, 0], range: [98.6, 99.01] },
 ];
 
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });

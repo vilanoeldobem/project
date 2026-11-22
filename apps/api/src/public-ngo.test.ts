@@ -137,16 +137,16 @@ it.each(Array.from({length:16},(_,i)=>i))("serves the v3 public profile across f
 });
 
 // Production's database is at migration 0003 and every flag is off there: the always-on public routes must answer
-// on any schema the code may meet (v3 to v14), whatever the flags and the bucket, and never with a 500. None of them
+// on any schema the code may meet (v3 to v15), whatever the flags and the bucket, and never with a 500. None of them
 // may read a table from a later migration: neither the withdrawal ledger (0009, IMPL-0020), anything 0010 adds
 // (the account block and the moderation tickets, IMPL-0021), the donation tables (0011, IMPL-0023), nor the
 // donation intents and waiting webhook events (0013 and 0014, IMPL-0028) is part of any public read while their flags are off. The residential plots (0012, IMPL-0024) are the one public read of a
 // newer table, only with their flag on, and it answers the shared layout, every plot "unavailable", wherever
 // the table is missing.
-it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
+it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])("answers every always-on public route on schema v%i in all flag/bucket combinations", async (upTo) => {
   const errors = vi.spyOn(console, "error").mockImplementation(() => {});
   const wrong: string[] = [];
-  for (let flags = 0; flags < 512; flags++) for (const published of [true, false]) {
+  for (let flags = 0; flags < 1024; flags++) for (const published of [true, false]) {
     db = createD1({ upTo });
     env = {
       DB: db, ENVIRONMENT: "test", ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: flags & 1 ? "true" : "false",
@@ -156,6 +156,7 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])("answers every always-on publ
       ACCOUNT_BLOCK_ENABLED: flags & 32 ? "true" : "false", PRESENCE_MODERATION_ENABLED: flags & 64 ? "true" : "false",
       RESIDENTIAL_PLOTS_ENABLED: flags & 128 ? "true" : "false",
       DONATIONS_ENABLED: flags & 256 ? "true" : "false",
+      NGO_LEVELS_ENABLED: flags & 512 ? "true" : "false",
     };
     await db.prepare("INSERT INTO ngos(id,name,cnpj,summary,status) VALUES(?, 'Public NGO', '11222333000181', 'Public summary', ?)").bind(NGO_ID, published ? "published" : "submitted").run();
     await db.prepare("UPDATE lots SET ngo_id=?,state=? WHERE id='plaza-01'").bind(NGO_ID, published ? "published" : "application_sent").run();
@@ -168,9 +169,13 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])("answers every always-on publ
       if (response.status !== status) wrong.push(`flags=${flags} published=${published} ${path}: ${response.status}`);
     }
     const { lots } = await (await get("/lots")).json() as { lots: Array<Record<string, unknown>> };
+    // The level of the house (IMPL-0032) is read from `donations` (0011) only with both of its flags on and where
+    // that table exists; everywhere else it is null, never a 500. A published house with no donation is level 1.
+    const levels = Boolean(flags & 256) && Boolean(flags & 512) && upTo >= 11;
     expect(lots.find((lot) => lot.id === "plaza-01")).toMatchObject(published
-      ? { ngo_id: NGO_ID, ngo_name: "Public NGO", ngo_summary: "Public summary", ngo_logo: null }
-      : { ngo_id: null, ngo_name: null, ngo_summary: null, ngo_logo: null });
+      ? { ngo_id: NGO_ID, ngo_name: "Public NGO", ngo_summary: "Public summary", ngo_logo: null, ngo_level: levels ? 1 : null }
+      : { ngo_id: null, ngo_name: null, ngo_summary: null, ngo_logo: null, ngo_level: null });
+    expect(lots.filter((lot) => lot.id !== "plaza-01").every((lot) => lot.ngo_level === null)).toBe(true);
     const { indicators } = await (await get("/indicators")).json() as { indicators: Array<{ key: string; value: number | null }> };
     expect(indicators.find((indicator) => indicator.key === "approved_ngos")?.value).toBe(published ? 1 : 0);
     if (published) expect(await (await get()).json()).toEqual({ ngo: { id: NGO_ID, name: "Public NGO", summary: "Public summary", description: null, tags: [], projects: [], lotId: "plaza-01", photos: [] } });
@@ -181,10 +186,12 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])("answers every always-on publ
       moderation: { block: accounts && Boolean(flags & 32), presence: accounts && Boolean(flags & 64) },
       residentialPlots: accounts && Boolean(flags & 128),
       donations: Boolean(flags & 256),
+      ngoLevels: Boolean(flags & 256) && Boolean(flags & 512),
     });
-    // `/lots` keeps its shape and its rows: the eight lots of 0002 everywhere, twelve once 0012 is applied.
-    expect(lots.map((lot) => lot.id)).toEqual(LOTS.slice(0, upTo >= 12 ? LOTS.length : 8).map((lot) => lot.id));
-    expect(Object.keys(lots[0]).sort()).toEqual(["id", "ngo_id", "ngo_logo", "ngo_name", "ngo_summary", "slot", "state", "street", "x", "z"]);
+    // `/lots` keeps its shape and its rows: the eight lots of 0002 everywhere, twelve once 0012 is applied, and
+    // the lots of the rings after them once 0015 is (IMPL-0031).
+    expect(lots.map((lot) => lot.id)).toEqual(LOTS.slice(0, upTo >= 15 ? LOTS.length : upTo >= 12 ? 12 : 8).map((lot) => lot.id));
+    expect(Object.keys(lots[0]).sort()).toEqual(["id", "ngo_id", "ngo_level", "ngo_logo", "ngo_name", "ngo_summary", "slot", "state", "street", "x", "z"]);
     // Residential plots: the same layout on every schema; `enabled` is what `/config` says, and there is
     // something to hold only with the table and both flags.
     const plots = await (await get("/residential-plots")).json() as { enabled: boolean; plots: Array<Record<string, unknown>> };
@@ -197,8 +204,9 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])("answers every always-on publ
   expect(wrong).toEqual([]);
   expect(errors).not.toHaveBeenCalled();
   errors.mockRestore();
-  // 1,024 requests per schema: well past the default 5 s on a CI runner (v10–v12 took 5–7 s there).
-}, 60_000);
+  // 2,048 flag combinations per schema since the level flag got its bit (IMPL-0032), twice as many as before:
+  // well past the default 5 s (v10–v12 took 5–7 s on a CI runner with half of them).
+}, 180_000);
 
 it("counts in the public indicator only what the village shows: published NGOs on a published lot", async () => {
   const approved = async () => ((await (await get("/indicators")).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators.find((indicator) => indicator.key === "approved_ngos")?.value;

@@ -16,6 +16,94 @@ exports[`generator snapshots > cat keeps the output of fixed seeds stable 1`] = 
 ]
 `;
 
+exports[`generator snapshots > civic-bank keeps the output of fixed seeds stable 1`] = `
+[
+  "169b9f2d",
+  "185c3d2c",
+  "4c714b28",
+]
+`;
+
+exports[`generator snapshots > civic-cinema keeps the output of fixed seeds stable 1`] = `
+[
+  "5d09b009",
+  "f72e15eb",
+  "cf0d39fe",
+]
+`;
+
+exports[`generator snapshots > civic-gym keeps the output of fixed seeds stable 1`] = `
+[
+  "6bb7de70",
+  "e6af44f2",
+  "f5790f42",
+]
+`;
+
+exports[`generator snapshots > civic-hospital keeps the output of fixed seeds stable 1`] = `
+[
+  "55a98202",
+  "7c722e49",
+  "b1268d70",
+]
+`;
+
+exports[`generator snapshots > civic-mall keeps the output of fixed seeds stable 1`] = `
+[
+  "48b7c44c",
+  "8a1c18e",
+  "2cf80510",
+]
+`;
+
+exports[`generator snapshots > civic-restaurant keeps the output of fixed seeds stable 1`] = `
+[
+  "7160dd0e",
+  "963df0e9",
+  "766b944e",
+]
+`;
+
+exports[`generator snapshots > civic-school keeps the output of fixed seeds stable 1`] = `
+[
+  "3fc3f443",
+  "11fb203d",
+  "51beba2b",
+]
+`;
+
+exports[`generator snapshots > civic-sleigh-station keeps the output of fixed seeds stable 1`] = `
+[
+  "a703ced1",
+  "3c135108",
+  "2bae818",
+]
+`;
+
+exports[`generator snapshots > civic-sports-hall keeps the output of fixed seeds stable 1`] = `
+[
+  "7e3ac93c",
+  "4e9f66c3",
+  "e468e03b",
+]
+`;
+
+exports[`generator snapshots > civic-supermarket keeps the output of fixed seeds stable 1`] = `
+[
+  "afaba820",
+  "b85de1c5",
+  "a483390b",
+]
+`;
+
+exports[`generator snapshots > civic-theatre keeps the output of fixed seeds stable 1`] = `
+[
+  "68dd2e56",
+  "dbacd130",
+  "b5b8833b",
+]
+`;
+
 exports[`generator snapshots > dog keeps the output of fixed seeds stable 1`] = `
 [
   "beeed572",
@@ -58,9 +146,33 @@ exports[`generator snapshots > hat keeps the output of fixed seeds stable 1`] = 
 
 exports[`generator snapshots > house keeps the output of fixed seeds stable 1`] = `
 [
-  "a86785d6",
-  "aa537777",
-  "3a3d4d7f",
+  "e1d4ef8f",
+  "294dec3",
+  "833407ce",
+]
+`;
+
+exports[`generator snapshots > house-dormer keeps the output of fixed seeds stable 1`] = `
+[
+  "6be5870d",
+  "db9e9c58",
+  "f96fee36",
+]
+`;
+
+exports[`generator snapshots > house-terrace keeps the output of fixed seeds stable 1`] = `
+[
+  "f6f5e4ac",
+  "b58b28ac",
+  "6766a838",
+]
+`;
+
+exports[`generator snapshots > house-townhouse keeps the output of fixed seeds stable 1`] = `
+[
+  "afc6dc39",
+  "6681ed35",
+  "8391136c",
 ]
 `;
 
@@ -93,6 +205,46 @@ exports[`generator snapshots > market-stall keeps the output of fixed seeds stab
   "ba33e23f",
   "e79308d5",
   "620536dd",
+]
+`;
+
+exports[`generator snapshots > ngo-level-1 keeps the output of fixed seeds stable 1`] = `
+[
+  "4e48bf21",
+  "32368cf0",
+  "1f5a0d66",
+]
+`;
+
+exports[`generator snapshots > ngo-level-2 keeps the output of fixed seeds stable 1`] = `
+[
+  "b6f6dc31",
+  "818609c1",
+  "92f337c1",
+]
+`;
+
+exports[`generator snapshots > ngo-level-3 keeps the output of fixed seeds stable 1`] = `
+[
+  "8b6aa47a",
+  "7f116e94",
+  "d794a9d3",
+]
+`;
+
+exports[`generator snapshots > ngo-level-4 keeps the output of fixed seeds stable 1`] = `
+[
+  "48a9ee85",
+  "c4f2d1d4",
+  "e84951e1",
+]
+`;
+
+exports[`generator snapshots > ngo-level-5 keeps the output of fixed seeds stable 1`] = `
+[
+  "6e6d9a43",
+  "8810a0a3",
+  "dfa5e97f",
 ]
 `;
 
@@ -186,9 +338,9 @@ exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] 
 
 exports[`generator snapshots > shop keeps the output of fixed seeds stable 1`] = `
 [
-  "2ea71bd7",
-  "d4f3eed7",
-  "6f981610",
+  "abb3a99a",
+  "538b49a",
+  "2ed4f79",
 ]
 `;
 

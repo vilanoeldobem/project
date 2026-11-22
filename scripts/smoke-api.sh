@@ -24,7 +24,9 @@ curl -s "$API/environment" | grep -q '"timezone":"America/Sao_Paulo"' && echo "o
 check "POST api /lots" 405 "$(code -X POST "$API/lots")"
 # Residential plots (IMPL-0024): always answered from the shared layout, whatever the schema and the flag.
 check "GET api /residential-plots" 200 "$(code "$API/residential-plots")"
-curl -s "$API/residential-plots" | grep -q '"id":"economy-64"' && echo "ok   residential plots list the whole layout" || { echo "FAIL residential plots missing economy-64"; fail=1; }
+# The last plot of the layout of four rings (IMPL-0031); the layout of IMPL-0024 has it too, so this passes against
+# an API of either version.
+curl -s "$API/residential-plots" | grep -q '"id":"economy-06"' && echo "ok   residential plots list the whole layout" || { echo "FAIL residential plots missing economy-06"; fail=1; }
 check "POST api /residential-plots" 405 "$(code -X POST "$API/residential-plots")"
 check "GET api /nope" 404 "$(code "$API/nope")"
 # server

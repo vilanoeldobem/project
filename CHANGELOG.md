@@ -19,6 +19,97 @@ Cada versão indica o schema D1 que entrega.
 - **Um objeto voxel novo**, `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u, 80/200), para a coleta dos
   dois ramos e a entrega final.
 
+### Changed — produção na 0.7.0 e no schema D1 v15
+
+- **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
+  → servidor → jogo → painel → site, com autorização do responsável técnico. As migrations `0014` e `0015` foram
+  aplicadas em produção (v13 → v15), com ponto de restauração registrado em `docs/reference/releases.md`. Nenhuma
+  bandeira mudou.
+
+## [0.7.0] - 2026-11-19
+
+**A Vila em quatro anéis, com menos neve, ruas legíveis e casas de ONG em cinco níveis**
+([IMPL-0030](docs/decisions/0030-thawed-village-and-readable-streets.md),
+[IMPL-0031](docs/decisions/0031-village-rings-zoning-civic-buildings-and-boards.md),
+[IMPL-0032](docs/decisions/0032-ngo-building-levels.md)), o logotipo em teste nas três aplicações
+([IMPL-0029](docs/decisions/0029-brand-logo-in-the-apps.md)) e a conciliação endurecida das doações
+([IMPL-0028](docs/decisions/0028-donation-durable-intent.md)). Schema D1 **v15** no código: as migrations `0014`
+(motivo da espera de um evento de doação, aditiva) e `0015` (terrenos dos anéis e casas semeadas de novo) vão para
+produção nesta publicação, com autorização; o que foi aplicado e observado fica em
+[`docs/reference/releases.md`](docs/reference/releases.md). O clima mudou de versão (`WEATHER_ALGORITHM_VERSION = 2`)
+e o raio do mundo passou a 99 u: API, servidor de tempo real e jogo são publicados juntos, nessa ordem. Tudo o que é
+**PROPOSTA** segue como proposta: contas, arquivos e fotos de ONG, retirada, bloqueio, remoção de visitante, terrenos
+residenciais, doações e os níveis da casa da ONG (`NGO_LEVELS_ENABLED`) seguem **desligados**. Desempenho medido só
+em computador; nenhum teste em celular foi feito.
+
+### Added — casa da ONG em cinco níveis, conforme as doações confirmadas (IMPL-0032, **PROPOSTA**; atrás de `NGO_LEVELS_ENABLED`, desligada em produção e homologação; sem mudança de schema)
+
+- **`GET /lots` ganha `ngo_level`** (1 a 5, ou `null`): o total confirmado das doações de cada ONG publicada
+  transformado em nível. O valor nunca vem nessa rota. É `null` com `NGO_LEVELS_ENABLED` ou `DONATIONS_ENABLED`
+  desligada, em terreno sem ONG publicada e em banco sem a tabela de doações. `GET /config` ganha `ngoLevels`.
+- **Cinco construções** com as cores da própria ONG: cabana, chalé com varanda, casa de dois andares, a mesma com
+  torre de pedra e luzes, e três andares com estrela na torre. Todas cabem no terreno e têm o colisor do seu nível.
+- Limites (marcadores do responsável técnico, a decidir na OQ-23): R$ 500, R$ 2.500, R$ 10.000 e R$ 50.000.
+- A prévia local `?villageDemo=full` alterna os cinco níveis.
+
+### Changed — casa de ONG publicada (IMPL-0032)
+
+- Com os níveis desligados (o estado de produção), toda casa publicada é desenhada no nível 1, a cabana de 5 × 5.
+  Antes era um chalé de tamanho sorteado pela semente do terreno.
+
+### Added — a Vila em quatro anéis: 80 % para ONGs, prédios cívicos, parques e placas (IMPL-0031, **PROPOSTA**; schema v15; migration 0015 aplicada em produção na publicação da 0.7.0)
+
+- **A Vila cresceu de 82,5 u para 99 u de raio**, em quatro anéis atrás da praça. O plano virou uma lista de anéis
+  com um zoneamento por meia fileira; acrescentar um anel não move nem renomeia nada do que existe.
+- **97 terrenos de ONG e 23 casas** (80,8 % das parcelas para ONGs; eram 12 terrenos e 112 casas). Os doze terrenos
+  da praça ficaram onde estavam, com os mesmos ids. Os novos são `ring1-01`…`ring4-30`; o número na tela conta todos
+  os terrenos da Vila ("Terreno 13" é o primeiro do primeiro anel).
+- **Onze prédios cívicos como cenário** (banco, cantina, academia, escola, cinema, teatro, mercado, hospital, Posto
+  do Trenó, galeria e ginásio), **três parques e duas praças**. Cada um tem nome, painel próprio ("Ver prédio",
+  "Ver parque", "Ver praça") e a frase de que nada é vendido nem atendido ali. O Posto do Trenó ocupa o lugar do
+  posto de gasolina pedido: a Vila segue sem veículos.
+- **37 placas em quatro formatos** (placa de telhado, outdoor, placa de jardim e telão), com o tamanho das artes
+  definido em `docs/reference/display-boards.md`. Todas mostram avisos da própria Vila; arte de terceiros não está
+  implementada e depende da OQ-18.
+- **Migration 0015:** insere os 85 terrenos dos anéis e semeia `residential_plots` de novo; não toca nos terrenos da
+  praça. `GET /lots` passa a listar 97 terrenos depois dela, a praça primeiro; `GET /residential-plots` lista 23.
+- **Explorar ONGs** agrupa os terrenos por rua, com as casas publicadas primeiro; o mapa (P10) mostra as ruas dos
+  anéis, os prédios e os parques.
+- **Prévia local `?villageDemo=full`** (só em build local ou de desenvolvimento): desenha uma casa em cada terreno
+  para medir o orçamento de desenho; uma Vila publicada ignora o parâmetro.
+
+### Changed — desenho e navegação para a Vila maior (IMPL-0031)
+
+- Os chalés das ONGs publicadas passam a ser assados em blocos (um por lado de cada anel), em vez de uma malha por
+  chalé; o chão é desenhado em nove pedaços; tudo o que fica nos anéis é um bloco por anel e por lado. Com uma casa
+  em cada um dos 97 terrenos, a pior vista medida tem 139 chamadas de desenho e 217 480 triângulos (limites: 150 e
+  250 000).
+- Navegação: a grade passou de 436 921 para 628 849 células e a memória de busca de 4,4 MB para 6,3 MB; os limites
+  dos testes subiram para 7 MB e 150 000 células expandidas.
+- O rótulo "Terreno disponível" aparece só a menos de 13 u do avatar.
+- **Publicar junto:** o servidor de tempo real com o cliente (o limite de posição acompanha o raio do mundo).
+
+### Changed — cena: menos neve, ruas legíveis e casas variadas (IMPL-0030, **PROPOSTA**; sem mudança de schema)
+
+- **A neve virou detalhe.** O chão da Vila passa a ser grama com geada e manchas de neve, a praça é de pedra
+  quente e a neve só toma o chão na borda do mundo. Nos telhados ela fica na cumeeira; pinheiros, muros e cercas
+  têm cerca de um terço da neve de antes.
+- **Ruas legíveis.** Asfalto, paralelepípedo escuro e terra batida no lugar da "neve batida", sem manchas de neve
+  sobre a rua; meio-fio claro dos dois lados; cruzamentos calçados onde uma rua cruza uma avenida; vielas de tijolo;
+  um poste por lado também na rua econômica. O contraste entre rua e quintal foi de 1,2–1,6 para pelo menos 3:1.
+- **Clima v2** (`WEATHER_ALGORITHM_VERSION = 2`): céu limpo em 42 % das janelas (era 12 %), nevasca em 2 % (era
+  5 %), névoa mais leve e flocos menores. **Publicar API e cliente juntos:** versões diferentes não sincronizam.
+- **Casas residenciais com quatro formas** sorteadas pela semente do terreno (chalé, água-furtada, sobrado, casa
+  com terraço), mais cores de parede e de telhado, paredes em enxaimel, tábuas ou tijolos, base de pedra,
+  venezianas e canteiros. Pegada, colisores e altura máxima de cada faixa não mudaram.
+
+### Added — identidade: logotipo da marca nas três aplicações (IMPL-0029, logo final **PENDENTE**, PEN-016)
+
+- O logotipo Modelo B (render voxel em teste) passa a ser a marca do site (cabeçalho e rodapé), do jogo (tela de
+  carregamento e barra do HUD) e do painel administrativo (entrada, estados de sessão e cabeçalho); o favicon dos
+  três apps vira a estrela do logotipo e a imagem de compartilhamento do site passa a ser a peça 1200 × 630 com a
+  marca, sem slogan. A aprovação da logo final continua pendente (DEC-024, PEN-016).
+
 ### Added — documentação de marca
 
 - Roteiro local para elaboração de manual da marca em `docs/skills/`, identificado como **PROPOSTA** e vinculado às decisões do produto.
@@ -37,8 +128,8 @@ Cada versão indica o schema D1 que entrega.
   só para administradores, auditadas, sem chamar o provedor. Uma intenção que guarda a cobrança do provedor nunca é
   encerrada (`409 intent_has_charge`), nem o evento que espera por ela é dispensado: a repetição com a mesma chave
   conclui a doação.
-- **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): **não aplicada no remoto**; entra
-  com a publicação que traz este código. Com as doações ligadas e o banco em v13, as rotas de doação respondem
+- **Migration `0014_pending_event_hold_reason.sql`** (coluna `hold_reason`, aditiva): aplicada em produção na publicação da
+  0.7.0. Com as doações ligadas e o banco em v13, as rotas de doação respondem
   `503 schema_outdated`.
 
 ### Changed — produção no schema D1 v13

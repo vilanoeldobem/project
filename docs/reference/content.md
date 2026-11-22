@@ -1,6 +1,6 @@
 # Conteúdo procedural (voxels gerados por semente)
 
-> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 6 de 6 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-18
+> **Status:** Fases 0–5 implementadas (núcleo, galeria, adereços, casas, moradores, animais, cosméticos; itens de quest: 5 de 5 da PROPOSTA `quests-v1`) · **Atualizado em:** 2026-11-11
 > **Fonte de verdade:** `apps/client/src/scene/gen/`, testes em `gen.test.ts`
 > ([IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md))
 
@@ -46,7 +46,10 @@
 | `quest-donation-panel` | Painel de doação global | props | madeira, largura, altura, moldura, guirlanda, lâmpada, orientação | 77 / 196 |
 | `quest-story-page` | Página da história | props | largura, comprimento, dourado, lacre, borda enrolada, orientação | 47 / 130 |
 | `quest-winter-sprig` | Ramo de pinheiro | props | par de tons de agulha, duas ou três bagas, lado das bagas, neve no topo, haste curta/longa, giro | 23 / 90 |
-| `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, varanda, guirlanda na porta, pingentes, neve no telhado, chaminé (âncora `chimney` = origem da fumaça) | 367 / 950 |
+| `house` | Chalé | houses | planta 5×5 a 7×7, 1–2 andares, telhado (duas águas, quatro águas, chalé alpino), cores de parede/telhado/porta, parede lisa, em enxaimel, em tábuas ou em tijolos, base de pedra, venezianas, canteiro, varanda, guirlanda na porta, pingentes, neve só na cumeeira, chaminé de ardósia (âncora `chimney` = origem da fumaça) | ver `stats.json` |
+| `house-dormer`, `house-townhouse`, `house-terrace` | Casa com água-furtada, sobrado, casa com terraço | houses | os arquétipos das casas residenciais (IMPL-0030, PROPOSTA): janela acesa sobre a porta; dois andares sob telhado baixo; laje com mureta, floreiras e um cômodo no terraço | ver `stats.json` |
+| `civic-bank`, `civic-restaurant`, `civic-gym`, `civic-school`, `civic-cinema`, `civic-theatre`, `civic-supermarket`, `civic-hospital`, `civic-sleigh-station`, `civic-mall`, `civic-sports-hall` | Banco, Cantina, Academia, Escola, Cine, Teatro, Mercado, Hospital, Posto do Trenó, Galeria e Ginásio da Vila | civic | prédios cívicos ([IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md), **PROPOSTA**, cenário): a semente (o id do lugar) escolhe só cores de parede, friso, telhado e toldo; a forma é fixa e bate com o colisor em `CIVIC` (`world.ts`). Sem texto, logo ou marca. Orçamento da categoria: 2 400 voxels, 1 800 faces | ver `stats.json` |
+| `ngo-level-1` … `ngo-level-5` | Casa de ONG, níveis 1 a 5 | houses | a casa de um terreno de ONG ([IMPL-0032](../decisions/0032-ngo-building-levels.md), **PROPOSTA**): `ngoBuilding(semente, nível)` usa a semente do terreno em todos os níveis, então parede, telhado, porta e lado da chaminé são os mesmos; mudam a planta (5 × 5, 7 × 5, 7 × 7), os andares (1, 1, 2, 2, 3) e, nos níveis 4 e 5, a torre de pedra, as luzes e a estrela. Sem telhado alpino; interior preenchido; dentro de `HOUSE_ENVELOPE` | ver `stats.json` |
 | `shop` | Loja de Natal | houses | cor das paredes, do friso, do telhado e da porta, toldo listrado, vitrine larga ou estreita, guirlanda; pegada fixa de 7 × 7 u, sem texto nem marca (PROPOSTA, IMPL-0024) | 287 / 496 (12 sementes do teste) |
 | `villager` | Morador | characters | corpo (largura, altura), casaco, calça, botas, luvas, cachecol, chapéu (gorro, cartola, protetor de orelha, boné, nenhum), cabelo, tom de pele (4 variações nomeadas) | 128 / 266 |
 | `reindeer` | Rena | animals | pelagem, galhada, arreio, nariz (raro: vermelho) | 124 / 294 |
@@ -60,8 +63,9 @@
 | `sweater` | Suéter (camada) | cosmetics | padrão (floco de neve, listras, zigue-zague, bolinhas), cores | 12 / 38 |
 
 Na Vila: os presentes escondidos usam `gift` com a semente = id do presente (`gift-palm`, `gift-bench`,
-`gift-street`). Cada terreno com ONG publicada recebe um `house` com a semente = id do terreno (`plaza-01`…): a mesma
-casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
+`gift-street`). Cada terreno com ONG publicada recebe a casa de `ngoBuilding()` com a semente = id do terreno
+(`plaza-01`…, `ring1-01`…) no nível que a API informa (nível 1 com a função desligada,
+[IMPL-0032](../decisions/0032-ngo-building-levels.md)): a mesma casa para todos, sem nome, logo ou cor de marca; janelas acendem com a hora real de São Paulo (papel `glow`); a
 fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (a varanda termina na borda da rua).
 `house()` devolve também `solid`: os retângulos das paredes e da varanda, que viram os colisores do chalé
 ([IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)).
@@ -69,8 +73,10 @@ fumaça sai da âncora `chimney`. A casa cabe em 5 voxels do centro do terreno (
 Terrenos residenciais ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), PROPOSTA): cada um recebe um
 `house` com a semente = id do terreno (`premium-01`…) e as opções da sua faixa (`residence()` em
 `apps/client/src/scene/villageModels.ts`): pegada fixa (7 × 7 com varanda, 7 × 5, 5 × 5 sem beiral), um andar,
-sem telhado alpino e com a cumeeira ao longo da rua. Sem opções, `house()` devolve o que sempre devolveu (os
-terrenos de ONG não mudaram). A casa é cenário: nenhuma chaminé solta fumaça enquanto ninguém for dono;
+sem telhado alpino e com a cumeeira ao longo da rua. Cada terreno sorteia ainda um **arquétipo** pela semente do
+seu id (`archetypeOf()`, [IMPL-0030](../decisions/0030-thawed-village-and-readable-streets.md), PROPOSTA): chalé
+clássico (metade dos terrenos), água-furtada, sobrado ou terraço, sempre com as paredes da faixa e até 9 voxels de
+altura. Sem opções, `house()` desenha a forma da semente (os terrenos de ONG). A casa é cenário: nenhuma chaminé solta fumaça enquanto ninguém for dono;
 `chimneyOf()` dá o topo da chaminé para quando houver lareira. As lojas usam `shop` com a semente = id da loja. As
 peças que distinguem as faixas (muro, pilar, arbusto, cerca de ripas, cerca-viva, estaca, lenha) e a moldura da
 placa são modelos fixos em `villageModels.ts`, não geradores.
@@ -96,10 +102,8 @@ morador (cápsula de 1,5 × 0,9 u) e carregam um
 rótulo curto de símbolo + nome (`?`, `!`, `...` ou o nome). O painel de leitura da doação global
 (`quest-donation-panel`, semente `donation-panel`) fica em `DONATION_PANEL` `(4.6, 6.4)`, com um rótulo curto
 "Doação global"; leva ao mesmo painel de doação da árvore (DEC-026). NPCs, atril, rótulos e obstáculos só existem com
-as quests ligadas. No epílogo (`welcome-bough`), dois ramos de pinheiro (`quest-winter-sprig`, semente
-`winter-sprig`) usam os mesmos pontos livres das caixas do mercado, sem colisor; só uma missão fica ativa por vez.
-Posições e rótulos são sugestões PROPOSTA; a copy diz "ao sul" para o trenó e o trenó pequeno, que estão em `+z` na
-tela. Ver [quests.md](quests.md).
+as quests ligadas. Posições e rótulos são sugestões PROPOSTA; a copy diz
+"ao sul" para o trenó e o trenó pequeno, que estão em `+z` na tela. Ver [quests.md](quests.md).
 
 ## 4. Cosméticos do avatar e o provador P08 (PROPOSTA)
 
@@ -156,3 +160,22 @@ máximos contra o orçamento e custo de renderização. `?gallery&cat=props` abr
 
 [IMPL-0010](../decisions/0010-seeded-procedural-voxel-content.md) · [IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md) ·
 [architecture.md](architecture.md)
+
+## Modelos dos anéis que não são geradores com semente (IMPL-0031, PROPOSTA)
+
+Em `apps/client/src/scene/villageModels.ts`, com o colisor de cada um ao lado da colocação em
+`packages/shared/src/game/world.ts` (`SITE_PROP_SOLID`, `BOARD_SOLID`):
+
+| Modelo | Onde aparece | Colisor |
+|---|---|---|
+| `bandstand()` | coreto de cada parque (5 × 5 u, telhado em degraus) | caixa 5 × 5 |
+| `fountain()` | fonte de cada praça (bacia redonda de 5 u, voxels de 0,5 u) | caixa 5 × 5 de cantos arredondados |
+| `outdoorFrame()` | moldura do outdoor: painel de 8 × 4 u num mastro | o mastro (1 × 1) |
+| `screenFrame(base)` | fundo escuro do telão: num mastro (praças) ou em duas pernas sobre um telhado de altura `base` | o mastro; nenhum no telhado |
+| `lawnSign()` | placa de jardim de 2 × 1,5 u em duas estacas (voxels de 0,5 u) | caixa 2,2 × 0,6 |
+| `dressingModel("hedge")` | sebe entre dois terrenos de ONG vizinhos de um anel (`LOT_DRESSING`) | a pegada da sebe |
+
+Bancos e postes dos parques e das praças reutilizam `bench()` e `lamp()` da praça central; o pinheiro de cada
+parque entra na lista `PINES` e balança com os outros. Nenhuma placa gira: todas ficam de frente para a câmera.
+Tamanho das artes de cada formato de placa: [display-boards.md](display-boards.md).
+

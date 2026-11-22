@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** Índice de decisões técnicas · **Atualizado em:** 2026-11-12
+> **Status:** Índice de decisões técnicas · **Atualizado em:** 2026-11-18
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -47,5 +47,9 @@
 | [IMPL-0026](0026-boards-ui-and-character-appearance.md) | As pranchas P01–P15 no jogo: barra com a marca e quatro caminhos (substitui em parte a IMPL-0022), folhas de tela, telas de convite/catálogo/mapa/badges e aparência do personagem local ao navegador | Proposta — implementada, a validar; chat, emoji, itens pagos e demais telas dependentes de decisão não entram |
 | [IMPL-0027](0027-cosmetic-shop-wardrobe.md) | O provador P08: dez categorias, 100 itens (80 gratuitos e 20 pagos), inventário derivado do progresso, prévia e equipar; a loja fechada abre o provador e o look vai compacto na presença | Proposta — D20 implementado, a validar; a compra paga (D21) fica fora, bloqueada por PEN-022 |
 | [IMPL-0028](0028-donation-durable-intent.md) | Intenção durável da cobrança Pix (gravada antes do provedor, chave de idempotência do cliente), eventos do webhook em espera até a doação existir, visão do operador e limite de abuso | Proposta — implementada, desligada em produção e homologação (`DONATIONS_ENABLED`); idempotência do lado da AbacatePay PENDENTE; migration 0013 não aplicada no remoto |
+| [IMPL-0029](0029-brand-logo-in-the-apps.md) | Logotipo da marca em teste nas três aplicações: site (cabeçalho, rodapé e compartilhamento), jogo (carregamento e barra do HUD), painel (entrada e cabeçalho) e favicon com a estrela | Aceita (2026-11-18) — aplicação do logotipo em teste; logo final **PENDENTE** (PEN-016); decisão 3 da IMPL-0005 substituída quanto ao logotipo |
+| [IMPL-0030](0030-thawed-village-and-readable-streets.md) | Vila com menos neve (neve como detalhe, clima v2 com céu limpo mais frequente), ruas escuras com meio-fio e cruzamentos calçados, casas residenciais com quatro arquétipos | Proposta — implementada, a validar; direção de arte pedida pelo responsável técnico em 2026-11-19; DEC **PENDENTE** (G16, OQ-07, PEN-012) |
+| [IMPL-0031](0031-village-rings-zoning-civic-buildings-and-boards.md) | A Vila em quatro anéis zoneados (raio 99 u): 97 terrenos de ONG e 23 casas (80/20), 11 prédios cívicos como cenário (Posto do Trenó no lugar do posto de gasolina), parques e praças, 37 placas em quatro formatos com o tamanho das artes definido; migration 0015 | Proposta — implementada, a validar; pedido do responsável técnico em 2026-11-19; planta final, placas e prédios **PENDENTES** (OQ-17, OQ-18, OQ-19, OQ-22); 0015 não aplicada no remoto |
+| [IMPL-0032](0032-ngo-building-levels.md) | Casa da ONG em cinco níveis conforme o total confirmado das doações: `ngo_level` em `GET /lots` (só o nível, nunca o valor), cinco construções com as cores da própria ONG, bandeira `NGO_LEVELS_ENABLED` | Proposta — implementada, desligada em produção e homologação (`NGO_LEVELS_ENABLED`, e depende de `DONATIONS_ENABLED`); política **PENDENTE** (OQ-23) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

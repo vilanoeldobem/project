@@ -4,7 +4,7 @@ import { useVila } from "./game/store";
 import { initAccount } from "./lib/account";
 import { type ContextState, watchContext } from "./lib/context-watch";
 import { fetchLots, type LotInfo } from "./lib/api";
-import { isUnlisted } from "./lib/lots";
+import { demoAllowed, isUnlisted, withDemoHouses } from "./lib/lots";
 import { Account } from "./ui/Account";
 import { AvatarPanel } from "./ui/AvatarPanel";
 import { Badges } from "./ui/Badges";
@@ -23,8 +23,8 @@ import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
 import { Missions } from "./ui/Missions";
 import { LifeDialog, NpcDialog } from "./ui/NpcDialog";
-import { BillboardPanel, PlotPanel, ShopPanel } from "./ui/Village";
-import { Wordmark } from "./ui/Wordmark";
+import { BillboardPanel, PlotPanel, ShopPanel, SitePanel } from "./ui/Village";
+import { BrandMark } from "./ui/BrandMark";
 import { WorldBoundary, WorldPaused } from "./ui/WorldBoundary";
 
 const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World })));
@@ -34,7 +34,7 @@ export function App() {
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
   /** Reads the lots (again after a moderation action changed what the village shows, IMPL-0021). */
-  const loadLots = useCallback(() => void fetchLots().then((r) => r && setLots(Object.fromEntries(r.lots.map((l) => [l.id, l])))), []);
+  const loadLots = useCallback(() => void fetchLots().then((r) => r && setLots(Object.fromEntries(withDemoHouses(r.lots, location.search, demoAllowed()).map((l) => [l.id, l])))), []);
 
   useEffect(() => void initAccount(), []);
   useEffect(loadLots, [loadLots]);
@@ -57,7 +57,7 @@ export function App() {
           <Suspense
             fallback={
               <div className="loading">
-                <Wordmark large />
+                <div className="loading__brand"><BrandMark large /></div>
                 <p>Acendendo as luzes da Vila…</p>
               </div>
             }
@@ -76,6 +76,7 @@ export function App() {
       {panel.kind === "plot" && <PlotPanel plotId={panel.plotId} />}
       {panel.kind === "shop" && <ShopPanel shopId={panel.shopId} />}
       {panel.kind === "billboard" && <BillboardPanel billboardId={panel.billboardId} />}
+      {panel.kind === "site" && <SitePanel siteId={panel.siteId} />}
       {panel.kind === "explore" && <Explore lots={lots} />}
       {panel.kind === "invite" && <Invite />}
       {panel.kind === "avatar" && <AvatarPanel />}

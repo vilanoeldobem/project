@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
-import { NPCS, QUEST_INTERACTIONS } from "@vila/shared/game/world";
+import { NPCS, QUEST_INTERACTIONS, SITES } from "@vila/shared/game/world";
 import { lifeAction, lifePanel } from "../game/village-life";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
@@ -14,7 +14,7 @@ import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
 import { XpBar } from "./Missions";
 import { ModerationBar, ModerationChip } from "./Moderation";
-import { Wordmark } from "./Wordmark";
+import { BrandMark } from "./BrandMark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
@@ -42,6 +42,10 @@ export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): s
       return "🎁 Ver loja";
     case "billboard":
       return "📜 Ler placa";
+    case "site": {
+      const site = SITES.find((x) => x.id === nearby.siteId);
+      return site?.use === "park" ? "🌲 Ver parque" : site?.use === "square" ? "⛲ Ver praça" : "🏛️ Ver prédio";
+    }
     case "life":
       return `💬 ${lifeAction(nearby.charId) ?? "Conversar"}`;
   }
@@ -83,6 +87,9 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
       return;
     case "billboard":
       vila.open({ kind: "billboard", billboardId: n.billboardId });
+      return;
+    case "site":
+      vila.open({ kind: "site", siteId: n.siteId });
       return;
     case "life": {
       // The lines are chosen now, for where the character is and what it is doing; an unknown id opens nothing.
@@ -158,7 +165,7 @@ export function Hud() {
     <div className="hud">
       <nav className="hud__top" aria-label="Vila" data-board="P01">
         <div className="hud__brand">
-          <Wordmark compact />
+          <BrandMark />
         </div>
         <EnvironmentChip />
         <div className="hud__nav">

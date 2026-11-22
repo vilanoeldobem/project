@@ -9,6 +9,8 @@ import type { Category } from "./types";
 export const BUDGETS: Record<Category, { voxels: number; faces: number }> = {
   props: { voxels: 220, faces: 600 },
   houses: { voxels: 900, faces: 1800 },
+  // Civic buildings (IMPL-0031): solid halls up to 25 × 7 × 9, so many voxels and few faces (only the outside is meshed).
+  civic: { voxels: 2400, faces: 1800 },
   characters: { voxels: 160, faces: 420 },
   animals: { voxels: 140, faces: 380 },
   cosmetics: { voxels: 40, faces: 140 },

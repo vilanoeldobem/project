@@ -26,24 +26,7 @@ import {
 } from "./life";
 import { createNavField, lineClear } from "./navigation";
 import { QUESTS } from "./quests";
-import {
-  groundAt,
-  HOUSE_ENVELOPE,
-  INTERACT_DISTANCE,
-  lotColliders,
-  LOTS,
-  NPCS,
-  OBSTACLES,
-  PATH_GRAPH,
-  plotColliders,
-  QUEST_INTERACTIONS,
-  QUEST_OBSTACLES,
-  QUEST_SPAWNS,
-  RESIDENTIAL_PLOTS,
-  SHOPS,
-  WOOD_YARD,
-  WORLD_RADIUS,
-} from "./world";
+import { groundAt, HOUSE_ENVELOPE, INTERACT_DISTANCE, lotColliders, LOTS, NPCS, OBSTACLES, PATH_GRAPH, plotColliders, QUEST_INTERACTIONS, QUEST_OBSTACLES, QUEST_SPAWNS, RESIDENTIAL_PLOTS, SHOPS, WOOD_YARD, WORLD_RADIUS } from "./world";
 
 const HOMES = RESIDENTIAL_PLOTS.flatMap((p) => plotColliders(p));
 /** The two ends of what can stand in the village: every lot empty with quests off, every lot built with quests on. */
@@ -717,3 +700,21 @@ describe("village life: cost of one evaluation", () => {
     expect(LIFE_RADIUS.reindeer).toBeGreaterThan(LIFE_RADIUS.villager);
   });
 });
+
+describe("village life on the zoned rings (IMPL-0031)", () => {
+  it("houses every character that goes home in front of a house: a zoning change may not take the house away", () => {
+    const homes = LIFE_CAST.flatMap((c) => c.spots.filter((spot) => spot.place === "home").map((spot) => ({ id: c.id, spot })));
+    expect(homes.length).toBeGreaterThanOrEqual(10);
+    for (const { id, spot } of homes) {
+      // The gateway is on the plot of a house, a few steps from the plot's own front on the street.
+      const plot = RESIDENTIAL_PLOTS.reduce((a, b) => (Math.hypot(b.x - spot.x, b.z - spot.z) < Math.hypot(a.x - spot.x, a.z - spot.z) ? b : a));
+      expect(Math.hypot(plot.x - spot.x, plot.z - spot.z), `${id} lives by ${plot.id}`).toBeLessThan(Math.hypot(plot.width, plot.depth) / 2);
+    }
+    // Two people never share a house; a dog lives in its owner's.
+    const houseOf = (spot: { x: number; z: number }) => RESIDENTIAL_PLOTS.reduce((a, b) => (Math.hypot(b.x - spot.x, b.z - spot.z) < Math.hypot(a.x - spot.x, a.z - spot.z) ? b : a)).id;
+    const people = homes.filter(({ id }) => !/^(dog|cat|bird|rabbit|owl|reindeer)-/.test(id)).map(({ spot }) => houseOf(spot));
+    expect(new Set(people).size).toBe(people.length);
+    for (const { id, spot } of homes.filter(({ id }) => /^dog-/.test(id))) expect(people, `${id} lives with somebody`).toContain(houseOf(spot));
+  });
+});
+

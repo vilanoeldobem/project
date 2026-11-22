@@ -51,7 +51,7 @@ describe("worker /api", () => {
       type: "environment.snapshot",
       timezone: "America/Sao_Paulo",
       timeScale: 1,
-      weatherAlgorithmVersion: 1,
+      weatherAlgorithmVersion: 2,
     });
     expect(body.serverTimeMs as number).toBeGreaterThanOrEqual(before);
     expect(parseSnapshot(body)).not.toBeNull();

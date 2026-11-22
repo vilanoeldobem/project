@@ -1,6 +1,6 @@
 # Roadmap — Vila Noel do Bem
 
-> **Atualizado em:** 2026-11-15 · **Versão atual:** 0.6.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
+> **Atualizado em:** 2026-11-19 · **Versão atual:** 0.7.0 · **Prazo oficial:** 30/11/2026 (DEC-043) ·
 > **Rota de entrega:** pendente de decisão (A integral ou B núcleo; doc 23, marco M01 em 10/11)
 > **Fonte:** `vilanoeldobem/docs/management/plano-de-desenvolvimento.md`,
 > `management/acompanhamento/acompanhamento.json`
@@ -31,10 +31,11 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Contas e ONGs | 0.4.0 | P12, P13, P03 completo, P14 (servidor) | D05–D09, D12 | **Implementado** (desligado em produção até revisão LGPD/ECA) | 11–17/11 |
 | Moderação, entrada direta, expansão e vida na Vila (IMPL-0021..0025) | 0.5.0 | — | — | **Entregue** 2026-11-14 (propostas desligadas em produção) | 13–14/11 |
 | Pranchas P01–P15, provador P08 e auditoria técnica (IMPL-0026..0028) | 0.6.0 | P01–P15, P08 | D20 | **Entregue** 2026-11-14 (prévias pagas ocultas; propostas desligadas) | 14/11 |
-| Correções pós-0.6.0 e publicação das doações endurecidas | 0.6.1 | P08 (acessibilidade) | D20 | **Próximo** | 15–16/11 |
-| HUD da ONG e segundo jogo | 0.6.x | P04 completo, P09 | D10, D24 | Planejado (depois da 0.6.1) | 16–19/11 |
-| Doação e badges | 0.7.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
-| Rota A: social e personalização | 0.7.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
+| A Vila em quatro anéis, menos neve, níveis da casa da ONG e logotipo em teste (IMPL-0029..0032) | 0.7.0 | — | — | **Entregue** 2026-11-19 (propostas desligadas; sem teste em celular) | 19/11 |
+| Correções pós-0.6.0 (provador P08 e saúde das dependências) | 0.7.1 | P08 (acessibilidade) | D20 | **Próximo** | — |
+| HUD da ONG e segundo jogo | 0.7.x | P04 completo, P09 | D10, D24 | Planejado (depois da 0.7.1) | 16–19/11 |
+| Doação e badges | 0.8.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
+| Rota A: social e personalização | 0.8.0 | P05–P08, P10, P11, P02 completo | D15–D24 | Pendente de decisão (rota A) | 15–23/11 |
 | QA e release candidate | 1.0.0-rc | todas entregues | Q01–Q09, M04 | Planejado | 24–27/11 |
 | Publicação | 1.0.0 | — | M05 | Planejado | 30/11 |
 
@@ -84,9 +85,9 @@ atrás da bandeira `ACCOUNTS_ENABLED`, que fica `"false"` em produção até a r
 **Para ligar em produção:** revisão LGPD / ECA Digital registrada pelo dono do produto e domínio verificado no
 Resend, com a chave `RESEND_API_KEY` no Worker ([deploy §7](docs/guides/deploy.md#7-contas-e-ongs-040)).
 
-### Correções pós-0.6.0 (0.6.1) — próximo
+### Correções pós-0.6.0 (0.7.1) — próximo
 
-Ordem recomendada (2026-11-15): **A → C → publicação 0.6.1 → B** (marco seguinte).
+Ordem recomendada (2026-11-15, renumerada em 2026-11-19): **A → C → publicação 0.7.1 → B** (marco seguinte).
 
 - **A. Provador P08, pendências da revisão do PR #48.** Foco do teclado depois de "Equipar" (manter no cartão ou
   `contentKey` no `Panel`); o selo "Grátis" lido pelo leitor de tela (`aria-describedby`); a migração v1 → v2 que tira
@@ -95,11 +96,11 @@ Ordem recomendada (2026-11-15): **A → C → publicação 0.6.1 → B** (marco 
   testes de comportamento no lugar do teste tautológico; conferir a fresta visual em y = 0 embaixo do vestido.
 - **C. Saúde real das dependências.** `/health` continua leve (o processo responde); uma rota de prontidão separada
   faz uma leitura de verdade no D1, no R2 e na sala (auditoria §7.6).
-- **Publicação 0.6.1.** Leva A, C e o endurecimento das doações já na `main` (PR #59, IMPL-0028); aplica a migration
-  `0014` no remoto **junto** com essa publicação (ponto de restauração do D1 antes, como na `0013`). Bandeiras seguem
-  como estão.
+- **Publicação 0.7.1.** Leva A e C. O endurecimento das doações (PR #59, IMPL-0028) e a migration `0014` foram com
+  a 0.7.0 (2026-11-19; registro em [`docs/reference/releases.md`](docs/reference/releases.md)). Bandeiras seguem como
+  estão.
 
-### HUD da ONG e segundo jogo (0.6.x) — depois da 0.6.1
+### HUD da ONG e segundo jogo (0.7.x) — depois da 0.7.1
 
 Antes de começar, ler as pranchas P04 e P09 e o registro de decisões em `vilanoeldobem/docs`; o que não estiver
 CONFIRMADO entra como PROPOSTA.
@@ -107,7 +108,7 @@ CONFIRMADO entra como PROPOSTA.
 **Escopo:** casa publicada com conteúdo real (descrição, fotos, projetos, painel de estatísticas — DEC-028/029) e
 segundo minijogo (Jogo da Velha, doc 23).
 
-### Doação e badges (0.7.0) — bloqueado
+### Doação e badges (0.8.0) — bloqueado
 
 **Escopo:** integração com o provedor da parceira (preferência por página de campanha identificada — PRP-015/016),
 estados da doação (iniciada → … → conciliada/devolvida/contestada), badges por doação confirmada (DEC-041).

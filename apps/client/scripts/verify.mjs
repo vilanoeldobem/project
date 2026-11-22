@@ -35,8 +35,8 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
     if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`${name}: path "${path}" is not on the HUD at arrival`);
   }
   if (await page.getByRole("button", { name: /Aproximar|Afastar/ }).count()) errors.push(`${name}: zoom buttons on the HUD`);
-  // The boards (P01) put the temporary wordmark back in the top bar, with no control of its own.
-  if (!(await page.locator(".hud__brand .wordmark").isVisible())) errors.push(`${name}: the header does not show the wordmark`);
+  // The boards (P01) put the brand mark back in the top bar, with no control of its own.
+  if (!(await page.locator(".hud__brand .brandmark").isVisible())) errors.push(`${name}: the header does not show the brand mark`);
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > viewport.width) errors.push(`${name}: the page scrolls sideways`);
   await page.screenshot({ path: `${out}${name}-1-chegada.png` });
   // Movement is click/tap only (WASD removed): click open plaza ground beside the avatar, with nothing to close
@@ -132,11 +132,16 @@ for (const [name, time, weather, sky, quality] of scenes) {
 // shadows, the dearest one on the review's walking tour.
 const BUDGET = { calls: 150, triangles: 250000 };
 stats.budget = {};
-for (const [name, time, weather, zoom] of [
+// The village of four rings (IMPL-0031) is also measured full: `?villageDemo=full` (local builds only) draws a
+// house on every one of the 97 lots, at the spawn and on the second street, where the most chalets are in view.
+for (const [name, time, weather, zoom, at, demo] of [
   ["spawn, default zoom, noon, snow", "2026-12-20T12:00", "SNOW", 1],
   ["spawn, default zoom, 15:30, clear", "2026-12-20T15:30", "CLEAR_FROST", 1],
   ["spawn, zoomed out, 15:30, clear", "2026-12-20T15:30", "CLEAR_FROST", 1.6],
   ["spawn, zoomed out, 06:20, clear", "2026-12-20T06:20", "CLEAR_FROST", 1.6],
+  ["spawn, zoomed out, 06:20, clear, a house on every lot", "2026-12-20T06:20", "CLEAR_FROST", 1.6, null, true],
+  ["second street, zoomed out, 06:20, clear, a house on every lot", "2026-12-20T06:20", "CLEAR_FROST", 1.6, [10, 53], true],
+  ["outer street, zoomed out, 15:30, clear, a house on every lot", "2026-12-20T15:30", "CLEAR_FROST", 1.6, [16, 80], true],
 ]) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`budget (${name}): ${e.message}`));
@@ -145,9 +150,10 @@ for (const [name, time, weather, zoom] of [
     localStorage.setItem("vila.zoom.v1", String(zoom));
   }, zoom);
   const sep = url.includes("?") ? "&" : "?";
-  await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
+  await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1${demo ? "&villageDemo=full" : ""}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await arrive(page, errors, `budget (${name})`);
+  if (at) await page.evaluate(([x, z]) => window.__vila.extra.teleport(x, z), at);
   // The camera eases to its place and the shadow pass settles with it: the largest of a few readings counts.
   let calls = 0, triangles = 0;
   for (let i = 0; i < 6; i++) {
@@ -174,12 +180,17 @@ for (const [name, time, weather, zoom] of [
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "village");
   const PROMISE = /em breve|será liberad|quando abrir|ainda não abri|alug|R\$|comprar|preço/i;
-  // [what, where the avatar stands (the south shop's door, its billboard's point, the front of economy-21),
-  //  the action, the panel's title, sentences the panel must show]
+  // [what, where the avatar stands (the south shop's door, its billboard's point, the front of economy-02; then
+  //  the places of the rings, IMPL-0031: the bank, the first park, its street billboard and the screen of the
+  //  first square), the action, the panel's title, sentences the panel must show]
   const places = [
     ["shop", 5, 25.5, /Ver loja/, "Oficina de Brinquedos", ["Esta loja está fechada.", "O provador é grátis", "Nada é vendido na Vila."]],
     ["billboard", 8.4, 25.5, /Ler placa/, "Placa 2", ["As placas mostram avisos da própria Vila.", "No telhado da loja Oficina de Brinquedos"]],
-    ["plot", -4.5, 67.75, /Ver terreno residencial/, "Terreno 21 · Bairro da Floresta", ["Os terrenos residenciais não têm dono.", "A casa neste terreno é cenário: ninguém mora nela."]],
+    ["plot", 16.5, 81.25, /Ver terreno residencial/, "Terreno 2 · Bairro da Floresta", ["Os terrenos residenciais não têm dono.", "A casa neste terreno é cenário: ninguém mora nela."]],
+    ["civic", 32.7, 22.1, /Ver prédio/, "Banco da Vila", ["O prédio do banco", "Este prédio é cenário da Vila: não há atendimento e nada é vendido aqui."]],
+    ["park", -11, -54.25, /Ver parque/, "Parque dos Pinheiros", ["Um parque com coreto", "Nada é vendido na Vila."]],
+    ["outdoor", -8.8, -54.25, /Ler placa/, "Outdoor 1", ["As placas mostram avisos da própria Vila.", "Em: Parque dos Pinheiros"]],
+    ["screen", -31.15, -23.65, /Ler placa/, "Telão 1", ["As placas mostram avisos da própria Vila.", "Em: Praça da Fonte"]],
   ];
   for (const [what, x, z, action, title, sentences] of places) {
     await page.evaluate(([x, z]) => window.__vila.extra.teleport(x, z), [x, z]);

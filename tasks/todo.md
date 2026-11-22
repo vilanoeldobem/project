@@ -993,3 +993,188 @@ PROPOSTA (PEN-025), atrás das flags existentes; no production/staging change.
       `verify.mjs` budget (max 106 calls / 179 542 triangles in scene; gallery props 172 calls / 41 050 triangles).
 - [x] `pnpm check` exit 0 (typecheck all packages; shared 261, API 464, client 733 tests; builds done).
 
+# Task: village growth, 80/20 zoning, civic buildings, display surfaces, NGO levels, less snow — 2026-11-19
+
+Owner request (2026-11-19, eight items): a larger village, common civic buildings at scattered places, about 80%
+of the plot space for NGOs and 20% for houses, NGO buildings that evolve with donations, display surfaces with
+defined artwork sizes, more varied houses, less snow, streets that are easier to see. No product decision in the
+docs repository covers any of them: everything is PROPOSTA.
+
+Owner's choices in the planning session: 4 rings (radius about 99: 96 NGO lots, 24 houses, 11 civic buildings,
+5 parks or squares); snow as accent; a sleigh station instead of a petrol station (the no-vehicles rule stays);
+NGO levels from the confirmed donation total, behind a new flag that is off in production.
+
+Three stacked local branches. No push, deploy, remote migration or flag flip.
+
+## Phase 1 — `feat/village-thaw-and-streets` (client + shared, no data change)
+
+- [x] Baseline: gates and screenshots on the untouched tree (1 682 tests green)
+- [x] Palette: named tones for asphalt, kerb, cobble, brick, packed earth, paver, gravel, lawn
+- [x] Ground: dark streets with no snow speckle, kerbs, paved junctions, lanes as brick paths, grass yards with
+      snow patches, warm plaza, snow at the edge of the world; contrast test (road against yard at least 3:1)
+- [x] Snow sources: roof snow on the ridge only, slate roofs and chimneys, pines, tree, dressing, lot pads
+- [x] Weather v2: clear 42 %, blizzard 2 %, lower fog gain, lighter flakes; `WEATHER_ALGORITHM_VERSION` = 2
+- [x] House variety: four seeded archetypes inside the tier's footprint, height at or under 9; wall patterns,
+      stone base, shutters, flower beds, more wall and roof colours
+- [x] Street lamps on the economy street
+- [x] Gates, browser checks, before/after screenshots and budget
+- [x] Docs: ADR 0030, environment, content and architecture references, OQ-07, CHANGELOG
+
+### Review (2026-11-19)
+
+- Gates: typecheck clean; tests 1 707 (shared 260, api 463, client 753, dash 151, server 71, site 9); client build
+  clean. One run of `apps/api/src/donations.test.ts` › "calls the provider once when retries with the same key
+  arrive at the same time" failed and passed alone and on the next full run: timing, not this change.
+- Browser (system Chrome, local Workers on private ports 18787/18788/18799 through `--host-rules`, because 8787
+  belongs to another local project): `verify.mjs`, `verify-collisions.mjs` and `verify-life.mjs` pass.
+- Budget (medium, spawn): zoomed out 15:30 107 calls / 181 174 triangles → 103 / 178 654; default zoom noon
+  93 / 139 346 → 91 / 142 146. Premium street, default zoom: 79 / 160 408.
+- Measured on the ground: road against yard contrast 1.19–1.59 → at least 3.2; snow tones under a fifth of the
+  village's ground (test).
+- Seen in the scene and changed: single snow cubes scattered on roofs read as noise (ridge only now); the
+  palette's pale stone read as snow on roofs and chimneys (slate now); the haze of "Nevando" whitened the view
+  (fog gain 0.024 → 0.012).
+- Not done: a measurement on a real phone; nine occlusion samples re-derived by the segment test, not measured
+  again in the browser (said in the test and in the ADR).
+
+### Lessons
+
+- Look at the first screenshot before tuning numbers: "a few patches of snow" was right on paper and wrong on a
+  roof seen from above.
+- The `rtk` hook rewrites compound shell commands and vitest output: run vitest through `rtk proxy`, and keep a
+  build, a server start and a check in separate calls.
+- A fixed port of the local stack may belong to another project on the same machine: check `lsof` before
+  starting, and never stop a process that is not ours.
+
+## Phase 2 — `feat/village-growth` (shared, api, client, migration 0015)
+
+- [x] Plan as a list of rings with a zoning string per ring; frontage and square untouched
+- [x] Lot ids `ring<N>-NN`, village-wide lot number, id checks read `LOTS` (`lotById`, `lotNumber`)
+- [x] Migration 0015 (85 lots, residential plots re-seeded) and seed-sync tests on the text and on SQLite
+- [x] Civic buildings (11 generators, `civic` budget), parks and squares, colliders and audit
+- [x] Display boards: rooftop, outdoor, lawn sign, screen; one atlas, two draw calls; artwork sizes documented
+- [x] Rendering: one baked block per ring and side, NGO chalets baked per side, ground in nine pieces, forest
+- [x] Navigation: larger grid, scratch cap 7 MB, expansion cap 150 000, pinned numbers re-measured
+- [x] UI: panel for civic buildings, parks and squares; board panel for every format; Explore by street; map
+- [x] Village life: homes of villagers 2 to 6 on the second street, lumberjack on the outer ring
+- [x] Gates, browser checks, budget with every lot published (`?villageDemo=full`, local builds only)
+- [x] Docs: ADR 0031, display-boards reference, api, storage, architecture, content, deploy, OQ-18, OQ-19, OQ-22,
+      AGENTS.md, CHANGELOG, README
+
+### Review (2026-11-19)
+
+- Result: radius 99, 97 NGO lots (12 on the square, 85 on four rings), 23 houses (80.8 % of the parcels for
+  NGOs, 79 % of the ground), 11 civic buildings, 3 parks, 2 squares, 37 boards. `plaza-01`…`plaza-12` and the
+  square did not move (pinned test).
+- Different from the approved plan: 97 / 23 instead of 96 / 24 (ten characters live in houses, five of them on
+  the first ring); zoning arranged by hand under that constraint instead of a seeded shuffle; 7 street billboards
+  instead of 8; ADR numbers 0030 and 0031 (0029 was taken by the brand logo).
+- Gates: typecheck clean; tests 1 886 (shared 275, api 470, client 910, dash 151, server 71, site 9); build of
+  every app clean.
+- Browser (system Chrome, local Workers on private ports): `verify.mjs`, `verify-collisions.mjs`,
+  `verify-life.mjs`, `verify-boards.mjs` (12 screens at two sizes, the API named on its private port; P04 skipped:
+  no published NGO in the local database), `verify-shop.mjs` and `smoke-api.sh` pass. Fixed on the way: the
+  smoke script asked for `economy-64` (now `economy-06`, in both layouts), `verify-life.mjs` had the old radius
+  and the old wood yard, `verify-collisions.mjs` the old radius and a firewood stack that is gone.
+- Budget, medium preset, every pass: with the lots free at most 106 calls / 162 844 triangles on the views
+  sampled; with a house on every one of the 97 lots, 139 / 194 584 at the spawn zoomed out at 06:20 and
+  137 / 217 480 on the second street. `verify.mjs` now asserts three full-village views.
+- Navigation, idle laptop, Node: field build 20 ms with the lots free (820 colliders), 23 ms with every chalet;
+  3 000 random plans median 0.95 ms, p99 8.5 ms, worst 13.5 ms; scratch 6.3 MB.
+- Tried and reverted: chalet blocks per quarter of a ring (153 calls, 280 000 triangles); patches of snow on
+  roofs (phase 1).
+- Not done: a phone measurement; GPU memory; a full room of 40 with the full village (`verify-fullroom.mjs` not
+  run); the dashboard's scripts; `verify-accounts.mjs` and `verify-quests.mjs` (they walk to places of the
+  square, which did not move, but they were not run); occlusion samples are geometric, not measured in a browser.
+- Owner's call before production: migration 0015 (not applied anywhere remote), how many rings open at launch
+  (OQ-19, DEC-035), what boards may show (OQ-18), the civic buildings (OQ-22).
+
+### Lessons
+
+- A browser page that never loads may be the preview server, not the app: `curl` it before reading the bundle.
+  A `wrangler dev` left running from an earlier step kept restarting a crashed `workerd` on the same port.
+- Stop a server through the task that started it. Killing its `workerd` child leaves the parent to respawn it.
+- Bigger blocks are not fewer draw calls: a block per quarter of a ring is always in the frustum and in the
+  shadow pass. Measure both counts before keeping a grouping.
+- A collider audit that skips models farther than a fixed distance from a point misses a hall 25 u long: derive
+  the reach from the model.
+- `pnpm build` writes the production client into `dist`: rebuild with `build:local` before a local browser check.
+- A "measured" sample set dies with the layout it was measured on. Say so and replace it with cases built from
+  geometry, labelled as not measured.
+
+## Phase 3 — `feat/ngo-levels` (shared, api, client)
+
+- [x] `ngoLevel` thresholds in the shared package (placeholders, PROPOSTA): R$ 500, 2 500, 10 000, 50 000
+- [x] `/lots.ngo_level` behind `DONATIONS_ENABLED` and the new `NGO_LEVELS_ENABLED`; `/config.ngoLevels`; the
+      all-schemas matrix got the flag's bit (1 024 combinations per schema, v3 to v15)
+- [x] Five building levels inside the lot's envelope, the NGO's own colours at every level; dev gallery; the
+      collider audit runs at every level on every lot
+- [x] Gates, browser checks, docs: ADR 0032, api reference, OQ-23, deploy guide, AGENTS.md, CHANGELOG
+
+### Review (2026-11-19)
+
+- Gates: typecheck clean; tests 1 932 (shared 279, api 482, client 940, dash 151, server 71, site 9). One run of
+  the donation test "calls the provider once when retries with the same key arrive at the same time" failed
+  again and then passed four times in a row: the timing flake noted in phase 1, in code this work does not touch.
+- End to end on the local stack (scratch database, flag on): three test houses on the square with R$ 0,
+  R$ 3 000 and R$ 60 000 of confirmed donations answered `ngo_level` 1, 3 and 5, with no amount in `/lots`, and
+  the scene drew a cabin, a two-floor house and the three-floor building with its turret and star.
+- Budget (`verify.mjs`, a house on every lot at mixed levels): 133 calls / 186 390 triangles at the spawn zoomed
+  out at 06:20; 131 / 207 262 on the second street. Found on the way: with the lights of levels 4 and 5 the second
+  street reached 148 calls; the windows and lights of every chalet block are now two meshes for the village.
+- Gallery maxima over the test seeds, budget 900 voxels / 1 800 faces: level 1 169 / 356, level 2 280 / 528,
+  level 3 507 / 670, level 4 526 / 678, level 5 679 / 762.
+- Changed on purpose: with the levels off (production), a published house is the level 1 cabin, not the chalet
+  of a size drawn from the seed.
+- Run after the pull requests were opened, on this branch, each against a fresh local database:
+  `verify-accounts.mjs` (with `VILA_STUB_ANALYTICS=1`; an NGO applied, was approved in the dashboard and its house
+  stood on `plaza-01`), `verify-fullroom.mjs` (40 in the room: 103 calls, about 180 000 triangles),
+  `verify-quests.mjs` (15 quests, 545 XP), the dashboard's `verify.mjs` and `smoke-api.sh` pass. The quests check
+  now isolates the Google tag like the other local checks and takes `VILA_API_PERSIST_TO`. It still cannot run on
+  a database where `verify-accounts.mjs` ran with files on: its reset deletes those NGOs and trips a foreign key
+  (left as it is; a fresh database works).
+- Not done: the dashboard's `verify-moderation.mjs` and `verify-withdrawal.mjs` (each needs its own seeded API;
+  this work does not touch those flows), a phone measurement, the dashboard showing a level (it does not).
+- Owner's call: OQ-23 (whether a house may grow with money, the base, external payment pages, going down).
+
+### Lessons
+
+- A feature that adds a material role adds a draw call to every block that has it. The full-village budget check
+  caught it at 148 of 150; without that check it would have shipped two calls from the limit.
+- A model that grows by level should take its colours from a seed that does not depend on the level, and say so
+  in a test: otherwise "the same NGO, bigger" becomes "a different house".
+- A steep roof on a small house can be taller than a low roof on a big one: assert the order of the heights.
+
+
+## Release 0.7.0 (2026-11-19) — asked by the technical owner: "do everything to release new version"
+
+Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0032). No flag changes. PR #63
+(quest epilogue) is not part of it: it conflicts with `main` and is left as it is.
+
+- [x] Release commit on `release/0.7.0`: CHANGELOG, versions, README, ROADMAP, versioning doc; gates; PR; CI; merge
+- [x] Tag `v0.7.0` on the merge commit
+- [x] Before touching production: rollback targets (`wrangler deployments list` per app) and a D1 restore bookmark
+- [x] Deploy in the documented order: API, migrations 0014 + 0015, realtime server, game, dashboard, site
+- [x] After: `/health`, `/config`, `/lots` (97), `/residential-plots` (23), `smoke-api.sh`, `verify-live.mjs`,
+      the site and dashboard checks against production
+- [x] Record the release in `docs/reference/releases.md`, the deploy guide, README and AGENTS.md (docs PR)
+
+### Review (release 0.7.0)
+
+- Merged as PR #70 (`9a80a83`), signed tag `v0.7.0`. Deployed 2026-11-20 02:36 to 02:40 UTC in the documented order.
+  Versions: api `18175b13`, server `34d9553b`, game `a898ab26`, dash `c87dd18b`, site `85a2a25f`.
+- Production D1 went from v13 to v15 (0014 and 0015). Restore bookmark taken before:
+  `000000ac-00000000-00005129-a1911c147386babb9d8f02c202dbb4ef`. Before: 12 lots, 112 plots, no NGO, no account.
+  After: 97 lots, 23 plots.
+- Production checks: `/health` 0.7.0, `/config` all off (`ngoLevels: false`), `smoke-api.sh` 17/17, the dashboard
+  check passes; `verify-live.mjs` and the site check fail only on the Google destinations the CSP blocks (OQ-13),
+  as in 0.6.0.
+- Not done: a phone test; walking the rings in the deployed game; OQ-19 was still open when 0015 was applied.
+- No flag was changed. PR #63 was left as it is (it conflicts with `main`).
+
+### Lessons (release 0.7.0)
+
+- Take the rollback targets and the D1 bookmark before the first deploy, not before the migration: they are the
+  first lines of the release record and cannot be read back afterwards.
+- A release commit should not state what production will be: write "in the code" there and record production in
+  the follow-up docs change, after it was observed.

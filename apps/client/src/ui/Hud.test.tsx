@@ -118,16 +118,18 @@ describe("what left the gameplay screen", () => {
     expect(buttons(page).map((b) => b.text).filter((t) => /^[+\-−]$/.test(t))).toEqual([]);
   });
 
-  it("shows the temporary wordmark in the header, as an image with its name and no control", async () => {
+  it("shows the brand mark in the header, an image with its name and no control", async () => {
     const { hud } = await load();
     const page = hud();
     const start = page.indexOf('<div class="hud__brand">');
     expect(start).toBeGreaterThan(-1);
     const brand = page.slice(start, page.indexOf("</div>", start));
-    expect(brand).toContain("wordmark wordmark--compact");
-    expect(brand).toContain('role="img" aria-label="Vila Noel do Bem"');
+    expect(brand).toContain('class="brandmark"');
+    expect(brand).toContain('src="/logo-vilanoeldobem.png"');
+    expect(brand).toContain('alt="Vila Noel do Bem"');
     expect(brand).not.toContain("<button");
-    expect(page).not.toMatch(/<img|<h1/);
+    expect(page.match(/<img/g)).toHaveLength(1);
+    expect(page).not.toMatch(/<h1/);
   });
 });
 

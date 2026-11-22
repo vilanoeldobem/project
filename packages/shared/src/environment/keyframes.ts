@@ -87,6 +87,8 @@ export interface Look {
 /** Visibility floor: the densest fog still shows the avatar and the nearest lots. */
 export const MAX_FOG_DENSITY = 0.03;
 const BASE_FOG_DENSITY = 0.006;
+/** How much the weather's fog adds (0.024 until IMPL-0030: the haze whitened what the snow had not). */
+const FOG_GAIN = 0.012;
 
 /** Pure: São Paulo hour (0..24) + macro weather → final look. */
 export function lookAt(hour: number, weather: Pick<WeatherParams, "cloudCover" | "fogStrength">): Look {
@@ -130,7 +132,7 @@ export function lookAt(hour: number, weather: Pick<WeatherParams, "cloudCover" |
     artificial: Math.min(1, lerp(a.artificial, b.artificial, t) + 0.35 * overcast),
     stars: lerp(a.stars, b.stars, t) * (1 - clouds),
     exposure: lerp(a.exposure, b.exposure, t),
-    fogDensity: Math.min(MAX_FOG_DENSITY, BASE_FOG_DENSITY + fog * 0.024),
+    fogDensity: Math.min(MAX_FOG_DENSITY, BASE_FOG_DENSITY + fog * FOG_GAIN),
     daylight,
   };
 }

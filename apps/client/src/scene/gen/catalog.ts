@@ -1,8 +1,10 @@
 /** Every content generator, by category (IMPL-0010). The gallery and the tests iterate this list. */
 import { ANIMALS } from "./animals";
 import { CHARACTERS } from "./characters";
+import { CIVIC_GENERATORS } from "./civic";
 import { COSMETIC_LAYERS } from "./cosmetics";
 import { HOUSES } from "./houses";
+import { NGO_BUILDINGS } from "./ngoBuilding";
 import { PROPS } from "./props";
 import { QUEST_ITEMS } from "./quest-items";
 import { SHOPS } from "./shops";
@@ -12,7 +14,9 @@ export const GENERATORS: Generator[] = [
   ...PROPS,
   ...QUEST_ITEMS,
   ...HOUSES,
+  ...NGO_BUILDINGS,
   ...SHOPS,
+  ...CIVIC_GENERATORS,
   ...CHARACTERS,
   ...ANIMALS,
   ...COSMETIC_LAYERS,

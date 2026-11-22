@@ -1,14 +1,14 @@
 # Armazenamento (D1 e R2)
 
-> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.5.0 · **Schema D1:** v14 ·
-> **Atualizado em:** 2026-11-14
+> **Status:** Implementado, contas desligadas em produção · **Versão do software:** 0.5.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-19
 > **Fonte de verdade:** `migrations/`, `apps/api/wrangler.jsonc`, `apps/api/src/{auth,session,progress,ngo,admin,files,ngo-photos,media-storage,ngo-withdrawal,account-moderation,presence-moderation,donations,abacatepay}.ts`
 
 Banco D1 `vilanoeldobem`, binding `DB`, ligado só ao Worker da API (`apps/api`,
 [IMPL-0009](../decisions/0009-split-client-api-server-shared.md)). Versão do schema = número da última migration
-(**v14 no código, v13 em produção**: `0004` a `0012` aplicadas no deploy da 0.5.0 e a `0013` em 2026-11-15, depois
-da 0.6.0; ver [releases.md](releases.md). A `0014` entra no remoto junto com a publicação que a usa. As tabelas da
-`0013` e a coluna da `0014` só são lidas pelas rotas de doação, desligadas). O histórico aplicado identifica o schema real e
+(**v15 no código e em produção**: `0004` a `0012` aplicadas no deploy da 0.5.0, a `0013` em 2026-11-15, depois da
+0.6.0, e a `0014` e a `0015` na publicação da 0.7.0, em 2026-11-20 02h37 UTC; ver [releases.md](releases.md). As
+tabelas da `0013` e a coluna da `0014` só são lidas pelas rotas de doação, desligadas). O histórico aplicado identifica o schema real e
 deve corresponder ao código publicado. Migrations locais: `pnpm db:migrate:local`; remotas: `pnpm --filter @vila/api db:migrate:remote`
 (com autorização).
 
@@ -33,6 +33,7 @@ Arquivos das candidaturas de ONG (logo e documentos) ficam fora do D1, num bucke
 | `0012_village_expansion.sql` | expansão da Vila ([IMPL-0024](../decisions/0024-village-expansion-and-zoning.md), **PROPOSTA**): move os 8 terrenos de `lots` para a fachada da praça (mesmos ids, estado e ONG), acrescenta `plaza-09`…`plaza-12` e cria `residential_plots` com os 112 terrenos residenciais (id, faixa e posição; sem colunas de posse); aditiva, só requer `lots` |
 | `0013_donation_durable_intent.sql` | `donation_intents` (intenção durável da cobrança Pix, gravada antes de chamar o provedor) e `abacatepay_pending_events` (eventos do webhook que chegam antes da doação) (**PROPOSTA**, [IMPL-0028](../decisions/0028-donation-durable-intent.md)); aditiva, requer `ngos` e `users` |
 | `0014_pending_event_hold_reason.sql` | coluna `abacatepay_pending_events.hold_reason` (`no_donation`/`transition_refused`): por que um evento do webhook espera (**PROPOSTA**, [IMPL-0028](../decisions/0028-donation-durable-intent.md)); aditiva, com padrão `no_donation` para as linhas da 0013; **não aplicada no remoto** |
+| `0015_village_growth.sql` | a Vila em quatro anéis ([IMPL-0031](../decisions/0031-village-rings-zoning-civic-buildings-and-boards.md), **PROPOSTA**): acrescenta a `lots` os 85 terrenos dos anéis (`ring1-01`…`ring4-30`, `street` = id do anel, todos `available`) e semeia `residential_plots` de novo (112 → 23 linhas; a tabela não tem posse nem é referenciada). Não toca nos doze terrenos da praça. Só estrutura do mundo; requer a 0012; **não aplicada no remoto** |
 
 Esta versão contém 0001–0014, sem lacunas. A 0006 mantém o contrato canônico de arquivos; a 0007 acrescenta a
 galeria e os guardas de conciliação; a 0008 protege a gravação concorrente de progresso; a 0009 registra as
@@ -54,7 +55,7 @@ Operações de conta que encontrem ausência das novas colunas retornam `503 sch
 a preparação do esquema nem bloqueia endpoints de autenticação que não consultam essas colunas.
 A 0009 é pré-requisito das rotas de candidatura e de análise mesmo com `NGO_WITHDRAWAL_ENABLED` desligada: sem
 ela essas rotas respondem `503 schema_outdated`. **Nenhuma rota pública lê `ngo_withdrawals`**: `/lots`,
-`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v14 (com as contas ligadas, a migration
+`/indicators`, `/ngos/:id`, logo e fotos respondem igual nos schemas v3 a v15 (com as contas ligadas, a migration
 vem antes da API; ver [deploy §3](../guides/deploy.md#3-aplicar-migrations-remotas)).
 A 0010 é pré-requisito de **toda rota que lê a sessão**, com qualquer combinação de bandeiras: a conferência da
 sessão lê `users.blocked`. Sem ela, com as contas ligadas, essas rotas e as três rotas de entrada (cadastro, pedido

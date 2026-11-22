@@ -199,7 +199,7 @@ function watch(page, label) {
 }
 
 /** Assertions that must hold on every route, viewport and theme. */
-async function inspectRoute(page, label, mobile) {
+async function inspectRoute(page, label, mobile, home) {
   const facts = await page.evaluate(() => {
     const interactive = [...document.querySelectorAll("a, button")].filter((element) => {
       const rect = element.getBoundingClientRect();
@@ -237,6 +237,7 @@ async function inspectRoute(page, label, mobile) {
         .map((link) => (link.textContent ?? "").trim()),
       navScrolls: [...document.querySelectorAll(".nav")].some((nav) => nav.scrollWidth > nav.clientWidth + 1),
       logoImages: [...document.images].map((image) => image.currentSrc || image.src).filter((src) => /logo/i.test(src)),
+      ogImage: document.querySelector('meta[property="og:image"]')?.content ?? "",
     };
   });
 
@@ -253,8 +254,11 @@ async function inspectRoute(page, label, mobile) {
   );
   check(facts.hiddenNav.length === 0, `${label}: header links off screen ${JSON.stringify(facts.hiddenNav)}`);
   check(!facts.navScrolls, `${label}: the section nav scrolls sideways`);
-  // No logo is approved (DEC-024, PEN-016): the brand is the temporary text wordmark (IMPL-0005).
-  check(facts.logoImages.length === 0, `${label}: logo image on the page ${JSON.stringify(facts.logoImages)}`);
+  // The brand is the in-test logo (IMPL-0029): header and footer, both loaded with explicit dimensions.
+  if (home) {
+    check(facts.logoImages.length === 2, `${label}: expected header and footer brand logo, got ${JSON.stringify(facts.logoImages)}`);
+    check(facts.ogImage.endsWith("/img/brand-og.png"), `${label}: unexpected og:image ${facts.ogImage}`);
+  }
   if (mobile) check(facts.small.length === 0, `${label}: targets under 44px ${JSON.stringify(facts.small.slice(0, 5))}`);
   check(facts.theme === "" || facts.theme === "light" || facts.theme === "dark", `${label}: bad data-theme ${facts.theme}`);
   return facts;
@@ -276,7 +280,7 @@ for (const route of ROUTES) {
       const problems = watch(page, label);
       await page.goto(`${base}${route.path}`, { waitUntil: "networkidle" });
       passes.loads += 1;
-      const facts = await inspectRoute(page, label, width <= 414);
+      const facts = await inspectRoute(page, label, width <= 414, route.name === "home");
       check(problems.length === 0, problems.join(" | "));
 
       const shots = {

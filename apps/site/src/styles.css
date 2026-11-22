@@ -359,26 +359,18 @@ button {
   color: var(--text-on-pine);
 }
 
-.brand:hover .wordmark span:last-child {
-  color: var(--text-on-pine);
+.brandmark {
+  display: block;
+  height: 48px;
+  width: auto;
 }
 
-.wordmark {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.95rem;
-  line-height: 0.98;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  color: var(--text-on-pine);
-}
-
-.wordmark span:last-child {
-  color: var(--accent-gold);
-  transition: color 140ms var(--ease);
+.footer__logo {
+  display: block;
+  align-self: flex-start;
+  height: 40px;
+  width: auto;
+  margin-block-end: var(--space-3);
 }
 
 /* Section links wrap instead of scrolling sideways: every link stays visible at any width or text size. */
@@ -1087,7 +1079,7 @@ button {
   }
 }
 
-/* Icon-only comfort chips keep the 44px target while the wordmark keeps its room. */
+/* Icon-only comfort chips keep the 44px target while the brand mark keeps its room. */
 @media (max-width: 349px) {
   .chip-btn__label {
     display: none;

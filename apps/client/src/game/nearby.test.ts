@@ -63,7 +63,7 @@ describe("what is on offer where", () => {
   });
 
   it("offers a residential plot only to an avatar that stands still", () => {
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-12")!;
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
     const at = (speed: number, previous: Nearby = null) => name(pickNearby(plot.front.x, plot.front.z, speed, false, EMPTY_PROGRESS, previous));
     expect(at(0)).toBe(plot.id);
     expect(at(PLOT_STILL_SPEED - 0.01)).toBe(plot.id);
@@ -125,31 +125,35 @@ describe("hysteresis", () => {
 });
 
 describe("a walk down a residential street", () => {
+  // The half rows of houses of the village of four rings (IMPL-0031), each walked along its street from one end
+  // to the other: three cottages on the outer street, two houses on the second, one on the first.
   it.each([
-    ["economy", "avenue-01-street-3", "avenue-02-street-3"],
-    ["standard", "avenue-01-street-2", "avenue-02-street-2"],
-    ["premium", "avenue-01-street-1", "avenue-02-street-1"],
-  ])("shows no strip of prompts on the %s street, where the first version showed one", (_, from, to) => {
+    ["economy", "avenue-02-street-4", "lane-03-street-4", 3],
+    ["standard", "lane-01-street-2", "avenue-01-street-2", 2],
+    ["premium", "avenue-08-street-1", "lane-01-street-1", 1],
+  ])("shows no strip of prompts past the %s houses, where the first version showed one", (_, from, to, houses) => {
     const w = walk(node(from), node(to));
-    // Before: a prompt on most of the walk, switching from front to front, dropping out between rows.
+    // Before: a prompt on much of the walk, switching on and off at every front.
     expect(w.share(w.old)).toBeGreaterThan(0.3);
-    expect(w.changes(w.old)).toBeGreaterThanOrEqual(4);
+    expect(w.changes(w.old)).toBeGreaterThanOrEqual(2 * houses - 1);
     // Now: nothing on offer while the avatar walks past the plots.
     expect(w.share(w.now.slice(0, w.steps))).toBeLessThan(0.02);
     expect(w.blinks(w.now)).toBe(0);
   });
 
-  it("measures the economy street: share of the walk with a prompt, before and after", () => {
-    const w = walk(node("avenue-01-street-3"), node("avenue-02-street-3"));
+  it("measures the outer street past its three cottages: share of the walk with a prompt, before and after", () => {
+    const w = walk(node("avenue-02-street-4"), node("lane-03-street-4"));
     const old = { share: Math.round(w.share(w.old) * 100), changes: w.changes(w.old), blinks: w.blinks(w.old) };
     const now = { share: Math.round(w.share(w.now.slice(0, w.steps)) * 100), changes: w.changes(w.now.slice(0, w.steps)), blinks: w.blinks(w.now) };
-    // The numbers of IMPL-0024 ("O botão de ação nas ruas residenciais").
-    expect({ seconds: Math.round((w.steps / 60) * 10) / 10, old, now }).toEqual({ seconds: 6.7, old: { share: 83, changes: 15, blinks: 5 }, now: { share: 0, changes: 0, blinks: 0 } });
+    // The numbers of IMPL-0031 for a half row of three cottages. On the street of sixteen cottages of the first
+    // plan (IMPL-0024, "O botão de ação nas ruas residenciais") the same walk took 6.7 s with a prompt on 83 % of
+    // it, 15 changes and 5 blinks.
+    expect({ seconds: Math.round((w.steps / 60) * 10) / 10, old, now }).toEqual({ seconds: 4.1, old: { share: 50, changes: 6, blinks: 0 }, now: { share: 0, changes: 0, blinks: 0 } });
   });
 
   it("offers the plot once the avatar has stopped in front of it", () => {
-    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-12")!;
-    const w = walk(node("avenue-01-street-3"), plot.front);
+    const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-02")!;
+    const w = walk(node("avenue-02-street-4"), plot.front);
     expect(w.share(w.now.slice(0, w.steps - 30))).toBeLessThan(0.02);
     expect(name(w.end)).toBe(plot.id);
   });

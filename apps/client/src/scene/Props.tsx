@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
 import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
+import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import type { Progress } from "@vila/shared/game/progress";
 import { QUESTS, questState } from "@vila/shared/game/quests";
 import { openFromScene, visit } from "../game/clicks";
@@ -12,13 +13,15 @@ import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
 import { hudChrome, underChrome } from "../lib/hud-chrome";
 import { lotLabel } from "../lib/lots";
-import { type Placement, Voxels } from "./Voxels";
+import { joinLitRoles, type MergeItem, MergedVoxels, mergeVoxelModels, type Placement, Voxels } from "./Voxels";
+import { sideOf } from "./sectors";
+import { modelExtent, partAt } from "./shadowCasters";
 import { Smoke } from "./environment/Particles";
 import { villager } from "./gen/characters";
 import { donationPanel, ornamentCrate, reindeerBell, winterSprig } from "./gen/quest-items";
 import type { GenModel } from "./gen/types";
 import { gift as generateGift, lantern as generateLantern } from "./gen/props";
-import { house } from "./gen/houses";
+import { NGO_LABEL_HEIGHT, ngoBuilding } from "./gen/ngoBuilding";
 import { bench, BULBS, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
@@ -51,20 +54,55 @@ export function Lamps() {
 
 const PAD = new PlaneGeometry(7, 7).rotateX(-Math.PI / 2);
 const PAD_MATERIAL = new MeshStandardMaterial({ roughness: 1 });
-const PAD_COLOR = { published: new Color(P.snowShade), available: new Color(P.snowDeep) };
+// A paved pad under a published chalet, gravel on a free lot (IMPL-0030: the ground is no longer white).
+const PAD_COLOR = { published: new Color(P.paver), available: new Color(P.gravel) };
 const padDummy = new Object3D();
 
 /**
  * Lots: a generated chalet per published NGO (seed = lot id), "available" markers otherwise (one
  * instanced draw for all markers; a click resolves the lot from the instance id).
+ *
+ * The chalets are baked into one geometry for each street of each side of the village (IMPL-0031): the village
+ * has 97 lots, and a mesh per chalet was two or three draw calls each. A block joins the shadow pass only while
+ * the shadow of one of its chalets is seen (`casters`), like the rows of houses; all are baked again when the
+ * list of published lots changes, which is when `/lots` answers.
  */
 export function Lots({ info }: { info: Record<string, LotInfo> }) {
   const marker = useMemo(lotMarker, []);
   const isPublished = (id: string) => info[id]?.state === "published" && !!info[id]?.ngo_name;
   const published = useMemo(() => LOTS.filter((l) => isPublished(l.id)), [info]);
   const available = useMemo(() => LOTS.filter((l) => !isPublished(l.id)), [info]);
-  // Each published NGO gets its own chalet, seeded by the lot id: same house for every visitor, no branding.
-  const homes = useMemo(() => published.map((lot) => ({ lot, model: house(lot.id) })), [published]);
+  // Each published NGO gets its own building, seeded by the lot id: same house for every visitor, no branding.
+  // Its level (IMPL-0032, PROPOSTA) comes from the API and is 1 while the feature is off.
+  const levels = published.map((lot) => asNgoLevel(info[lot.id]?.ngo_level)).join();
+  const homes = useMemo(() => published.map((lot) => ({ lot, level: asNgoLevel(info[lot.id]?.ngo_level), model: ngoBuilding(lot.id, info[lot.id]?.ngo_level) })), [published, levels]);
+  const { blocks, lit } = useMemo(() => {
+    const byBlock = new Map<string, { lots: LotDef[]; items: MergeItem[] }>();
+    for (const { lot, model } of homes) {
+      // A block for each side of each ring, and for each quarter of the square, whose twelve chalets stand
+      // close together and are in view together. Measured with every lot published, zoomed out at the tree:
+      // 142 draw calls with a block a side everywhere, 130 with the square in quarters; a block a quarter on
+      // the rings too was worse on both counts (153 calls, 280 000 triangles: blocks too large to cull).
+      const side = sideOf(lot.x, lot.z);
+      const key = `${lot.street}:${lot.street === "plaza" ? Math.floor(side / 2) : side}`;
+      let b = byBlock.get(key);
+      if (!b) byBlock.set(key, (b = { lots: [], items: [] }));
+      b.lots.push(lot);
+      b.items.push({ voxels: model.voxels, size: model.size, glow: model.glow, emissive: model.emissive, placements: [{ x: lot.x, z: lot.z, rot: lot.facing }] });
+    }
+    const blocks = [...byBlock.values()].map((b) => ({
+      lots: b.lots,
+      geometries: mergeVoxelModels(b.items),
+      casters: b.items.flatMap((item) => {
+        const { reach, height } = modelExtent(item.voxels, item.size);
+        return item.placements.map((at) => partAt(at.x, at.z, reach, height));
+      }),
+    }));
+    // The windows and the strings of lights of every block are two meshes for the whole village, like the rows of
+    // houses: a block of its own for them was two more draw calls for every block in view (148 of the 150 of the
+    // budget on the second street, with a house on every lot and the lights of the upper levels, IMPL-0032).
+    return { blocks, lit: joinLitRoles(blocks.map((b) => b.geometries)) };
+  }, [homes]);
   const chimneys = useMemo(
     () =>
       homes.map(({ lot, model }): [number, number, number] => {
@@ -100,16 +138,29 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
     <>
       <Smoke origins={chimneys} />
       <instancedMesh ref={pads} args={[PAD, PAD_MATERIAL, LOTS.length]} receiveShadow onClick={click(LOTS)} />
-      {homes.map(({ lot, model }) => (
+      {blocks.map((block) => (
         <group
-          key={lot.id}
-          position={[lot.x, 0, lot.z]}
-          rotation-y={lot.facing}
-          onClick={(e) => (e.stopPropagation(), openFromScene({ kind: "lot", lotId: lot.id }))}
+          key={block.lots.map((lot) => lot.id).join()}
+          onClick={(e) => {
+            e.stopPropagation();
+            // The chalet under the pointer: the lot of the block nearest to where the ray landed.
+            const lot = block.lots.reduce((a, b) => (Math.hypot(b.x - e.point.x, b.z - e.point.z) < Math.hypot(a.x - e.point.x, a.z - e.point.z) ? b : a));
+            openFromScene({ kind: "lot", lotId: lot.id });
+          }}
         >
-          <Voxels voxels={model.voxels} size={model.size} glow={model.glow} />
+          <MergedVoxels geometries={block.geometries} casters={block.casters} />
         </group>
       ))}
+      <group
+        onClick={(e) => {
+          if (published.length === 0) return;
+          e.stopPropagation();
+          const lot = published.reduce((a, b) => (Math.hypot(b.x - e.point.x, b.z - e.point.z) < Math.hypot(a.x - e.point.x, a.z - e.point.z) ? b : a));
+          openFromScene({ kind: "lot", lotId: lot.id });
+        }}
+      >
+        <MergedVoxels geometries={lit} />
+      </group>
       {available.length > 0 && (
         <group onClick={click(available)}>
           <Voxels voxels={marker} placements={place(available)} />
@@ -119,8 +170,8 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
         const pub = isPublished(lot.id);
         return (
           <group key={lot.id} position={[lot.x, 0, lot.z]}>
-            {/* Twelve lots now: a label is mounted only near the avatar, like the villagers' (see `Label`). */}
-            <Label y={pub ? 7.5 : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} />
+            {/* A label is mounted only near the avatar, like the villagers' (see `Label`): the village has 97 lots. */}
+            <Label y={pub ? NGO_LABEL_HEIGHT[asNgoLevel(info[lot.id]?.ngo_level)] : 5} text={lotLabel(info, lot.id)} x={lot.x} z={lot.z} radius={pub ? undefined : FREE_LOT_LABEL_RADIUS} />
           </group>
         );
       })}
@@ -164,15 +215,21 @@ function Gift({ id, x, z }: { id: string; x: number; z: number }) {
  * from the tree's axis none is. (The tree's own label has no limit.)
  */
 const LABEL_RADIUS = 28;
+/**
+ * A free lot says so only from close by (IMPL-0031): the rings have rows of them, and the same two words over
+ * every lot in sight covered the village. The name of a published house keeps the full radius.
+ */
+const FREE_LOT_LABEL_RADIUS = 13;
 /** A mounted label is compared with the HUD every this many frames. */
 const CHROME_EVERY = 6;
 
 /**
- * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within
- * `LABEL_RADIUS`; the check runs each frame but only changes state when the boolean flips.
+ * Short 3D label over a prop. With `x`/`z` the label is only mounted while the avatar is within `radius`
+ * (`LABEL_RADIUS` unless a nearer one is asked); the check runs each frame but only changes state when the
+ * boolean flips.
  */
-export function Label({ y, text, x, z }: { y: number; text: string; x?: number; z?: number }) {
-  const [near, setNear] = useState(() => x === undefined || z === undefined || Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS);
+export function Label({ y, text, x, z, radius = LABEL_RADIUS }: { y: number; text: string; x?: number; z?: number; radius?: number }) {
+  const [near, setNear] = useState(() => x === undefined || z === undefined || Math.hypot(sim.pose.x - x, sim.pose.z - z) <= radius);
   const prev = useRef(near);
   const box = useRef<HTMLDivElement>(null);
   const tick = useRef(0);
@@ -185,7 +242,7 @@ export function Label({ y, text, x, z }: { y: number; text: string; x?: number; 
       if ((el.style.visibility === "hidden") !== hide) el.style.visibility = hide ? "hidden" : "";
     }
     if (x === undefined || z === undefined) return;
-    const next = Math.hypot(sim.pose.x - x, sim.pose.z - z) <= LABEL_RADIUS;
+    const next = Math.hypot(sim.pose.x - x, sim.pose.z - z) <= radius;
     if (next === prev.current) return;
     prev.current = next;
     setNear(next);

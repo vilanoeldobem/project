@@ -116,7 +116,7 @@ describe("a press on the ground of the scene", () => {
 
 describe("a press on a visitor in moderation mode (PROPOSTA, IMPL-0021)", () => {
   const shop = SHOPS[0];
-  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "standard-27")!;
+  const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "standard-03")!;
   const lot = LOTS.find((l) => l.id === "plaza-10")!;
   const npc = NPCS[0];
   /** Where the visitor stands, and the click that the thing behind them answers: [what, visitor, avatar, click]. */

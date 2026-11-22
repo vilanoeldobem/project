@@ -19,7 +19,7 @@ import { GIFTS, INTERACT_DISTANCE, QUEST_SPAWNS, surfaceAt, TREE_RADIUS } from "
 import { usePreset } from "../environment/settings";
 import { AVATAR_SIZE, avatarParts, HIP_Y, SHOULDER_Y, walkLift, walkSwing } from "./models";
 import { avatarHidden, clearSkyOffset, type Offset, seeThroughShown } from "./occlusion";
-import { sceneBuildings, sceneColliders, sceneOccluders } from "./sceneColliders";
+import { housesOf, sceneBuildings, sceneColliders, sceneOccluders } from "./sceneColliders";
 import { Voxels } from "./Voxels";
 
 /** Top-down diagonal camera (study; final angle is card G12). */
@@ -101,7 +101,7 @@ export function Player({ published }: { published: string }) {
   const { shadows } = usePreset();
   // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
   const questsOn = useQuestsEnabled();
-  const houses = useMemo(() => new Set(published.split(",").filter(Boolean)), [published]);
+  const houses = useMemo(() => housesOf(published), [published]);
   const colliders = useMemo(() => sceneColliders(houses, questsOn), [houses, questsOn]);
   // What can hide the avatar from the camera. A new set is looked at afresh (`x: Infinity`).
   const occluders = useMemo(() => sceneOccluders(houses), [houses]);

@@ -16,7 +16,7 @@
  * In moderation mode (PROPOSTA, IMPL-0021) one thing comes before all of that: a press on another visitor
  * picks that visitor, whatever stands behind them, and that press does nothing else (`pressScene`).
  */
-import { type GroundKind, groundAt, PLACE_INTERACT_DISTANCE, type ResidentialPlot } from "@vila/shared/game/world";
+import { type GroundKind, groundAt, PLACE_INTERACT_DISTANCE, type ResidentialPlot, type SiteDef } from "@vila/shared/game/world";
 
 import { events } from "./events";
 import { sim } from "./sim";
@@ -115,6 +115,17 @@ export function tapResidence(plot: ResidentialPlot, ground: { x: number; z: numb
   if (pickedVisitor) return;
   if (ground && isStreet(groundAt(ground.x, ground.z))) walkTo(ground.x, ground.z);
   else visit(plot.front, { kind: "plot", plotId: plot.id });
+}
+
+/**
+ * A click on a civic building, a park or a square (IMPL-0031): the same rule as a residential plot. A tap whose
+ * ground is street paving walks there (a tall hall covers the street behind it on the screen); any other goes
+ * to the place, whose panel opens from the street in front of it.
+ */
+export function tapSite(site: SiteDef, ground: { x: number; z: number } | null): void {
+  if (pickedVisitor) return;
+  if (ground && isStreet(groundAt(ground.x, ground.z))) walkTo(ground.x, ground.z);
+  else visit(site.front, { kind: "site", siteId: site.id });
 }
 
 /**

@@ -96,6 +96,28 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   price: no R$ value, no in-game currency, no "comprar" button (DEC-042, IMPL-0002). Shops say what they will
   offer and that they are not open; billboards show only the village's own notices from the repository, never
   third-party content or a brand, and are not for rent (PEN-008, OQ-18). No vehicles: everything is on foot.
+- Village rings ([IMPL-0031](docs/decisions/0031-village-rings-zoning-civic-buildings-and-boards.md)) are
+  **PROPOSTA**: four rings zoned by half row, about four parcels in five for NGOs (97 lots, 23 houses), requested by
+  the technical owner; the final plan and how many rings open at launch are the product owner's (OQ-19, DEC-035).
+  Civic buildings, parks and squares are **scenery with a name** (OQ-22): a panel says what the place is and that
+  nothing is served or sold there, in the words of today (never "ainda não", an opening, a price or a service), and
+  no building carries text, a logo or a brand. There is a sleigh station and no petrol station: the no-vehicles rule
+  stands. Display boards come in four formats with fixed artwork sizes (`BOARD_FORMATS`,
+  `docs/reference/display-boards.md`), and **every one shows only the village's own notices**: defining the sizes
+  did not decide OQ-18. Never load third-party artwork, a brand or anything that reads as an advertisement into a
+  board, and never write "anuncie", "alugue" or "publicidade" on screen, before the product owner answers.
+- NGO building levels ([IMPL-0032](docs/decisions/0032-ngo-building-levels.md)) are **PROPOSTA**: dark code behind
+  `NGO_LEVELS_ENABLED` ("false" in production and staging), and they also need `DONATIONS_ENABLED`. No product
+  decision lets an NGO's house grow with money: whether it may, on which base, what an NGO with its own payment
+  page gets and whether a level may go down are the product owner's to answer (OQ-23). Never flip the flag without
+  explicit approval, and never decide that policy in code: the thresholds in
+  `packages/shared/src/game/ngo-level.ts` are placeholders. `GET /lots` sends the level and **never the amount**;
+  the level is shown by the building alone: no "nível" on a panel, no list or comparison of NGOs, no XP, nothing
+  unlocked by it. Every level keeps inside `HOUSE_ENVELOPE` and carries no text, logo or brand.
+- The look of the village ([IMPL-0030](docs/decisions/0030-thawed-village-and-readable-streets.md), **PROPOSTA**):
+  snow is an accent and roads are the darkest thing on the ground. `apps/client/src/scene/groundRuns.test.ts` keeps
+  a contrast of at least 3:1 between every road tone and every yard tone and the share of snow tones under a fifth:
+  a new ground colour goes through `PALETTE` and those lists, never a free hex value.
 - Village life ([IMPL-0025](docs/decisions/0025-village-life.md)) is **PROPOSTA**: the cast, its names, its routines
   and what it says are config and copy of the technical owner until the product owner answers OQ-20. **No language
   model or other AI service** drives a character or writes a line: behaviour is a schedule
@@ -125,7 +147,7 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   code there; it creates no accounts and shows no e-mail or real name in lists; sections without real data show an
   explicit empty/pending state. A sign-in link opens dash only when the request `Origin` equals `DASH_ORIGIN` exactly.
 - Every public projection of an NGO (`/lots`, `/indicators`, `/ngos/:id`, logo, gallery) requires the published lot
-  association and reads no table newer than the one it serves: production may run behind the code (v13 since 2026-11-15; `docs/reference/releases.md`). Never
+  association and reads no table newer than the one it serves: production may run behind the code (v15 since 2026-11-20 UTC, release 0.7.0; `docs/reference/releases.md`). Never
   join `ngo_withdrawals`, or read anything migration 0010 adds (`users.blocked`, `account_blocks`,
   `moderation_tickets`), in an always-on public route; signed-in routes that need a newer schema answer
   `503 schema_outdated`. A test in `apps/api/src/public-ngo.test.ts` checks every schema.
@@ -139,14 +161,19 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 - The layout (rings, lots, shops, plots, streets, world radius) is derived from `VILLAGE_PLAN`
   (`packages/shared/src/game/world.ts`, IMPL-0024): change the plan, never scatter positions. The scenery of the
   square (plaza lamps, market, sleigh, pond, NPCs, quest items, gifts) is placed by hand for the plan in force and
-  does not follow it. Safe knobs: a tier's `perHalf`, `width`, `depth` and `house`, `streetWidth`, `backYard`,
-  `edge`. Review the square's scenery by hand before touching `sides` (`assertPlan` refuses anything but 8),
-  `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage` or `shopEvery`.
-- Lot, shop and plot ids are positional (`plaza-NN` = the n-th lot around the village): stable only for an
-  unchanged plan. They are stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
+  does not follow it. Safe knobs: a ring's `perHalf`, `width`, `depth` and `zoning` (one letter per half row: N, R,
+  C, P, S), a new ring at the end of `rings` (IMPL-0031: nothing before it moves), a tier's `house`, `streetWidth`,
+  `backYard`, `edge`. Review the square's scenery by hand before touching `sides` (`assertPlan` refuses anything
+  but 8), `plazaRadius`, `ringStreet`, `squareApothem`, `avenueWidth`, `laneWidth`, `frontage` or `shopEvery`. A half
+  row where a character of the village lives (`life.ts`) must stay residential.
+- Lot, shop and plot ids are positional (`plaza-NN` = the n-th lot around the square, `ring2-NN` = the n-th lot of
+  the second ring, `<tier>-NN` = the n-th house of the tier): stable only for an unchanged plan. Never parse a lot
+  id: look it up (`lotById`, `lotNumber`). They are stored in D1 (`lots.id`, `ngos.requested_lot_id`, `progress_events`, quest objectives,
   `ngo_withdrawals.lot_ids`, audit details, `residential_plots.id`), and migration 0012 is applied in production (2026-11-14), so a plan
-  change that moves or renumbers one needs a new migration that follows. Lots and plots must stay in sync with the
-  seed migrations (`0002_seed_lots.sql`, `0012_village_expansion.sql`; tests check the SQL text, the migrated
+  change that moves or renumbers one needs a new migration that follows. Migration 0015 (the lots of the rings,
+  IMPL-0031) is **applied in production** (2026-11-20 UTC, release 0.7.0): it is immutable now, and a change of the
+  rings needs a new migration that follows. Lots and plots must stay in sync with the seed migrations (`0002_seed_lots.sql`,
+  `0012_village_expansion.sql`, `0015_village_growth.sql`; tests check the SQL text, the migrated
   tables and pin each id to its place), and the plan in force must keep the rules of
   `packages/shared/src/game/village.test.ts` (unique ids, no overlap, tiers by distance, the sightline rule, every
   place reachable on foot in both collider sets). Plan variants are only checked for the layout's geometry.
@@ -173,8 +200,13 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   `scene/ShadowCulling.tsx` keeps it out of the shadow pass while no shadow of it is seen; the shadow box is
   `SHADOW_BOX` (`scene/shadowCasters.ts`), shared with `Lighting`. Something that spans the horizon (the forest,
   the mountains) is meshed as one model and drawn in pieces (`voxelGeometries` with `partOf`), so the camera culls
-  each piece: never one mesh whose bounding sphere covers the village. Measure calls and triangles before and after;
-  `apps/client/scripts/verify.mjs` fails over the budget at the spawn, default zoom and zoomed out.
+  each piece: never one mesh whose bounding sphere covers the village. Everything that stands on the rings is baked
+  into one block per ring and side (`scene/Village.tsx` `Rings`), the chalets of published lots too (`Lots`): never a
+  mesh per building, and the ground is drawn in sectors. Measure calls and triangles before and after;
+  `apps/client/scripts/verify.mjs` fails over the budget at the spawn, default zoom and zoomed out, and with a house
+  on every lot at mixed levels (`?villageDemo=full`, local builds only: the full village has about 17 calls and
+  43 000 triangles of headroom). A new material role on a block is a draw call per block in view: join the lit
+  roles of every block (`joinLitRoles`), as the rows of houses and the NGO chalets do.
 - `GET /residential-plots` is an always-on public route: the shared layout is its source (every plot, always), the
   `residential_plots` table (0012, in production since 2026-11-14) only adds state and is read only with the flag on. A
   missing table, a missing row or a D1 error answers "unavailable", never a 500 or a shorter list. `enabled` is the
