@@ -32,6 +32,13 @@ Cada versão indica o schema D1 que entrega.
   storage.
 - `scripts/smoke-api.sh` confere as duas rotas.
 
+### Changed — visual de blocos (IMPL-0033)
+
+- Cada bloco aparece sozinho: o topo fica mais claro que os lados, cada bloco tem um tom próprio (±4,5 %, o mesmo em
+  todo cliente) e uma aresta fina e mais escura em volta de cada face. A árvore da praça e os pinheiros deixam de
+  parecer massas lisas.
+- Sem triângulo nem chamada de desenho a mais; o chão e a paleta não mudam.
+
 ### Added — Livro I da saga v2: A Chegada (PROPOSTA, atrás das flags existentes, desligado)
 
 - **45 entradas** de `b01-c1-01` a `b01-c3-04`, 1.050 XP, 11 NPCs de mundo (8 novos), 4 props voxel e 6 cosméticos; a primeira página do Caderno abre o Livro II.

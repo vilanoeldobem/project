@@ -7,7 +7,9 @@
  *   into the vertex colour (no runtime cost), with the quad diagonal flipped to keep the gradient symmetric.
  * - **`center` attribute:** every vertex of a group in `centers` carries its voxel's centre, so shaders
  *   move/phase a whole voxel rigidly (wind sway, twinkle, idle breathing) even though the model is a single
- *   mesh. Static groups leave it out: 48 of the 204 bytes of a quad.
+ *   mesh. Static groups leave it out: 48 of the 236 bytes of a quad.
+ * - **Block look (IMPL-0033):** light by face direction and a small shade per block in the vertex colour, and
+ *   `face` (the corner of each face) for the block edges the shared materials draw.
  *
  * Cells with non-integer coordinates (decor placed off-grid) are drawn with all six faces and occlude
  * nothing: correct, only less optimal.
@@ -21,6 +23,11 @@ export interface MeshData {
   colors: Float32Array;
   /** Voxel centre per vertex (model space); null for a group outside `MeshOptions.centers`. */
   centers: Float32Array | null;
+  /**
+   * Corner of the face per vertex, 1 or 2 on each face axis (`aFace` in the shaders, which subtract 1): the block
+   * edge is drawn where it nears 1 or 2. Starting at 1 lets a geometry without the attribute (read as 0) opt out.
+   */
+  face: Float32Array;
   indices: Uint16Array | Uint32Array;
   /** Quads emitted (2 triangles each). */
   faces: number;
@@ -47,6 +54,26 @@ export interface MeshOptions {
 
 /** Corner brightness by number of occluding neighbours (0..3). Tuned for soft, toy-like contact shading. */
 export const AO_CURVE = [1, 0.8, 0.66, 0.54] as const;
+
+/**
+ * Block look (IMPL-0033): each face gets a fixed light by its direction, so the top of a block reads lighter than
+ * its sides even under flat light, and each grid block a small deterministic shade of its own, so a wall of one
+ * colour still reads as blocks. Indexed `[axis][side]`, side 0 = positive. Emissive groups (`noAo`) keep their colour.
+ */
+export const FACE_LIGHT = [
+  [0.93, 0.93],
+  [1, 0.78],
+  [0.87, 0.87],
+] as const;
+/** Largest shade change of one block (±), from its integer cell: the same block always gets the same shade. */
+export const BLOCK_JITTER = 0.045;
+/** Shade of the block at cell (x, y, z): a pure integer hash, so every client draws the same village. */
+export function blockShade(x: number, y: number, z: number): number {
+  let h = Math.imul(x | 0, 73856093) ^ Math.imul(y | 0, 19349663) ^ Math.imul(z | 0, 83492791);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return 1 + ((h & 0xffff) / 0xffff - 0.5) * 2 * BLOCK_JITTER;
+}
 
 const OFFSET = 1024;
 const SPAN = 2048;
@@ -107,6 +134,7 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
       normals: new Float32Array(verts * 3),
       colors: new Float32Array(verts * 3),
       centers: !opts.centers || opts.centers.has(g) ? new Float32Array(verts * 3) : null,
+      face: new Float32Array(verts * 2),
       indices: verts > 65535 ? new Uint32Array(faces * 6) : new Uint16Array(faces * 6),
       faces: 0,
     };
@@ -121,7 +149,8 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
     const centers = m.centers;
     const onGrid = grid(v);
     const useAo = onGrid && !opts.noAo?.has(g);
-    const [r, gr, b] = linear(v[3]);
+    const [r0, g0, b0] = linear(v[3]);
+    const look = useAo ? blockShade(v[0], v[1], v[2]) : 1;
     const cx = v[0] * size, cy = v[1] * size + half, cz = v[2] * size;
     for (let d = 0; d < 3; d++) {
       const u = (d + 1) % 3, w = (d + 2) % 3;
@@ -149,6 +178,8 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
           ao[i] = s1 && s2 ? 3 : s1 + s2 + c;
         }
         const base = m.faces * 4;
+        const light = useAo ? look * FACE_LIGHT[d][s > 0 ? 0 : 1] : 1;
+        const r = r0 * light, gr = g0 * light, b = b0 * light;
         for (let k = 0; k < 4; k++) {
           // Negative faces walk the corners backwards so every face stays counter-clockwise from outside.
           const i = s > 0 ? k : 3 - k;
@@ -160,6 +191,8 @@ export function meshVoxels(voxels: readonly Voxel[], opts: MeshOptions): MeshDat
           pos[w] += cv * half;
           m.positions[o] = pos[0]; m.positions[o + 1] = pos[1]; m.positions[o + 2] = pos[2];
           m.normals[o + d] = s;
+          m.face[(base + k) * 2] = cu > 0 ? 2 : 1;
+          m.face[(base + k) * 2 + 1] = cv > 0 ? 2 : 1;
           const shade = AO_CURVE[ao[i]];
           m.colors[o] = r * shade; m.colors[o + 1] = gr * shade; m.colors[o + 2] = b * shade;
           if (centers) {
