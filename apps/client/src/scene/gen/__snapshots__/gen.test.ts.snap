@@ -208,6 +208,14 @@ exports[`generator snapshots > market-stall keeps the output of fixed seeds stab
 ]
 `;
 
+exports[`generator snapshots > nameplate keeps the output of fixed seeds stable 1`] = `
+[
+  "76deab69",
+  "f1f967b3",
+  "faf1b55d",
+]
+`;
+
 exports[`generator snapshots > ngo-level-1 keeps the output of fixed seeds stable 1`] = `
 [
   "4e48bf21",
@@ -328,6 +336,14 @@ exports[`generator snapshots > reindeer keeps the output of fixed seeds stable 1
 ]
 `;
 
+exports[`generator snapshots > rose keeps the output of fixed seeds stable 1`] = `
+[
+  "488775ab",
+  "f42c5328",
+  "b6025b09",
+]
+`;
+
 exports[`generator snapshots > scarf keeps the output of fixed seeds stable 1`] = `
 [
   "b6400131",
@@ -368,10 +384,26 @@ exports[`generator snapshots > sweater keeps the output of fixed seeds stable 1`
 ]
 `;
 
+exports[`generator snapshots > toy-reindeer keeps the output of fixed seeds stable 1`] = `
+[
+  "2af2a206",
+  "db2980cd",
+  "2bc6948e",
+]
+`;
+
 exports[`generator snapshots > villager keeps the output of fixed seeds stable 1`] = `
 [
   "ccfd3f2b",
   "33dfdcc5",
   "29fbe6ba",
+]
+`;
+
+exports[`generator snapshots > watering-can keeps the output of fixed seeds stable 1`] = `
+[
+  "ad45c272",
+  "b4be7d72",
+  "d1cf3852",
 ]
 `;

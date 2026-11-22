@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+nameplate,Placa de Alba,world_prop,done,book-02-nameplate,props,b02-c1-04,1,nameplate,60,160,0.20,use,none,"Placa de madeira em dois postes, roseta entalhada e neve no topo; sem texto. Só existe enquanto a missão está ativa, por isso não tem collider permanente."
+toy-reindeer,Rena de madeira,quest_item,done,book-02-toy-reindeer,props,"b02-c2-02;b02-c2-04;b02-r2-08",3,toy-reindeer,70,180,0.20,pickup,none,"Rena de madeira sobre quatro rodas, galhada e faixa vermelha; também representa as três peças e o brinquedo consertado."
+rose,Roseira de Alba,quest_item,done,book-02-rose,props,"b02-c3-02;b02-r1-08",1,rose,30,90,0.18,pickup,none,"Caule, duas folhas e flor em camadas; a primeira flor do arco regional é um item derivado sem modelo próprio."
+watering-can,Regador,quest_item,done,book-02-watering-can,props,b02-r1-03,3,watering-can,45,120,0.18,pickup,none,"Corpo metálico, bico, alça e crivo; os potes de tinta da secundária são itens derivados que reutilizam este gerador."

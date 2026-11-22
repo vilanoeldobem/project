@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b02-m1,A primeira casa,houses,1,1,10,,jardim-casas,2
+b02-m1,Cinco casas,houses,5,2,10,,jardim-casas,2
+b02-m1,Dez casas,houses,10,3,10,,jardim-casas,2
+b02-m1,Vinte e cinco casas,houses,25,4,10,,jardim-casas,2
+b02-m1,Cinquenta casas,houses,50,5,10,,jardim-casas,2
+b02-m1,Noventa e sete casas,houses,97,6,10,blouse-garden,jardim-casas,2
+b02-m2,A primeira vitória,memory-wins,1,1,10,,oficina-brinquedos,2
+b02-m2,Cinco vitórias,memory-wins,5,2,10,,oficina-brinquedos,2
+b02-m2,Dez vitórias,memory-wins,10,3,10,,oficina-brinquedos,2
+b02-m2,Vinte e cinco vitórias,memory-wins,25,4,10,,oficina-brinquedos,2
+b02-m2,Cinquenta vitórias,memory-wins,50,5,10,,oficina-brinquedos,2
+b02-m2,Cem vitórias,memory-wins,100,6,10,blouse-quilt,oficina-brinquedos,2

@@ -9,6 +9,8 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+- **Livro II da saga v2, As Casas e os Nomes:** 45 entradas de b02-c1-01 a b02-c3-04, 1.050 XP, 8 NPCs, 4 props e 6 cosméticos; a casa de Alba ganha nome e abre o Livro III. (PROPOSTA, atrás das flags, desligado.)
+
 ### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
 
 - **Três missões novas** em `quests-v1`: `bough-ribbon` (15 XP), `bough-sprigs` (20 XP) e `bough-delivery`

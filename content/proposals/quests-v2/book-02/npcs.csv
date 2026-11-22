@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+dona-cida,Dona Cida,Jardineira,"Jardim das Casas, canteiro de Alba",villager,dona-cida,8.4,-1.2,-1.429,2,Toda semente lembra quem a plantou.
+pip,Pip,Aprendiz de brinquedeiro,"Oficina dos Brinquedos, bancada de Téo",villager,pip,14.8,4.2,-1.847,2,Ainda estou aprendendo. Posso tentar de novo?
+mestre-teo,Mestre Téo,Brinquedeiro,"Oficina dos Brinquedos, vitrine",villager,mestre-teo,18,1.8,-1.670,2,Madeira e memória fazem brinquedo.
+lia,Lia,Criança do coro,"Jardim das Casas, perto da praça",villager,lia,2.6,-5.2,-0.464,2,Eu canto baixinho para acertar.
+seu-elias,Seu Elias,Vizinho do jardim e guardião da ponte,"Jardim das Casas, janela do vizinho",villager,seu-elias,11.4,-3.6,-1.265,2,O jardim também escuta quem passa.
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, junto à árvore",villager,storyteller,5,4,-2.246,2,Toda história começa com alguém que para para ouvir.
+postmaster,Seu Nivaldo,Carteiro da Vila,"Praça da Grande Árvore, correio",villager,postmaster,4.5,11.8,-2.777,2,Toda carta é uma promessa que viaja.
+mestre-anselmo,Mestre Anselmo,Relojoeiro,"Praça da Grande Árvore, relojoaria",villager,mestre-anselmo,-8.6,5.4,2.131,2,O tempo escuta quem para.
