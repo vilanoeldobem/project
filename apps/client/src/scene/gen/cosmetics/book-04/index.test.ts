@@ -1,9 +1,13 @@
 /** Book IV cosmetic layers and their catalogue wiring. */
 import { describe, expect, it } from "vitest";
 
-import { isPaid, type Cosmetic } from "@vila/shared/game/cosmetics";
+import { COSMETICS as COSMETICS_V1, isPaid, type Cosmetic } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, isUnlockedIn } from "@vila/shared/game/cosmetics-v2";
 import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
+import { COSMETICS as COSMETICS_B00 } from "@vila/shared/game/quests-v2/books/book-00-epilogue";
+import { COSMETICS as COSMETICS_B01 } from "@vila/shared/game/quests-v2/books/book-01";
+import { COSMETICS as COSMETICS_B02 } from "@vila/shared/game/quests-v2/books/book-02";
+import { COSMETICS as COSMETICS_B03 } from "@vila/shared/game/quests-v2/books/book-03";
 import { COSMETICS } from "@vila/shared/game/quests-v2/books/book-04";
 import { measure } from "../../budget";
 import { seedOf } from "../../rng";
@@ -48,10 +52,14 @@ describe("book IV cosmetics", () => {
   });
 
   it("appends each slot in book order", () => {
-    expect(COSMETICS_V2.filter((c) => c.slot === "pants").at(-1)?.id).toBe("pants-snowboot");
-    expect(COSMETICS_V2.filter((c) => c.slot === "handLeft").at(-1)?.id).toBe("hand-left-lake-lantern");
-    expect(COSMETICS_V2.filter((c) => c.slot === "special").at(-1)?.id).toBe("special-brasa");
-    expect(COSMETICS_V2.filter((c) => c.slot === "dress").slice(-3).map((c) => c.id)).toEqual([
+    const start = (slot: string) =>
+      COSMETICS_V1.filter((c) => c.slot === slot).length +
+      [...COSMETICS_B00, ...COSMETICS_B01, ...COSMETICS_B02, ...COSMETICS_B03].filter((c) => c.slot === slot).length;
+    const v2 = (slot: string) => COSMETICS_V2.filter((c) => c.slot === slot);
+    expect(v2("pants")[start("pants")]?.id).toBe("pants-snowboot");
+    expect(v2("handLeft")[start("handLeft")]?.id).toBe("hand-left-lake-lantern");
+    expect(v2("special")[start("special")]?.id).toBe("special-brasa");
+    expect(v2("dress").slice(start("dress"), start("dress") + 3).map((c) => c.id)).toEqual([
       "dress-aurora",
       "dress-ice",
       "dress-star",
