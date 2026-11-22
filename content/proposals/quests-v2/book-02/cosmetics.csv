@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+blouse-garden,blouse,Blusa do Jardim,marco,false,b02-m1-06,40,140
+blouse-quilt,blouse,Blusa de Retalhos,marco,false,b02-m2-06,40,140
+shoes-garden,shoes,Sapatos do Jardim,missao,false,b02-c3-04,40,140
+blouse-aurora,blouse,Blusa Aurora,premium,true,,40,140
+blouse-velvet-night,blouse,Blusa Noite de Veludo,premium,true,,40,140
+blouse-starlight,blouse,Blusa Luz de Estrela,premium,true,,40,140
