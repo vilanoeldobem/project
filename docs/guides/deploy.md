@@ -22,13 +22,11 @@ Produção ([IMPL-0005](../decisions/0005-public-site-and-domains.md),
 Os endereços `*.workers.dev` continuam ativos para diagnóstico (o painel administrativo não tem um:
 `workers_dev: false`).
 
-**Último deploy: 2026-11-19**, versão 0.7.0, os cinco Workers a partir da `main` (`9a80a83`, tag `v0.7.0`), na
-ordem API → migrations `0014` e `0015` → servidor → jogo → painel → site, com autorização (2026-11-20 02h36 a 02h40
-UTC). D1 de produção na **v15**: 97 terrenos de ONG e 23 terrenos residenciais; ponto de restauração anterior no
-[releases.md](../reference/releases.md). Contas e todas as propostas seguem desligadas, inclusive
-`NGO_LEVELS_ENABLED`. O `smoke-api.sh` passa (17/17); o `verify-live.mjs` e o `verify.mjs` do site falham só pelos
-destinos do Google bloqueados pela CSP (OQ-13). A 0.6.0 (`9d32fbc`, 2026-11-14) foi publicada sem migration; a `0013`
-foi aplicada em 2026-11-15. A 0.5.0 (`e4771c4`) aplicou as migrations `0004` a `0012` e criou o bucket R2.
+**Último deploy: 2026-11-22**, versão 0.8.0, os cinco Workers a partir da `main` (`6d4e4fc`, tag `v0.8.0`), na
+ordem API → servidor → jogo → painel → site, sem migration, com autorização (19h05 a 19h07 UTC). D1 de produção
+segue na **v15**. Contas e todas as propostas seguem desligadas. O `smoke-api.sh` passa (19/19, com as rotas
+`/ready`); o `verify-live.mjs` falha só pelos destinos do Google bloqueados pela CSP (OQ-13). A 0.7.0 (`9a80a83`,
+2026-11-19) aplicou as migrations `0014` e `0015`.
 O registro completo de cada publicação (commit, hosts, schema, R2, bandeiras por Worker, conferências e o que não
 foi verificado) fica em [reference/releases.md](../reference/releases.md).
 

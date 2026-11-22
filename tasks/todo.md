@@ -1190,7 +1190,7 @@ Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0
 - [x] Block look: face light, per-block shade, block edges (IMPL-0033, PR #94)
 - [x] Dead code: v1 wardrobe rules, unused exports (PR #95)
 - [x] Docs in sync: AGENTS.md map and flags, quests-v2 status, roadmap, changelog, broken paths
-- [ ] Release 0.8.0 (features since 0.7.0; no migration, no flag change) and deploy the five Workers
+- [x] Release 0.8.0 (PR #97, tag v0.8.0) and deploy of the five Workers (2026-11-22 19h05 UTC; smoke 19/19)
 
 ## Review
 - Chaining resolved merges let CI run once for many PRs; GitHub marks each PR merged in order.
