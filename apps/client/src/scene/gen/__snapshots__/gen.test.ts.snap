@@ -1,5 +1,13 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`generator snapshots > aurora-crown keeps the output of fixed seeds stable 1`] = `
+[
+  "1e4d8e5f",
+  "3b61b097",
+  "6829cefb",
+]
+`;
+
 exports[`generator snapshots > bell-parts keeps the output of fixed seeds stable 1`] = `
 [
   "2c8d6514",
@@ -152,6 +160,14 @@ exports[`generator snapshots > dawn-bell keeps the output of fixed seeds stable 
 ]
 `;
 
+exports[`generator snapshots > dawn-thread keeps the output of fixed seeds stable 1`] = `
+[
+  "dc73f5d4",
+  "db2c666b",
+  "fd12f0d4",
+]
+`;
+
 exports[`generator snapshots > dew-map keeps the output of fixed seeds stable 1`] = `
 [
   "9b5c6ee8",
@@ -192,6 +208,14 @@ exports[`generator snapshots > first-book keeps the output of fixed seeds stable
 ]
 `;
 
+exports[`generator snapshots > foundation-stone keeps the output of fixed seeds stable 1`] = `
+[
+  "8273d2a8",
+  "398a63f",
+  "49392fd",
+]
+`;
+
 exports[`generator snapshots > frost-flower keeps the output of fixed seeds stable 1`] = `
 [
   "56070ee8",
@@ -221,6 +245,22 @@ exports[`generator snapshots > glass-flower keeps the output of fixed seeds stab
   "66520506",
   "9c039650",
   "d1a5e250",
+]
+`;
+
+exports[`generator snapshots > great-bell keeps the output of fixed seeds stable 1`] = `
+[
+  "dba818f",
+  "dcb7a98a",
+  "da70be36",
+]
+`;
+
+exports[`generator snapshots > hand-right-candle keeps the output of fixed seeds stable 1`] = `
+[
+  "72b4c20e",
+  "565ecd9d",
+  "a4942eae",
 ]
 `;
 
@@ -261,6 +301,14 @@ exports[`generator snapshots > house-townhouse keeps the output of fixed seeds s
   "afc6dc39",
   "6681ed35",
   "8391136c",
+]
+`;
+
+exports[`generator snapshots > ice-bridge keeps the output of fixed seeds stable 1`] = `
+[
+  "1767b55c",
+  "3ae865a4",
+  "a9e3940e",
 ]
 `;
 
@@ -325,6 +373,14 @@ exports[`generator snapshots > log-pile keeps the output of fixed seeds stable 1
   "2a77922b",
   "27747607",
   "8ea7e36d",
+]
+`;
+
+exports[`generator snapshots > loom keeps the output of fixed seeds stable 1`] = `
+[
+  "c7244338",
+  "9259f93c",
+  "38e4667b",
 ]
 `;
 
@@ -608,6 +664,22 @@ exports[`generator snapshots > small-notebook keeps the output of fixed seeds st
 ]
 `;
 
+exports[`generator snapshots > snow-archive keeps the output of fixed seeds stable 1`] = `
+[
+  "8b88684b",
+  "7f286c3a",
+  "dae25b1c",
+]
+`;
+
+exports[`generator snapshots > star-guide keeps the output of fixed seeds stable 1`] = `
+[
+  "d028ac7a",
+  "9198462",
+  "949ca2a0",
+]
+`;
+
 exports[`generator snapshots > star-map keeps the output of fixed seeds stable 1`] = `
 [
   "7dbaa04e",
@@ -669,6 +741,14 @@ exports[`generator snapshots > time-gear keeps the output of fixed seeds stable 
   "c1250b8",
   "d413822c",
   "fcf5f492",
+]
+`;
+
+exports[`generator snapshots > time-tower keeps the output of fixed seeds stable 1`] = `
+[
+  "7d83bc3b",
+  "ad69b389",
+  "f28a4bc7",
 ]
 `;
 

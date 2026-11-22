@@ -11,7 +11,7 @@ import { chromium } from "playwright-core";
 import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const [url = "http://localhost:8799", ...cats] = process.argv.slice(2);
-const categories = cats.length ? cats : ["props", "houses", "characters", "animals", "cosmetics"];
+const categories = cats.length ? cats : ["props", "saga", "houses", "characters", "animals", "cosmetics"];
 const out = new URL("../verify-output/", import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });

@@ -22,6 +22,7 @@ import { Invite } from "./ui/Invite";
 import { Lot } from "./ui/Lot";
 import { MapPanel } from "./ui/MapPanel";
 import { MemoryGame } from "./ui/MemoryGame";
+import { StoryGamePanel } from "./ui/StoryGamePanel";
 import { GameMenu } from "./ui/Menu";
 import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
@@ -91,7 +92,8 @@ export function App() {
       {panel.kind === "games" && <Games />}
       {panel.kind === "map" && <MapPanel lots={lots} />}
       {panel.kind === "badges" && <Badges />}
-      {panel.kind === "memory" && <MemoryGame />}
+      {panel.kind === "memory" && <MemoryGame interactionId={panel.interactionId} questId={panel.questId} done={panel.done} />}
+      {panel.kind === "story-game" && <StoryGamePanel gameId={panel.gameId} interactionId={panel.interactionId} questId={panel.questId} done={panel.done} />}
       {panel.kind === "missions" && <Missions lots={lots} catalog={catalog} world={world} />}
       {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} catalog={catalog} world={world} />}
       {panel.kind === "life" && <LifeDialog charId={panel.charId} name={panel.name} role={panel.role} lines={panel.lines} />}

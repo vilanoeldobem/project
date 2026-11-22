@@ -9,6 +9,8 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+- **Saga v2, arte e minijogos:** os nove minijogos novos e o Jogo da Memória como o décimo, os dez props de saga no ?gallery e o guia de estilo dos cosméticos; auditoria dos 60 cosméticos dos livros (160 no catálogo, 40/140 por camada). Nenhuma bandeira mudou.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**
