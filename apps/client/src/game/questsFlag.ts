@@ -10,6 +10,7 @@ import { create } from "zustand";
 import { QUESTS } from "@vila/shared/game/quests";
 
 import { debugAllowed } from "../environment/runtime";
+import { questsV2Enabled, STORY_V2_QUEST_IDS } from "./questsV2Flag";
 
 /** This page's side of the flag. Constant for the page load, so the frame loop never parses the URL. */
 const PAGE_FLAG =
@@ -29,6 +30,10 @@ export const useQuestsEnabled = () => useServerFlag((s) => PAGE_FLAG && s.on);
 
 const QUEST_IDS = new Set(QUESTS.map((q) => q.id));
 
-/** The events this page may queue or send to the API: with quests off, quest events are left out. */
+/** The events this page may queue or send: quest events follow their own flag; quick missions always go. */
 export const sendableEvents = <E extends { missionId: string }>(events: E[]): E[] =>
-  questsEnabled() ? events : events.filter((e) => !QUEST_IDS.has(e.missionId));
+  events.filter((e) => {
+    if (QUEST_IDS.has(e.missionId)) return questsEnabled();
+    if (STORY_V2_QUEST_IDS.has(e.missionId)) return questsV2Enabled();
+    return true;
+  });

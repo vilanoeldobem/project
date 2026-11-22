@@ -1,6 +1,10 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { useVila } from "./game/store";
+import { useQuestsEnabled } from "./game/questsFlag";
+import { useQuestsV2Enabled } from "./game/questsV2Flag";
+import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { ALL_WORLD, V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { initAccount } from "./lib/account";
 import { type ContextState, watchContext } from "./lib/context-watch";
 import { fetchLots, type LotInfo } from "./lib/api";
@@ -31,6 +35,10 @@ const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World
 
 export function App() {
   const panel = useVila((s) => s.panel);
+  const quests = useQuestsEnabled();
+  const quests2 = useQuestsV2Enabled();
+  const catalog = catalogFor(quests, quests2);
+  const world = quests2 ? ALL_WORLD : V1_WORLD;
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
   /** Reads the lots (again after a moderation action changed what the village shows, IMPL-0021). */
@@ -84,8 +92,8 @@ export function App() {
       {panel.kind === "map" && <MapPanel lots={lots} />}
       {panel.kind === "badges" && <Badges />}
       {panel.kind === "memory" && <MemoryGame />}
-      {panel.kind === "missions" && <Missions lots={lots} />}
-      {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} />}
+      {panel.kind === "missions" && <Missions lots={lots} catalog={catalog} world={world} />}
+      {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} catalog={catalog} world={world} />}
       {panel.kind === "life" && <LifeDialog charId={panel.charId} name={panel.name} role={panel.role} lines={panel.lines} />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}

@@ -17,6 +17,7 @@ import type { NgoApplication } from "@vila/shared/accounts/validate";
 import type { Progress } from "@vila/shared/game/progress";
 
 import { sendableEvents, setServerQuests } from "../game/questsFlag";
+import { setServerQuestsV2 } from "../game/questsV2Flag";
 import { useVila } from "../game/store";
 import { SERVICES } from "./services";
 
@@ -72,6 +73,7 @@ export const api = {
     call<{
       accounts: boolean;
       quests?: boolean;
+      questsV2?: boolean;
       files?: boolean;
       withdrawal?: boolean;
       moderation?: Partial<ModerationConfig>;
@@ -394,8 +396,9 @@ function takeLoginToken(): string | null {
  */
 export async function initAccount() {
   try {
-    const { accounts, quests, files, withdrawal, moderation, donations } = await api.config();
+    const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = await api.config();
     setServerQuests(quests === true);
+    setServerQuestsV2(questsV2 === true);
     useAccount.setState({
       enabled: accounts,
       files: accounts && files === true,

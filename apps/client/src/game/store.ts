@@ -1,10 +1,13 @@
 import { create } from "zustand";
 
-import { COSMETICS, type Look, sanitizeLook, unlockedIds } from "@vila/shared/game/cosmetics";
+import { type Look } from "@vila/shared/game/cosmetics";
+import { COSMETICS_V2, sanitizeLookIn, unlockedIdsIn } from "@vila/shared/game/cosmetics-v2";
 import { DEFAULT_APPEARANCE, sanitizeAppearance, type Appearance } from "@vila/shared/game/appearance";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
-import type { NpcId } from "@vila/shared/game/quests";
+import { applyEventIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
 import { events } from "./events";
+import { questsEnabled } from "./questsFlag";
+import { questsV2Enabled } from "./questsV2Flag";
 import { planWalk, sim } from "./sim";
 
 export type Panel =
@@ -23,7 +26,7 @@ export type Panel =
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
   | { kind: "ngo"; lotId?: string }
-  | { kind: "npc"; npcId: NpcId }
+  | { kind: "npc"; npcId: string }
   // The expanded village (IMPL-0024, PROPOSTA): panels that say what is there today, no purchase and no claim.
   | { kind: "plot"; plotId: string }
   | { kind: "shop"; shopId: string }
@@ -47,7 +50,7 @@ export type MenuView = "root" | "settings" | "controls" | "help" | "leave";
 export type Nearby =
   | { kind: "tree" }
   | { kind: "lot"; lotId: string }
-  | { kind: "npc"; npcId: NpcId }
+  | { kind: "npc"; npcId: string }
   | { kind: "quest"; interactionId: string }
   | { kind: "donation-panel" }
   | { kind: "plot"; plotId: string }
@@ -147,10 +150,10 @@ function migrateLook(raw: unknown): Partial<Look> | null {
 
 function loadLook(p: Progress): Look {
   const current = readLook(LOOK_KEY);
-  if (current) return sanitizeLook(current, p);
+  if (current) return sanitizeLookIn(COSMETICS_V2, current, p);
   const old = migrateLook(readLook(LOOK_KEY_V1));
-  if (!old) return sanitizeLook(null, p);
-  const look = sanitizeLook(old, p);
+  if (!old) return sanitizeLookIn(COSMETICS_V2, null, p);
+  const look = sanitizeLookIn(COSMETICS_V2, old, p);
   try {
     localStorage.setItem(LOOK_KEY, JSON.stringify(look));
     localStorage.removeItem(LOOK_KEY_V1);
@@ -314,7 +317,7 @@ export const useVila = create<VilaState>((set, get) => ({
   progressOwner: null,
   look: loadLook(initialProgress),
   setLook: (patch) => {
-    const look = sanitizeLook({ ...get().look, ...patch }, get().progress);
+    const look = sanitizeLookIn(COSMETICS_V2, { ...get().look, ...patch }, get().progress);
     try {
       localStorage.setItem(LOOK_KEY, JSON.stringify(look));
     } catch {
@@ -362,24 +365,26 @@ export const useVila = create<VilaState>((set, get) => ({
   },
   record: (missionId, eventId) => {
     const previous = get().progress;
-    const { progress, completed } = applyEvent(previous, missionId, eventId);
+    const { progress, completed } = questsV2Enabled()
+      ? applyEventIn(catalogFor(questsEnabled(), true), previous, missionId, eventId)
+      : applyEvent(previous, missionId, eventId);
     if (progress === get().progress) return;
     if (get().progressOwner === null) saveProgress(progress);
     set({ progress });
     if (completed) {
       // New cosmetics are a consequence of the mission, never a separate reward roll (PROPOSTA).
-      const before = unlockedIds(previous);
-      const fresh = COSMETICS.filter((c) => unlockedIds(progress).has(c.id) && !before.has(c.id));
+      const before = unlockedIdsIn(COSMETICS_V2, previous);
+      const fresh = COSMETICS_V2.filter((c) => unlockedIdsIn(COSMETICS_V2, progress).has(c.id) && !before.has(c.id));
       const names = fresh.map((c) => c.name);
       const summary = names.length > 3 ? `${names.slice(0, 3).join(", ")} e mais ${names.length - 3}` : names.join(", ");
       get().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${summary}` : ""));
       events.emit({ type: "mission", missionId: completed.id });
     }
   },
-  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLook(get().look, p) }),
+  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, get().look, p) }),
   restoreGuest: () => {
     const p = loadProgress();
-    set({ progress: p, progressOwner: null, look: sanitizeLook(get().look, p) });
+    set({ progress: p, progressOwner: null, look: sanitizeLookIn(COSMETICS_V2, get().look, p) });
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),

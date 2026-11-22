@@ -1,9 +1,10 @@
 /** Code-generated voxel models: [x, y, z, colour]. Origin on the ground, model centred. */
 import { darkenHex, type Appearance } from "@vila/shared/game/appearance";
-import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
+import { DEFAULT_LOOK, type Look, SLOTS } from "@vila/shared/game/cosmetics";
 import { PALETTE as P } from "@vila/shared/game/world";
 
 import { applyLayer, backLayer, blouseBase, dressOverlay, faceLayer, handLayer, helmetLayer, pantsVoxels, shoesVoxels, specialLayer } from "./gen/cosmetics";
+import { cosmeticLayerV2, cosmeticTargetV2 } from "./gen/cosmetics-v2";
 import { dedupe } from "./gen/parts";
 
 export type Voxel = [number, number, number, string];
@@ -209,6 +210,17 @@ export function avatarParts(look: Look = DEFAULT_LOOK, appearance?: Appearance):
   body = applyLayer(body, specialLayer(look.special));
   armL = applyLayer(armL, handLayer(look.handLeft));
   armR = applyLayer(armR, handLayer(look.handRight));
+  // A v2 catalogue id has no v1 branch: its layer is applied whole (body or one arm). The book model covers the
+  // base part it replaces, inside the 40-voxel/140-face budget.
+  for (const slot of SLOTS) {
+    const id = look[slot];
+    const layer = cosmeticLayerV2(id);
+    if (!layer) continue;
+    const target = cosmeticTargetV2(id);
+    if (target === "armLeft") armL = applyLayer(armL, layer);
+    else if (target === "armRight") armR = applyLayer(armR, layer);
+    else body = applyLayer(body, layer);
+  }
   return { body: dedupe(body), legL: dedupe(legL), legR: dedupe(legR), armL: dedupe(armL), armR: dedupe(armR) };
 }
 

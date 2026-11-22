@@ -32,6 +32,7 @@ import { blockOf } from "./sectors";
 import { type CasterPart, modelExtent, partAt } from "./shadowCasters";
 import { bandstand, billboardFrame, dressingItems, fountain, LAWN_SIGN_VOXEL, lawnSign, outdoorFrame, residence, screenFrame } from "./villageModels";
 import { joinLitRoles, type MergeItem, MergedVoxels, mergeVoxelModels } from "./Voxels";
+import { StoryProps } from "./StoryProps";
 
 const nearest = <T extends { x: number; z: number }>(list: readonly T[], x: number, z: number): T =>
   list.reduce((a, b) => (Math.hypot(b.x - x, b.z - z) < Math.hypot(a.x - x, a.z - z) ? b : a));
@@ -265,7 +266,7 @@ function ringItems(): Array<{ block: string; item: MergeItem; target?: Target }>
  * its parts is seen (`casters`). The windows and the lanterns of every block are two meshes for the whole
  * village (`joinLitRoles`).
  */
-export function Rings() {
+export function Rings({ story = false }: { story?: boolean }) {
   const { blocks, lit, targets } = useMemo(() => {
     const byBlock = new Map<string, { items: MergeItem[]; targets: Target[] }>();
     for (const { block, item, target } of ringItems()) {
@@ -304,6 +305,7 @@ export function Rings() {
           <Label y={site.kind ? (CIVIC[site.kind].screen ?? 8) + (CIVIC[site.kind].screen ? 6.5 : 2.5) : 9} text={siteCopy(site).name} x={site.centre.x} z={site.centre.z} />
         </group>
       ))}
+      {story && <StoryProps />}
     </>
   );
 }

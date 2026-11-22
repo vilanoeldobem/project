@@ -1,24 +1,24 @@
 /**
- * Missions and XP on the server (P14, DEC-040, DEC-042; IMPL-0011). The client records events locally and
- * sends them here when signed in; the (user, mission, event) primary key makes every event idempotent, and
- * progress is rebuilt by replaying them through the same shared `applyEvent` the client uses. Local
- * progress made before signing in is migrated by sending its events once (OQ-02).
+ * Missions and XP on the server (P14, DEC-040, DEC-042; IMPL-0011; quests-v2 PROPOSTA). The client records
+ * events locally and sends them here when signed in; the (user, mission, event) primary key makes every event
+ * idempotent, and progress is rebuilt by replaying them through the same shared engine the client uses.
  *
  *   GET  /progress                                      → {progress}
  *   POST /progress/events {accountId, events: [{missionId, eventId}]} → {progress}   (≤ 50 per request)
  *
- * Quests (PROPOSTA quests-v1, IMPL-0013) are an order-dependent state machine, so a quest event is stored only
- * when it is a valid transition against the progress already stored (the batch is applied in order). An event
- * that is not applicable (an accept while another quest is active, an objective before its accept) is omitted,
- * and the response returns the account's authoritative progress. With `QUESTS_V1_ENABLED` off, quest
- * events are skipped and the rest of the batch is stored. The four missions are order-independent: every
- * whitelisted mission event is stored, as before.
+ * Quests (v1 epilogue and v2 books) are an order-dependent state machine, so a quest event is stored only when
+ * it is a valid transition against the progress already stored (the batch is applied in order). An event that
+ * is not applicable is omitted and the response returns the account's authoritative progress. With
+ * `QUESTS_V1_ENABLED` off, v1 quest events are skipped; with `QUESTS_V2_ENABLED` off, v2 events are skipped.
+ * The four quick missions are order-independent and always stored.
  *
- * Trust (PROPOSTA): the server checks mission ids, that each event id exists for its mission (gift ids, lot
- * ids…), idempotency and, for quests, the order of the transitions; it cannot prove that a gift was found or
- * an NPC was visited in the 3D scene. XP grants nothing that money could buy, and a donation grants no XP.
+ * Trust (PROPOSTA): the server checks mission ids, that each event id exists for its mission, idempotency and,
+ * for quests, the order of the transitions; it cannot prove that a gift was found or an NPC was visited in the
+ * 3D scene. XP grants nothing that money could buy, and a donation grants no XP.
  */
-import { applyEvent, EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
+import { EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
+import { applyEventIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import type { StoryCatalog } from "@vila/shared/game/quests-v2/types";
 import { QUESTS } from "@vila/shared/game/quests";
 import { GIFTS, LOTS } from "@vila/shared/game/world";
 
@@ -28,28 +28,70 @@ import { assertAccount, requireUser } from "./session";
 import type { Env } from "./api";
 
 /** The event ids the client can produce for each mission or quest. */
-export const KNOWN_EVENTS: Record<string, ReadonlySet<string>> = {
-  "explore-gifts": new Set(GIFTS.map((g) => g.id)),
-  "play-memory": new Set(["win"]),
-  "causes-visit-lot": new Set(LOTS.map((l) => l.id)),
-  "causes-global-donation": new Set(["panel"]),
-  ...Object.fromEntries(QUESTS.map((q) => [q.id, new Set(["accept", "turn-in", ...q.objectiveEventIds])])),
-};
-/** Quest events are stored only while the quests-v1 flag is on (the four missions are always stored). */
-const QUEST_IDS = new Set(QUESTS.map((q) => q.id));
+export function knownEventsFor(catalog: StoryCatalog): Record<string, ReadonlySet<string>> {
+  return {
+    "explore-gifts": new Set(GIFTS.map((g) => g.id)),
+    "play-memory": new Set(["win"]),
+    "causes-visit-lot": new Set(LOTS.map((l) => l.id)),
+    "causes-global-donation": new Set(["panel"]),
+    ...Object.fromEntries(catalog.quests.map((q) => [q.id, new Set(["accept", "turn-in", ...q.objectiveEventIds])])),
+  };
+}
+
+export const KNOWN_EVENTS: Record<string, ReadonlySet<string>> = knownEventsFor(STORY_CATALOG);
+
+const V1_QUEST_IDS = new Set(QUESTS.map((q) => q.id));
+const V2_QUEST_IDS = new Set(STORY_CATALOG.quests.filter((q) => "book" in q).map((q) => q.id));
+const QUEST_IDS = new Set([...V1_QUEST_IDS, ...V2_QUEST_IDS]);
 const isKnownEvent = (e: unknown): e is { missionId: string; eventId: string } => {
   const { missionId, eventId } = (e ?? {}) as { missionId?: unknown; eventId?: unknown };
   if (typeof missionId !== "string" || typeof eventId !== "string") return false;
   return Object.hasOwn(KNOWN_EVENTS, missionId) && KNOWN_EVENTS[missionId].has(eventId);
 };
 const MAX_EVENTS = 50;
-/** Every mission together needs a handful of events; this cap keeps a scripted client from growing the table. */
-const MAX_EVENTS_PER_USER = 500;
+/** The saga has 484 entries and about 1,500 events; 500 would block it. */
+const MAX_EVENTS_PER_USER = 5000;
 const MAX_WRITE_ATTEMPTS = 3;
 
 type StoredEvent = { mission_id: string; event_id: string };
 type Event = { missionId: string; eventId: string };
 type SnapshotRow = { revision: number | null; blocked: number; mission_id: string | null; event_id: string | null; created_at: string | null };
+
+export interface ProgressFlags {
+  v1: boolean;
+  v2: boolean;
+}
+
+const keyOf = (e: Event) => `${e.missionId}:${e.eventId}`;
+const isQuestId = (missionId: string) => QUEST_IDS.has(missionId);
+
+/**
+ * Replays the stored log and plans the valid part of one incoming batch. Pure and testable with a synthetic
+ * catalog; the route calls it with `STORY_CATALOG`.
+ */
+export function planProgress(
+  catalog: StoryCatalog,
+  saved: StoredEvent[],
+  valid: Event[],
+  flags: ProgressFlags
+): { progress: Progress; planned: Map<string, Event> } {
+  const existing = new Set(saved.map((e) => `${e.mission_id}:${e.event_id}`));
+  let progress = saved.reduce((p, e) => applyEventIn(catalog, p, e.mission_id, e.event_id).progress, EMPTY_PROGRESS);
+  const planned = new Map<string, Event>();
+  const v2Ids = new Set(catalog.quests.filter((quest) => "book" in quest).map((quest) => quest.id));
+  const questIds = new Set([...V1_QUEST_IDS, ...v2Ids]);
+  for (const e of valid) {
+    const isQuest = questIds.has(e.missionId);
+    if (V1_QUEST_IDS.has(e.missionId) && !flags.v1) continue;
+    if (v2Ids.has(e.missionId) && !flags.v2) continue;
+    const next = applyEventIn(catalog, progress, e.missionId, e.eventId).progress;
+    if (isQuest && next === progress) continue;
+    progress = next;
+    // Accepted quest rows never move. Only an old ignored row, now a valid transition, can be replaced.
+    if (isQuest || !existing.has(keyOf(e))) planned.set(keyOf(e), e);
+  }
+  return { progress, planned };
+}
 
 /** The account's events in the order they were stored, which is the order they are replayed in. */
 async function storedEvents(env: Env, userId: string): Promise<StoredEvent[]> {
@@ -59,7 +101,8 @@ async function storedEvents(env: Env, userId: string): Promise<StoredEvent[]> {
   return results;
 }
 
-const replay = (rows: StoredEvent[]): Progress => rows.reduce((p, e) => applyEvent(p, e.mission_id, e.event_id).progress, EMPTY_PROGRESS);
+const replay = (rows: StoredEvent[]): Progress =>
+  rows.reduce((p, e) => applyEventIn(STORY_CATALOG, p, e.mission_id, e.event_id).progress, EMPTY_PROGRESS);
 
 export async function loadProgress(env: Env, userId: string): Promise<Progress> {
   return replay(await storedEvents(env, userId));
@@ -87,7 +130,6 @@ async function snapshot(db: D1Database, userId: string) {
   };
 }
 
-const keyOf = (e: Event) => `${e.missionId}:${e.eventId}`;
 const response = (progress: Progress): Response => json({ progress }, { headers: NO_STORE });
 
 export async function postEvents(request: Request, env: Env): Promise<Response> {
@@ -99,24 +141,14 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
   const valid = events.filter(isKnownEvent);
   if (valid.length !== events.length) throw new HttpError(400, "bad_events");
   const db = env.DB!;
-  const questsOn = env.QUESTS_V1_ENABLED === "true";
+  const flags = { v1: env.QUESTS_V1_ENABLED === "true", v2: env.QUESTS_V2_ENABLED === "true" };
   await db.prepare("INSERT OR IGNORE INTO progress_writes(user_id) SELECT id FROM users WHERE id = ? AND blocked = 0").bind(user.id).run();
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
     // Let a competing writer finish before reading a fresh snapshot; never spin on one stale claim.
     if (attempt) await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));
     const saved = await snapshot(db, user.id);
     const existing = new Set(saved.events.map((e) => `${e.mission_id}:${e.event_id}`));
-    let progress = replay(saved.events);
-    const planned = new Map<string, Event>();
-    for (const e of valid) {
-      const isQuest = QUEST_IDS.has(e.missionId);
-      if (isQuest && !questsOn) continue;
-      const next = applyEvent(progress, e.missionId, e.eventId).progress;
-      if (isQuest && next === progress) continue;
-      progress = next;
-      // Accepted quest rows never move. Only an old ignored row, now a valid transition, can be replaced.
-      if (isQuest || !existing.has(keyOf(e))) planned.set(keyOf(e), e);
-    }
+    const { progress, planned } = planProgress(STORY_CATALOG, saved.events, valid, flags);
     const additions = [...planned.keys()].filter((key) => !existing.has(key)).length;
     if (saved.events.length + additions > MAX_EVENTS_PER_USER) throw new HttpError(429, "too_many_events");
     if (!planned.size) return response(progress);
@@ -128,7 +160,7 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
         AND EXISTS (SELECT 1 FROM users u WHERE u.id = progress_writes.user_id AND u.blocked = 0)`)
       .bind(token, user.id, saved.revision)];
     for (const e of planned.values()) {
-      const verb = QUEST_IDS.has(e.missionId) ? "INSERT OR REPLACE" : "INSERT OR IGNORE";
+      const verb = isQuestId(e.missionId) ? "INSERT OR REPLACE" : "INSERT OR IGNORE";
       writes.push(db.prepare(`${verb} INTO progress_events(user_id, mission_id, event_id, created_at)
         SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM progress_writes WHERE user_id = ? AND write_token = ?)`)
         .bind(user.id, e.missionId, e.eventId, at, user.id, token));

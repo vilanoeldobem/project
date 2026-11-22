@@ -89,9 +89,12 @@ describe("feature flag and origin", () => {
     env.ACCOUNTS_ENABLED = "false";
     env.QUESTS_V1_ENABLED = "false";
     const moderation = { presence: false, block: false };
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, files: false, withdrawal: false, moderation, residentialPlots: false, donations: false, ngoLevels: false });
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: false, questsV2: false, files: false, withdrawal: false, moderation, residentialPlots: false, donations: false, ngoLevels: false });
     env.QUESTS_V1_ENABLED = "true";
-    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, files: false, withdrawal: false, moderation, residentialPlots: false, donations: false, ngoLevels: false });
+    expect((await call("GET", "/config")).body).toEqual({ accounts: false, quests: true, questsV2: false, files: false, withdrawal: false, moderation, residentialPlots: false, donations: false, ngoLevels: false });
+    env.QUESTS_V2_ENABLED = "true";
+    expect((await call("GET", "/config")).body.questsV2).toBe(true);
+    env.QUESTS_V2_ENABLED = "false";
     expect((await call("GET", "/me")).body.error).toBe("accounts_disabled");
     expect((await call("POST", "/auth/register", {})).status).toBe(404);
   });
@@ -562,7 +565,7 @@ describe("security review fixes (2026-11-11)", () => {
 
   it("caps stored mission events per account", async () => {
     const { cookie, user } = await signUp();
-    for (let i = 0; i < 500; i++) db.sql("INSERT INTO progress_events (user_id, mission_id, event_id) VALUES (?, 'play-memory', ?)", user.id, `e${i}`);
+    for (let i = 0; i < 5000; i++) db.sql("INSERT INTO progress_events (user_id, mission_id, event_id) VALUES (?, 'play-memory', ?)", user.id, `e${i}`);
     expect((await events({ cookie, user }, [{ missionId: "play-memory", eventId: "win" }])).status).toBe(429);
   });
 

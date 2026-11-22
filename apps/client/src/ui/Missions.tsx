@@ -1,11 +1,22 @@
 import { useState } from "react";
 
+import { levelOf, TRACK_LABEL, XP_PER_LEVEL, type Progress, type Track } from "@vila/shared/game/progress";
+import {
+  activeInventoryIn,
+  canAcceptIn,
+  isStoryQuest,
+  prerequisitesOf,
+  questProgressIn,
+  questStateIn,
+  V1_CATALOG,
+} from "@vila/shared/game/quests-v2/catalog";
+import { milestoneProgressIn, milestoneStateIn, type Counters } from "@vila/shared/game/quests-v2/milestones";
+import type { CatalogQuest, StoryCatalog, StoryWorld } from "@vila/shared/game/quests-v2/types";
+import { V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import { levelOf, MISSIONS, TRACK_LABEL, XP_PER_LEVEL, type Progress, type Track } from "@vila/shared/game/progress";
-import { activeInventory, CHAIN_TITLES, type NpcId, QUESTS, questProgress, questState } from "@vila/shared/game/quests";
-import { NPCS } from "@vila/shared/game/world";
 import { useQuestsEnabled } from "../game/questsFlag";
+import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import type { LotInfo } from "../lib/api";
 import { Panel } from "./Panel";
 import { SheetNotice, SheetProgress, SheetSection, SheetTabs } from "./sheet";
@@ -13,16 +24,46 @@ import { SheetNotice, SheetProgress, SheetSection, SheetTabs } from "./sheet";
 /** Missions that have a place in the village; "Ver no mapa" is only offered for these. */
 const ON_THE_MAP: Record<string, true> = { "explore-gifts": true, "causes-visit-lot": true, "causes-global-donation": true };
 
+const KIND_LABEL: Record<string, string> = {
+  main: "História principal",
+  regional: "Arcos regionais",
+  side: "Secundárias",
+  epilogue: "Epílogo",
+  postgame: "Pós-jogo",
+};
+
 /** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
-export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
-  const p = useVila((s) => s.progress);
+export function Missions({
+  lots = {},
+  catalog = V1_CATALOG,
+  world = V1_WORLD,
+  progress,
+  counters = {},
+  stories,
+}: {
+  lots?: Record<string, LotInfo>;
+  catalog?: StoryCatalog;
+  world?: StoryWorld;
+  progress?: Progress;
+  counters?: Counters;
+  /** Defaults to either story flag; false hides the quest book exactly as v1 did with quests off. */
+  stories?: boolean;
+}) {
+  const stored = useVila((s) => s.progress);
+  const p = progress ?? stored;
   const open = useVila((s) => s.open);
-  const quests = useQuestsEnabled();
+  const v1 = useQuestsEnabled();
+  const v2 = useQuestsV2Enabled();
+  const showStories = stories ?? (v1 || v2);
   const [track, setTrack] = useState<Track>("explore");
   const level = levelOf(p.xp);
   const into = p.xp % XP_PER_LEVEL;
   // The active mission: the first unfinished one of the selected tab, else any unfinished one, else none.
-  const active = MISSIONS.find((m) => m.track === track && !p.completed[m.id]) ?? MISSIONS.find((m) => !p.completed[m.id]) ?? null;
+  const active =
+    catalog.quickMissions.find((m) => m.track === track && !p.completed[m.id]) ??
+    catalog.quickMissions.find((m) => !p.completed[m.id]) ??
+    null;
+  const next = catalog.quests.find((q) => canAcceptIn(catalog, p, q.id));
   return (
     <Panel board="P14" sheet icon="🎯" title="Missões da Vila" subtitle="Brincar e conhecer">
       <div className="sheet-card mission-level">
@@ -32,6 +73,11 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
         </span>
         <SheetProgress value={into} max={XP_PER_LEVEL} label={`Nível ${level}, ${into} de ${XP_PER_LEVEL} XP`} />
       </div>
+      {showStories && next && (
+        <p className="note" role="status">
+          Próximo passo: {next.title} com {npcName(world, next.giverNpcId)}.
+        </p>
+      )}
 
       <SheetSection n={1} icon="🎯" title="Missão ativa">
         {active ? (
@@ -66,7 +112,7 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
           onChange={(label) => setTrack((Object.keys(TRACK_LABEL) as Track[]).find((t) => TRACK_LABEL[t] === label) ?? track)}
         />
         <ul className="mission-list">
-          {MISSIONS.filter((m) => m.track === track).map((m) => {
+          {catalog.quickMissions.filter((m) => m.track === track).map((m) => {
             const n = p.counters[m.id] ?? 0;
             const done = Boolean(p.completed[m.id]);
             return (
@@ -85,7 +131,7 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
         </ul>
       </SheetSection>
 
-      {quests && <QuestBook progress={p} lots={lots} />}
+      {showStories && <QuestBook progress={p} lots={lots} catalog={catalog} world={world} counters={counters} />}
       <section className="sheet-card">
         <h3>Aparência e badges</h3>
         <div className="actions">
@@ -102,30 +148,53 @@ export function Missions({ lots = {} }: { lots?: Record<string, LotInfo> }) {
   );
 }
 
-const npcName = (id: NpcId) => NPCS.find((n) => n.id === id)?.name ?? id;
+const npcName = (world: StoryWorld, id: string) => world.npcs.find((n) => n.id === id)?.name ?? id;
 
 /**
- * Quest chains and carried items (PROPOSTA quests-v1; DEC-039..042, PEN-025). States are text plus a
- * symbol, never colour alone. The blocked visit quest says so honestly when no house is published.
+ * Quest chains and carried items (PROPOSTA quests-v1 / quests-v2). States are text plus a symbol, never
+ * colour alone. The blocked visit quest says so honestly when no house is published.
  */
-function QuestBook({ progress, lots }: { progress: Progress; lots: Record<string, LotInfo> }) {
+function QuestBook({
+  progress,
+  lots,
+  catalog,
+  world,
+  counters,
+}: {
+  progress: Progress;
+  lots: Record<string, LotInfo>;
+  catalog: StoryCatalog;
+  world: StoryWorld;
+  counters: Counters;
+}) {
   const hasPublishedLot = Object.values(lots).some((l) => l.state === "published" && Boolean(l.ngo_name));
-  const bag = activeInventory(progress);
-  const stateLine = (questId: string) => {
-    const quest = QUESTS.find((q) => q.id === questId);
-    if (!quest) return "";
-    const state = questState(progress, quest.id);
+  const bag = activeInventoryIn(catalog, progress);
+  const stateLine = (quest: CatalogQuest) => {
+    const state = questStateIn(catalog, progress, quest.id);
     if (state === "completed") return "★ Concluída";
-    if (state === "ready_to_turn_in") return `➜ Entregar a ${npcName(quest.turnInNpcId)}`;
+    if (state === "ready_to_turn_in") return `➜ Entregar a ${npcName(world, quest.turnInNpcId)}`;
     if (state === "active") {
-      const { count, target } = questProgress(progress, quest.id);
+      const { count, target } = questProgressIn(catalog, progress, quest.id);
       return `◐ Em andamento ${count}/${target} ${quest.unit}`;
     }
     if (state === "available" && quest.needsPublishedLot && !hasPublishedLot) return "⏳ Aguardando uma casa publicada";
-    if (state === "available") return `☆ Disponível com ${npcName(quest.giverNpcId)}`;
-    const prerequisite = QUESTS.find((q) => q.id === quest.prerequisiteId);
-    return `🔒 Bloqueada · Requer: ${prerequisite?.title ?? "a missão anterior"}`;
+    if (state === "available") return `☆ Disponível com ${npcName(world, quest.giverNpcId)}`;
+    const required = prerequisitesOf(quest)
+      .map((id) => catalog.quests.find((q) => q.id === id)?.title ?? id)
+      .join(" e ");
+    return `🔒 Bloqueada · Requer: ${required || "a missão anterior"}`;
   };
+  // One group per chain, in catalog order; the kind comes from the first quest of the chain.
+  const chains = new Map<string, { id: string; title: string; kind: string; quests: CatalogQuest[] }>();
+  for (const quest of catalog.quests) {
+    let chain = chains.get(quest.chainId);
+    if (!chain) {
+      chain = { id: quest.chainId, title: quest.chainTitle, kind: isStoryQuest(quest) ? quest.kind : "epilogue", quests: [] };
+      chains.set(quest.chainId, chain);
+    }
+    chain.quests.push(quest);
+  }
+  const kinds = [...new Set([...chains.values()].map((chain) => chain.kind))];
   return (
     <>
       {bag.length > 0 && (
@@ -146,32 +215,65 @@ function QuestBook({ progress, lots }: { progress: Progress; lots: Record<string
           </ul>
         </section>
       )}
-      {Object.entries(CHAIN_TITLES).map(([chainId, title]) => (
-        <section key={chainId} className="track quest-chain">
-          <h3>{title}</h3>
-          <ul className="mission-list">
-            {QUESTS.filter((q) => q.chainId === chainId)
-              .sort((a, b) => a.order - b.order)
-              .map((q) => {
-                const { count, target } = questProgress(progress, q.id);
-                const done = questState(progress, q.id) === "completed";
-                return (
-                  <li key={q.id} className={done ? "done" : ""}>
-                    <span aria-hidden>{done ? "★" : questState(progress, q.id) === "ready_to_turn_in" ? "➜" : "☆"}</span>
-                    <span>
-                      {q.title}
-                      <small>{stateLine(q.id)}</small>
-                      <small>{q.description}</small>
-                      <small>
-                        {npcName(q.giverNpcId)} → {npcName(q.turnInNpcId)} · {count}/{target} {q.unit} · {q.xp} XP
-                      </small>
-                    </span>
-                  </li>
-                );
-              })}
-          </ul>
+      {kinds.map((kind) => (
+        <section key={kind} className="track quest-kind">
+          <h2>{KIND_LABEL[kind] ?? kind}</h2>
+          {[...chains.values()]
+            .filter((chain) => chain.kind === kind)
+            .map((chain) => (
+              <div key={chain.id} className="quest-chain">
+                <h3>{chain.title}</h3>
+                <ul className="mission-list">
+                  {chain.quests
+                    .slice()
+                    .sort((a, b) => a.order - b.order)
+                    .map((quest) => {
+                      const { count, target } = questProgressIn(catalog, progress, quest.id);
+                      const state = questStateIn(catalog, progress, quest.id);
+                      const done = state === "completed";
+                      return (
+                        <li key={quest.id} className={done ? "done" : ""}>
+                          <span aria-hidden>{done ? "★" : state === "ready_to_turn_in" ? "➜" : "☆"}</span>
+                          <span>
+                            {quest.title}
+                            <small>{stateLine(quest)}</small>
+                            <small>{quest.description}</small>
+                            <small>
+                              {npcName(world, quest.giverNpcId)} → {npcName(world, quest.turnInNpcId)} · {count}/{target}{" "}
+                              {quest.unit} · {quest.xp} XP
+                            </small>
+                          </span>
+                        </li>
+                      );
+                    })}
+                </ul>
+              </div>
+            ))}
         </section>
       ))}
+      {catalog.milestones.length > 0 && (
+        <section className="track quest-milestones">
+          <h2>Marcos</h2>
+          <ul className="mission-list">
+            {catalog.milestones.map((milestone) => {
+              const state = milestoneStateIn(catalog, counters, progress, milestone.id);
+              const { value, threshold } = milestoneProgressIn(catalog, counters, milestone.id);
+              return (
+                <li key={milestone.id} className={state === "completed" ? "done" : ""}>
+                  <span aria-hidden>{state === "completed" ? "★" : state === "ready" ? "➜" : "☆"}</span>
+                  <span>
+                    {milestone.title}
+                    <SheetProgress value={Math.min(value, threshold)} max={threshold} label={`${value} de ${threshold}`} />
+                    <small>
+                      {value}/{threshold} · {milestone.xp} XP {state === "completed" ? "· Concluído" : ""}
+                    </small>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </>
   );
 }

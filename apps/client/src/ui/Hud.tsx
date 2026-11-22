@@ -1,10 +1,12 @@
 import { useEffect } from "react";
 
-import { MISSIONS } from "@vila/shared/game/progress";
 import { activeInventory, questState } from "@vila/shared/game/quests";
+import { activeInventoryIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { NPCS, QUEST_INTERACTIONS, SITES } from "@vila/shared/game/world";
 import { lifeAction, lifePanel } from "../game/village-life";
 import { useQuestsEnabled } from "../game/questsFlag";
+import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { pressEscape } from "../lib/escape";
@@ -26,9 +28,11 @@ const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
 export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   switch (nearby.kind) {
     case "npc":
-      return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
-    case "quest":
-      return INTERACTION_COPY[nearby.interactionId]?.label ?? "Interagir";
+      return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? STORY_WORLD.npcs.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
+    case "quest": {
+      const story = STORY_WORLD.interactions.find((i) => i.id === nearby.interactionId);
+      return INTERACTION_COPY[nearby.interactionId]?.label ?? story?.label ?? "Interagir";
+    }
     case "donation-panel":
       return readActive ? "📖 Ler a promessa" : "🎄 Doação global";
     case "tree":
@@ -65,10 +69,24 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
     case "quest": {
       // The quest and the event come from the interaction itself; an unknown id records nothing.
       const interaction = QUEST_INTERACTIONS.find((i) => i.id === n.interactionId);
-      if (!interaction) return;
-      vila.record(interaction.questId, interaction.id);
-      const done = INTERACTION_COPY[interaction.id]?.done;
-      if (done) vila.notify(done);
+      if (interaction) {
+        vila.record(interaction.questId, interaction.id);
+        const done = INTERACTION_COPY[interaction.id]?.done;
+        if (done) vila.notify(done);
+        return;
+      }
+      const story = STORY_WORLD.interactions.find((i) => i.id === n.interactionId);
+      if (!story) return;
+      if (story.kind === "talk") {
+        if (story.npcId) vila.open({ kind: "npc", npcId: story.npcId });
+        return;
+      }
+      if (story.kind === "minigame") {
+        vila.open({ kind: "games" });
+        return;
+      }
+      vila.record(story.questId, story.id);
+      if (story.done) vila.notify(story.done);
       return;
     }
     case "donation-panel":
@@ -125,11 +143,13 @@ export function Hud() {
   const idle = useVila((s) => s.panel.kind === "none" && s.menu === null);
   const menuOpen = useVila((s) => s.menu !== null);
   const progress = useVila((s) => s.progress);
-  const done = MISSIONS.filter((m) => progress.completed[m.id]).length;
-  const toast = useVila((s) => s.toast);
   const quests = useQuestsEnabled();
+  const quests2 = useQuestsV2Enabled();
+  const catalog = catalogFor(quests, quests2);
+  const done = catalog.quickMissions.filter((m) => progress.completed[m.id]).length;
+  const toast = useVila((s) => s.toast);
   const readActive = quests && questState(progress, "donation-promise-reading") === "active";
-  const bag = quests ? activeInventory(progress) : [];
+  const bag = quests2 ? activeInventoryIn(catalog, progress) : quests ? activeInventory(progress) : [];
   const zoomBy = useVila((s) => s.zoomBy);
   const user = useAccount((s) => s.user);
   const moderationOn = useModeration((s) => s.on);
@@ -226,7 +246,7 @@ export function Hud() {
             ★
           </span>
           <span>
-            Missões {done}/{MISSIONS.length}
+            Missões {done}/{catalog.quickMissions.length}
           </span>
           <XpBar compact />
         </button>

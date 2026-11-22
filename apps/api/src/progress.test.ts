@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { levelOf, type Progress } from "@vila/shared/game/progress";
+import { EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "@vila/shared/game/progress";
+import type { StoryCatalog, StoryQuest } from "@vila/shared/game/quests-v2/types";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
 import { sha256Hex } from "./crypto";
+import { knownEventsFor, planProgress } from "./progress";
 
 type Event = { missionId: string; eventId: string };
 const ORIGIN = "https://play.example";
@@ -96,13 +98,13 @@ describe("saved progress across sessions", () => {
   });
 
   it("counts only new unique stored events at the account limit", async () => {
-    for (let i = 0; i < 499; i++)
+    for (let i = 0; i < 4999; i++)
       db.sql("INSERT INTO progress_events(user_id,mission_id,event_id) VALUES('owner','legacy',?)", `old-${i}`);
     expect((await post([mission(), mission(), mission()])).status).toBe(200);
-    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(500);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(5000);
     expect((await post([mission()])).status).toBe(200);
     expect((await post([mission("causes-global-donation", "panel")])).status).toBe(429);
-    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(500);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(5000);
   });
 
   it("never moves a delayed duplicate accept after an objective saved by another session", async () => {
@@ -154,7 +156,7 @@ describe("saved progress across sessions", () => {
   });
 
   it("enforces the account cap after a competing request consumes the last slot", async () => {
-    for (let i = 0; i < 499; i++)
+    for (let i = 0; i < 4999; i++)
       db.sql("INSERT INTO progress_events(user_id,mission_id,event_id) VALUES('owner','legacy',?)", `old-${i}`);
     const gate = pauseNextBatch();
     const delayed = post([mission()]);
@@ -162,7 +164,7 @@ describe("saved progress across sessions", () => {
     try { expect((await post([mission("causes-global-donation", "panel")], "owner-two")).status).toBe(200); }
     finally { gate.release(); }
     expect((await delayed).status).toBe(429);
-    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(500);
+    expect(db.sql("SELECT COUNT(*) AS n FROM progress_events WHERE user_id='owner'")[0].n).toBe(5000);
   });
 
   it("bounds contention retries without acknowledging or writing the losing request", async () => {
@@ -210,5 +212,70 @@ describe("saved progress across sessions", () => {
     await db.exec("DROP TRIGGER fail_progress");
     expect((await post([quest("accept"), mission()])).status).toBe(200);
     expect(db.sql("SELECT * FROM progress_events")).toHaveLength(2);
+  });
+});
+
+const v2Quest: StoryQuest = {
+  id: "v2-test",
+  chainId: "v2-chain",
+  chainTitle: "V2",
+  order: 1,
+  track: "explore",
+  title: "V2",
+  description: "Teste.",
+  objectiveType: "collect",
+  objectKind: "none",
+  target: 1,
+  unit: "peça",
+  xp: 20,
+  giverNpcId: "npc",
+  turnInNpcId: "npc",
+  dialogue: { offer: "Oferta.", turnIn: "Entrega." },
+  objectiveEventIds: ["v2-event"],
+  book: 1,
+  chapter: 1,
+  region: "praca-grande-arvore",
+  kind: "main",
+  prerequisiteIds: [],
+  worldState: "bell-rung",
+  theme: "chegada",
+  audience: "todos",
+  metricTag: "historia-principal",
+  accessibility: "coleta",
+  reward: null,
+};
+const v2Catalog: StoryCatalog = { quests: [v2Quest], milestones: [], minigames: [], quickMissions: MISSIONS };
+
+describe("quests-v2 planner", () => {
+  it("knows the v2 event ids", () => {
+    const known = knownEventsFor(v2Catalog);
+    expect(known["v2-test"]).toEqual(new Set(["accept", "turn-in", "v2-event"]));
+  });
+
+  it("skips a valid v2 event while the v2 flag is off", () => {
+    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "v2-test", eventId: "accept" }], { v1: true, v2: false });
+    expect(progress).toEqual(EMPTY_PROGRESS);
+    expect(planned.size).toBe(0);
+  });
+
+  it("applies the same v2 event while the v2 flag is on", () => {
+    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "v2-test", eventId: "accept" }], { v1: true, v2: true });
+    expect(progress.seen["v2-test:accept"]).toBe(true);
+    expect(planned.size).toBe(1);
+  });
+
+  it("skips a v1 quest while the v1 flag is off and still stores a quick mission", () => {
+    const { progress, planned } = planProgress(
+      v2Catalog,
+      [],
+      [{ missionId: "play-memory", eventId: "win" }],
+      { v1: false, v2: true }
+    );
+    expect(progress.completed["play-memory"]).toBe(true);
+    expect(planned.size).toBe(1);
+  });
+
+  it("still rejects an unknown v2 event id at the route", async () => {
+    expect((await post([{ missionId: "v2-test", eventId: "accept" }])).status).toBe(400);
   });
 });

@@ -37,7 +37,8 @@
  * minute, answered or not; beyond that the room closes the sender with 1008. A removal is not a ban: the
  * removed visitor's client shows an honest message and waits before reconnecting, nothing more.
  */
-import { COSMETICS, isPaid, type Look, type Slot, SLOTS } from "../game/cosmetics";
+import { isPaid, type Look, type Slot, SLOTS } from "../game/cosmetics";
+import { COSMETICS_V2 } from "../game/cosmetics-v2";
 import { MOTION } from "../game/motion";
 import { WORLD_RADIUS } from "../game/world";
 
@@ -110,7 +111,7 @@ export function decodePose(raw: string): Pose | null {
 }
 
 /** Items of one slot, in catalogue order; index 0 is the default of that slot. */
-const slotItems = (slot: Slot) => COSMETICS.filter((c) => c.slot === slot);
+const slotItems = (slot: Slot) => COSMETICS_V2.filter((c) => c.slot === slot);
 
 /** Look as one base36 catalogue index per slot, in `SLOTS` order (the default is `0` in every slot). */
 const lookCode = (l: Look) =>
