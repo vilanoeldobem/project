@@ -138,7 +138,7 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
                   data-sale={paid ? "paid" : "free"}
                   data-state={stateOf(c, on, open)}
                 >
-                  <button type="button" className="item-card__thumb" aria-label={`Provar ${c.name}`} onClick={() => { setPreview(c.id); setPaidNote(false); }}>
+                  <button type="button" className="item-card__thumb" aria-label={`Provar ${c.name}, ${paid ? "pago" : "grátis"}`} onClick={() => { setPreview(c.id); setPaidNote(false); }}>
                     <AvatarPortrait look={wearIn(COSMETICS_V2, look, c.id)} appearance={appearance} size={5.5} label={c.name} />
                     <span>{c.name}</span>
                     <span className={`item-card__chip${paid ? " item-card__chip--paid" : ""}`}>{paid ? "Pago" : "Grátis"}</span>
@@ -156,8 +156,11 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
                     <button
                       type="button"
                       className="btn btn--primary"
-                      onClick={() => {
+                      onClick={(e) => {
+                        // The button turns into a disabled "Em uso": keep the keyboard on this card's preview.
+                        const thumb = e.currentTarget.closest("li")?.querySelector<HTMLButtonElement>(".item-card__thumb");
                         setLook(wearIn(COSMETICS_V2, look, c.id));
+                        requestAnimationFrame(() => thumb?.focus());
                         setPreview(null);
                         setPaidNote(false);
                       }}

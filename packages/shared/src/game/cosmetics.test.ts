@@ -87,7 +87,11 @@ describe("cosmetics (PROPOSTA, P08)", () => {
     const all = playEverything();
     for (const c of COSMETICS.filter(isPaid)) {
       expect(isUnlocked(c, all), c.id).toBe(false);
-      expect(unlockedIds(all).has(c.id), c.id).toBe(false);
+      // `wear` previews it; the saved look (what `setLook` keeps and presence sends) drops it.
+      const tried = wear(DEFAULT_LOOK, c.id);
+      expect(tried[c.slot], c.id).toBe(c.id);
+      expect(sanitizeLook(tried, all)[c.slot], c.id).not.toBe(c.id);
+      expect(sanitizeLook({ ...DEFAULT_LOOK, [c.slot]: c.id }, all)[c.slot], c.id).toBe(DEFAULT_LOOK[c.slot]);
     }
   });
 

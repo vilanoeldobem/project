@@ -81,6 +81,18 @@ describe("look messages", () => {
       expect(decodeServer(encodeServer({ t: "k", id: 4, look: { ...DEFAULT_LOOK, [item.slot]: item.id } })), item.id).toBeNull();
     }
   });
+
+  it("applies the dress rule to every look it reads: a dress hides the blouse and trousers", async () => {
+    const { DEFAULT_LOOK } = await import("../game/cosmetics");
+    const { decodeClient, encodeLook } = await import("./protocol");
+    const layered = { ...DEFAULT_LOOK, dress: "dress-pine", blouse: "blouse-stripes", pants: "pants-plaid" };
+    const shown = { ...layered, blouse: DEFAULT_LOOK.blouse, pants: DEFAULT_LOOK.pants };
+    expect(decodeClient(encodeLook(layered))).toEqual({ t: "k", look: shown });
+    expect(decodeServer(encodeServer({ t: "k", id: 4, look: layered }))).toEqual({ t: "k", id: 4, look: shown });
+    // Without a dress, blouse and trousers pass untouched.
+    const plain = { ...layered, dress: DEFAULT_LOOK.dress };
+    expect(decodeClient(encodeLook(plain))).toEqual({ t: "k", look: plain });
+  });
 });
 
 describe("activity report", () => {

@@ -141,7 +141,7 @@ for (const [name, viewport] of [
       return null;
     }
     const before = await look();
-    await card.getByRole("button", { name: `Provar ${test.name}`, exact: true }).click();
+    await card.getByRole("button", { name: new RegExp(`^Provar ${test.name},`) }).click();
     await page.waitForTimeout(100);
     if ((await wardrobe(dialog).getAttribute("data-preview")) !== test.id) errors.push(`${name}: preview of ${test.id} is not shown`);
     if (!same(await look(), before)) errors.push(`${name}: previewing ${test.id} changed the equipped look`);
@@ -197,7 +197,7 @@ for (const [name, viewport] of [
       if (!((await card.textContent()) ?? "").includes("Conclua:")) errors.push(`${name}: ${shop.locked.id} does not say how to unlock`);
       if (!(await card.getByRole("button", { name: "Equipar", exact: true }).isDisabled())) errors.push(`${name}: ${shop.locked.id} can be equipped while locked`);
       const before = await look();
-      await card.getByRole("button", { name: `Provar ${shop.locked.name}`, exact: true }).click();
+      await card.getByRole("button", { name: new RegExp(`^Provar ${shop.locked.name},`) }).click();
       await page.waitForTimeout(100);
       if (!(await dialog.getByText("Prévia: o item não está no seu inventário; nada é equipado.").count())) errors.push(`${name}: locked preview note is missing`);
       if (!same(await look(), before)) errors.push(`${name}: previewing a locked item changed the look`);
