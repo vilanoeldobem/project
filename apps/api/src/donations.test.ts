@@ -727,7 +727,7 @@ describe("an NGO's own payment link", () => {
   });
 });
 
-describe("the application keeps the requested payment mode", () => {
+describe("NGO applications and donation destinations", () => {
   const APPLICATION = {
     name: "Associação Exemplo",
     cnpj: "22345678000149",
@@ -743,6 +743,64 @@ describe("the application keeps the requested payment mode", () => {
     paymentMethod: "external_link",
     donationUrl: "https://ong.org.br/doar",
   };
+
+  it("keeps a late Pix confirmation with the withdrawn NGO after its lot is reassigned", async () => {
+    env.NGO_WITHDRAWAL_ENABLED = "true";
+    const lotId = "ring2-01";
+    async function publishNgo(accountId: string, name: string, cnpj: string) {
+      const submitted = await call("POST", "/ngo/application", {
+        ...APPLICATION, accountId, name, cnpj, lotId, paymentMethod: "abacatepay", donationUrl: "",
+      }, accountId);
+      expect(submitted.status).toBe(201);
+      const { application } = await submitted.json() as { application: { id: string; revision: number } };
+      const approved = await call("POST", `/admin/applications/${application.id}/decision`, {
+        accountId: "admin", revision: application.revision, action: "approve", checks: APPLICATION.declarations,
+      });
+      expect(approved.status).toBe(200);
+      const { application: published } = await approved.json() as { application: { id: string; revision: number; status: string } };
+      expect(published.status).toBe("published");
+      expect((await ngoPayment({ revision: published.revision }, published.id)).status).toBe(200);
+      return published;
+    }
+    const original = await publishNgo("applicant", "ONG Primeira", APPLICATION.cnpj);
+    const issued = await pix({ targetKind: "ngo", ngoId: original.id, amountCents: 1000 });
+    expect(issued.status).toBe(201);
+    const { donation } = await issued.json() as { donation: { id: string } };
+    const readDonation = () => db.sql(
+      "SELECT provider_charge_id, target_kind, ngo_id, sub_account_id, amount_cents, status FROM donations WHERE id=?", donation.id
+    )[0];
+    const pending = readDonation();
+    expect(pending).toMatchObject({
+      provider_charge_id: expect.any(String), status: "pending", target_kind: "ngo",
+      ngo_id: original.id, sub_account_id: `sacc_${APPLICATION.cnpj}`, amount_cents: 1000,
+    });
+
+    const withdrawn = await call("POST", `/admin/ngos/${original.id}/withdraw`, {
+      accountId: "admin", revision: original.revision, reason: "Encerramento da participação da primeira organização.",
+    });
+    expect(withdrawn.status).toBe(200);
+    const next = await publishNgo("donor", "ONG Seguinte", PRIMARY_CNPJ);
+    async function expectNewOccupant() {
+      const lots = await call("GET", "/lots", undefined, null, null);
+      expect(await lots.json()).toMatchObject({
+        lots: expect.arrayContaining([expect.objectContaining({ id: lotId, state: "published", ngo_id: next.id })]),
+      });
+      const info = await call("GET", `/ngos/${next.id}/donation-info`, undefined, null, null);
+      expect(await info.json()).toMatchObject({ ngoId: next.id, enabled: true, confirmedDonations: 0, confirmedAmountCents: 0 });
+    }
+    await expectNewOccupant();
+    const confirmation = await webhook(event("log_late_ngo", "transparent.completed", pending.provider_charge_id as string, "PAID"));
+    expect(confirmation.status).toBe(200);
+    expect(await confirmation.json()).toEqual({ ok: true, applied: true });
+    expect(readDonation()).toEqual({ ...pending, status: "paid" });
+    await expectNewOccupant();
+    const totals = await call("GET", "/indicators", undefined, null, null);
+    expect(await totals.json()).toMatchObject({ indicators: expect.arrayContaining([
+      expect.objectContaining({ key: "confirmed_donations", value: 1 }),
+      expect.objectContaining({ key: "confirmed_amount", value: 1000 }),
+    ]) });
+    expect(db.sql(countPaidGlobalPix)[0].paid_global_pix).toBe(0);
+  });
 
   it("stores the mode and the link for the admin review, clearing the link for the sub-account mode", async () => {
     await db.prepare("UPDATE lots SET state='available' WHERE id='plaza-02'").run();
