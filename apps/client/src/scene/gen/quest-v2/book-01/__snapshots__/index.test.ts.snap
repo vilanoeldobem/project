@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book I props > bell-parts keeps the gallery seeds stable 1`] = `
+[
+  "b513bec5",
+  "1c2c8579",
+  "2443a2da",
+  "3b2b5398",
+  "c6095382",
+  "c21662de",
+  "bf45bc46",
+  "dbbcbe1",
+]
+`;
+
+exports[`book I props > panettone keeps the gallery seeds stable 1`] = `
+[
+  "bf3175b3",
+  "c9d9afd4",
+  "18980911",
+  "e1daf34e",
+  "bf3175b3",
+  "c9d0687c",
+  "cbd6bbf1",
+  "895bd2db",
+]
+`;
+
+exports[`book I props > recipe-page keeps the gallery seeds stable 1`] = `
+[
+  "892147c3",
+  "892147c3",
+  "cefd530d",
+  "6ec97acf",
+  "98eb2cc8",
+  "52a34221",
+  "dec7dca7",
+  "1fa1edf8",
+]
+`;
+
+exports[`book I props > silent-bell keeps the gallery seeds stable 1`] = `
+[
+  "52e0e250",
+  "874b597",
+  "487e507c",
+  "a118d141",
+  "967ca631",
+  "2dbeb184",
+  "ec065736",
+  "ae00a278",
+]
+`;

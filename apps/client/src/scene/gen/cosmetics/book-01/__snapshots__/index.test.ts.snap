@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book I cosmetics > face-snow-freckles keeps its fixed layer 1`] = `"785394a8"`;
+
+exports[`book I cosmetics > hand-left-fair keeps its fixed layer 1`] = `"c3f27c5f"`;
+
+exports[`book I cosmetics > helmet-aurora keeps its fixed layer 1`] = `"e840e44b"`;
+
+exports[`book I cosmetics > helmet-dawn keeps its fixed layer 1`] = `"bd01e19c"`;
+
+exports[`book I cosmetics > helmet-frost keeps its fixed layer 1`] = `"73b6f73b"`;
+
+exports[`book I cosmetics > helmet-star keeps its fixed layer 1`] = `"b8972d6a"`;

@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+mestre-anselmo,Mestre Anselmo,Relojoeiro,"Praça da Grande Árvore, junto ao sino",villager,mestre-anselmo,-8.6,5.4,2.131,1,O tempo escuta quem para.
+nina,Nina,Sineira,"Praça da Grande Árvore, lado do coro",villager,nina,-5.4,8.8,2.591,1,O coro espera uma voz.
+tia-bete,Tia Bete,Padeira,"Mercado do Panetone, banca do panetone",villager,tia-bete,-18,3.6,1.768,1,O forno guarda o cheiro de ontem.
+seu-nazario,Seu Nazário,Cozinheiro da feira,"Mercado do Panetone, banca da feira",villager,seu-nazario,-17.4,-3.4,1.378,1,Pão quente é memória.
+lia,Lia,Criança do coro,"Praça da Grande Árvore, perto da árvore",villager,lia,2.6,-5.2,-0.464,1,Eu canto baixinho para acertar.
+dona-iris,Dona Íris,Tecelã,"Praça da Grande Árvore, janela do correio",villager,dona-iris,0.5,13.8,-3.105,1,O fio passa por quem lembra.
+dona-cida,Dona Cida,Jardineira,"Praça da Grande Árvore, canto leste",villager,dona-cida,8.4,-1.2,-1.429,1,Toda voz tem um lugar.
+mestre-teo,Mestre Téo,Brinquedeiro,"Mercado do Panetone, banca leste",villager,mestre-teo,18,1.8,-1.670,1,Madeira e memória fazem brinquedo.
