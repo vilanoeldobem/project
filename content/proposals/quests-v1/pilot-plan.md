@@ -7,7 +7,7 @@
 > [`objects.md`](objects.md), [`story-bible.md`](story-bible.md), [`review.md`](review.md) e o código em
 > `packages/shared/src/game/`, `apps/client/src/` e `apps/api/src/`.
 > **Este documento é o plano do piloto da cadeia 1:** nenhum deploy, migration remota ou publicação acompanha a
-> proposta. O runtime das 15 missões (todas as cadeias, não só `flight-night`) está implementado para avaliação
+> proposta. O runtime das 18 missões (todas as cadeias, não só `flight-night`) está implementado para avaliação
 > local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` e `QUESTS_V1_ENABLED`), desligado em produção;
 > os passos abaixo registram o desenho original e continuam válidos como contrato técnico.
 > **Arte 3D:** os cinco objetos `new` da proposta já têm gerador (`status_build: done`), incluindo
@@ -310,8 +310,8 @@ node content/proposals/quests-v1/validate-quests.mjs
 node content/proposals/quests-v1/validate-objects.mjs
 ```
 
-Esperado: `OK: quests-v1 passes all structural checks` (`quests=15 npcs=5 chains=5 xpTotal=465`) e
-`OK: quests-v1 objects pass all checks` (`objects=8 reuse=3 new=5 prompts=5`).
+Esperado: `OK: quests-v1 passes all structural checks` (`quests=18 npcs=5 chains=6 xpTotal=550`) e
+`OK: quests-v1 objects pass all checks` (`objects=9 reuse=3 new=6 prompts=6`).
 
 ### 4.2 Testes puros
 

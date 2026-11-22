@@ -298,6 +298,59 @@ describe("server XP (P14, DEC-042)", () => {
     expect((await call("GET", "/progress", undefined, a.cookie)).body.progress.xp).toBe(100);
   });
 
+  it("unlocks the epilogue only after the village story and grants its 85 XP once", async () => {
+    const a = await signUp();
+    // The epilogue is locked behind story-page-delivery: the event is known but not a valid transition.
+    const early = await events(a, [{ missionId: "bough-ribbon", eventId: "accept" }]);
+    expect(early.status).toBe(200);
+    expect(early.body.progress.seen["bough-ribbon:accept"]).toBeUndefined();
+
+    const story = [
+      { missionId: "tree-promise-visit", eventId: "accept" },
+      { missionId: "tree-promise-visit", eventId: "tree" },
+      { missionId: "tree-promise-visit", eventId: "turn-in" },
+      { missionId: "donation-promise-reading", eventId: "accept" },
+      { missionId: "donation-promise-reading", eventId: "read-confirm" },
+      { missionId: "donation-promise-reading", eventId: "turn-in" },
+      { missionId: "story-page-delivery", eventId: "accept" },
+      { missionId: "story-page-delivery", eventId: "turn-in" },
+    ];
+    const before = await events(a, story);
+    expect(before.status).toBe(200);
+    expect(before.body.progress.completed["story-page-delivery"]).toBe(true);
+    expect(before.body.progress.xp).toBe(85);
+
+    const epilogue = [
+      { missionId: "bough-ribbon", eventId: "accept" },
+      { missionId: "bough-ribbon", eventId: "bough-ribbon" },
+      { missionId: "bough-ribbon", eventId: "turn-in" },
+      { missionId: "bough-sprigs", eventId: "accept" },
+      { missionId: "bough-sprigs", eventId: "sprig-market-1" },
+      { missionId: "bough-sprigs", eventId: "sprig-market-2" },
+      { missionId: "bough-sprigs", eventId: "turn-in" },
+      { missionId: "bough-delivery", eventId: "accept" },
+      { missionId: "bough-delivery", eventId: "turn-in" },
+    ];
+    const done = await events(a, epilogue);
+    expect(done.status).toBe(200);
+    expect(done.body.progress.xp).toBe(170);
+    expect(done.body.progress.completed["bough-ribbon"]).toBe(true);
+    expect(done.body.progress.completed["bough-sprigs"]).toBe(true);
+    expect(done.body.progress.completed["bough-delivery"]).toBe(true);
+    const replay = await events(a, epilogue);
+    expect(replay.status).toBe(200);
+    expect(replay.body.progress.xp).toBe(170);
+
+    // With the quest flag off, a known epilogue event is ignored and the rest of the batch is stored.
+    env.QUESTS_V1_ENABLED = "false";
+    const b = await signUp("bia_lima", "bia@example.com");
+    const off = await events(b, [{ missionId: "bough-ribbon", eventId: "accept" }, { missionId: "play-memory", eventId: "win" }]);
+    expect(off.status).toBe(200);
+    expect(off.body.progress.seen["bough-ribbon:accept"]).toBeUndefined();
+    expect(off.body.progress.completed["play-memory"]).toBe(true);
+    env.QUESTS_V1_ENABLED = "true";
+  });
+
   it("rejects an unknown quest event id", async () => {
     const a = await signUp();
     expect((await events(a, [{ missionId: "harness-bells", eventId: "bell-fake" }])).status).toBe(400);

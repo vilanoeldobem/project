@@ -55,6 +55,7 @@ export const CHAIN_TITLES: Record<string, string> = {
   "undelivered-letters": "As cartas que ficaram",
   "lake-lights": "A noite das luzes do lago",
   "village-story": "O livro da Vila",
+  "welcome-bough": "O ramo da chegada",
 };
 
 export const QUESTS: Quest[] = [
@@ -423,6 +424,85 @@ export const QUESTS: Quest[] = [
     dialogue: {
       offer: "Toda história acaba em viagem. Esta página é sua, do começo ao fim. Leve-a a Seu Nivaldo, no correio: carta de história é a que mais viaja.",
       turnIn: "Uma página do livro da Vila! Guardarei com as cartas de amor, que são o mesmo tipo de promessa. Obrigado, portador de histórias.",
+    },
+    objectiveEventIds: [],
+  },
+  {
+    id: "bough-ribbon",
+    chainId: "welcome-bough",
+    chainTitle: "O ramo da chegada",
+    order: 1,
+    track: "explore",
+    title: "O laço preso no correio",
+    description:
+      "O laço do ramo de chegada ficou preso na fenda da caixa de correio. Abra a caixa para soltá-lo e devolva o laço a Dona Guida.",
+    objectiveType: "interact",
+    objectKind: "world_prop",
+    objectId: "village-mailbox",
+    objectName: "Caixa de correio",
+    target: 1,
+    unit: "laço",
+    xp: 15,
+    giverNpcId: "storyteller",
+    turnInNpcId: "storyteller",
+    prerequisiteId: "story-page-delivery",
+    dialogue: {
+      offer:
+        "O laço do ramo de chegada ficou preso na fenda do correio. Abra a caixa com cuidado, solte o laço e traga de volta. Sem pressa: é só um laço.",
+      turnIn:
+        "Laço solto, chegada enfeitada. Um ramo na porta não abre nada nem promete nada; só diz que alguém passou por aqui e foi bem recebido.",
+    },
+    objectiveEventIds: ["bough-ribbon"],
+  },
+  {
+    id: "bough-sprigs",
+    chainId: "welcome-bough",
+    chainTitle: "O ramo da chegada",
+    order: 2,
+    track: "explore",
+    title: "Ramos para a chegada",
+    description:
+      "Dona Guida quer um ramo de pinheiro para a placa de boas-vindas. Dois ramos caíram perto do mercado oeste; encontre os dois e volte.",
+    objectiveType: "collect",
+    objectKind: "quest_item",
+    objectId: "winter-sprig",
+    objectName: "Ramo de pinheiro",
+    target: 2,
+    unit: "ramos",
+    xp: 20,
+    giverNpcId: "storyteller",
+    turnInNpcId: "storyteller",
+    prerequisiteId: "bough-ribbon",
+    dialogue: {
+      offer:
+        "Dois ramos de pinheiro caíram perto do mercado oeste. Traga os dois: um ramo na chegada não é enfeite de loja, é abraço de porta.",
+      turnIn: "Ramos bons, cheirosos de serra. Agora o laço tem onde morar. Falta pouco para a chegada ficar completa.",
+    },
+    objectiveEventIds: ["sprig-market-1", "sprig-market-2"],
+  },
+  {
+    id: "bough-delivery",
+    chainId: "welcome-bough",
+    chainTitle: "O ramo da chegada",
+    order: 3,
+    track: "explore",
+    title: "O ramo da chegada",
+    description:
+      "Dona Guida amarrou os ramos e o laço num ramo de chegada. Leve-o a Seu Nivaldo, junto à caixa de correio, para pendurar na placa de boas-vindas.",
+    objectiveType: "deliver",
+    objectKind: "quest_item",
+    objectId: "winter-sprig",
+    objectName: "Ramo de pinheiro",
+    target: 1,
+    unit: "ramo",
+    xp: 50,
+    giverNpcId: "storyteller",
+    turnInNpcId: "postmaster",
+    prerequisiteId: "bough-sprigs",
+    dialogue: {
+      offer:
+        "Amarrei os ramos com o laço. Leve este ramo a Seu Nivaldo, no correio: ele sabe pendurar sem esconder a placa. Diga que é da parte da Vila.",
+      turnIn: "Um ramo na chegada! Vou pendurá-lo onde todos vejam. Correio e porta são a mesma promessa: alguém chega, alguém recebe.",
     },
     objectiveEventIds: [],
   },

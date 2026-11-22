@@ -75,9 +75,16 @@ trenó ou terrenos. Os três moradores decorativos da praça continuam sem nome 
 - Falas de entrega são ditas pelo NPC de entrega (`npc_entrega`), mesmo quando diferente
   do NPC que ativou a quest.
 
+## 4.1 Epílogo "O ramo da chegada" (2026-11-18)
+
+Depois que a página do livro viaja, Dona Guida fecha o arco com um gesto pequeno: o laço do ramo de chegada ficou
+preso na caixa de correio, dois ramos de pinheiro caíram perto do mercado oeste e o ramo preparado vai para a placa de
+boas-vindas, com Seu Nivaldo. É uma cadeia de três missões (`bough-ribbon` → `bough-sprigs` → `bough-delivery`), sem
+nova ONG, doação, preço ou promessa de abertura; o único objeto novo é o ramo de pinheiro.
+
 ## 5. Suposições (PROPOSTA)
 
-- XP total 465 ≈ nível 5 no protótipo (XP_PER_LEVEL = 100); valores por quest de
+- XP total 550 ≈ nível 6 no protótipo (XP_PER_LEVEL = 100); valores por quest de
   {15, 20, 25, 30, 40, 50}, finais de cadeia com 50.
 - O único minijogo hoje é o Jogo da Memória; as quests da trilha play o reusam ou
   reenquadram interações brincantes já possíveis no mundo.

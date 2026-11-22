@@ -1121,6 +1121,10 @@ export const QUEST_SPAWNS: QuestSpawn[] = [
   { id: "crate-market", questId: "ornament-crates", objectId: "ornament-crate", x: -16.8, z: -3.6 },
   { id: "lantern-lake-1", questId: "lake-lanterns", objectId: "lake-lantern", x: 19.5, z: 14.5 },
   { id: "lantern-lake-2", questId: "lake-lanterns", objectId: "lake-lantern", x: 22.5, z: 5.5 },
+  // Epilogue (welcome-bough): the same free market points as `ornament-crates`. Only one quest is active at a
+  // time, so two entries at one point never draw or offer together; the ground was already checked.
+  { id: "sprig-market-1", questId: "bough-sprigs", objectId: "winter-sprig", x: -14.5, z: 8.6 },
+  { id: "sprig-market-2", questId: "bough-sprigs", objectId: "winter-sprig", x: -16.8, z: -3.6 },
 ];
 
 /** Existing props that become interaction points for a quest (PROPOSTA quests-v1). */
@@ -1136,6 +1140,8 @@ export interface QuestInteraction {
 export const QUEST_INTERACTIONS: QuestInteraction[] = [
   { id: "mailbox-open", questId: "frozen-mailbox", objectId: "village-mailbox", x: 2.4, z: 12.6, radius: 3.5 },
   { id: "sled-ride", questId: "kids-sled-run", objectId: "kids-sled", x: KIDS_SLED.x, z: KIDS_SLED.z, radius: 3.5 },
+  // Epilogue (welcome-bough): the same mailbox point as `mailbox-open`; only one quest is active at a time.
+  { id: "bough-ribbon", questId: "bough-ribbon", objectId: "village-mailbox", x: 2.4, z: 12.6, radius: 3.5 },
 ];
 
 /**

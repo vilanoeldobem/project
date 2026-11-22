@@ -304,6 +304,14 @@ exports[`generator snapshots > quest-story-page keeps the output of fixed seeds 
 ]
 `;
 
+exports[`generator snapshots > quest-winter-sprig keeps the output of fixed seeds stable 1`] = `
+[
+  "ab643a5b",
+  "7f8aef54",
+  "cc27d528",
+]
+`;
+
 exports[`generator snapshots > rabbit keeps the output of fixed seeds stable 1`] = `
 [
   "8b908db7",
