@@ -39,6 +39,13 @@ export const V = {
   furLight: shade(P.wood, 1.45),
   furGrey: shade(P.stoneDark, 0.8),
   ginger: shade(P.carrot, 0.85),
+  // The inside of a chimney pot and the shadow line of a recessed opening (IMPL-0035).
+  soot: shade(P.stoneDark, 0.35),
+  // Window frames, sills and lintels: white paint, a little warmer than snow so they read on a snowy roof.
+  frame: shade(P.cream, 1.04),
+  // Ground detail (IMPL-0035): blades of grass a little darker and lighter than the lawn they stand on.
+  grassDark: shade(P.lawnDark, 0.82),
+  grassLight: shade(P.lawn, 1.12),
 } as const;
 
 /** The darker course of a wall material (planks, bricks): a named variation, never a free colour. */

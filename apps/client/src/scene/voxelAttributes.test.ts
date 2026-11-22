@@ -22,8 +22,8 @@ const names = (g: BufferGeometry | null) => (g ? Object.keys(g.attributes).sort(
 describe("voxel geometry attributes", () => {
   it("leaves the voxel centre out of static solid and window geometry (every role carries the block edges)", () => {
     const g = voxelGeometries(HOUSE, 1, { emissive: [BULB], glow: [WINDOW] });
-    expect(names(g[SOLID])).toEqual(["aFace", "color", "normal", "position"]);
-    expect(names(g[GLOW])).toEqual(["aFace", "color", "normal", "position"]);
+    expect(names(g[SOLID])).toEqual(["aGrid", "color", "normal", "position"]);
+    expect(names(g[GLOW])).toEqual(["aGrid", "color", "normal", "position"]);
   });
 
   it("keeps it where a shader reads it: twinkling lights, swaying foliage, idle solids", () => {
@@ -48,9 +48,9 @@ describe("voxel geometry attributes", () => {
       { voxels: HOUSE.slice(0, 2), size: 1, placements: [{ x: 0, z: 20 }] },
     ]);
     expect(merged.map(names)).toEqual([
-      ["aFace", "color", "normal", "position"],
-      ["aCenter", "aFace", "color", "normal", "position"],
-      ["aFace", "color", "normal", "position"],
+      ["aGrid", "color", "normal", "position"],
+      ["aCenter", "aGrid", "color", "normal", "position"],
+      ["aGrid", "color", "normal", "position"],
       null,
     ]);
     // The bulb of the first copy is at (10, 2.5, 0) in the world.
@@ -58,7 +58,7 @@ describe("voxel geometry attributes", () => {
     expect(center.getX(0)).toBeCloseTo(10);
     expect(center.getY(0)).toBeCloseTo(2.5);
     const lit = joinLitRoles([merged, mergeVoxelModels([{ voxels: HOUSE, size: 1, emissive: [BULB], glow: [WINDOW], placements: [{ x: 0, z: 0 }] }])]);
-    expect(lit.map(names)).toEqual([null, ["aCenter", "aFace", "color", "normal", "position"], ["aFace", "color", "normal", "position"], null]);
+    expect(lit.map(names)).toEqual([null, ["aCenter", "aGrid", "color", "normal", "position"], ["aGrid", "color", "normal", "position"], null]);
   });
 
   it("keeps it for exactly the role materials whose vertex shader reads it", () => {

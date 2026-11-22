@@ -25,6 +25,7 @@ import { env } from "../environment/runtime";
 import { groundUnder, tapResidence, tapSite, visit } from "../game/clicks";
 import { type AtlasCell, boardAtlas, cellUv, wrapNotice } from "./boardAtlas";
 import { civic } from "./gen/civic";
+import { refinedOnce } from "./gen/refine";
 import { shop } from "./gen/shops";
 import { bench, lamp } from "./models";
 import { Label } from "./Props";
@@ -47,8 +48,8 @@ export function Shops() {
     () =>
       mergeVoxelModels([
         ...SHOPS.map((s): MergeItem => {
-          const m = shop(s.id);
-          return { voxels: m.voxels, size: m.size, glow: m.glow, placements: [{ x: s.x, z: s.z, rot: s.facing }] };
+          const m = refinedOnce(`shop:${s.id}`, () => shop(s.id));
+          return { voxels: m.voxels, size: m.size, glow: m.glow, ao: m.ao, placements: [{ x: s.x, z: s.z, rot: s.facing }] };
         }),
         { voxels: billboardFrame(), size: 1, emissive: [P.gold], placements: BILLBOARDS.filter((b) => b.format === "rooftop").map((b) => ({ x: b.x, z: b.z })) },
       ]),
@@ -219,10 +220,10 @@ type Target = { kind: "plot"; plot: ResidentialPlot; x: number; z: number } | { 
 function ringItems(): Array<{ block: string; item: MergeItem; target?: Target }> {
   const out: Array<{ block: string; item: MergeItem; target?: Target }> = [];
   for (const plot of RESIDENTIAL_PLOTS) {
-    const m = residence(plot);
+    const m = refinedOnce(`home:${plot.id}`, () => residence(plot));
     out.push({
       block: blockOf(plot.x, plot.z),
-      item: { voxels: m.voxels, size: m.size, glow: m.glow, placements: [{ x: plot.house.x, z: plot.house.z, rot: plot.facing }] },
+      item: { voxels: m.voxels, size: m.size, glow: m.glow, ao: m.ao, placements: [{ x: plot.house.x, z: plot.house.z, rot: plot.facing }] },
       target: { kind: "plot", plot, x: plot.house.x, z: plot.house.z },
     });
   }
@@ -237,8 +238,8 @@ function ringItems(): Array<{ block: string; item: MergeItem; target?: Target }>
     const block = blockOf(site.x, site.z);
     const target: Target = { kind: "site", site, x: site.centre.x, z: site.centre.z };
     if (site.kind) {
-      const m = civic(site.kind, site.id);
-      out.push({ block, item: { voxels: m.voxels, size: m.size, glow: m.glow, emissive: m.emissive, placements: [{ x: site.centre.x, z: site.centre.z, rot: site.facing }] }, target });
+      const m = refinedOnce(`site:${site.id}`, () => civic(site.kind!, site.id));
+      out.push({ block, item: { voxels: m.voxels, size: m.size, glow: m.glow, emissive: m.emissive, ao: m.ao, placements: [{ x: site.centre.x, z: site.centre.z, rot: site.facing }] }, target });
     } else out.push({ block, item: { voxels: [], size: 1, placements: [] }, target });
   }
   for (const prop of SITE_PROPS) {

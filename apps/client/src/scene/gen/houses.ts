@@ -208,7 +208,10 @@ export function house(seed: Seed, options: HouseOptions = {}): GenModel {
   // middle course of the lid. Never on the chimney, whose top is where the smoke starts.
   const onRidge = (z: number, y: number) => y >= peak && (archetype !== "townhouse" || z === 0);
   const snowy = snowCap(dedupe(v), P.snow, (x, z, y) => !(x === cx && z === cz) && onRidge(z, y) && (((x + z) % 4) + 4) % 4 !== 1);
-  return { voxels: dedupe(snowy), size: 1, glow: [P.window], anchors: { chimney: [cx, chimneyTop + 0.5, cz] }, solid };
+  return {
+    voxels: dedupe(snowy), size: 1, glow: [P.window], anchors: { chimney: [cx, chimneyTop + 0.5, cz] }, solid,
+    roles: { wall, roof: roofColor, trim, doors: [[0, 0, hz], [0, 1, hz]] },
+  };
 }
 
 export const HOUSES: Generator[] = [
