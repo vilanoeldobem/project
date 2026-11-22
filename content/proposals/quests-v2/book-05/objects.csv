@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+suitcase,Mala sem dono,world_prop,done,book-05-suitcase,props,b05-c1-01;b05-c1-02;b05-r1-02;b05-r1-03;b05-r1-08;b05-s1,3,suitcase,220,600,0.2,pickup,none,"Mala de viagem com alça, correias e neve; representa a mala sem dono e as três malas esquecidas."
+silver-shuttle,Naveta de prata,quest_item,done,book-05-silver-shuttle,props,b05-c2-02;b05-c3-03;b05-r2-06;b05-r2-08;b05-s4,3,silver-shuttle,80,200,0.16,pickup,none,"Naveta afilada com banda dourada, carretel e fio; coleta no Vale e uso no tear."
+ice-flower,Flor de gelo,quest_item,done,book-05-ice-flower,props,b05-r2-02;b05-r2-03;b05-s5,3,ice-flower,80,200,0.18,pickup,none,"Flor clara com coração quente e base de neve; guarda os nomes do Vale."
+star-map,Mapa das estrelas,world_prop,done,book-05-star-map,props,b05-c1-03;b05-r1-07,1,star-map,220,600,0.22,use,none,"Painel escuro com moldura de madeira e estrelas douradas; quadro de horários e rota da última partida."

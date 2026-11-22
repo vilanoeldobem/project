@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book V cosmetics > back-thread keeps its fixed layer 1`] = `"54058e2"`;
+
+exports[`book V cosmetics > back-travel keeps its fixed layer 1`] = `"a4a05de1"`;
+
+exports[`book V cosmetics > shoes-aurora keeps its fixed layer 1`] = `"2edc50e4"`;
+
+exports[`book V cosmetics > shoes-dawn keeps its fixed layer 1`] = `"c9b5e08"`;
+
+exports[`book V cosmetics > shoes-frost keeps its fixed layer 1`] = `"32c83c0c"`;
+
+exports[`book V cosmetics > special-promise-book keeps its fixed layer 1`] = `"dc811a1d"`;

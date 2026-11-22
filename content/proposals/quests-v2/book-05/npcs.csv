@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+dona-vilma,Dona Vilma,Chefe da estação,"Estação do Trenó, plataforma",villager,dona-vilma,57,-38,-0.983,5,Toda partida começa com uma mala esquecida.
+joca,Joca,Guarda-malas da Estação,"Estação do Trenó, guarda-malas",villager,joca,55,-40,-0.942,5,Eu guardo as malas e as histórias.
+seu-ademar,Seu Ademar,Passageiro de 23:59,"Estação do Trenó, mapa das estrelas",villager,seu-ademar,51,-42,-0.882,5,Esperei o trem das 23:59 a vida inteira.
+dona-iris,Dona Íris,Tecelã,"Praça da Grande Árvore, janela do correio",villager,dona-iris,0.5,13.8,-3.105,5,O fio passa por quem lembra.
+tomas,Tomás,Carteiro Sem Nome,"Estação do Trenó, entrada",villager,tomas,6.8,18.2,-2.784,5,Eu entrego. Só não lembro para quem.
+dona-geada,Dona Geada,Primeira professora,"Praça da Grande Árvore, mercado",villager,dona-geada,-10,-2,1.373,5,Eu esperava que alguém dissesse meu nome.
+mestre-anselmo,Mestre Anselmo,Relojoeiro,"Praça da Grande Árvore, relojoaria",villager,mestre-anselmo,-8.6,5.4,2.131,5,O tempo escuta quem para.
+papai-noel,Papai Noel,Guardião da Longa Noite,"Estação do Trenó, frente do trenó",villager,papai-noel,64,-47,-0.938,5,A noite é longa, mas a Vila está aqui.
