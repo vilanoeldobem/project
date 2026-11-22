@@ -37,7 +37,7 @@
  * minute, answered or not; beyond that the room closes the sender with 1008. A removal is not a ban: the
  * removed visitor's client shows an honest message and waits before reconnecting, nothing more.
  */
-import { isPaid, type Look, type Slot, SLOTS } from "../game/cosmetics";
+import { DEFAULT_LOOK, isPaid, type Look, type Slot, SLOTS } from "../game/cosmetics";
 import { COSMETICS_V2 } from "../game/cosmetics-v2";
 import { MOTION } from "../game/motion";
 import { WORLD_RADIUS } from "../game/world";
@@ -134,6 +134,11 @@ export function parseLook(raw: unknown): Look | null {
     const item = Number.isInteger(index) ? slotItems(SLOTS[i] as Slot)[index] : undefined;
     if (!item || isPaid(item)) return null;
     out[SLOTS[i] as Slot] = item.id;
+  }
+  // One overlap rule for every look, local or remote: a dress hides the blouse and trousers (`wearIn`).
+  if (out.dress !== DEFAULT_LOOK.dress) {
+    out.blouse = DEFAULT_LOOK.blouse;
+    out.pants = DEFAULT_LOOK.pants;
   }
   return out;
 }
