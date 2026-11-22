@@ -4,7 +4,7 @@
  * scene draws them and `colliders.test.ts` checks them against the footprints in the shared world.
  */
 import type { Placed } from "@vila/shared/game/collision";
-import { BOARD_FORMATS, DRESSING_VOXEL, type DressingKind, type DressingPart, PALETTE as P, type ResidentialPlot, VILLAGE_PLAN } from "@vila/shared/game/world";
+import { DRESSING_VOXEL, type DressingKind, type DressingPart, PALETTE as P, type ResidentialPlot, VILLAGE_PLAN } from "@vila/shared/game/world";
 
 import { type Archetype, house } from "./gen/houses";
 import { V } from "./gen/palette";
@@ -142,7 +142,6 @@ export function dressingItems(parts: readonly DressingPart[]): Array<{ voxels: V
 }
 
 /** Billboard frame (draw with size 1, never turned: it faces +z, towards the camera). The panel is 5 × 2 u, centred on y = 8. */
-export const BILLBOARD_PANEL = { width: BOARD_FORMATS.rooftop.width, height: BOARD_FORMATS.rooftop.height } as const;
 export function billboardFrame(): Voxel[] {
   const v: Voxel[] = [];
   for (let x = -3; x <= 3; x++) v.push([x, 6, 0, V.woodDark], [x, 9, 0, V.woodDark]);

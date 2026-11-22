@@ -8,11 +8,11 @@
  * - free items unlock only by completing missions or reaching levels, derived from `Progress` (read-only
  *   here; the XP rules in progress.ts are unchanged);
  * - every free item is reachable without donating (no mission involves donating; levels come from missions);
- * - paid items are catalogue entries only: `isUnlocked` is always false and `Ver compra` never grants one;
+ * - paid items are catalogue entries only: `isUnlockedIn` (cosmetics-v2.ts) is always false and `Ver compra`
+ *   never grants one; the rules that read this catalogue live in cosmetics-v2.ts;
  * - no purchases, loot boxes, random drops or rewards for time online.
  * `name` and requirement texts are user-facing pt-BR copy.
  */
-import { levelOf, MISSIONS, type Progress } from "./progress";
 
 /** The ten appearance categories of P08, in the board's order. */
 export type Slot = "helmet" | "blouse" | "pants" | "dress" | "shoes" | "back" | "face" | "handLeft" | "handRight" | "special";
@@ -195,54 +195,4 @@ export const DEFAULT_LOOK: Look = {
 /** A paid item is never unlocked by progress and never equipped; only its preview exists. */
 export const isPaid = (c: Cosmetic): boolean => c.unlock.kind === "paid";
 
-export function isUnlocked(c: Cosmetic, p: Progress): boolean {
-  if (c.unlock.kind === "paid") return false;
-  if (c.unlock.kind === "default") return true;
-  if (c.unlock.kind === "mission") return Boolean(p.completed[c.unlock.missionId]);
-  return levelOf(p.xp) >= c.unlock.level;
-}
 
-export const unlockedIds = (p: Progress) => new Set(COSMETICS.filter((c) => isUnlocked(c, p)).map((c) => c.id));
-
-/**
- * Puts one item on a look, with the only overlap rule of the catalogue: a dress replaces the visible blouse and
- * trousers; wearing a blouse or trousers takes the dress off. Any other slot is independent. The preview and
- * the "Equipar" action both go through this function, so they can never disagree.
- */
-export function wear(look: Look, id: string): Look {
-  const c = COSMETICS.find((x) => x.id === id);
-  if (!c) return look;
-  const next: Look = { ...look, [c.slot]: c.id };
-  if (c.slot === "dress" && c.id !== DEFAULT_LOOK.dress) {
-    next.blouse = DEFAULT_LOOK.blouse;
-    next.pants = DEFAULT_LOOK.pants;
-  } else if ((c.slot === "blouse" || c.slot === "pants") && next.dress !== DEFAULT_LOOK.dress) {
-    next.dress = DEFAULT_LOOK.dress;
-  }
-  return next;
-}
-
-/** Keeps only known, unlocked items in their own slot; anything else falls back to the default. */
-export function sanitizeLook(look: Partial<Record<string, unknown>> | null | undefined, p: Progress): Look {
-  const ok = unlockedIds(p);
-  const out: Look = { ...DEFAULT_LOOK };
-  for (const slot of SLOTS) {
-    const id = look?.[slot];
-    const c = COSMETICS.find((x) => x.id === id);
-    if (c && c.slot === slot && ok.has(c.id)) out[slot] = c.id;
-  }
-  if (out.dress !== DEFAULT_LOOK.dress) {
-    out.blouse = DEFAULT_LOOK.blouse;
-    out.pants = DEFAULT_LOOK.pants;
-  }
-  return out;
-}
-
-/** pt-BR requirement text for a locked item. Paid items use their own "Ver compra" state. */
-export function requirement(c: Cosmetic): string {
-  if (c.unlock.kind === "default") return "";
-  if (c.unlock.kind === "paid") return "Visual pago";
-  if (c.unlock.kind === "level") return `Chegue ao nível ${c.unlock.level}`;
-  const missionId = c.unlock.missionId;
-  return `Conclua: ${MISSIONS.find((m) => m.id === missionId)?.title ?? missionId}`;
-}

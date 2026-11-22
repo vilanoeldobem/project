@@ -9,6 +9,14 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Removed — código morto
+
+- As regras do catálogo v1 de visuais (`isUnlocked`, `unlockedIds`, `wear`, `sanitizeLook`, `requirement` em
+  `cosmetics.ts`) repetiam as do catálogo unificado (`*In` em `cosmetics-v2.ts`), que é o que o jogo usa. Os testes
+  passam a usar as do catálogo unificado.
+- `CHAIN_TITLES` (o título de cada cadeia já vem em cada missão), `NIGHT_ONLY`, `BILLBOARD_PANEL` e `MINIGAME_IDS`:
+  nenhum código os lia.
+
 ### Fixed — Recebimento das ONGs
 
 - A troca de CNPJ invalida a configuração do beneficiário para novos Pix. O painel financeiro exige a revisão atual da candidatura e os pagamentos anteriores preservam seu destino.

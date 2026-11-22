@@ -6,7 +6,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LOOK, wear } from "@vila/shared/game/cosmetics";
+import { DEFAULT_LOOK } from "@vila/shared/game/cosmetics";
+import { COSMETICS_V2, wearIn } from "@vila/shared/game/cosmetics-v2";
 
 import css from "../styles.css?raw";
 
@@ -314,11 +315,11 @@ describe("the avatar look (P08, IMPL-0027)", () => {
   it("equips a free item, writes v2, and lets a blouse take the dress off", async () => {
     storage.set("vila.progress.v2", progress({ "explore-gifts": true }));
     const { useVila } = await load();
-    useVila.getState().setLook(wear(useVila.getState().look, "dress-red"));
+    useVila.getState().setLook(wearIn(COSMETICS_V2, useVila.getState().look, "dress-red"));
     expect(useVila.getState().look.dress).toBe("dress-red");
     expect(useVila.getState().look.blouse).toBe("blouse-plain");
     expect(JSON.parse(storage.get("vila.look.v2")!).dress).toBe("dress-red");
-    useVila.getState().setLook(wear(useVila.getState().look, "blouse-stripes"));
+    useVila.getState().setLook(wearIn(COSMETICS_V2, useVila.getState().look, "blouse-stripes"));
     expect(useVila.getState().look.dress).toBe("dress-none");
     expect(useVila.getState().look.blouse).toBe("blouse-stripes");
   });

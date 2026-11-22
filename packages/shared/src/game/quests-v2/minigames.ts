@@ -38,5 +38,3 @@ export const MINIGAMES: readonly Minigame[] = [
   game("forno-da-memoria", "Forno da Memória"),
   game("jardim-das-estacoes", "Jardim das Estações"),
 ];
-
-export const MINIGAME_IDS: ReadonlySet<MinigameId> = new Set(MINIGAMES.map((m) => m.id));

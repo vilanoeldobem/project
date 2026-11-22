@@ -1,17 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  COSMETICS,
-  DEFAULT_LOOK,
-  isPaid,
-  isUnlocked,
-  requirement,
-  sanitizeLook,
-  SLOTS,
-  unlockedIds,
-  wear,
-} from "./cosmetics";
+import { type Cosmetic, COSMETICS, DEFAULT_LOOK, isPaid, type Look, SLOTS } from "./cosmetics";
+import { isUnlockedIn, requirementIn, sanitizeLookIn, unlockedIdsIn, wearIn } from "./cosmetics-v2";
+import { STORY_CATALOG } from "./quests-v2/catalog";
 import { applyEvent, EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "./progress";
+
+// The v1 catalogue is the prefix of the unified one; its rules are the unified functions over it.
+const isUnlocked = (c: Cosmetic, p: Progress) => isUnlockedIn(COSMETICS, c, p);
+const unlockedIds = (p: Progress) => unlockedIdsIn(COSMETICS, p);
+const wear = (look: Look, id: string) => wearIn(COSMETICS, look, id);
+const sanitizeLook = (look: Partial<Record<string, unknown>> | null, p: Progress) => sanitizeLookIn(COSMETICS, look, p);
+const requirement = (c: Cosmetic) => requirementIn(STORY_CATALOG, c);
 
 /** Completes every mission with its own events — no donation anywhere (DEC-042). */
 function playEverything(): Progress {

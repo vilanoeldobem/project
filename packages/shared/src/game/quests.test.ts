@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyEvent, EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "./progress";
-import { activeInventory, activeQuest, canAccept, CHAIN_TITLES, NPC_IDS, QUESTS, questProgress, questState } from "./quests";
+import { activeInventory, activeQuest, canAccept, NPC_IDS, QUESTS, questProgress, questState } from "./quests";
 import { LOTS, NPCS, QUEST_INTERACTIONS, QUEST_SPAWNS } from "./world";
 
 /** Minimal CSV parser: quoted fields, "" escapes, CRLF tolerated, BOM stripped. */
@@ -54,18 +54,22 @@ const csvTable = (name: string) => {
 
 const apply = (p: Progress, questId: string, ...events: string[]) => events.reduce((acc, e) => applyEvent(acc, questId, e).progress, p);
 
+/** Each chain's title, as its quests carry it. */
+const CHAIN_TITLES: Record<string, string> = Object.fromEntries(QUESTS.map((q) => [q.chainId, q.chainTitle]));
+
 describe("catalog integrity", () => {
   it("has 18 quests with unique ids", () => {
     expect(QUESTS).toHaveLength(18);
     expect(new Set(QUESTS.map((q) => q.id)).size).toBe(18);
   });
 
-  it("has 6 chains of orders 1, 2, 3 with the published titles", () => {
-    expect(Object.keys(CHAIN_TITLES)).toHaveLength(6);
-    for (const [chainId, title] of Object.entries(CHAIN_TITLES)) {
+  it("has 6 chains of orders 1, 2, 3, each under one title", () => {
+    const chains = new Set(QUESTS.map((q) => q.chainId));
+    expect(chains.size).toBe(6);
+    for (const chainId of chains) {
       const chain = QUESTS.filter((q) => q.chainId === chainId);
       expect(chain.map((q) => q.order).sort()).toEqual([1, 2, 3]);
-      for (const q of chain) expect(q.chainTitle).toBe(title);
+      expect(new Set(chain.map((q) => q.chainTitle)).size).toBe(1);
     }
   });
 

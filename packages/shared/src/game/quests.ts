@@ -49,15 +49,6 @@ export interface InventoryItem {
   questId: string;
 }
 
-export const CHAIN_TITLES: Record<string, string> = {
-  "flight-night": "A Noite de Voo",
-  "market-opening": "A inauguração da barraca",
-  "undelivered-letters": "As cartas que ficaram",
-  "lake-lights": "A noite das luzes do lago",
-  "village-story": "O livro da Vila",
-  "welcome-bough": "O ramo da chegada",
-};
-
 export const QUESTS: Quest[] = [
   {
     id: "harness-bells",

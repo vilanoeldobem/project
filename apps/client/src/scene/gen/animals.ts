@@ -133,8 +133,6 @@ export function owl(seed: Seed): GenModel {
   return { voxels: dedupe(v), size: 0.14, emissive: [eye], idle: true };
 }
 
-export const NIGHT_ONLY = new Set(["owl"]);
-
 export const ANIMALS: Generator[] = [
   { id: "reindeer", category: "animals", name: "Rena", generate: reindeer },
   { id: "dog", category: "animals", name: "Cachorro", generate: dog },
