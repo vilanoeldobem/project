@@ -24,6 +24,7 @@ import { CLOSE_ABUSE, CLOSE_FULL, CLOSE_IDLE, CLOSE_REMOVED, encodeServer, TICK_
 import { type Env, idleTimeoutMs, presenceModerationEnabled } from "./env";
 import { consumeTicket, REMOVAL_WARMUP_MS } from "./moderation";
 import { type RemovalRequest, RoomState } from "./room";
+import { READY_PATH } from "./ready";
 
 interface Attachment {
   id: number;
@@ -60,6 +61,8 @@ export class VillageRoom extends DurableObject<Env> {
   }
 
   async fetch(request: Request): Promise<Response> {
+    // Readiness probe from the Worker (handler.ts): the room answers from memory; nothing is read, stored or joined.
+    if (new URL(request.url).pathname === READY_PATH) return new Response(null, { status: 204 });
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") return new Response("expected websocket", { status: 426 });
     const room = Number(new URL(request.url).searchParams.get("i") ?? 0);
     const { 0: client, 1: server } = new WebSocketPair();
