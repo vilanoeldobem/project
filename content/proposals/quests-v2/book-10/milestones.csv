@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b10-m1,A primeira hora,hours,1,1,10,,torre-tempo,10
+b10-m1,Três horas guardadas,hours,3,2,10,,torre-tempo,10
+b10-m1,Cinco horas na Torre,hours,5,3,10,,torre-tempo,10
+b10-m1,Sete horas de escuta,hours,7,4,10,,torre-tempo,10
+b10-m1,Nove horas no fio,hours,9,5,10,,torre-tempo,10
+b10-m1,Onze horas lembradas,hours,11,6,10,hand-right-watch,torre-tempo,10
+b10-m2,A primeira vigília,vigils,1,1,10,,praca-nova-noite,10
+b10-m2,Duas vigílias acesas,vigils,2,2,10,,praca-nova-noite,10
+b10-m2,Quatro vigílias juntas,vigils,4,3,10,,praca-nova-noite,10
+b10-m2,Seis vigílias de escuta,vigils,6,4,10,,praca-nova-noite,10
+b10-m2,Oito vigílias de canção,vigils,8,5,10,,praca-nova-noite,10
+b10-m2,Dez vigílias cumpridas,vigils,10,6,10,hand-right-candle,praca-nova-noite,10

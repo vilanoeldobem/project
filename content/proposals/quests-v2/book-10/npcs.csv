@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, casa da contadora",villager,storyteller,5,4,-2.2455,10,Toda história começa com alguém que para para ouvir.
+nina,Nina,Sineira,"Praça da Grande Árvore, campanário",villager,nina,-5.4,8.8,2.5912,10,O coro espera uma voz.
+lia,Lia,Criança do coro,"Praça da Grande Árvore, coro",villager,lia,2.6,-5.2,-0.4636,10,Eu canto baixinho para acertar.
+tomas,Tomás,Carteiro Sem Nome,"Praça da Grande Árvore, correio",villager,tomas,6.8,18.2,-2.7840,10,Eu entrego. Só não lembro para quem.
+horacio,Horácio,Guardião do relógio de sol,"Torre do Tempo, relógio de sol",villager,horacio,83,24,-1.8523,10,A sombra conta a hora que a gente esquece.
+papai-noel,Papai Noel,Guardião da Longa Noite,"Praça da Nova Noite, trenó",villager,papai-noel,64,-47,-0.9374,10,"A noite é longa, mas a Vila está aqui."
+vigia,a Vigia,Vigia da Torre do Tempo,"Torre do Tempo, parque do relógio",villager,vigia,-15.75,-53.4,0.2868,10,A Torre conta baixinho para quem espera.
+criancas,as crianças,Crianças da nova geração,"Praça da Nova Noite, parque da vigília",villager,criancas,-81.5,-16.5,1.3710,10,A gente quer acender a próxima noite.

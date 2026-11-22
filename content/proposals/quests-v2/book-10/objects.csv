@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+lost-hour,Hora perdida,quest_item,done,book-10-lost-hour,props,b10-c1-02;b10-c1-03;b10-r1-03;b10-s1;b10-s2,3,lost-hour,80,200,0.18,pickup,none,"Ampulheta de bolso com areia dourada; representa horas, a ampulheta, o relógio de areia e a hora certa."
+time-gear,Engrenagem do tempo,quest_item,done,book-10-time-gear,props,b10-c1-04;b10-r1-02,3,time-gear,80,200,0.18,pickup,none,"Engrenagem de latão com eixo e base; representa engrenagens, a Torre do Tempo e o fio do tempo."
+short-candle,Vela curta,quest_item,done,book-10-short-candle,props,b10-c3-03;b10-r1-04;b10-r1-06;b10-r2-05;b10-s3;b10-s4,3,short-candle,80,200,0.16,pickup,none,"Vela curta em castiçal com chama emissiva; representa velas, a vigília e a hora do lanche."
+small-notebook,Caderno pequeno,quest_item,done,book-10-small-notebook,props,b10-c3-01;b10-r2-02;b10-r2-03;b10-r2-06,3,small-notebook,80,200,0.18,pickup,none,"Caderno pequeno de capa colorida e fita; representa cadernos, a lição, a canção e a promessa."

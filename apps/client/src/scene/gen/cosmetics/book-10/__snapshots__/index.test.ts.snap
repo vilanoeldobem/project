@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book X cosmetics > dress-vigil keeps its fixed layer 1`] = `"375710e1"`;
+
+exports[`book X cosmetics > hand-right-candle keeps its fixed layer 1`] = `"656f7052"`;
+
+exports[`book X cosmetics > hand-right-watch keeps its fixed layer 1`] = `"702788d2"`;
+
+exports[`book X cosmetics > special-dawn keeps its fixed layer 1`] = `"1539c36b"`;
+
+exports[`book X cosmetics > special-star-guide keeps its fixed layer 1`] = `"64856ed5"`;
+
+exports[`book X cosmetics > special-vigil-aurora keeps its fixed layer 1`] = `"2887b6c8"`;

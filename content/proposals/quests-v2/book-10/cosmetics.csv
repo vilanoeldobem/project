@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+hand-right-watch,handRight,Relógio da Última Hora,marco,false,b10-m1-06,40,140
+hand-right-candle,handRight,Vela da Vigília,marco,false,b10-m2-06,40,140
+dress-vigil,dress,Vestido da Vigília,missao,false,b10-c2-04,40,140
+special-star-guide,special,Estrela-Guia,premium,true,,40,140
+special-dawn,special,Amanhecer,premium,true,,40,140
+special-vigil-aurora,special,Aurora da Vigília,premium,true,,40,140
