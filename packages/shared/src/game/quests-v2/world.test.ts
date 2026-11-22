@@ -12,10 +12,11 @@ describe("story world", () => {
     expect(V1_WORLD.npcs.every((npc) => npc.book === 0)).toBe(true);
   });
 
-  it("has unique ids in the story aggregate", () => {
+  it("keeps interaction ids unique per quest and spawn/NPC ids unique", () => {
     expect(STORY_NPC_IDS.size).toBe(STORY_WORLD.npcs.length);
     expect(new Set(STORY_WORLD.spawns.map((spawn) => spawn.id)).size).toBe(STORY_WORLD.spawns.length);
-    expect(new Set(STORY_WORLD.interactions.map((interaction) => interaction.id)).size).toBe(STORY_WORLD.interactions.length);
+    // A minigame event id is shared by every quest that plays the same game; questId scopes the target.
+    expect(new Set(STORY_WORLD.interactions.map((interaction) => `${interaction.questId}:${interaction.id}`)).size).toBe(STORY_WORLD.interactions.length);
     expect(STORY_OBJECT_IDS.size).toBeGreaterThanOrEqual(0);
   });
 

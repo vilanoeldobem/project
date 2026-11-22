@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VII props > bridge-bell keeps the gallery seeds stable 1`] = `
+[
+  "60f0dfa0",
+  "3a2974a3",
+  "8cee74ce",
+  "cd153904",
+  "e91374c9",
+  "d2c9ed65",
+  "d99e46a4",
+  "c46b2e7e",
+]
+`;
+
+exports[`book VII props > echo-shell keeps the gallery seeds stable 1`] = `
+[
+  "edfb9c23",
+  "16d63523",
+  "d826854a",
+  "56d17b6f",
+  "4b8f356",
+  "7170b43",
+  "a5fd0d5f",
+  "5a0f04a5",
+]
+`;
+
+exports[`book VII props > ice-plank keeps the gallery seeds stable 1`] = `
+[
+  "6cec520",
+  "edc84cae",
+  "9420ef07",
+  "27c11564",
+  "4566629",
+  "a51e690b",
+  "37727922",
+  "c7c6d956",
+]
+`;
+
+exports[`book VII props > ice-rope keeps the gallery seeds stable 1`] = `
+[
+  "12040024",
+  "b3d4246f",
+  "c565d108",
+  "f61210f9",
+  "85f615c2",
+  "85fe4dcf",
+  "b8ff303b",
+  "1f0f9229",
+]
+`;

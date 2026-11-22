@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+ice-rope,Corda de gelo,quest_item,done,book-07-ice-rope,props,b07-c1-02;b07-r1-04;b07-s1,3,ice-rope,80,200,0.14,pickup,none,"Corda azul enrolada com laço, fio dourado e neve; representa as três cordas."
+ice-plank,Tábua de gelo,quest_item,done,book-07-ice-plank,props,b07-c1-04;b07-c3-03;b07-r1-02;b07-r1-08,3,ice-plank,80,200,0.16,pickup,none,"Tábua clara com veios, borda de geada e prego dourado; representa as tábuas e a passagem."
+echo-shell,Concha de eco,quest_item,done,book-07-echo-shell,props,b07-c2-02;b07-c2-04;b07-r1-06;b07-r2-02;b07-r2-03;b07-r2-05;b07-r2-07;b07-r2-08;b07-s3,3,echo-shell,80,200,0.14,pickup,none,"Concha em espiral com abertura escura e anel dourado; representa as conchas, a pedra que canta e o eco."
+bridge-bell,Sino da ponte,world_prop,done,book-07-bridge-bell,props,b07-r1-03,1,bridge-bell,220,600,0.24,pickup,none,"Sino dourado entre dois postes, com badalo, rachadura e neve; marca a entrada da ponte."

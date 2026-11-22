@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VII cosmetics > face-aurora keeps its fixed layer 1`] = `"df1ee2ab"`;
+
+exports[`book VII cosmetics > face-bridge-frost keeps its fixed layer 1`] = `"1aaf039b"`;
+
+exports[`book VII cosmetics > face-starlight keeps its fixed layer 1`] = `"cd7d631c"`;
+
+exports[`book VII cosmetics > helmet-coral keeps its fixed layer 1`] = `"14d49885"`;
+
+exports[`book VII cosmetics > pants-bridge keeps its fixed layer 1`] = `"8697fe9e"`;
+
+exports[`book VII cosmetics > shoes-bridge keeps its fixed layer 1`] = `"e592f92"`;

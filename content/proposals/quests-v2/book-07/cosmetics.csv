@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+pants-bridge,pants,Calça da Ponte,marco,false,b07-m1-06,40,140
+helmet-coral,helmet,Capacete de Coral,marco,false,b07-m2-06,40,140
+shoes-bridge,shoes,Botas da Travessia,missao,false,b07-c3-04,40,140
+face-aurora,face,Rosto Aurora,premium,true,,40,140
+face-bridge-frost,face,Rosto de Geada,premium,true,,40,140
+face-starlight,face,Rosto Estelar,premium,true,,40,140
