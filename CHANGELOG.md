@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — Livro V da saga v2: A Longa Noite (PROPOSTA, atrás das flags existentes, desligado)
+
+- **45 entradas**, 1.050 XP, 4 props e 6 cosméticos, atrás de `QUESTS_V2_ENABLED`; entrada `b05-c1-01`, saída `b05-c3-04`, que abre o epílogo.
+
 ### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
 
 - **Três missões novas** em `quests-v1`: `bough-ribbon` (15 XP), `bough-sprigs` (20 XP) e `bough-delivery`
@@ -32,7 +36,6 @@ Cada versão indica o schema D1 que entrega.
   parametrizado com paridade v1, marcos, minijogos, mundo e estados de mundo, cosméticos unidos (100 v1 + 60 dos
   livros), UI/API genéricas e verificador de navegador. `QUESTS_V2_ENABLED` e `VITE_QUESTS_V2_ENABLED` ficam
   desligados em produção e homologação; nenhuma história de livro é escrita nesta fatia.
-- **Livro V, A Longa Noite:** 45 entradas, 1.050 XP, 4 props e 6 cosméticos, atrás de `QUESTS_V2_ENABLED`; entrada `b05-c1-01`, saída `b05-c3-04`, que abre o epílogo.
 
 ## [0.7.0] - 2026-11-19
 
