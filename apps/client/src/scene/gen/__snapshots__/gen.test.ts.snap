@@ -112,6 +112,14 @@ exports[`generator snapshots > civic-theatre keeps the output of fixed seeds sta
 ]
 `;
 
+exports[`generator snapshots > clock-face keeps the output of fixed seeds stable 1`] = `
+[
+  "d4b912f3",
+  "776f912b",
+  "c42c0e81",
+]
+`;
+
 exports[`generator snapshots > dog keeps the output of fixed seeds stable 1`] = `
 [
   "beeed572",
@@ -192,6 +200,14 @@ exports[`generator snapshots > lantern keeps the output of fixed seeds stable 1`
 ]
 `;
 
+exports[`generator snapshots > letter-bundle keeps the output of fixed seeds stable 1`] = `
+[
+  "bc97e2ed",
+  "9cecbdb0",
+  "3087c089",
+]
+`;
+
 exports[`generator snapshots > log-pile keeps the output of fixed seeds stable 1`] = `
 [
   "2a77922b",
@@ -213,6 +229,14 @@ exports[`generator snapshots > market-stall keeps the output of fixed seeds stab
   "ba33e23f",
   "e79308d5",
   "620536dd",
+]
+`;
+
+exports[`generator snapshots > memory-gear keeps the output of fixed seeds stable 1`] = `
+[
+  "e6f0588a",
+  "2da34354",
+  "e9148b24",
 ]
 `;
 
@@ -261,6 +285,14 @@ exports[`generator snapshots > ngo-level-5 keeps the output of fixed seeds stabl
   "6e6d9a43",
   "8810a0a3",
   "dfa5e97f",
+]
+`;
+
+exports[`generator snapshots > old-stamp keeps the output of fixed seeds stable 1`] = `
+[
+  "79770b1b",
+  "79770b1b",
+  "3d1fcf9c",
 ]
 `;
 

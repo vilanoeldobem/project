@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b03-m1,A primeira carta,letters,1,1,10,,colina-correio,3
+b03-m1,Cinco cartas,letters,5,2,10,,colina-correio,3
+b03-m1,Dez cartas,letters,10,3,10,,colina-correio,3
+b03-m1,Vinte e cinco cartas,letters,25,4,10,,colina-correio,3
+b03-m1,Cinquenta cartas,letters,50,5,10,,colina-correio,3
+b03-m1,Cem cartas,letters,100,6,10,back-postbag,colina-correio,3
+b03-m2,O primeiro sino,bells,1,1,10,,campanario,3
+b03-m2,Três sinos,bells,3,2,10,,campanario,3
+b03-m2,Cinco sinos,bells,5,3,10,,campanario,3
+b03-m2,Sete sinos,bells,7,4,10,,campanario,3
+b03-m2,Nove sinos,bells,9,5,10,,campanario,3
+b03-m2,Dez sinos,bells,10,6,10,helmet-bell,campanario,3

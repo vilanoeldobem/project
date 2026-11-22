@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Colina do Correio, praça da árvore",villager,storyteller,5,4,-2.246,3,Toda história começa com alguém que para para ouvir.
+postmaster,Seu Nivaldo,Carteiro da Vila,"Colina do Correio, agência dos correios",villager,postmaster,4.5,11.8,-2.777,3,Toda carta é uma promessa que viaja.
+market-keeper,Dona Filó,Mercadora do mercado oeste,"Colina do Correio, mercado oeste",villager,market-keeper,-18.6,0,1.571,3,O mercado guarda o nome de quem passa.
+mestre-anselmo,Mestre Anselmo,Relojoeiro,"Campanário, oficina do relojoeiro",villager,mestre-anselmo,-8.6,5.4,2.131,3,O tempo escuta quem para.
+nina,Nina,Sineira,"Campanário, torre dos sinos",villager,nina,-5.4,8.8,2.591,3,O coro espera uma voz.
+dona-cida,Dona Cida,Jardineira,"Colina do Correio, jardim das casas",villager,dona-cida,8.4,-1.2,-1.429,3,Toda carta encontrada tem um destino.
+seu-elias,Seu Elias,Carteiro aposentado,"Colina do Correio, ponte do vale",villager,seu-elias,11.4,-3.6,-1.265,3,A ponte lembra de cada entrega.
+tomas,Tomás,Carteiro Sem Nome,"Colina do Correio, beira da Vila",villager,tomas,6.8,18.2,-2.784,3,Eu entrego. Só não lembro para quem.

@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+memory-gear,Engrenagem da memória,quest_item,done,book-03-memory-gear,props,b03-c2-02,1,memory-gear,60,160,0.20,pickup,none,"Engrenagem de latão com dente faltando e pátina; existe só enquanto a missão está ativa, por isso não tem collider permanente."
+letter-bundle,Maço de cartas,quest_item,done,book-03-letter-bundle,props,"b03-c1-04;b03-c3-03;b03-r1-04",1,letter-bundle,45,120,0.20,pickup,none,"Envelopes cruzados com barbante e selo de cera; representa a resposta, a carta que voltou e a carta para si mesmo."
+old-stamp,Selo antigo,quest_item,done,book-03-old-stamp,props,"b03-c3-02;b03-r1-03;b03-s1;b03-s2",3,old-stamp,25,70,0.20,pickup,none,"Selo perfurado com marca abstrata, sem texto; também representa o selo colado do lado errado."
+clock-face,Relógio do Campanário,world_prop,done,book-03-clock-face,props,"b03-c2-04;b03-r2-08",1,clock-face,150,420,0.25,use,none,"Mostrador redondo em moldura de madeira, ponteiros em 23:59 e neve no topo; só existe enquanto a missão está ativa."

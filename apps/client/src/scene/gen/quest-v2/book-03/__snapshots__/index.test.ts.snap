@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book III props > clock-face keeps the gallery seeds stable 1`] = `
+[
+  "c226e126",
+  "108664bc",
+  "eb6a22e6",
+  "ea488fcc",
+  "776f912b",
+  "ea488fcc",
+  "f498ee37",
+  "eb6a22e6",
+]
+`;
+
+exports[`book III props > letter-bundle keeps the gallery seeds stable 1`] = `
+[
+  "d46150bf",
+  "b502aa09",
+  "73768b18",
+  "b502aa09",
+  "91ca5108",
+  "247edf9b",
+  "bf2331db",
+  "3365b7ad",
+]
+`;
+
+exports[`book III props > memory-gear keeps the gallery seeds stable 1`] = `
+[
+  "4d31824d",
+  "7c0de8c8",
+  "3a8d1924",
+  "5f6320c6",
+  "68609c42",
+  "4072f949",
+  "e293d559",
+  "850d19d1",
+]
+`;
+
+exports[`book III props > old-stamp keeps the gallery seeds stable 1`] = `
+[
+  "ffcaa767",
+  "b18dd96b",
+  "cf1a6d80",
+  "812953c2",
+  "ffcaa767",
+  "b18dd96b",
+  "14297780",
+  "14297780",
+]
+`;

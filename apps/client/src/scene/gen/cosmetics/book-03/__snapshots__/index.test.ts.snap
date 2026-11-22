@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book III cosmetics > back-postbag keeps its fixed layer 1`] = `"d526c1be"`;
+
+exports[`book III cosmetics > blouse-post keeps its fixed layer 1`] = `"cd3fe89a"`;
+
+exports[`book III cosmetics > helmet-bell keeps its fixed layer 1`] = `"c23b9bc7"`;
+
+exports[`book III cosmetics > pants-aurora keeps its fixed layer 1`] = `"5865bb4c"`;
+
+exports[`book III cosmetics > pants-frost keeps its fixed layer 1`] = `"2ea63b1c"`;
+
+exports[`book III cosmetics > pants-gold-thread keeps its fixed layer 1`] = `"8281af11"`;
