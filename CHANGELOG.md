@@ -9,19 +9,19 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
-### Added — runtime da saga v2 (PROPOSTA, atrás de flags)
-
-- **Spine da saga:** manifesto de 484 IDs, catálogo v2 agregado aos dez livros e ao epílogo v1, motor de estados
-  parametrizado com paridade v1, marcos, minijogos, mundo e estados de mundo, cosméticos unidos (100 v1 + 60 dos
-  livros), UI/API genéricas e verificador de navegador. `QUESTS_V2_ENABLED` e `VITE_QUESTS_V2_ENABLED` ficam
-  desligados em produção e homologação; nenhuma história de livro é escrita nesta fatia.
-
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
   → servidor → jogo → painel → site, com autorização do responsável técnico. As migrations `0014` e `0015` foram
   aplicadas em produção (v13 → v15), com ponto de restauração registrado em `docs/reference/releases.md`. Nenhuma
   bandeira mudou.
+
+### Added — runtime da saga v2 (PROPOSTA, atrás de flags)
+
+- **Spine da saga:** manifesto de 484 IDs, catálogo v2 agregado aos dez livros e ao epílogo v1, motor de estados
+  parametrizado com paridade v1, marcos, minijogos, mundo e estados de mundo, cosméticos unidos (100 v1 + 60 dos
+  livros), UI/API genéricas e verificador de navegador. `QUESTS_V2_ENABLED` e `VITE_QUESTS_V2_ENABLED` ficam
+  desligados em produção e homologação; nenhuma história de livro é escrita nesta fatia.
 
 ## [0.7.0] - 2026-11-19
 
