@@ -14,6 +14,7 @@ import { Sky } from "./environment/Sky";
 import { Snow } from "./environment/Snow";
 import { ClickMarker } from "./ClickMarker";
 import { Ground } from "./Ground";
+import { GroundDetail } from "./GroundDetail";
 import { VillageLife } from "./Life";
 import { ModerationMarker } from "./ModerationMarker";
 import { Player } from "./Player";
@@ -58,6 +59,7 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
       <Suspense fallback={null}>
         <Snowfield />
         <Ground />
+        <GroundDetail />
         <Mountains />
         <Pines />
         <Pond />

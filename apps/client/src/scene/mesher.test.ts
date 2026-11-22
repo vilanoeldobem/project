@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AO_CURVE, BLOCK_JITTER, blockShade, FACE_LIGHT, meshVoxels, type MeshData } from "./mesher";
+import { AO_CURVE, FACE_LIGHT, meshVoxels, type MeshData } from "./mesher";
 import type { Voxel } from "./models";
 
 const WHITE = "#ffffff";
@@ -26,46 +26,70 @@ function windingOk(m: MeshData) {
 }
 
 describe("meshVoxels", () => {
-  it("emits six faces for a lone voxel, each lit only by its direction and the block's own shade", () => {
+  it("emits six faces for a lone voxel, each lit only by its direction", () => {
     const [m] = meshVoxels([[0, 0, 0, WHITE]], { toLinear });
     expect(m.faces).toBe(6);
     expect(m.positions.length).toBe(24 * 3);
     for (let i = 0; i < 24; i++) {
       const axis = [0, 1, 2].find((d) => m.normals[i * 3 + d] !== 0)!;
       const side = m.normals[i * 3 + axis] > 0 ? 0 : 1;
-      expect(m.colors[i * 3]).toBeCloseTo(blockShade(0, 0, 0) * FACE_LIGHT[axis][side], 6);
+      expect(m.colors[i * 3]).toBeCloseTo(FACE_LIGHT[axis][side], 6);
     }
     expect(windingOk(m)).toBe(true);
   });
 
-  it("gives tops more light than sides and sides more than bottoms, and every block a small shade of its own", () => {
+  it("gives tops more light than sides and sides more than bottoms", () => {
     expect(FACE_LIGHT[1][0]).toBe(1);
     for (const axis of [0, 2]) for (const side of [0, 1]) expect(FACE_LIGHT[axis][side]).toBeLessThan(1);
     expect(FACE_LIGHT[1][1]).toBeLessThan(Math.min(...FACE_LIGHT[0], ...FACE_LIGHT[2]));
-    const shades = new Set<number>();
-    for (let x = -8; x < 8; x++) for (let z = -8; z < 8; z++) {
-      const k = blockShade(x, 0, z);
-      expect(Math.abs(k - 1)).toBeLessThanOrEqual(BLOCK_JITTER + 1e-9);
-      expect(blockShade(x, 0, z)).toBe(k); // the same block, the same shade, on every client
-      shades.add(Math.round(k * 1000));
-    }
-    expect(shades.size).toBeGreaterThan(20);
   });
 
-  it("marks the corner of every face for the block edges (1..2 on each axis)", () => {
-    const [m] = meshVoxels([[0, 0, 0, WHITE]], { toLinear });
-    expect(m.face.length).toBe(24 * 2);
-    expect([...m.face].every((c) => c === 1 || c === 2)).toBe(true);
-    for (let f = 0; f < 6; f++) {
-      const corners = new Set(Array.from({ length: 4 }, (_, k) => `${m.face[(f * 4 + k) * 2]},${m.face[(f * 4 + k) * 2 + 1]}`));
-      expect(corners).toEqual(new Set(["1,1", "2,1", "2,2", "1,2"]));
+  it("puts every vertex on the voxel grid, block edges on whole numbers, with its face axis", () => {
+    const [m] = meshVoxels([[0, 0, 0, WHITE]], { toLinear, size: 0.25, centers: new Set() });
+    expect(m.grid.length).toBe(24 * 4);
+    for (let i = 0; i < 24; i++) {
+      for (let a = 0; a < 3; a++) expect(Number.isInteger(Math.round(m.grid[i * 4 + a] * 1e6) / 1e6)).toBe(true);
+      const axis = [0, 1, 2].find((d) => m.normals[i * 3 + d] !== 0)!;
+      // Size 0.25 is a fine model: no edge line (+4).
+      expect(m.grid[i * 4 + 3]).toBe(axis + 1 + 4);
     }
+    const [big] = meshVoxels([[0, 0, 0, WHITE]], { toLinear, size: 1, centers: new Set() });
+    expect([...big.grid].filter((_, i) => i % 4 === 3).every((w) => w >= 1 && w <= 3)).toBe(true);
+    const [forced] = meshVoxels([[0, 0, 0, WHITE]], { toLinear, size: 0.25, edges: true, centers: new Set() });
+    expect([...forced.grid].filter((_, i) => i % 4 === 3).every((w) => w <= 3)).toBe(true);
   });
 
-  it("culls faces between neighbours (a 3×3×3 block keeps only its shell)", () => {
-    const [m] = meshVoxels(cube(3), { toLinear });
-    expect(m.faces).toBe(6 * 9);
+  it("culls faces between neighbours and merges each flat side of a block into one rectangle", () => {
+    const [m] = meshVoxels(cube(3), { toLinear, centers: new Set() });
+    expect(m.faces).toBe(6);
     expect(windingOk(m)).toBe(true);
+    // Animated groups keep one quad per voxel face (each voxel moves on its own).
+    const [animated] = meshVoxels(cube(3), { toLinear });
+    expect(animated.faces).toBe(6 * 9);
+  });
+
+  it("covers exactly the exposed faces, whatever it merges", () => {
+    // A small house-like shape of two colours, with a notch and an overhang: area per direction must match.
+    const v: Voxel[] = [];
+    for (let x = -3; x <= 3; x++) for (let y = 0; y < 4; y++) for (let z = -2; z <= 2; z++) if (!(x === 0 && y < 2 && z === 2)) v.push([x, y, z, (x + y) % 3 ? WHITE : "#ff0000"]);
+    for (let x = -4; x <= 4; x++) for (let z = -3; z <= 3; z++) v.push([x, 4, z, "#00ff00"]);
+    const area = (m: MeshData) => {
+      const byDir = new Map<string, number>();
+      for (let t = 0; t < m.indices.length; t += 3) {
+        const [a, b, c] = [m.indices[t] * 3, m.indices[t + 1] * 3, m.indices[t + 2] * 3];
+        const P = m.positions;
+        const e1 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]], e2 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]];
+        const n = [e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]];
+        const k = `${m.normals[a]},${m.normals[a + 1]},${m.normals[a + 2]}`;
+        byDir.set(k, (byDir.get(k) ?? 0) + Math.hypot(n[0], n[1], n[2]) / 2);
+      }
+      return Object.fromEntries([...byDir].map(([k, x]) => [k, Math.round(x * 1000) / 1000]));
+    };
+    const [merged] = meshVoxels(v, { toLinear, centers: new Set() });
+    const [perVoxel] = meshVoxels(v, { toLinear });
+    expect(area(merged)).toEqual(area(perVoxel));
+    expect(merged.faces).toBeLessThan(perVoxel.faces / 2);
+    expect(windingOk(merged)).toBe(true);
   });
 
   it("culls across material groups but emits each face in its own group", () => {
@@ -85,12 +109,12 @@ describe("meshVoxels", () => {
       const y = m.positions[i * 3 + 1];
       const axis = [0, 1, 2].find((d) => m.normals[i * 3 + d] !== 0)!;
       const side = m.normals[i * 3 + axis] > 0 ? 0 : 1;
-      // The post's own faces, with the block look taken out, leave the AO alone.
+      // The post's own faces, with the face light taken out, leave the AO alone.
       const onPost = y >= 1 && Math.abs(m.positions[i * 3]) <= 0.5 && Math.abs(m.positions[i * 3 + 2]) <= 0.5 && (axis !== 1 || y === 2);
-      if (onPost) shades.add(Math.round((m.colors[i * 3] / (blockShade(0, 1, 0) * FACE_LIGHT[axis][side])) * 100) / 100);
+      if (onPost) shades.add(Math.round((m.colors[i * 3] / FACE_LIGHT[axis][side]) * 100) / 100);
       if (m.normals[i * 3 + 1] === 1 && y === 2) {
         topOfPost++;
-        expect(m.colors[i * 3]).toBeCloseTo(blockShade(0, 1, 0), 6);
+        expect(m.colors[i * 3]).toBeCloseTo(1, 6);
       }
     }
     expect(topOfPost).toBe(4);

@@ -1,6 +1,7 @@
 # IMPL-0033: Visual de blocos — luz por face, tom por bloco e aresta de cada bloco
 
-**Status:** Aceita — implementada (pedido do responsável técnico em 2026-11-22).
+**Status:** Aceita — implementada (pedido do responsável técnico em 2026-11-22). A aresta e o tom por bloco passaram
+para o shader, a partir de `aGrid`, com a malha gulosa da [IMPL-0035](0035-greedy-meshing-refined-buildings-ground-detail.md).
 **Data:** 2026-11-22
 **Fontes:** pedido do responsável técnico em 2026-11-22 ("voxels maiores, seguindo uma lógica de blocos, mais bonita")
 e a escolha dele na sessão ("passada de estilo e grade maior onde continuar legível");

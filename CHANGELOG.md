@@ -9,6 +9,18 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Changed — casas e chão mais detalhados, malha gulosa (IMPL-0035)
+
+- **Prédios refinados**: casas, chalés de ONG, lojas e prédios cívicos são desenhados em blocos de um terço, com vidro
+  recuado, verga e peitoril brancos, porta recuada com bandeira de vidro e maçaneta, telhas em fiadas, tijolos na
+  fundação, neve em camada fina, pingentes de gelo e chaminé com chapéu. Pegada, colisores e regras não mudam.
+- **Detalhes no chão**: tufos de grama, flores, pedrinhas e montinhos de neve nos quintais, parques e na neve,
+  iguais para todos, sem bloquear o caminho.
+- **Malha gulosa**: faces coplanares da mesma cor viram um retângulo; a aresta e o tom de cada bloco passam a ser
+  desenhados no shader. Na segunda rua, com casa em todo terreno: de 161 874 para 125 340 triângulos antes do
+  detalhe, 202 906 com ele (orçamento: 250 000).
+- `apps/client/scripts/verify-budget.mjs`: o orçamento de render sozinho, sem precisar da API local.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**

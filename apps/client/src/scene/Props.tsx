@@ -22,6 +22,7 @@ import { donationPanel, ornamentCrate, reindeerBell, winterSprig } from "./gen/q
 import type { GenModel } from "./gen/types";
 import { gift as generateGift, lantern as generateLantern } from "./gen/props";
 import { NGO_LABEL_HEIGHT, ngoBuilding } from "./gen/ngoBuilding";
+import { refinedOnce } from "./gen/refine";
 import { bench, BULBS, lamp, lotMarker, tree } from "./models";
 
 const GLOW = [P.gold];
@@ -75,7 +76,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
   // Each published NGO gets its own building, seeded by the lot id: same house for every visitor, no branding.
   // Its level (IMPL-0032, PROPOSTA) comes from the API and is 1 while the feature is off.
   const levels = published.map((lot) => asNgoLevel(info[lot.id]?.ngo_level)).join();
-  const homes = useMemo(() => published.map((lot) => ({ lot, level: asNgoLevel(info[lot.id]?.ngo_level), model: ngoBuilding(lot.id, info[lot.id]?.ngo_level) })), [published, levels]);
+  const homes = useMemo(() => published.map((lot) => ({ lot, level: asNgoLevel(info[lot.id]?.ngo_level), model: refinedOnce(`ngo:${lot.id}:${asNgoLevel(info[lot.id]?.ngo_level)}`, () => ngoBuilding(lot.id, info[lot.id]?.ngo_level)) })), [published, levels]);
   const { blocks, lit } = useMemo(() => {
     const byBlock = new Map<string, { lots: LotDef[]; items: MergeItem[] }>();
     for (const { lot, model } of homes) {
@@ -88,7 +89,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
       let b = byBlock.get(key);
       if (!b) byBlock.set(key, (b = { lots: [], items: [] }));
       b.lots.push(lot);
-      b.items.push({ voxels: model.voxels, size: model.size, glow: model.glow, emissive: model.emissive, placements: [{ x: lot.x, z: lot.z, rot: lot.facing }] });
+      b.items.push({ voxels: model.voxels, size: model.size, glow: model.glow, emissive: model.emissive, ao: model.ao, placements: [{ x: lot.x, z: lot.z, rot: lot.facing }] });
     }
     const blocks = [...byBlock.values()].map((b) => ({
       lots: b.lots,
@@ -107,7 +108,7 @@ export function Lots({ info }: { info: Record<string, LotInfo> }) {
     () =>
       homes.map(({ lot, model }): [number, number, number] => {
         // Chimney anchor (house-local) rotated by the lot facing, then moved to the lot.
-        const [cx, cy, cz] = model.anchors?.chimney ?? [0, 6, 0];
+        const [cx, cy, cz] = (model.anchors?.chimney ?? [0, 6 / model.size, 0]).map((a) => a * model.size);
         const c = Math.cos(lot.facing), s = Math.sin(lot.facing);
         return [lot.x + cx * c + cz * s, cy, lot.z - cx * s + cz * c];
       }),

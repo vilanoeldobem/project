@@ -35,6 +35,8 @@ interface Props {
   material?: Material;
   /** A large static block: it casts a shadow only while the shadow of one of these parts is seen (`useShadowCasters`). */
   casters?: readonly CasterPart[];
+  /** false: no ambient occlusion (refined buildings). */
+  ao?: boolean;
 }
 
 const ROLES = ["solid", "lights", "glow", "sway"] as const;
@@ -78,7 +80,7 @@ const dummy = new Object3D();
 export function voxelGeometries(
   voxels: Voxel[],
   size: number,
-  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; idle?: boolean; noFloor?: boolean; partOf?: (v: Voxel) => number; parts?: number } = {}
+  roles: { emissive?: string[]; glow?: string[]; sway?: string[]; idle?: boolean; noFloor?: boolean; partOf?: (v: Voxel) => number; parts?: number; ao?: boolean } = {}
 ): Array<BufferGeometry | null> {
   const lower = (a: string[] = []) => new Set(a.map((c) => c.toLowerCase()));
   const sets: Array<[number, Set<string>]> = [[1, lower(roles.emissive)], [2, lower(roles.glow)], [3, lower(roles.sway)]];
@@ -93,6 +95,7 @@ export function voxelGeometries(
     groups: ROLES.length * parts,
     groupOf: partOf ? (v) => partOf(v) * ROLES.length + roleOf(v) : roleOf,
     noAo: parts === 1 ? NO_AO : new Set(Array.from({ length: parts }, (_, p) => [...NO_AO].map((role) => p * ROLES.length + role)).flat()),
+    ao: roles.ao,
     centers: new Set(Array.from({ length: parts * ROLES.length }, (_, g) => g).filter((g) => needsCenter(ROLES[g % ROLES.length], roles.idle))),
     noFloor: roles.noFloor,
     toLinear,
@@ -104,7 +107,7 @@ export function voxelGeometries(
     g.setAttribute("normal", new BufferAttribute(m.normals, 3));
     g.setAttribute("color", new BufferAttribute(m.colors, 3));
     if (m.centers) g.setAttribute("aCenter", new BufferAttribute(m.centers, 3));
-    g.setAttribute("aFace", new BufferAttribute(m.face, 2));
+    g.setAttribute("aGrid", new BufferAttribute(m.grid, 4));
     g.setIndex(new BufferAttribute(m.indices, 1));
     g.computeBoundingSphere();
     return g;
@@ -115,12 +118,12 @@ export function voxelGeometries(
  * Draws a voxel model as merged, face-culled, ambient-occluded meshes (see `mesher.ts`): one draw call
  * per material role, and per role for all `placements` together.
  */
-export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false, material, casters }: Props) {
+export function Voxels({ voxels, size = 1, emissive = [], glow = [], sway = [], castShadow = true, placements, idle = false, material, casters, ao }: Props) {
   const group = useRef<Group>(null);
   const geometries = useMemo(
-    () => voxelGeometries(voxels, size, { emissive, glow, sway, idle: idle && !material }),
+    () => voxelGeometries(voxels, size, { emissive, glow, sway, idle: idle && !material, ao }),
     // Colour lists are literals at call sites; their content, not identity, defines the grouping.
-    [voxels, size, emissive.join(), glow.join(), sway.join(), idle && !material]
+    [voxels, size, emissive.join(), glow.join(), sway.join(), idle && !material, ao]
   );
   useShadowCasters(group, casters, geometries);
 
@@ -180,6 +183,8 @@ export interface MergeItem {
   size: number;
   emissive?: string[];
   glow?: string[];
+  /** false: no ambient occlusion (refined buildings; `GenModel.ao`). */
+  ao?: boolean;
   placements: Placement[];
 }
 
@@ -194,7 +199,7 @@ export function mergeVoxelModels(items: MergeItem[]): Array<BufferGeometry | nul
   const perRole: BufferGeometry[][] = ROLES.map(() => []);
   for (const item of items) {
     // Baked models stand on the ground: the underside of their base layer is never seen.
-    const base = voxelGeometries(item.voxels, item.size, { emissive: item.emissive, glow: item.glow, noFloor: (item.placements[0]?.y ?? 0) === 0 });
+    const base = voxelGeometries(item.voxels, item.size, { emissive: item.emissive, glow: item.glow, ao: item.ao, noFloor: (item.placements[0]?.y ?? 0) === 0 });
     for (const p of item.placements) {
       dummy.position.set(p.x, p.y ?? 0, p.z);
       dummy.rotation.set(0, p.rot ?? 0, 0);
