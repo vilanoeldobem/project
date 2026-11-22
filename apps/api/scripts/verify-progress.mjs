@@ -55,4 +55,22 @@ INSERT INTO sessions(token_hash,user_id,expires_at) VALUES
   assert.equal((await request(2, chain, owner)).status, 409, "A different session cannot write this account");
   assert.equal((await ok(await request(2))).xp, 0);
   console.log("PASS: local D1 authoritative state, two-session concurrency, replay, 100 XP/level 2 and account isolation");
+
+  if (process.argv.includes("--book-one")) {
+    const questId = "b01-c1-01";
+    const events = ["accept", "talk-anselmo-arrival", "turn-in"].map((id) => event(id, questId));
+    const afterBook = await ok(await request(0, events));
+    assert.equal(afterBook.xp, completed.xp + 20);
+    assert.deepEqual(afterBook.completed, { ...completed.completed, [questId]: true });
+    assert.deepEqual(afterBook.seen, {
+      ...completed.seen,
+      [`${questId}:accept`]: true,
+      [`${questId}:talk-anselmo-arrival`]: true,
+      [`${questId}:turn-in`]: true,
+    });
+    assert.deepEqual(await ok(await request(1)), afterBook, "Second session recovers the first Book I quest");
+    assert.deepEqual(await ok(await request(1, events)), afterBook, "Repeating Book I grants no additional XP");
+    assert.deepEqual(await ok(await request(0)), afterBook, "Replay preserves both generations of progress in D1");
+    console.log("PASS: Book I arrival persisted across sessions, 100 prior XP + 20 XP, 120 XP after replay");
+  }
 }

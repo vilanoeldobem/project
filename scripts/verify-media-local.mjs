@@ -96,7 +96,10 @@ async function main() {
   // A private config directory prevents loading the developer's .dev.vars or local database.
   config.main = resolve(api, config.main);
   database.migrations_dir = resolve(api, database.migrations_dir);
-  if (progress) config.vars.QUESTS_V1_ENABLED = "true"; // Only this fresh local Worker's generated config.
+  if (progress) {
+    config.vars.QUESTS_V1_ENABLED = "true";
+    config.vars.QUESTS_V2_ENABLED = "true";
+  }
   if (withdrawal) config.vars.NGO_WITHDRAWAL_ENABLED = "true"; // Same: never the deployable configuration.
   const configPath = join(directory, "wrangler.json");
   await writeFile(configPath, JSON.stringify(config));
@@ -127,7 +130,7 @@ async function main() {
   assert.match(output, /PASS: canonical files/);
   console.log("PASS: isolated local media lifecycle (workerd, D1, conditional R2 writes)");
   if (progress) {
-    const result = await run([progressSmoke, base], env);
+    const result = await run([progressSmoke, base, "--book-one"], env);
     assert.match(result, /PASS: local D1 authoritative state, two-session concurrency/);
     console.log(result.trim());
   }
