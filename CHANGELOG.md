@@ -16,6 +16,8 @@ Cada versão indica o schema D1 que entrega.
 - Teste da retomada do recebimento de Pix pela ONG após falha na gravação da auditoria: o provedor simulado devolve a mesma subconta, o D1 registra um único vínculo e a cobrança seguinte usa esse destino.
 - Teste de confirmação tardia de Pix após a retirada da ONG e a reocupação do terreno: o pagamento mantém o destino original e o saldo da nova ocupante continua zerado.
 
+- **Saga v2, arte e minijogos:** os nove minijogos novos e o Jogo da Memória como o décimo, os dez props de saga no ?gallery e o guia de estilo dos cosméticos; auditoria dos 60 cosméticos dos livros (160 no catálogo, 40/140 por camada). Nenhuma bandeira mudou.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**

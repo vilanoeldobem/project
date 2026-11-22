@@ -303,6 +303,25 @@ describe("the one contextual action, for the places of the expanded village too 
     expect(opened({ kind: "npc", npcId: "storyteller" })).toEqual({ kind: "npc", npcId: "storyteller" });
   });
 
+  it("opens the story game or the memory panel from a story minigame target", async () => {
+    const { activate, useVila } = await load();
+    activate({ kind: "quest", interactionId: "play-treno-na-neve" });
+    expect(useVila.getState().panel).toEqual({
+      kind: "story-game",
+      gameId: "treno-na-neve",
+      interactionId: "play-treno-na-neve",
+      questId: "b05-r1-07",
+      done: "O caminho da última partida ficou marcado na neve.",
+    });
+    activate({ kind: "quest", interactionId: "play-memory-toy-test" });
+    expect(useVila.getState().panel).toEqual({
+      kind: "memory",
+      interactionId: "play-memory-toy-test",
+      questId: "b02-c2-03",
+      done: "A rena passou no teste das crianças.",
+    });
+  });
+
   it("is the only action button and the only reader of the key map: the temporary component is gone", async () => {
     const sources = import.meta.glob("../**/*.{ts,tsx}", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
     const files = Object.entries(sources).filter(([path]) => !/\.test\.tsx?$/.test(path));
