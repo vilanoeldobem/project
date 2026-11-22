@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added
+
+- [Ensaio de conciliação de Pix no D1 local](docs/reference/indicator-sources.md#fin-01--conferir-uma-cobrança-dirigida-no-d1-local), com comparação do destino, estado e valores em centavos por cobrança fictícia.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**

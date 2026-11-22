@@ -38,6 +38,30 @@ As duas últimas linhas usam todo o conjunto de doações. Somar apenas as ONGs 
 
 **O que entra na soma.** O Pix usa uma chave de idempotência por intenção, uma cobrança identificada pelo provedor e um ID por evento recebido. As transições atualizam a doação existente. `under_dispute` e `refunded` saem da contagem, e uma disputa ganha pode restaurar `paid`. Uma intenção pendente, um clique em link próprio, uma compra de skin e o crédito de Título não são fontes do agregado. Uma prova externa conferida e registrada como `paid` entra no valor e na quantidade da ONG e da Vila, mesmo com `title_credited=0`. O cadastro manual não garante unicidade por comprovante, portanto a repetição manual pode inflar os agregados por ONG e total. As consultas atuais também não filtram `dev_mode`; confirmar isolamento do ambiente ou exclusão de testes antes de publicar números reais. [Criação e conciliação][money] · [Intenções e eventos pendentes][intents] · [Teste da confirmação][moneytest] · [Teste da prova externa][proof]
 
+## FIN-01 · Conferir uma cobrança dirigida no D1 local
+
+O diagnóstico compara cada linha normalizada do extrato de teste com uma doação da AbacatePay pelo ID da cobrança (`provider_charge_id`). Confere o destino (tipo, ONG e subconta gravados na cobrança), o bruto, a parcela da ONG, a parcela da Vila e o estado atual. Cada campo divergente gera uma linha. O sinal de `delta_cents` segue **extrato menos D1**, em centavos inteiros. O ensaio usa apenas dados fictícios e serve de preparação para a conferência de liquidação com o provedor em FIN-02.
+
+Na raiz do projeto, com as dependências instaladas, execute o ensaio em um banco local descartável:
+
+```sh
+cd apps/api
+mkdir -p .wrangler
+state=$(mktemp -d .wrangler/fin01.XXXXXX)
+pnpm exec wrangler d1 migrations apply ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to "$state" &&
+  pnpm exec wrangler d1 execute ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to "$state" --file test/fixtures/pix-statement.sql &&
+  pnpm exec wrangler d1 execute ngo-media-review-local --local -c wrangler.reconciliation-local.jsonc --persist-to "$state" --file scripts/reconcile-pix-statement.sql
+```
+
+| Cobrança fictícia | Resultado esperado | Leitura |
+|---|---|---|
+| `pix_fin01_match` | `match` | Destino, valores e estado coincidem. |
+| `pix_fin01_cent` | `difference` em `ngo_share_cents` | O extrato traz 899 e o D1 traz 900. A diferença é −1 centavo. |
+| `pix_fin01_missing` | `missing_in_d1` | A linha do extrato não encontrou uma cobrança Pix com esse ID. |
+| `pix_fin01_duplicate` | `ambiguous_statement` | O extrato trouxe duas linhas para a mesma cobrança. É preciso identificar a linha correta antes de comparar valores. |
+
+Para outro ensaio, substitua os valores de `statement` em uma cópia local da [consulta](../../apps/api/scripts/reconcile-pix-statement.sql) e aponte o último comando para a cópia. Informe uma linha por cobrança com os IDs do mesmo ambiente, valores em centavos inteiros e o estado no vocabulário do D1, como `paid` ou `refunded`. A lista de cobranças vem do extrato fornecido. Para identificar cobranças presentes só no D1, a conferência futura precisa de extrato completo para o mesmo ambiente e período. Um ID vazio recebe `missing_charge_id`. Uma falha de leitura ou de schema interrompe o comando. A [fixture de D1](../../apps/api/test/fixtures/pix-statement.sql) permite reproduzir os quatro resultados acima.
+
 ## Exemplo de contagem
 
 Uma única pessoa de teste, em uma aba e com conta inicialmente sem progresso, abre a casa publicada A, fecha o painel e perde a conexão. Depois que o socket antigo sai, ela reconecta, volta à mesma casa, joga uma rodada de Memória que abandona antes da vitória e faz um Pix **global de R$ 10,00**. A mesma confirmação chega duas vezes. A base controlada começa vazia de doações, com as fontes disponíveis.
