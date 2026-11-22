@@ -1201,3 +1201,7 @@ Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0
 - zsh eats `:r` in `$var:refs/...`; write `${var}:refs/...`.
 - Timing tests (`files.test.ts`, the concurrent-intent test) fail while local Workers load the machine; rerun alone.
 - Port 8787 can be taken by another local project: never kill it; use the scripts' other ports or skip.
+
+- [x] Voxel overhaul (IMPL-0035, PR #107): greedy meshing, refined buildings, ground detail; release 0.9.0 (PR #108,
+  tag v0.9.0) deployed 2026-11-22 20h35 UTC; smoke 19/19.
+- Lesson: at a third of a block, per-vertex AO quadruples the faces; refined models skip AO and keep shadows.
