@@ -21,6 +21,10 @@ Cada versão indica o schema D1 que entrega.
 
 - **45 entradas** de `b03-c1-01` a `b03-c3-04`, 1.050 XP, 8 NPCs de quest, 4 props voxel e 6 cosméticos; a saída `b03-c3-04` abre o Livro IV.
 
+### Added — Livro IV da saga v2: O Bosque e o Lago (PROPOSTA, atrás das flags existentes, desligado)
+
+- **45 entradas** de `b04-c1-01` a `b04-c3-04`, 1.050 XP, 8 NPCs de quest, 4 props voxel e 6 cosméticos; o caminho branco abre o Livro V.
+
 ### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
 
 - **Três missões novas** em `quests-v1`: `bough-ribbon` (15 XP), `bough-sprigs` (20 XP) e `bough-delivery`
