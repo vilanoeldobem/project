@@ -164,7 +164,7 @@ prova isso e a frase foi retirada. Os pinheiros altos ficam só no cinturão atr
 Cada faixa tem um `requirement` em `VILLAGE_PLAN.tiers` (PROPOSTA, [OQ-17](open-questions.md)): hoje um nível mínimo
 (premium 5, padrão 3, econômico 2). Os níveis vêm só de missões e quests (DEC-042); o nível 3 em diante depende das
 quests, que estão desligadas em produção (`attainableLevel` em `shared/game/progress.ts`: nível 2 só com as quatro
-missões, nível 6 com o catálogo de quests). Não há valor em reais, moeda, coluna de preço nem botão de compra em
+missões, nível 7 com o catálogo de quests). Não há valor em reais, moeda, coluna de preço nem botão de compra em
 nenhum lugar: o teste da migração e o dos painéis conferem isso.
 
 **O que o painel do terreno diz** (`ui/Village.tsx`, conferido em `ui/Village.test.tsx`):

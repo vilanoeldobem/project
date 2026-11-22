@@ -22,6 +22,7 @@ import { BrandMark } from "./BrandMark";
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
   "mailbox-open": { label: "📬 Abrir a caixa", done: "Caixa de correio destrancada! Volte a Seu Nivaldo." },
   "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
+  "bough-ribbon": { label: "📬 Soltar o laço", done: "Laço solto! Volte a Dona Guida." },
 };
 
 /** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1; places of IMPL-0024). */

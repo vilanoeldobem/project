@@ -9,6 +9,16 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
+
+- **Três missões novas** em `quests-v1`: `bough-ribbon` (15 XP), `bough-sprigs` (20 XP) e `bough-delivery`
+  (50 XP), abertas só depois de `story-page-delivery`. O catálogo passa a 18 missões, 6 cadeias e **550 XP**;
+  com as quatro missões rápidas, 660 XP e nível 7.
+- O epílogo reusa Dona Guida, Seu Nivaldo, a caixa de correio e os dois pontos livres das caixas do mercado;
+  não há NPC, coordenada, minijogo, doação, ONG, bandeira, migration ou dependência nova.
+- **Um objeto voxel novo**, `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u, 80/200), para a coleta dos
+  dois ramos e a entrega final.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
