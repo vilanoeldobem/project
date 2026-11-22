@@ -8,6 +8,14 @@ exports[`generator snapshots > bird keeps the output of fixed seeds stable 1`] =
 ]
 `;
 
+exports[`generator snapshots > blank-page keeps the output of fixed seeds stable 1`] = `
+[
+  "23098579",
+  "3aca8882",
+  "c251a98b",
+]
+`;
+
 exports[`generator snapshots > cat keeps the output of fixed seeds stable 1`] = `
 [
   "5fc75e3c",
@@ -117,6 +125,14 @@ exports[`generator snapshots > fence keeps the output of fixed seeds stable 1`] 
   "a03bc3b0",
   "975009ec",
   "736878e0",
+]
+`;
+
+exports[`generator snapshots > first-book keeps the output of fixed seeds stable 1`] = `
+[
+  "15bcf2f2",
+  "1fbc24d5",
+  "47dea6d1",
 ]
 `;
 
@@ -248,6 +264,14 @@ exports[`generator snapshots > ngo-level-5 keeps the output of fixed seeds stabl
 ]
 `;
 
+exports[`generator snapshots > old-tool keeps the output of fixed seeds stable 1`] = `
+[
+  "bf2c1935",
+  "18b525d6",
+  "ed4c75dd",
+]
+`;
+
 exports[`generator snapshots > owl keeps the output of fixed seeds stable 1`] = `
 [
   "e3ec65dc",
@@ -357,6 +381,14 @@ exports[`generator snapshots > sled keeps the output of fixed seeds stable 1`] =
   "30b095e7",
   "c11c2da",
   "bccd9138",
+]
+`;
+
+exports[`generator snapshots > stone-mark keeps the output of fixed seeds stable 1`] = `
+[
+  "435d753",
+  "da8d5969",
+  "1d2cea7",
 ]
 `;
 

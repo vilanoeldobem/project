@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book IX props > blank-page keeps the gallery seeds stable 1`] = `
+[
+  "fc8c044c",
+  "b10c0807",
+  "e515d648",
+  "7a080fbc",
+  "72f20022",
+  "2d2be9e7",
+  "e9ba1bd2",
+  "b6b732b0",
+]
+`;
+
+exports[`book IX props > first-book keeps the gallery seeds stable 1`] = `
+[
+  "9e5daf38",
+  "74210e3e",
+  "c8a66294",
+  "2bbda006",
+  "eff60740",
+  "c4adf17",
+  "600b1dec",
+  "cbe5d759",
+]
+`;
+
+exports[`book IX props > old-tool keeps the gallery seeds stable 1`] = `
+[
+  "ec1c1068",
+  "fdf3f095",
+  "7759aa65",
+  "164bfa6d",
+  "c559b0f3",
+  "4d02557d",
+  "582b8588",
+  "eb3e74d2",
+]
+`;
+
+exports[`book IX props > stone-mark keeps the gallery seeds stable 1`] = `
+[
+  "2316c1ee",
+  "47349c31",
+  "2b9f31e8",
+  "f472dd80",
+  "2af3a91",
+  "4aa424e9",
+  "e21a4e9a",
+  "a3c9c570",
+]
+`;

@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b09-m1,A primeira pedra,foundations,1,1,10,,pedra-fundamental,9
+b09-m1,Duas pedras,foundations,2,2,10,,pedra-fundamental,9
+b09-m1,Três pedras,foundations,3,3,10,,pedra-fundamental,9
+b09-m1,Quatro pedras,foundations,4,4,10,,pedra-fundamental,9
+b09-m1,Cinco pedras,foundations,5,5,10,,pedra-fundamental,9
+b09-m1,Seis pedras,foundations,6,6,10,hand-right-hammer,pedra-fundamental,9
+b09-m2,A primeira página,origins,1,1,10,,arquivo-neves,9
+b09-m2,Duas páginas,origins,2,2,10,,arquivo-neves,9
+b09-m2,Quatro páginas,origins,4,3,10,,arquivo-neves,9
+b09-m2,Seis páginas,origins,6,4,10,,arquivo-neves,9
+b09-m2,Oito páginas,origins,8,5,10,,arquivo-neves,9
+b09-m2,Dez páginas,origins,10,6,10,face-origin-glasses,arquivo-neves,9

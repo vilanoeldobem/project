@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book IX cosmetics > face-origin-glasses keeps its fixed layer 1`] = `"10172149"`;
+
+exports[`book IX cosmetics > hand-right-aurora keeps its fixed layer 1`] = `"b484dee2"`;
+
+exports[`book IX cosmetics > hand-right-frost keeps its fixed layer 1`] = `"e34191ab"`;
+
+exports[`book IX cosmetics > hand-right-hammer keeps its fixed layer 1`] = `"604cafdb"`;
+
+exports[`book IX cosmetics > hand-right-origin-star keeps its fixed layer 1`] = `"2cc7df8f"`;
+
+exports[`book IX cosmetics > shoes-archive keeps its fixed layer 1`] = `"c088fb49"`;
