@@ -1,0 +1,13 @@
+corrente_id,titulo,contador,limiar,ordem,xp,recompensa,region,book
+b06-m1,O primeiro amanhecer,mornings,1,1,10,,vila-amanhecer,6
+b06-m1,Dois amanheceres,mornings,2,2,10,,vila-amanhecer,6
+b06-m1,Quatro amanheceres,mornings,4,3,10,,vila-amanhecer,6
+b06-m1,Seis amanheceres,mornings,6,4,10,,vila-amanhecer,6
+b06-m1,Oito amanheceres,mornings,8,5,10,,vila-amanhecer,6
+b06-m1,Dez amanheceres,mornings,10,6,10,dress-dawn,vila-amanhecer,6
+b06-m2,A primeira pegada,dew-footprints,1,1,10,,estrada-orvalho,6
+b06-m2,Três pegadas,dew-footprints,3,2,10,,estrada-orvalho,6
+b06-m2,Cinco pegadas,dew-footprints,5,3,10,,estrada-orvalho,6
+b06-m2,Oito pegadas,dew-footprints,8,4,10,,estrada-orvalho,6
+b06-m2,Dez pegadas,dew-footprints,10,5,10,,estrada-orvalho,6
+b06-m2,Doze pegadas,dew-footprints,12,6,10,hand-left-map,estrada-orvalho,6

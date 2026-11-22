@@ -1,0 +1,7 @@
+cosmetic_id,slot,nome,origem,premium,recompensa,orcamento_voxels,orcamento_faces
+dress-dawn,dress,Vestido do Amanhecer,marco,false,b06-m1-06,40,140
+hand-left-map,handLeft,Mapa na Mão,marco,false,b06-m2-06,40,140
+pants-lantern,pants,Calça Lanterna,missao,false,b06-c3-04,40,140
+back-aurora-cape,back,Capa Aurora,premium,true,,40,140
+back-star-cloak,back,Manto Estelar,premium,true,,40,140
+back-dawn-mantle,back,Manto do Amanhecer,premium,true,,40,140

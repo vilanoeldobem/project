@@ -29,6 +29,10 @@ Cada versão indica o schema D1 que entrega.
 
 - **45 entradas**, 1.050 XP, 4 props e 6 cosméticos, atrás de `QUESTS_V2_ENABLED`; entrada `b05-c1-01`, saída `b05-c3-04`, que abre o epílogo.
 
+### Added — Livro VI da saga v2: O Amanhecer (PROPOSTA, atrás das flags existentes, desligado)
+
+- **45 entradas**, 1.050 XP, 4 props e 6 cosméticos, atrás de `QUESTS_V2_ENABLED`; entrada `b06-c1-01`, saída `b06-c3-04`, que abre o Livro VII.
+
 ### Added — missões: epílogo "O ramo da chegada" (PROPOSTA, PEN-025; atrás das flags existentes, desligado)
 
 - **Três missões novas** em `quests-v1`: `bough-ribbon` (15 XP), `bough-sprigs` (20 XP) e `bough-delivery`
