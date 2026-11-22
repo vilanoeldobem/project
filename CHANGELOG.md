@@ -27,6 +27,10 @@ Cada versão indica o schema D1 que entrega.
 
 - [Contrato de beneficiário para o Pix](docs/reference/ngo-beneficiary-contract.md), com as três rotas de recebimento, a recuperação do vínculo e as decisões pendentes da #65.
 
+### Added
+
+- [Evidência do provador gratuito e matriz de compra de cosméticos](docs/implementation/wardrobe-inventory-qa.md) para a N6.1 da #65.
+
 ### Changed — produção na 0.7.0 e no schema D1 v15
 
 - **A 0.7.0 foi publicada em 2026-11-19** (2026-11-20 02h36 a 02h40 UTC), os cinco Workers, na ordem API → migrations
