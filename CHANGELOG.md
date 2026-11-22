@@ -13,6 +13,9 @@ Cada versão indica o schema D1 que entrega.
 
 - [Ensaio de conciliação de Pix no D1 local](docs/reference/indicator-sources.md#fin-01--conferir-uma-cobrança-dirigida-no-d1-local), com comparação do destino, estado e valores em centavos por cobrança fictícia.
 
+- Teste da retomada do recebimento de Pix pela ONG após falha na gravação da auditoria: o provedor simulado devolve a mesma subconta, o D1 registra um único vínculo e a cobrança seguinte usa esse destino.
+- Teste de confirmação tardia de Pix após a retirada da ONG e a reocupação do terreno: o pagamento mantém o destino original e o saldo da nova ocupante continua zerado.
+
 ## [0.8.0] - 2026-11-22
 
 **Visual de blocos, prontidão das dependências e a saga v2 completa atrás de flags**
