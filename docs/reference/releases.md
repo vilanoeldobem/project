@@ -195,10 +195,12 @@ nesses arquivos depois do deploy). `GET api.*/config` respondeu, em 14/11/2026:
 
 ## Como registrar a próxima publicação
 
-1. Depois do deploy autorizado ([guides/deploy.md](../guides/deploy.md)), copie a seção da última versão para o
-   topo e troque o título por `## X.Y.Z — AAAA-MM-DD`.
+1. Depois do deploy do CD (ou de um deploy manual autorizado,
+   [guides/deploy.md](../guides/deploy.md)), copie a seção da última versão para o topo e troque o título por
+   `## X.Y.Z — AAAA-MM-DD`.
 2. Preencha data, commit publicado, ordem, Workers e hosts, schema D1 (última migration aplicada no remoto) e
-   recursos R2 a partir do que foi feito; marque a fonte de cada linha.
+   recursos R2 a partir do que foi feito; a linha "Autorização" registra o merge que disparou o CD; marque a fonte de
+   cada linha.
 3. Releia as bandeiras no `wrangler.jsonc` de cada app **no commit publicado** (`git show <commit>:apps/api/wrangler.jsonc`)
    e confira `GET api.*/config`.
 4. Registre `smoke-api.sh` e `verify-live.mjs` com data e resultado, mesmo quando falham, e o motivo.

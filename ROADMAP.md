@@ -62,10 +62,11 @@ passa a https://play.vilanoeldobem.com.br (`app.*` redireciona), a API a `api.*`
 
 | # | Entrega | Pronto quando |
 |---|---|---|
-| 1 | **CI no GitHub Actions** — entregue 2026-11-09 (`.github/workflows/ci.yml`, `smoke.yml`); falta proteger a `main` | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
+| 1 | **CI no GitHub Actions** — entregue 2026-11-09 (`.github/workflows/ci.yml`, `smoke.yml`); `main` protegida desde 2026-11-14 | Todo PR roda `pnpm typecheck`, `pnpm test` e `pnpm build`; após deploy, `scripts/smoke-api.sh` contra produção. PR com gate vermelho não entra na `main`. |
 | 2 | **Ambiente de homologação (staging)** | Workers de homologação (`env.staging` no `wrangler.jsonc` de cada app: client, api, server) com D1 próprio; migrations testadas lá antes do remoto de produção; endereço documentado em `docs/guides/deploy.md`. |
 | 3 | **Backup e restauração do D1** | Procedimento documentado com D1 Time Travel e export periódico; restauração ensaiada uma vez no staging. |
 | 4 | **Redução do chunk Three.js** — entregue 2026-11-10: 317 → 245 kB gzip (React em chunk próprio, bloom sob demanda) | Meta ≤ 250 kB gzip no chunk `three`, medida no build e registrada no CHANGELOG. |
+| 5 | **Entrega contínua (CD)** — entregue 2026-11-22 (`.github/workflows/ci.yml`, [IMPL-0034](docs/decisions/0034-continuous-delivery-cloudflare.md)) | Depois do CI verde em um push na `main`, os cinco Workers são publicados na Cloudflare na ordem API → servidor → jogo → painel → site, sem migration, recurso novo ou segredo; o token fica no ambiente `production`, restrito à `main`. |
 
 ### Contas e ONGs (0.4.0) — implementado, desligado em produção
 
@@ -124,6 +125,7 @@ estados da doação (iniciada → … → conciliada/devolvida/contestada), badg
 | Tarefa | Status | Observação |
 |---|---|---|
 | CI (typecheck, test, build em PR) | **Entregue**; `main` protegida desde 2026-11-14 (só por PR, CI obrigatório) | Marco "Infraestrutura de entrega", item 1 |
+| CD (merge na `main` → Cloudflare) | **Entregue**; publica os cinco Workers após o CI verde, sem migration | Marco "Infraestrutura de entrega", item 5 ([IMPL-0034](docs/decisions/0034-continuous-delivery-cloudflare.md)) |
 | Ambiente de homologação (staging) | **Próximo** | Marco "Infraestrutura de entrega", item 2 |
 | Backup e restauração do D1 | **Próximo** | Marco "Infraestrutura de entrega", item 3 |
 | Redução do chunk Three.js | **Entregue** (245 kB gzip) | Marco "Infraestrutura de entrega", item 4 |

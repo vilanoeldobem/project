@@ -23,6 +23,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- **Entrega contínua ([IMPL-0034](docs/decisions/0034-continuous-delivery-cloudflare.md)):** o job `deploy` de `ci.yml` publica os cinco Workers na Cloudflare, na ordem
+  API → servidor → jogo → painel → site, quando o `ci` termina verde em um push na `main`. O token `CLOUDFLARE_API_TOKEN`
+  fica no ambiente `production`, restrito à `main`; o CD não aplica migration, não cria recurso e não escreve segredo.
 - [Ensaio de conciliação de Pix no D1 local](docs/reference/indicator-sources.md#fin-01--conferir-uma-cobrança-dirigida-no-d1-local), com comparação do destino, estado e valores em centavos por cobrança fictícia.
 
 - Teste da retomada do recebimento de Pix pela ONG após falha na gravação da auditoria: o provedor simulado devolve a mesma subconta, o D1 registra um único vínculo e a cobrança seguinte usa esse destino.

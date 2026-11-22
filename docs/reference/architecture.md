@@ -640,7 +640,9 @@ não tem prazo, recurso nem aviso por e-mail.
 - Sem orçamento de desempenho formal para celulares de entrada (G12).
 - Multiplayer só de presença (andar e ser visto): sem nomes, chat, interação entre avatares ou estado de jogo
   compartilhado (IMPL-0008).
-- Separação em apps (IMPL-0009) implementada no código; o deploy dos novos Workers ainda depende de autorização.
+- Separação em apps (IMPL-0009) implementada no código; o deploy dos Workers de produção é feito pelo CD a partir da
+  `main` ([IMPL-0034](../decisions/0034-continuous-delivery-cloudflare.md)). Criar um Worker novo, um recurso
+  Cloudflare ou mudar segredos continua dependendo de autorização.
 
 ## Ver também
 

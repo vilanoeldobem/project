@@ -46,6 +46,9 @@ Resultados são relatados como são: se algo falhou, diga o quê e com que saíd
 8. A `main` é protegida desde 14/11/2026: só entra por PR, com o check de CI `typecheck · test · build` verde,
    sem push forçado nem exclusão, e a regra vale também para administradores. Aprovação de revisão ainda não é
    exigida (0), até a equipe decidir o item 7.
+9. Todo merge na `main` com o CI verde publica os cinco Workers na Cloudflare (CD,
+   [IMPL-0034](docs/decisions/0034-continuous-delivery-cloudflare.md)). O merge é a autorização de publicação: faça
+   merge apenas do que deve ir ao ar.
 
 ## Regras de produto e arquitetura (resumo)
 
@@ -75,8 +78,9 @@ Refs: DEC-034, doc 23 D24
 
 ## Proibido sem autorização humana explícita
 
-`git push` direto na `main`, `git reset --hard`, `git clean`, deploy de produção, migrations remotas, criação
-ou remoção de recursos Cloudflare, alteração de secrets, integração de pagamento/OAuth.
+`git push` direto na `main`, `git reset --hard`, `git clean`, deploy de produção manual fora do CD (um deploy manual
+ainda exige autorização e `pnpm deploy:<app>`), migrations remotas, criação ou remoção de recursos Cloudflare,
+alteração de secrets, integração de pagamento/OAuth.
 
 ## Checklist de revisão
 
