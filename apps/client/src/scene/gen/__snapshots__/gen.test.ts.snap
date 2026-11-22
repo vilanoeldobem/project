@@ -128,6 +128,22 @@ exports[`generator snapshots > clock-face keeps the output of fixed seeds stable
 ]
 `;
 
+exports[`generator snapshots > dawn-bell keeps the output of fixed seeds stable 1`] = `
+[
+  "ab562c2c",
+  "3f460f5",
+  "7f16f238",
+]
+`;
+
+exports[`generator snapshots > dew-map keeps the output of fixed seeds stable 1`] = `
+[
+  "9b5c6ee8",
+  "ebc79737",
+  "9ec084f1",
+]
+`;
+
 exports[`generator snapshots > dog keeps the output of fixed seeds stable 1`] = `
 [
   "beeed572",
@@ -360,6 +376,14 @@ exports[`generator snapshots > panettone-stand keeps the output of fixed seeds s
 ]
 `;
 
+exports[`generator snapshots > path-stone keeps the output of fixed seeds stable 1`] = `
+[
+  "9861b5dc",
+  "4ba1d487",
+  "7b458011",
+]
+`;
+
 exports[`generator snapshots > quest-donation-panel keeps the output of fixed seeds stable 1`] = `
 [
   "427f2ade",
@@ -501,6 +525,14 @@ exports[`generator snapshots > suitcase keeps the output of fixed seeds stable 1
   "ee8ad546",
   "7934b6d2",
   "ebe53d9f",
+]
+`;
+
+exports[`generator snapshots > sun-cord keeps the output of fixed seeds stable 1`] = `
+[
+  "4d878765",
+  "1ad878e5",
+  "106cefe4",
 ]
 `;
 

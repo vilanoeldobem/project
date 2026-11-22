@@ -1,0 +1,53 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VI props > dawn-bell keeps the gallery seeds stable 1`] = `
+[
+  "7e085b9",
+  "68714846",
+  "5ed1cc98",
+  "56b9227e",
+  "f43e376d",
+  "fa912462",
+  "935a07c4",
+  "5da5e7ce",
+]
+`;
+
+exports[`book VI props > dew-map keeps the gallery seeds stable 1`] = `
+[
+  "86680a6c",
+  "1c4efc10",
+  "5e157b3",
+  "79b8ff94",
+  "da75e3df",
+  "13694de4",
+  "d98ac2da",
+  "76929516",
+]
+`;
+
+exports[`book VI props > path-stone keeps the gallery seeds stable 1`] = `
+[
+  "bb4387d0",
+  "ee7dfb31",
+  "92000d38",
+  "7315fc39",
+  "38121dfe",
+  "a2c1db33",
+  "9d45bba0",
+  "7c5f08e7",
+]
+`;
+
+exports[`book VI props > sun-cord keeps the gallery seeds stable 1`] = `
+[
+  "64008796",
+  "39abc3b3",
+  "71ebfffe",
+  "ee06db58",
+  "378a1f7d",
+  "3b9f9d22",
+  "77ff8849",
+  "dfe0144",
+]
+`;

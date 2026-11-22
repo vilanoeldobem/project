@@ -1,0 +1,5 @@
+objeto_id,nome_objeto,tipo_objeto,status_build,gerador,categoria,usado_em,qtd_total,semente,orcamento_voxels,orcamento_faces,tamanho,interacao,colisao,notas
+dawn-bell,Sino do amanhecer,world_prop,done,book-06-dawn-bell,props,b06-c1-02;b06-c1-03;b06-r1-03,1,dawn-bell,220,600,0.24,pickup,none,"Sino dourado em dois postes, com rachadura, badalo e neve; chama a primeira luz."
+sun-cord,Corda de sol,quest_item,done,book-06-sun-cord,props,b06-r1-02,3,sun-cord,80,200,0.14,pickup,none,"Corda dourada enrolada com laço e borla; guarda o primeiro toque."
+dew-map,Mapa de orvalho,quest_item,done,book-06-dew-map,props,b06-c2-03;b06-r2-02;b06-r2-03;b06-r2-08,3,dew-map,80,200,0.16,pickup,none,"Mapa claro com dobra, caminho dourado e gota de orvalho; representa o mapa e as gotas."
+path-stone,Pedra do caminho,quest_item,done,book-06-path-stone,props,b06-c3-02;b06-r2-06;b06-s5,3,path-stone,80,200,0.15,pickup,none,"Pedra marcada com sulco dourado, musgo e neve; marca o caminho."

@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`book VI cosmetics > back-aurora-cape keeps its fixed layer 1`] = `"bf0773e2"`;
+
+exports[`book VI cosmetics > back-dawn-mantle keeps its fixed layer 1`] = `"48b0db19"`;
+
+exports[`book VI cosmetics > back-star-cloak keeps its fixed layer 1`] = `"24a855c1"`;
+
+exports[`book VI cosmetics > dress-dawn keeps its fixed layer 1`] = `"e00d7638"`;
+
+exports[`book VI cosmetics > hand-left-map keeps its fixed layer 1`] = `"e05c6a24"`;
+
+exports[`book VI cosmetics > pants-lantern keeps its fixed layer 1`] = `"174a3824"`;

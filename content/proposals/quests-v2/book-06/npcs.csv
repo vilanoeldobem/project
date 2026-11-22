@@ -1,0 +1,9 @@
+npc_id,nome,papel,local_base,gerador,semente,x,z,rot,book,greeting
+storyteller,Dona Guida,Contadora de histórias,"Praça da Grande Árvore, casa da contadora",villager,storyteller,5,4,-2.2455,6,Toda história começa com alguém que para para ouvir.
+seu-elias,Seu Elias,Carteiro aposentado,"Praça da Grande Árvore, ponte",villager,seu-elias,11.4,-3.6,-1.2646,6,A ponte lembra de cada entrega.
+tia-bete,Tia Bete,Padeira,"Praça da Grande Árvore, padaria",villager,tia-bete,-18,3.6,1.7682,6,O forno guarda o cheiro de ontem.
+dona-sol,Dona Sol,Guardiã do sino do amanhecer,"Vila do Amanhecer, jardim do sino",villager,dona-sol,83,9,-1.6788,6,A manhã começa quando alguém escuta o sino.
+horacio,Horácio,Guardião do relógio de sol,"Vila do Amanhecer, relógio de sol",villager,horacio,83,24,-1.8523,6,A sombra conta a hora que a gente esquece.
+luzia,Luzia,Sineira do amanhecer,"Vila do Amanhecer, sino",villager,luzia,87.5,27,-1.8701,6,Eu toco o sino para acordar o dia.
+seu-caminho,Seu Caminho,Guia da Estrada do Orvalho,"Estrada do Orvalho, começo da estrada",villager,seu-caminho,34,-82,-0.3924,6,A estrada lembra de quem caminha com cuidado.
+lila,Lila,Leitora de pegadas,"Estrada do Orvalho, ponte de orvalho",villager,lila,36.5,-88.5,-0.3912,6,Cada pegada é uma história que o orvalho guardou.
