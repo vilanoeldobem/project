@@ -105,7 +105,16 @@ A partir da raiz, com as dependências do lockfile instaladas, execute `pnpm sta
 
 ### Publicação pelo operador
 
-1. Combine os domínios e o acesso dos testadores com Augusto. Confirme a conta Cloudflare, o remetente verificado no Resend (a configuração propõe `acesso@vilanoeldobem.com.br`) e quem tem acesso à caixa de teste. Use dados fictícios. Os domínios personalizados ficam acessíveis publicamente quando publicados. Antes de habilitar contas, o operador deve aplicar o controle de acesso que a equipe escolheu para os testadores e confirmar que uma pessoa de fora não entra. O papel de administrador do painel controla a revisão das candidaturas dentro da aplicação.
+Antes de habilitar contas (passo 5), confirme:
+
+- os domínios de homologação ficam acessíveis publicamente até que o controle de acesso aos testadores seja
+  aplicado; o mecanismo ainda está **PENDENTE** de escolha pela equipe, e uma pessoa de fora não deve entrar;
+- o remetente configurado é o de produção, `acesso@vilanoeldobem.com.br`; a equipe deve aceitar esse remetente ou
+  configurar um remetente de homologação antes de enviar e-mail;
+- existem duas identidades de teste separadas, uma para a candidatura e outra para o administrador;
+- a revisão de LGPD / ECA Digital foi registrada pelo responsável.
+
+1. Combine os domínios e o acesso dos testadores com Augusto. Confirme a conta Cloudflare, o remetente verificado no Resend (a configuração propõe `acesso@vilanoeldobem.com.br`) e quem tem acesso à caixa de teste. Use dados fictícios. Os domínios personalizados ficam acessíveis publicamente quando publicados. Antes de habilitar contas, o operador deve aplicar o controle de acesso aos testadores que a equipe definir e confirmar que uma pessoa de fora não entra. O papel de administrador do painel controla a revisão das candidaturas dentro da aplicação.
 2. Faça o backup e a atualização **do banco de homologação** conforme a seção [Aplicar migrations](#aplicar-migrations). Confira os nomes no histórico até a `0015` e `PRAGMA foreign_key_check` antes de publicar.
 3. Após o aceite da revisão, prepare os arquivos com `pnpm staging:check` no mesmo checkout que será publicado. Use o ambiente explícito em cada comando, a partir da raiz. A primeira publicação mantém contas e doações desligadas.
 

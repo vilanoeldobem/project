@@ -530,7 +530,8 @@ exige o bucket `FILES` ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
 - O limite `MODERATION_LIMITER` (60 requisições / 60 s; por endereço no domínio público, por sala nas chamadas do
   binding de serviço, que não têm endereço e só são cobradas quando o bilhete foi emitido) está declarado em
   `ratelimits` de `apps/api/wrangler.jsonc` (produção).
-  Homologação não tem bindings de limite (`ratelimits: []`): lá nada é limitado pela API.
+  Homologação declara só `AUTH_LIMITER` (namespace 2101, 10 requisições/60 s): a entrada é limitada; arquivos,
+  moderação e doações não têm limiter nesse ambiente.
 
 ### 10.3 Binding de serviço do servidor de tempo real
 
