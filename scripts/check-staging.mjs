@@ -11,6 +11,8 @@ const require = createRequire(new URL("../apps/api/package.json", import.meta.ur
 const { unstable_readConfig: readConfig } = require("wrangler");
 const hosts = { api: "api", server: "server", client: "play", dash: "dash", site: "www" };
 const frontends = ["client", "dash", "site"];
+// Text assets only; all three builds disable source maps, so no `.map` is emitted.
+const textAsset = /\.(?:html|js|mjs|css|json|svg|txt|xml|webmanifest)$/;
 const env = { ...process.env, WRANGLER_SEND_METRICS: "false", CI: "true" };
 
 function run(app, args) {
@@ -47,7 +49,7 @@ for (const app of frontends) {
   const headers = readFileSync(resolve(dir, "_headers"), "utf8");
   const files = readdirSync(dir, { recursive: true });
   assert.ok(files.includes("index.html"));
-  for (const file of files.filter(file => file === "_headers" || /\.(html|js)$/.test(file))) {
+  for (const file of files.filter(file => file === "_headers" || textAsset.test(file))) {
     const contents = readFileSync(resolve(dir, file), "utf8");
     assert.ok(!/(?:https?|wss):\/\/(?:(?:www|play|server|api|dash)\.)?vilanoeldobem\.com\.br\b/.test(contents),
       `${app}/${file}: staging package contains a production URL`);
