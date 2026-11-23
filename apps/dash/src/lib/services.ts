@@ -1,11 +1,12 @@
 import type { ApiError } from "@vila/shared/accounts/errors";
 
 import { createApi } from "./api";
-import { endpoints } from "./endpoints";
+import type { Endpoints } from "./endpoints";
 import { sessionChangedBy } from "./session";
 
 /** Endpoints of the running build (see endpoints.ts). */
-export const SERVICES = endpoints(import.meta.env.MODE);
+declare const __VILA_SERVICES__: Endpoints;
+export const SERVICES = __VILA_SERVICES__;
 
 let sessionChanged: () => void = () => {};
 

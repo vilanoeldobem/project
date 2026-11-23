@@ -10,8 +10,8 @@ da release 0.8.0 é [`6d4e4fc`](https://github.com/vilanoeldobem/project/tree/6d
 registra as verificações anteriores de produção.
 
 Na revisão indicada, `env.staging` em [wrangler.jsonc](../../apps/api/wrangler.jsonc) aponta para o banco próprio
-`vilanoeldobem-staging`. A configuração traz `routes: []`, `workers_dev: false`, origens de navegador vazias e
-`ACCOUNTS_ENABLED = "false"`. O ambiente tem listas vazias de rate limiters e buckets R2. Sem credencial de envio
+`vilanoeldobem-staging`. Naquela revisão, a configuração trazia `routes: []`, `workers_dev: false`, origens de navegador vazias e
+`ACCOUNTS_ENABLED = "false"`. O arquivo daquela revisão declarava listas vazias de rate limiters e buckets R2. Sem credencial de envio
 configurada, a API de staging responde `503 mail_unavailable` a uma tentativa válida de envio com contas habilitadas.
 
 ## Histórico
@@ -89,28 +89,45 @@ Time Travel substitui o estado do banco: consulte `wrangler d1 time-travel info 
 e use `time-travel restore` somente após aprovação explícita do instante e do impacto. Não execute uma restauração
 contra produção por analogia com este guia.
 
+## Preparar a versão de teste
+
+Os endereços abaixo são propostos para revisão pela equipe. Configurar um domínio no repositório não o publica. A jornada começa no site e termina com a aprovação pelo painel na mesma Vila de teste.
+
+| Serviço | Host de homologação |
+|---|---|
+| Site e convite | `www-staging.vilanoeldobem.com.br` |
+| Jogo e retorno do e-mail de cidadão | `play-staging.vilanoeldobem.com.br` |
+| API e sessão | `api-staging.vilanoeldobem.com.br` |
+| Painel e retorno do e-mail de administrador | `dash-staging.vilanoeldobem.com.br` |
+| Presença na praça | `server-staging.vilanoeldobem.com.br` |
+
+A partir da raiz, com as dependências do lockfile instaladas, execute `pnpm staging:check`. O comando prepara os arquivos de teste e ensaia o empacotamento dos cinco Workers com Wrangler em modo local. Revise os nomes dos Workers, os domínios e o binding do D1 antes da publicação. Os testes automatizados de navegador da CI continuam usando serviços locais descartáveis. Para o ensaio com e-mail de verdade, use duas identidades de teste controladas pela equipe, uma para a candidatura e outra para o administrador.
+
+### Publicação pelo operador
+
+1. Combine os domínios e o acesso dos testadores com Augusto. Confirme a conta Cloudflare, o remetente verificado no Resend (a configuração propõe `acesso@vilanoeldobem.com.br`) e quem tem acesso à caixa de teste. Use dados fictícios. Os domínios personalizados ficam acessíveis publicamente quando publicados. Antes de habilitar contas, o operador deve aplicar o controle de acesso que a equipe escolheu para os testadores e confirmar que uma pessoa de fora não entra. O papel de administrador do painel controla a revisão das candidaturas dentro da aplicação.
+2. Faça o backup e a atualização **do banco de homologação** conforme a seção [Aplicar migrations](#aplicar-migrations). Confira os nomes no histórico até a `0015` e `PRAGMA foreign_key_check` antes de publicar.
+3. Após o aceite da revisão, prepare os arquivos com `pnpm staging:check` no mesmo checkout que será publicado. Use o ambiente explícito em cada comando, a partir da raiz. A primeira publicação mantém contas e doações desligadas.
+
+```sh
+pnpm --filter @vila/api exec wrangler deploy --env staging --x-provision=false
+pnpm --filter @vila/server exec wrangler deploy --env staging --x-provision=false
+pnpm --filter @vila/client exec wrangler deploy --env staging --x-provision=false
+pnpm --filter @vila/dash exec wrangler deploy --env staging --x-provision=false
+pnpm --filter @vila/site exec wrangler deploy --env staging --x-provision=false
+```
+
+4. Configure a chave de envio no Worker de teste com `pnpm --filter @vila/api exec wrangler secret put RESEND_API_KEY --env staging` e informe o valor no prompt do Wrangler. Confira `environment: "staging"` e `mail: true` em `https://api-staging.vilanoeldobem.com.br/health`. A presença da chave, sozinha, não comprova a entrega.
+5. Quando o responsável liberar o teste com a caixa e o remetente definidos, publique a API com `pnpm --filter @vila/api exec wrangler deploy --env staging --x-provision=false --var ACCOUNTS_ENABLED:true`. Confira `accounts: true` e `donations: false` em `/config` e `checks.db: "ok"` em `/ready` no host da API de teste. Para encerrar novas entradas, republique a API de staging com a configuração versionada, sem o override, e confira `accounts: false`.
+6. Cadastre e verifique a conta do operador no jogo de teste. Se for a primeira conta administrativa deste ambiente, o responsável autorizado pode conceder o papel no D1 **vilanoeldobem-staging**, usando `--env staging --remote` e o identificador conferido da conta de teste. Registre a concessão inicial. Depois, o administrador pode gerenciar os papéis em **Painel → Usuários**. A candidatura deve usar outra conta.
+
 ## Ordem da homologação de cidadão e ONG
 
-1. **Definir o ambiente de teste.** Augusto indica as URLs da API, do jogo e do painel, suas origens permitidas,
-   o responsável por uma caixa que receba a mensagem e o operador administrativo distinto da conta candidata.
-2. **Atualizar o D1 de homologação no momento autorizado.** Conferir novamente banco e versão, guardar o backup
-   e seguir a seção “Aplicar migrations” na revisão acordada. Conferir o histórico até 0015 e as chaves estrangeiras
-   antes de liberar contas.
-3. **Preparar os serviços de homologação.** A equipe publica a revisão acordada nos endereços isolados, confere a
-   configuração de acesso e habilita as contas de teste conforme as aprovações do projeto. O envio exige credencial
-   de staging e remetente verificado no Resend. O jogo e o painel precisam apontar para a API de homologação.
-4. **Checar prontidão.** Na API de homologação, conferir ambiente e `mail: true` em `GET /health`; esse campo só
-   indica credencial configurada. Em `GET /ready`, conferir `checks.db: "ok"`. Essa leitura testa a conexão ao D1
-   com `SELECT 1`; a versão vem do histórico de migrations. R2 pode aparecer como `off` quando não há binding
-   de arquivos. Conferir ainda `accounts: true` em `GET /config`.
-5. **CTA-01 · Cadastro e retorno.** Entrar pelo site e pelo jogo de teste, cadastrar um cidadão fictício com a
-   caixa autorizada, receber o e-mail e confirmar o link uma vez. Conferir a mesma conta após sair e entrar por
-   um novo link. Verificar que o link consumido não abre outra sessão. Registrar revisão, ambiente, horário e
-   resultado, preservando e-mail, links e cookies.
-6. **ONG-02 · Publicação no terreno escolhido.** Pela conta candidata de teste, reservar um terreno disponível.
-   No painel, o operador pede ajuste; a candidata corrige e reenvia. Conferir a ausência do perfil público antes
-   da aprovação. Após o operador aprovar, verificar na API e no mapa a identificação da ONG no mesmo terreno.
+1. **Cadastro de cidadão.** Abrir o site de teste, entrar no jogo e cadastrar a identidade fictícia com a caixa autorizada. Receber o e-mail e conferir o domínio de destino antes de confirmar o link. Sair, pedir outro e conferir o retorno à mesma conta. O link já consumido deve ser recusado.
+2. **Candidatura e painel.** Registrar o valor inicial de `approved_ngos` em `/indicators`. Com a conta candidata, pedir um terreno disponível. Com a conta administrativa, abrir o painel de teste, pedir um ajuste e conferir o reenvio. Durante a análise, a ONG segue fora da listagem pública e o indicador conserva o valor inicial.
+3. **Publicação e indicador.** Aprovar pelo painel. Conferir a publicação da mesma ONG no terreno escolhido, o evento de auditoria e o indicador inicial mais um após a atualização do cache. Fazer essa comparação sem outra publicação concorrente. No painel de indicadores, conferir o cartão **ONGs aprovadas**.
+4. **Registrar erros reproduzíveis.** Para qualquer falha, guardar revisão, horário, domínio, papel utilizado, passo, resposta HTTP e código público de erro. Omitir e-mails, identificação de candidatos, cookies e links de acesso.
 
-CTA-01 e ONG-02 aguardam homologação real. O recibo local desta página cobre o ensaio de migração que precede as duas jornadas.
+CTA-01 e ONG-02 terminam quando a equipe executar o percurso na homologação publicada e verificar a entrega de e-mail. Um teste local ou o empacotamento dos Workers cobre uma etapa anterior ao aceite.
 
 [Guia de publicação](deploy.md) · [Armazenamento](../reference/storage.md)

@@ -7,6 +7,8 @@
 
 ## 1. Visão geral
 
+Para homologar o cadastro de ONG, o ambiente `staging` tem cinco Workers e domínios próprios. Jogo, painel e site usam um build de teste. A API usa o D1 de homologação e o servidor usa a sala de presença desse ambiente. Os endereços e o procedimento de ativação estão no [guia de homologação](../guides/staging-database.md#preparar-a-versão-de-teste).
+
 Um Worker por app, cada um no seu subdomínio ([IMPL-0009](../decisions/0009-split-client-api-server-shared.md)):
 
 ```

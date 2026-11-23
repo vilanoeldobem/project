@@ -310,7 +310,7 @@ O link de acesso sai pela API HTTPS do [Resend](https://resend.com) (`apps/api/s
 
 - Sem a chave, ou se o Resend recusar o envio, a API responde `503 mail_unavailable` (falha fechada). O log traz só
   `mail_error`, o status HTTP e o nome do erro do Resend: nunca endereço, link ou chave.
-- Homologação (`env.staging`) não recebe a chave: lá o envio sempre falha fechado.
+- Homologação usa um segredo de envio próprio no Worker de teste. Veja o [roteiro de preparação e validação](staging-database.md#preparar-a-versão-de-teste).
 - O Resend passa a tratar o e-mail e o nickname de quem pede o link (operador fora do Brasil): isso entra na
   revisão LGPD / ECA Digital antes de ligar as contas.
 - Conferir se `acesso@` deve receber respostas (senão, deixar claro no texto do e-mail).
@@ -641,7 +641,7 @@ criado e vazio, os cinco Workers publicados. Isso não liga nada: todas as bande
   A chamada do servidor à API pelo binding não foi exercitada em produção (não verificado em 14/11/2026).
 - Doações (IMPL-0023): migration 0011 aplicada (tabelas vazias); `DONATIONS_ENABLED` desligada.
 - Painel administrativo (`apps/dash`): publicado, sem utilidade prática enquanto as contas estiverem desligadas.
-- Homologação: só o banco D1 `vilanoeldobem-staging` (sem Worker publicado); veja [staging-database.md](staging-database.md).
+- Homologação: o [roteiro dos cinco serviços de teste](staging-database.md#preparar-a-versão-de-teste) usa o D1 `vilanoeldobem-staging` e documenta a publicação pelo operador.
 - A `main` ainda não exige o check `ci` verde para aceitar merge (proteção de branch a configurar no GitHub).
 - Medição com Google (OQ-13): desde 2026-11-12 a tag tenta enviar dados para hosts de publicidade do Google que a CSP
   do jogo bloqueia. Cada bloqueio é um erro de console; `verify.mjs` (local) e `verify-live.mjs` (produção) falham por

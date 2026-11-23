@@ -1,4 +1,5 @@
-import { endpoints } from "./endpoints";
+import type { Endpoints } from "./endpoints";
 
 /** Endpoints of the running build (see endpoints.ts). */
-export const SERVICES = endpoints(import.meta.env.MODE);
+declare const __VILA_SERVICES__: Endpoints;
+export const SERVICES = __VILA_SERVICES__;
