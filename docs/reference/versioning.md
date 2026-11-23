@@ -38,7 +38,9 @@ Keep a Changelog 1.1.0. Toda mudança visível entra em `[Unreleased]`. Cada ver
 2. Atualizar todas as versões (tabela acima), README ("Versão atual") e ROADMAP.
 3. Gates + `verify.mjs`.
 4. Commit `chore(release): X.Y.Z`, tag `vX.Y.Z`.
-5. Deploy ([guides/deploy.md](../guides/deploy.md)) com autorização.
+5. O merge do PR de release publica os cinco Workers pelo CD
+   ([IMPL-0034](../decisions/0034-continuous-delivery-cloudflare.md)); migrations remotas, se houver, seguem a ordem
+   e a autorização do [guia de deploy](../guides/deploy.md).
 6. Registrar a publicação em [releases.md](releases.md) e no "Último deploy" do guia de deploy.
 
 ## Ver também

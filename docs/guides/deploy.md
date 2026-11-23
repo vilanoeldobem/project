@@ -1,7 +1,7 @@
 # Publicar na Cloudflare
 
 > **Status:** Implementado (0.7.0) · **Versão do software:** 0.7.0 · **Schema D1:** v15 ·
-> **Atualizado em:** 2026-11-19
+> **Atualizado em:** 2026-11-22
 > **Fonte de verdade:** `package.json` (scripts `deploy:*`), `apps/{client,api,server,site,dash}/wrangler.jsonc`,
 > `apps/*/package.json`
 
@@ -32,7 +32,10 @@ foi verificado) fica em [reference/releases.md](../reference/releases.md).
 Todos os Workers ficam na conta Cloudflare do projeto `9119b7496767fec497f6627c5ca56f32`
 ([IMPL-0003](../decisions/0003-cloudflare-workers-static-assets-d1.md)); só a API tem o binding do D1 e o do bucket
 R2 dos arquivos de ONG ([§9](#9-arquivos-das-ongs-no-r2-impl-0017)).
-Deploy de produção e migrations remotas exigem autorização humana explícita (AGENTS.md).
+O deploy de produção é feito pelo job `deploy` de `ci.yml`
+([IMPL-0034](../decisions/0034-continuous-delivery-cloudflare.md)) quando um PR entra na `main` com o CI verde; o
+merge é a autorização humana. Migrations remotas, criação de recursos Cloudflare e alteração de segredos continuam
+exigindo autorização explícita à parte ([AGENTS.md](../../AGENTS.md)).
 
 ## 1. Autenticar na conta do projeto
 
@@ -41,8 +44,23 @@ pnpm --filter @vila/api exec wrangler login     # usuário com acesso à conta 9
 pnpm --filter @vila/api exec wrangler whoami    # a tabela de contas deve listar 9119b7496767fec497f6627c5ca56f32
 ```
 
-Em CI use `CLOUDFLARE_API_TOKEN` (permissões: Workers Scripts:Edit, D1:Edit) e
-`CLOUDFLARE_ACCOUNT_ID=9119b7496767fec497f6627c5ca56f32`. `account_id` também está fixado em cada `wrangler.jsonc`.
+Em CI, o job `deploy` usa o segredo de ambiente `CLOUDFLARE_API_TOKEN` do ambiente `production` (não um segredo de
+repositório) e `CLOUDFLARE_ACCOUNT_ID=9119b7496767fec497f6627c5ca56f32`. `account_id` também está fixado em cada
+`wrangler.jsonc`.
+
+O ambiente `production` aceita somente a branch `main`; sem essa política, um workflow de PR poderia ler o segredo.
+O token do CD é um "Editor" de Workers (`Workers Scripts: Edit`) mais `Workers Routes: Edit` na zona
+`vilanoeldobem.com.br`. Ele não tem D1, R2, KV, Workers Tail, Account Settings nem User Details e não cria Workers
+novos (isso exige Admin de conta). Expira em 90 dias: crie um substituto, atualize o segredo do ambiente, rode um
+deploy e revogue o antigo.
+
+Migrations remotas continuam exigindo autorização e uma credencial com D1:Edit; o token do CD não tem essa
+permissão. Para operações manuais locais, `wrangler login` continua valendo.
+
+Configuração inicial, uma vez, no GitHub: *Settings → Environments → New environment* → `production`; em
+*Deployment branches and tags*, escolha *Selected branches and tags* e adicione `main`; em *Environment secrets*,
+grave `CLOUDFLARE_API_TOKEN` (e `RESEND_API_KEY`, se o Resend estiver em uso). Não há revisor obrigatório; o merge é
+a autorização. Não crie um segredo de repositório com esses nomes: um workflow de PR poderia lê-lo.
 
 ## 2. Criar o D1 (uma vez)
 
@@ -162,14 +180,23 @@ Depois, rode o smoke e abra o jogo em dois aparelhos para conferir o chip "👥 
 cliente segue em jogo solo (e quem desligar "Outros visitantes" no painel "Ambiente" nem conecta). Até esse deploy,
 o smoke diário de produção falha (já aponta para os hosts novos).
 
-### 4.2 Integração contínua (GitHub Actions)
+### 4.2 Integração e entrega contínuas (GitHub Actions)
 
-- `ci.yml`: todo PR e todo push na `main` rodam `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test` e
-  `pnpm build` (Node 24, pnpm do `packageManager`). O build de cada Worker inclui `wrangler deploy --dry-run`, então
-  erro de empacotamento quebra no CI, não no deploy. Sem segredos e sem deploy.
+- `ci.yml` job `check`: todo PR e todo push na `main` rodam `pnpm install --frozen-lockfile`, `pnpm typecheck`,
+  `pnpm test` e `pnpm build` (Node 24, pnpm do `packageManager`). O build de cada Worker inclui
+  `wrangler deploy --dry-run`, então erro de empacotamento quebra no CI, não no deploy. As actions são fixadas por
+  SHA de commit e o checkout não persiste credenciais.
+- `ci.yml` job `deploy`: depois do `check` verde em um push na `main`, publica os cinco Workers na ordem
+  API → servidor → jogo → painel → site, a partir do mesmo commit (`github.sha`). Ele usa o ambiente `production`
+  (segredo `CLOUDFLARE_API_TOKEN`), chama os scripts `pnpm deploy:*` (a API com `--x-provision=false`) e não aplica
+  migration, não cria recurso e não escreve segredo de Worker. Em um PR o job fica **skipped** e não recebe o
+  segredo.
 - `smoke.yml`: roda `scripts/smoke-api.sh` contra produção (API, servidor e cliente) uma vez por dia (06:17 em São
   Paulo) e manualmente em **Actions → smoke → Run workflow** logo depois de cada deploy.
-- O deploy continua manual (`pnpm deploy:*`), feito por quem tem acesso à conta Cloudflare.
+- O merge é a autorização; não há um segundo clique. Para repetir o mesmo commit, reexecute o job `deploy` em
+  Actions. Se um Worker falhar no meio, o job para; as versões anteriores ficam no resumo da execução e o rollback é
+  manual (§6). Criar um Worker novo, um recurso ou mudar um segredo continua manual e exige autorização.
+- `verify-live.mjs` continua manual até a OQ-13; o CD confere `smoke-api.sh` e as raízes de `www.*` e `dash.*`.
 
 ### 4.3 Limite de inatividade da presença (IMPL-0014)
 
@@ -254,6 +281,9 @@ pnpm exec wrangler deployments list
 pnpm exec wrangler rollback <version-id>
 ```
 
+O resumo da execução do `deploy` em Actions lista as versões anteriores dos cinco Workers; use esses ids no
+rollback, na ordem inversa. O resumo não mostra o token.
+
 Reverter a API para antes da IMPL-0009 exige reverter o cliente junto (caminhos `/api/*` × sem prefixo).
 Migrations não são revertidas automaticamente: corrija com uma nova migration. D1 Time Travel permite restaurar o
 banco para um instante (`wrangler d1 time-travel restore vilanoeldobem --timestamp=…`, em `apps/api`).
@@ -299,9 +329,10 @@ O link de acesso sai pela API HTTPS do [Resend](https://resend.com) (`apps/api/s
    subdomínio no lugar do domínio raiz; se o remetente mudar, ajustar `MAIL_FROM` em `apps/api/wrangler.jsonc`.
 2. **Chave.** Em *API Keys*, criar uma chave com permissão só de envio (*Sending access*).
 3. **Segredo no Worker**, por um dos caminhos:
-   - **GitHub:** gravar a chave em `RESEND_API_KEY` e um token da Cloudflare com permissão de editar Workers em
-     `CLOUDFLARE_API_TOKEN` (*Settings → Secrets and variables → Actions*), depois rodar à mão o workflow
-     **api-secrets** (*Actions → api-secrets → Run workflow*). Ele só roda quando alguém dispara e não imprime a chave.
+   - **GitHub:** gravar a chave em `RESEND_API_KEY` e o token em `CLOUDFLARE_API_TOKEN` em
+     *Settings → Environments → production → Environment secrets* (não em *Actions secrets* do repositório), depois
+     rodar à mão o workflow **api-secrets** a partir da `main` (*Actions → api-secrets → Run workflow*). Ele só roda
+     quando alguém dispara e não imprime a chave. O ambiente aceita somente a `main`.
    - **Local:** `cd apps/api && pnpm exec wrangler secret put RESEND_API_KEY --env=""`.
 
    Gravar um segredo publica na hora uma nova versão do Worker com o mesmo código.

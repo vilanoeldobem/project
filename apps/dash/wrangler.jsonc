@@ -3,7 +3,8 @@
   // Vila Noel do Bem backoffice dashboard (IMPL-0015): SPA on Workers Static Assets, no Worker script and no
   // bindings. Everything it shows comes from api.vilanoeldobem.com.br (apps/api) with the admin's session cookie.
   // Response headers (strict CSP, noindex, no-store HTML) are generated per build: see security-headers.ts.
-  // Not deployed yet: creating this Worker and its custom domain needs explicit authorisation (AGENTS.md).
+  // Published by the CD from `main` (IMPL-0034); creating the Worker or its custom domain still needs
+  // explicit authorisation (AGENTS.md).
   "name": "vilanoeldobem-dash",
   "account_id": "9119b7496767fec497f6627c5ca56f32",
   "compatibility_date": "2026-11-01",

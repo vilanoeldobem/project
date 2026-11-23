@@ -75,6 +75,10 @@ pnpm --filter @vila/site build && pnpm --filter @vila/site preview   # other ter
 node apps/site/scripts/verify.mjs http://localhost:4173
 ```
 
+Production deploy is automatic: a merge into `main` with green CI runs the `deploy` job in `ci.yml`
+([IMPL-0034](docs/decisions/0034-continuous-delivery-cloudflare.md)), which publishes the five Workers. Do not deploy
+by hand, and never apply remote migrations.
+
 ## Product rules (non-negotiable)
 
 - Respect the status of every product statement: **CONFIRMADO**, **PROPOSTA**, **HIPÓTESE**,
@@ -263,10 +267,10 @@ node apps/site/scripts/verify.mjs http://localhost:4173
 
 ## Forbidden without explicit human authorisation
 
-`git push`, `git reset --hard`, `git clean`, `wrangler deploy` (and, when authorised, only through `pnpm deploy:<app>`:
-a bare `wrangler deploy` of the API creates a missing R2 bucket by itself), remote D1 migrations, creating or
-deleting Cloudflare resources, changing secrets, adding payment/OAuth integrations, editing the docs
-repository.
+`git push`, `git reset --hard`, `git clean`, a manual production deploy (the `ci.yml` deploy job publishes on merge;
+a manual deploy still needs authorization and goes through `pnpm deploy:<app>`: a bare `wrangler deploy` of the API
+creates a missing R2 bucket by itself), remote D1 migrations, creating or deleting Cloudflare resources, changing
+secrets, adding payment/OAuth integrations, editing the docs repository.
 
 ## Language (IMPL-0004)
 

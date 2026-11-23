@@ -1,5 +1,8 @@
-# CI gate: every pull request and every push to main must typecheck, test and build (ROADMAP item
-# "Infraestrutura de entrega" #1). Read-only: no secrets, no deploy.
+# CI gate and production delivery (IMPL-0034): every pull request and every push to main must typecheck, test
+# and build. A push to main that passes then publishes the five Workers to Cloudflare in the documented order
+# (API → server → game → dashboard → website). Pull requests never reach the deploy job and have no secrets.
+# The deploy job uses the environment `production`, whose secret CLOUDFLARE_API_TOKEN is restricted to `main`;
+# it never applies a D1 migration, creates a Cloudflare resource or writes a Worker secret.
 name: ci
 
 on:
@@ -12,7 +15,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A new push to main must not cancel a run that may be deploying; a PR run can be canceled by a newer push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -20,9 +24,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: 24
           cache: pnpm
@@ -45,3 +51,99 @@ jobs:
         run: |
           CHROMIUM_PATH="$(pnpm --filter @vila/client exec node -p 'require("playwright-core").chromium.executablePath()')" node scripts/verify-media-local.mjs --browser
         timeout-minutes: 9
+
+  deploy:
+    name: deploy production
+    needs: check
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: https://play.vilanoeldobem.com.br
+    env:
+      # Public: the same account is pinned in every apps/*/wrangler.jsonc. The API token is the only secret.
+      CLOUDFLARE_ACCOUNT_ID: 9119b7496767fec497f6627c5ca56f32
+    steps:
+      - name: Check out the validated commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Check the Cloudflare credential
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || {
+            echo "::error::the production environment has no CLOUDFLARE_API_TOKEN secret"
+            exit 1
+          }
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Record the current Worker versions for rollback
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEPLOYED_SHA: ${{ github.sha }}
+        run: |
+          {
+            echo "Deploying $DEPLOYED_SHA"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for app in api server client dash site; do
+            {
+              echo "### @vila/$app"
+              echo '```'
+              pnpm --filter "@vila/$app" exec wrangler deployments list 2>&1 || echo "deployment list unavailable"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+      - name: Deploy API
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:api
+      - name: Deploy realtime server
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:server
+      - name: Deploy game
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:client
+      - name: Deploy dashboard
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:dash
+      - name: Deploy website
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm deploy:site
+      - name: Verify production
+        run: |
+          ok=0
+          for attempt in 1 2 3; do
+            if sh scripts/smoke-api.sh \
+              https://api.vilanoeldobem.com.br \
+              https://server.vilanoeldobem.com.br \
+              https://play.vilanoeldobem.com.br; then
+              ok=1
+              break
+            fi
+            echo "smoke attempt $attempt failed; retrying in 10 s"
+            sleep 10
+          done
+          test "$ok" = 1 || { echo "::error::production smoke failed"; exit 1; }
+          curl -fsS --max-time 20 --retry 3 --retry-delay 5 -o /dev/null https://www.vilanoeldobem.com.br/
+          curl -fsS --max-time 20 --retry 3 --retry-delay 5 -o /dev/null https://dash.vilanoeldobem.com.br/
