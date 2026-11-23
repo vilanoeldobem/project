@@ -1,6 +1,6 @@
 /**
  * Service endpoints per build mode (IMPL-0009). Pure (no `import.meta`), so `vite.config.ts` uses the same
- * values for the CSP and the preconnect hints. `production` → public subdomains; anything else (`vite`
+ * values for the CSP and the preconnect hints. `production` → public subdomains; `staging` → isolated test subdomains; anything else (`vite`
  * dev server, `vite build --mode workers` for wrangler dev) → local Workers.
  */
 export interface Endpoints {
@@ -22,6 +22,14 @@ export interface Endpoints {
 }
 
 export function endpoints(mode: string): Endpoints {
+  if (mode === "staging") {
+    return {
+      api: "https://api-staging.vilanoeldobem.com.br",
+      realtime: "wss://server-staging.vilanoeldobem.com.br",
+      dash: "https://dash-staging.vilanoeldobem.com.br",
+      site: "https://www-staging.vilanoeldobem.com.br",
+    };
+  }
   return mode === "production"
     ? { api: "https://api.vilanoeldobem.com.br", realtime: "wss://server.vilanoeldobem.com.br", dash: "https://dash.vilanoeldobem.com.br", site: "https://www.vilanoeldobem.com.br" }
     : { api: "http://localhost:8787", realtime: "ws://localhost:8788", dash: "http://localhost:8797", site: "http://localhost:4173" };

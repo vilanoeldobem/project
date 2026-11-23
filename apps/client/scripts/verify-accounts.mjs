@@ -3,7 +3,8 @@
  * Workers only: sign-up with the magic link (dev link), progress sync, shared-browser isolation (the next account
  * does not inherit progress) and the NGO application (4 steps) in the GAME; admin sign-in, review (changes
  * requested → resubmit → approve) and the read-only sections in the DASHBOARD; then the published house on the
- * lot. Fails on console errors.
+ * lot. The public indicator counts that NGO only after approval, both in the API and on the visitor’s screen.
+ * Fails on console errors.
  *
  * Files of the application (IMPL-0017), only when `/config` of the API in use says `files: true` (otherwise the
  * steps are skipped with a note): in the GAME the applicant sends a logo and documents, sees them listed, gets the
@@ -194,6 +195,17 @@ localSql(
     "DELETE FROM audit_events WHERE subject IN (SELECT 'ngo:' || id FROM ngos WHERE name LIKE 'Associação Teste %'); " +
     "DELETE FROM ngos WHERE name LIKE 'Associação Teste %';"
 );
+
+// Read from the local Worker directly so the public response's 30-second browser cache cannot hide a transition.
+async function approvedNgoCount() {
+  const response = await fetch(new URL("/indicators", apiOrigin), { cache: "no-store" });
+  if (!response.ok) throw new Error(`public indicators: HTTP ${response.status}`);
+  const { indicators } = await response.json();
+  const count = indicators.find((indicator) => indicator.key === "approved_ngos")?.value;
+  if (!Number.isSafeInteger(count) || count < 0) throw new Error("public indicators: approved_ngos must be a non-negative integer");
+  return count;
+}
+const approvedBefore = await approvedNgoCount();
 
 const browser = await chromium.launch({
   ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chrome" }),
@@ -411,6 +423,7 @@ await a.screenshot({ path: `${out}accounts-2-review-step.png` });
 await click(a.getByRole("button", { name: "Enviar candidatura" }));
 await a.getByRole("dialog").getByText("Candidatura enviada", { exact: true }).first().waitFor({ timeout: API_WAIT });
 await a.screenshot({ path: `${out}accounts-3-submitted.png` });
+if (await approvedNgoCount() !== approvedBefore) errors.push("public indicators: submitting an application changed approved_ngos");
 
 /** The applicant's application as the API has it: `{application, files}` (the page's own session). */
 const ownApplication = (page) => page.evaluate(async (api) => (await fetch(`${api}/ngo/application`, { credentials: "include" })).json(), BUILD_API);
@@ -541,6 +554,7 @@ if (filesOn && (await storedFiles(a)) !== "logo:image/png document:image/png") e
 await b.getByRole("link", { name: "Voltar à lista" }).click();
 await application.click({ timeout: API_WAIT });
 await reviewStatus("submitted");
+if (await approvedNgoCount() !== approvedBefore) errors.push("public indicators: a resubmitted application changed approved_ngos");
 // 4a. The admin sees the files of the version under review: the logo previewed, the document only as a download.
 await b.getByRole("heading", { name: "Arquivos", exact: true }).waitFor({ timeout: API_WAIT });
 if (filesOn) {
@@ -580,6 +594,8 @@ if (!(await approve.isDisabled({ timeout: API_WAIT }))) errors.push("admin: appr
 for (const label of ["CNPJ ativo (consultado na Receita Federal)", "Pelo menos 1 ano de existência", "Forma confiável de confirmar os recursos"]) await b.getByLabel(label).check();
 await approve.click();
 await reviewStatus("published");
+const expectedApproved = approvedBefore + 1;
+if (await approvedNgoCount() !== expectedApproved) errors.push(`public indicators: approval must increase approved_ngos from ${approvedBefore} to ${expectedApproved}`);
 await b.screenshot({ path: `${out}accounts-4-admin-approved.png`, fullPage: true });
 
 // 4b. The read-only sections of the dashboard show what just happened, and no personal data beyond nicknames.
@@ -608,6 +624,13 @@ await b.close();
 const c = await newPage("visitor");
 await c.waitForTimeout(3000);
 await c.screenshot({ path: `${out}accounts-5-village.png` });
+// A fresh visitor context has no cached indicator response from before the approval.
+await click(c.getByRole("button", { name: "Indicadores", exact: true }));
+const indicatorsPanel = c.getByRole("dialog", { name: "Indicadores da Vila" });
+const approvedCard = indicatorsPanel.locator(".sheet-card").filter({ has: c.getByText("ONGs aprovadas", { exact: true }) });
+if (!(await visible(approvedCard.getByText(expectedApproved.toLocaleString("pt-BR"), { exact: true }), API_WAIT)))
+  errors.push(`visitor: the approved NGO indicator did not show ${expectedApproved}`);
+await click(indicatorsPanel.getByRole("button", { name: "Fechar" }));
 if (filesOn) {
   // 5b. A visitor goes to the front of the house the way the game offers it ("Explorar ONGs" → "Ir até lá", so
   // no coordinate of the layout is repeated here, IMPL-0024) and opens it: the logo is there. The action is

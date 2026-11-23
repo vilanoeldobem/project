@@ -17,8 +17,9 @@ function securityHeaders(mode: string): Plugin {
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), securityHeaders(mode)],
+  define: { __VILA_SERVICES__: JSON.stringify(endpoints(mode)) },
   // 5173 is the game's and the website's dev port.
   server: { port: 5175, strictPort: true },
-  build: { target: "es2022", sourcemap: false },
+  build: { outDir: mode === "staging" ? ".wrangler/staging-assets" : "dist", target: "es2022", sourcemap: false },
   test: { include: ["src/**/*.test.{ts,tsx}", "*.test.ts"], environment: "node" },
 }));

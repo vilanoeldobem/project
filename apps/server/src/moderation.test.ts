@@ -186,7 +186,10 @@ describe("presence moderation configuration (PROPOSTA, IMPL-0021)", () => {
     const config = wranglerConfig();
     expect(config.vars.PRESENCE_MODERATION_ENABLED).toBe("false");
     expect(devVar("PRESENCE_MODERATION_ENABLED")).toBe("true");
-    expect(config.env).toBeUndefined(); // no staging environment for this Worker: nothing else to keep off
+    expect(config.env?.staging).toMatchObject({
+      vars: { PRESENCE_MODERATION_ENABLED: "false" },
+      services: [{ binding: "API", service: "vilanoeldobem-api-staging" }],
+    });
   });
 
   it("reaches the API only through the service binding named API", () => {

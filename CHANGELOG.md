@@ -9,6 +9,10 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added
+
+- Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).
+
 ## [0.9.0] - 2026-11-22
 
 **Casas e chão mais detalhados, malha gulosa, minijogos da saga e Pix só com conta**

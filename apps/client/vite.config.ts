@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
+import { stagingHeaders, stagingHtml } from "../../scripts/staging-pages";
 import pkg from "./package.json" with { type: "json" };
 import { headersFile } from "./security-headers.ts";
 import { endpoints } from "./src/lib/endpoints.ts";
@@ -15,17 +16,26 @@ function services(mode: string): Plugin {
   const e = endpoints(mode);
   return {
     name: "vila-services",
-    transformIndexHtml: () => [{ tag: "link", attrs: { rel: "preconnect", href: e.api, crossorigin: "" }, injectTo: "head" }],
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        return {
+          html: mode === "staging" ? stagingHtml(html) : html,
+          tags: [{ tag: "link", attrs: { rel: "preconnect", href: e.api, crossorigin: "" }, injectTo: "head" }],
+        };
+      },
+    },
     generateBundle() {
-      this.emitFile({ type: "asset", fileName: "_headers", source: headersFile(`${e.api} ${e.realtime}`) });
+      this.emitFile({ type: "asset", fileName: "_headers", source: mode === "staging" ? stagingHeaders([e.api, e.realtime]) : headersFile(`${e.api} ${e.realtime}`) });
     },
   };
 }
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), services(mode)],
-  define: { __VILA_VERSION__: JSON.stringify(pkg.version) },
+  define: { __VILA_VERSION__: JSON.stringify(pkg.version), __VILA_SERVICES__: JSON.stringify(endpoints(mode)) },
   build: {
+    outDir: mode === "staging" ? ".wrangler/staging-assets" : "dist",
     target: "es2022",
     sourcemap: false,
     chunkSizeWarningLimit: 1000, // three + r3f + drei (~250 kB gzip) isolated in the "three" chunk
