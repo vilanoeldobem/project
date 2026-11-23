@@ -1,5 +1,6 @@
 // The game and website share the same analytics markup. Keep login-fragment.js in
 // place so mail links are consumed even when the analytics block is omitted.
+// Build-time only: shared by the three Vite configs, not runtime app code and not packages/shared.
 export function stagingHtml(html: string): string {
   return html
     .replace("<title>", "<title>Homologação · ")
