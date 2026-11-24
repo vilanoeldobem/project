@@ -11,7 +11,18 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
+
 - Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).
+
+### Fixed
+
+- O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
+- O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
+
+### Changed
+
+- Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
 
 ## [0.9.0] - 2026-11-22
 

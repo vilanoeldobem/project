@@ -70,7 +70,7 @@ import {
 } from "./abacatepay";
 import { newId, sha256Hex } from "./crypto";
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
-import { assertAccount, assertStillAdmin, currentUser, requireAdmin, requireUser, STILL_ADMIN, type User } from "./session";
+import { assertAccount, assertStillAdmin, currentUser, readSessionToken, requireAdmin, requireUser, STILL_ADMIN } from "./session";
 import type { Env } from "./api";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -412,17 +412,6 @@ async function resolveTarget(env: Env, targetKind: DonationTargetKind, requested
   }
 }
 
-/**
- * The abuse limit of charge creation: one Workers rate limiting binding, keyed by account when signed in and by a
- * SHA-256 of the client address otherwise. The key is never stored or logged; without the binding (local, tests,
- * staging) there is no limit, like the sign-in limiter.
- */
-async function assertDonationRate(request: Request, env: Env, user: User | null): Promise<void> {
-  if (!env.DONATION_LIMITER) return;
-  const key = user ? `account:${user.id}` : `ip:${await sha256Hex(request.headers.get("CF-Connecting-IP") ?? "unknown")}`;
-  if (!(await env.DONATION_LIMITER.limit({ key })).success) throw new HttpError(429, "too_many_requests");
-}
-
 /** The charge the provider answered, as the intent kept it while the donation row could not be written. */
 const storedCharge = (intent: IntentRow): PixCharge => ({
   id: intent.provider_charge_id!,
@@ -616,38 +605,58 @@ export async function createDonation(request: Request, env: Env): Promise<Respon
   }
 
   // Resolve the donor before anything is written: a session read that fails must not leave an intent behind.
-  const user = await currentUser(request, env);
+  const accountsEnabled = env.ACCOUNTS_ENABLED === "true";
+  const user = accountsEnabled ? await currentUser(request, env) : null;
+  if (user?.blocked) throw new HttpError(403, "session_blocked");
   // The same key always means the same request: target, amount and donor.
   const requestHash = await sha256Hex(JSON.stringify([targetKind, requestedNgoId, amountCents, user?.id ?? null]));
 
   // A retry of a known key never calls the provider, so it does not spend the abuse budget; a new key does, before
   // anything is written.
   const existing = await readIntentByKey(env, key);
+  if (!user) {
+    // An old anonymous intent may hold the only local copy of the provider's answer. Replay never issues a charge.
+    if (body.accountId === undefined && existing && existing.user_id === null && existing.request_hash === requestHash) return replay(env, existing, requestHash);
+    if (!accountsEnabled) throw new HttpError(404, "accounts_disabled");
+    throw new HttpError(401, "not_signed_in");
+  }
+  if (body.accountId !== undefined) assertAccount(body, user);
   if (existing) return replay(env, existing, requestHash);
-  await assertDonationRate(request, env, user);
+  if (env.DONATION_LIMITER && !(await env.DONATION_LIMITER.limit({ key: `account:${user.id}` })).success)
+    throw new HttpError(429, "too_many_requests");
 
   const target = await resolveTarget(env, targetKind, requestedNgoId, amountCents as number);
+  // A confirmation applies to the public terms the donor just saw. Older clients omit this precondition.
+  if (body.expectedTerms !== undefined) {
+    const expected = body.expectedTerms as Partial<SplitConfig & { recipientName: string }> | null;
+    if (expected?.recipientName !== target.recipientName || expected.ngoPercentBps !== target.split.ngoPercentBps
+      || expected.fixedFeeCents !== target.split.fixedFeeCents) throw new HttpError(409, "donation_terms_changed");
+  }
   // Configuration the provider call needs is checked before the intent exists: a missing key writes nothing.
   assertChargeConfig(env, target.subAccountId);
-  // The durable intent comes first: whatever happens after the provider call, this row says it was made.
+  // The session can expire, sign out, or be blocked while the destination is resolved. Claim the new
+  // intent only if that same session is still valid when the database accepts the write.
+  const sessionHash = await sha256Hex(readSessionToken(request)!);
   const intent = await db
     .prepare(
       `INSERT INTO donation_intents (id, idempotency_key, request_hash, target_kind, ngo_id, recipient_name, user_id, sub_account_id,
          amount_cents, ngo_share_cents, vila_share_cents, ngo_percent_bps, fixed_fee_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       SELECT ?, ?, ?, ?, ?, ?, s.user_id, ?, ?, ?, ?, ?, ? FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.user_id = ? AND s.token_hash = ? AND s.expires_at > strftime('%Y-%m-%dT%H:%M:%fZ', 'now') AND u.blocked = 0
        ON CONFLICT(idempotency_key) DO NOTHING
        RETURNING *`
     )
     .bind(
-      newId(), key, requestHash, targetKind, target.ngoId, target.recipientName, user?.id ?? null, target.subAccountId,
-      target.split.amountCents, target.split.ngoShareCents, target.split.vilaShareCents, target.split.ngoPercentBps, target.split.fixedFeeCents
+      newId(), key, requestHash, targetKind, target.ngoId, target.recipientName, target.subAccountId,
+      target.split.amountCents, target.split.ngoShareCents, target.split.vilaShareCents, target.split.ngoPercentBps, target.split.fixedFeeCents, user.id, sessionHash
     )
     .first<IntentRow>();
   if (!intent) {
     // A concurrent request with the same key inserted first: answer as a retry of it.
     const winner = await readIntentByKey(env, key);
-    if (!winner) throw new HttpError(409, "donation_in_progress");
-    return replay(env, winner, requestHash);
+    if (winner) return replay(env, winner, requestHash);
+    await requireUser(request, env);
+    throw new HttpError(409, "donation_in_progress");
   }
   const charge = await chargeIntent(env, intent);
   const mine = await finishIntent(env, intent, charge, "pending_provider");

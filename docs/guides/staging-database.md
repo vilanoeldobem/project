@@ -140,3 +140,7 @@ pnpm --filter @vila/site exec wrangler deploy --env staging --x-provision=false
 CTA-01 e ONG-02 terminam quando a equipe executar o percurso na homologação publicada e verificar a entrega de e-mail. Um teste local ou o empacotamento dos Workers cobre uma etapa anterior ao aceite.
 
 [Guia de publicação](deploy.md) · [Armazenamento](../reference/storage.md)
+
+### Prova local da mensagem de acesso
+
+Na raiz, `pnpm --filter @vila/api exec vitest run src/accounts.test.ts -t "simulated staging mailbox"` exercita as origens configuradas de homologação, o handler da API e SQLite descartável. A caixa em memória captura o corpo da chamada de envio do Resend. O ensaio consome somente os links lidos dessas mensagens. Verifica cadastro e reentrada com o progresso preservado, recusa da sessão encerrada, acesso do operador pelo painel e link de uso único. A candidata recebe um pedido de ajuste, reenvia a apresentação e só aparece no terreno após a aprovação. Não há entrega em caixa postal externa nem alteração da Cloudflare.

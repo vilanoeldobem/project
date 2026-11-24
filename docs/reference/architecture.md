@@ -518,7 +518,7 @@ cores forçadas, contraste alto, página sem JavaScript e impressão.
 | api | `ratelimits` | `AUTH_LIMITER`, 10 requisições / 60 s | Limite por IP em `/auth/*` (IP não gravado) |
 | api | `ratelimits` | `FILE_LIMITER`, 20 requisições / 60 s | Limite por conta no envio de arquivos (IMPL-0017) |
 | api | `ratelimits` | `MODERATION_LIMITER`, 60 requisições / 60 s | Limite de `POST /moderation/consume` por endereço de quem chama; as chamadas pelo binding de serviço não têm endereço e são contadas por sala, só quando o bilhete foi emitido (IMPL-0021) |
-| api | `ratelimits` | `DONATION_LIMITER`, 10 requisições / 60 s | Limite de `POST /donations/pix` por conta, ou por SHA-256 do endereço para visitantes (nada gravado; IMPL-0028, só alcançado com `DONATIONS_ENABLED`) |
+| api | `ratelimits` | `DONATION_LIMITER`, 10 requisições / 60 s | Limite de novas emissões em `POST /donations/pix` por conta autenticada, com doações e contas habilitadas ([IMPL-0034](../decisions/0034-authenticated-pix-issuance.md)) |
 | api | `vars.ACCOUNT_BLOCK_ENABLED` | `"false"` | Bloqueio de conta (PROPOSTA) desligado até a resposta da OQ-11; controla só novos bloqueios (IMPL-0021) |
 | api | `vars.PRESENCE_MODERATION_ENABLED` | `"false"` | Remoção de visitante de uma sala (PROPOSTA) desligada; exige também a bandeira e o binding de serviço no servidor de tempo real (IMPL-0021) |
 | api | `r2_buckets[0]` | binding `FILES` → bucket `vilanoeldobem-files` | Arquivos das candidaturas; bucket privado, criado em 2026-11-14 e vazio (IMPL-0017) |

@@ -31,9 +31,9 @@ export interface LotInfo {
   ngo_level?: number | null;
 }
 
-async function getJson<T>(path: string, credentials: RequestCredentials = "omit"): Promise<T | null> {
+async function getJson<T>(path: string, credentials: RequestCredentials = "omit", cache?: RequestCache): Promise<T | null> {
   try {
-    const res = await fetch(`${SERVICES.api}${path}`, { headers: { Accept: "application/json" }, credentials });
+    const res = await fetch(`${SERVICES.api}${path}`, { headers: { Accept: "application/json" }, credentials, cache });
     if (!res.ok || !res.headers.get("content-type")?.includes("json")) return null;
     return (await res.json()) as T;
   } catch {
@@ -67,7 +67,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const fetchIndicators = () => getJson<{ updatedAt: string; indicators: Indicator[] }>("/indicators");
-export const fetchLots = () => getJson<{ lots: LotInfo[] }>("/lots");
+export const fetchLots = (cache?: RequestCache) => getJson<{ lots: LotInfo[] }>("/lots", "omit", cache);
 
 export type PlotState = "unavailable" | "available" | "occupied";
 
@@ -145,10 +145,17 @@ export interface MyTitle {
   donations: Array<Pick<Donation, "id" | "targetKind" | "recipientName" | "amountCents" | "status" | "titleCredited"> & { createdAt: string }>;
 }
 
-export const fetchGlobalDonationConfig = () => getJson<DonationConfig>("/donations/config");
-export const fetchNgoDonationInfo = (ngoId: string) => getJson<NgoDonationInfo>(`/ngos/${encodeURIComponent(ngoId)}/donation-info`);
+export const fetchGlobalDonationConfig = (cache?: RequestCache) => getJson<DonationConfig>("/donations/config", "omit", cache);
+export const fetchNgoDonationInfo = (ngoId: string, cache?: RequestCache) => getJson<NgoDonationInfo>(`/ngos/${encodeURIComponent(ngoId)}/donation-info`, "omit", cache);
 /** `idempotencyKey`: one UUID per donation request; a retry of the same request sends the same key (IMPL-0028). */
-export const createPixDonation = (body: { idempotencyKey: string; targetKind: DonationTargetKind; ngoId?: string; amountCents: number }) =>
+export const createPixDonation = (body: {
+  accountId: string;
+  idempotencyKey: string;
+  targetKind: DonationTargetKind;
+  ngoId?: string;
+  amountCents: number;
+  expectedTerms: { recipientName: string; ngoPercentBps: number; fixedFeeCents: number };
+}) =>
   postJson<{ donation: Donation }>("/donations/pix", body);
 export const fetchDonationStatus = (id: string, refresh = false) => getJson<{ donation: Donation }>(`/donations/${encodeURIComponent(id)}${refresh ? "?refresh=1" : ""}`, "include");
 export const simulatePixDonation = (id: string) => postJson<{ donation: Donation }>(`/donations/${encodeURIComponent(id)}/simulate`, {});

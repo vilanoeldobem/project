@@ -10,6 +10,8 @@ Em 20/11, às **09h33 de Brasília**, `GET /indicators` respondeu HTTP 200, com 
 
 No painel P02, uma chave presente com valor numérico gera um cartão, inclusive para zero. `null` mostra **—** com a nota da API. Uma chave ausente não gera cartão. Se a requisição inteira falha, aparece “Indicadores indisponíveis no momento.” O painel mostra fonte e período da doação como “A definir”. Formata todos os números com `toLocaleString("pt-BR")`: 1.000 centavos aparecem como “1.000”, embora correspondam a R$ 10,00. `updatedAt` é o instante da resposta da API. [Painel P02][ui] · [Leitura HTTP pelo jogo][http]
 
+O cartão de valor converte os centavos de `confirmed_amount` em reais. Por exemplo, 1.725 centavos aparecem como R$ 17,25. A data mostrada é a da consulta ao painel.
+
 ## Dicionário de público e uso do jogo
 
 | Indicador da #65 | Fonte hoje e unidade observável | Granularidade, identidade e janela | Repetição, abas e reconexão | Zero, indisponibilidade e coleta que falta |
@@ -85,6 +87,29 @@ Na revisão indicada acima, **6 testes focalizados de API/progresso e 3 de prese
 (cd apps/server && ./node_modules/.bin/vitest run --maxWorkers=1 src/room.test.ts -t 'assigns anonymous ids|also after a reconnect|removes only members idle')
 ```
 
+## MET-01 · Conferência interna por destino e fonte
+
+Para conferir os registros da base D1 local, aplique as migrações e execute a [consulta por destino](../../apps/api/scripts/summarize-paid-donations.sql) a partir da raiz:
+
+```sh
+pnpm db:migrate:local
+pnpm --filter @vila/api exec wrangler d1 execute vilanoeldobem --local --file scripts/summarize-paid-donations.sql
+```
+
+A consulta lê as doações cujo estado atual é `paid`, desde o início daquela base, inclusive as de sandbox. A linha `global` representa a parceira da Vila. Cada linha `ngo` usa o ID da ONG gravado na doação e continua presente após a retirada da casa. Uma ONG cadastrada sem valores elegíveis aparece com zeros. Se uma exclusão física anterior apagou o vínculo da cobrança, os valores dirigidos sem ID ficam na linha `ngo` de ID nulo. O `total` já inclui global e ONGs uma vez.
+
+As colunas `pix_count` e `pix_gross_cents` contam cobranças Pix e somam seu bruto em centavos, antes das tarifas e da divisão. As colunas `proof_count` e `proof_amount_cents` contam registros manuais e somam os valores documentados. Uma referência repetida pode corresponder a dois registros manuais. A equipe deve conferir as referências antes de interpretar registros como pagamentos distintos. A consulta mantém as fontes separadas e a liquidação depende do extrato.
+
+Exemplo local com um Pix global de R$ 10,00, um Pix dirigido de R$ 7,25 e um comprovante de R$ 5,00 para a mesma ONG. A confirmação do Pix dirigido chega duas vezes e a casa é retirada em seguida.
+
+| Destino | Cobranças Pix pagas | Bruto Pix (centavos) | Registros de comprovantes | Valor documentado (centavos) |
+|---|---:|---:|---:|---:|
+| Global | 1 | 1.000 | 0 | 0 |
+| ONG retirada | 1 | 725 | 1 | 500 |
+| Total | 2 | 1.725 | 1 | 500 |
+
+Um estorno posterior do Pix global reduz o total Pix para uma cobrança e 725 centavos. A evidência externa continua em 500 centavos. Com a base legível e vazia, os quatro valores do total são zero. Uma falha na leitura ou na aplicação das migrações deixa a conferência indisponível. Para a publicação da MET-01, seguem abertas as decisões de público, período e qual valor comunicar.
+
 ## Primeiro PR de implementação e decisões que faltam
 
 **N5.2 proposta: quantidade de doações globais confirmadas, em um ambiente identificado.** Reusar D1 e o contrato de disponibilidade de `/indicators`. A definição candidata é uma cobrança no destino global em estado atual `paid`. Não exige migração nem evento de cliente. Nicolas e Augusto escolhem primeiro o público (P02 público ou painel administrativo). Bernard ratifica o significado de “confirmada”, e a frente de conciliação N3 valida a origem financeira.
@@ -130,3 +155,33 @@ A [consulta](../../apps/api/scripts/count-paid-global-pix.sql) retorna uma linha
 [moneytest]: https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/api/src/donations.test.ts#L360-L431
 [proof]: https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/api/src/donations.test.ts#L594-L614
 [dbtest]: https://github.com/vilanoeldobem/project/blob/2c294767aa7756ceaf759eadb4799b7175dedc73/apps/api/test/d1.mjs
+
+## MET-02 e MET-03 · Sinais disponíveis na versão 0.9.0
+
+O catálogo atual tem dez minijogos. Esta conferência atualiza a leitura de 20/11 para a base `f551ebc`. Os exemplos usam praças, ocupantes e progresso de teste.
+
+### MET-02 · Presença em uma praça
+
+O servidor mantém uma entrada por conexão aceita em cada sala. Duas abas do mesmo participante de teste fazem a ocupação de A subir para 2. Se uma aba se reconectar em B antes do encerramento em A, as praças mostram 2 e 1 naquele intervalo. Encerrar as conexões antigas leva a 1 e 1, depois a 0 e 1. Os objetos das duas salas conhecem apenas os próprios membros. [Estado da sala](../../apps/server/src/room.ts) · [Teste das duas praças](../../apps/server/src/room.test.ts)
+
+O HUD soma a própria conexão aos pares já observados nos snapshots do cliente. Pode haver diferença transitória entre esse valor e o total de conexões aceitas pelo servidor. A legenda indica **conexões nesta praça agora**. Em modo offline, o contador some. O estado observado em uma sala vazia e acessível é zero. Falta uma fonte agregada para informar simultâneos em toda a Vila ou visitantes únicos por período. Augusto e Nicolas decidem a abrangência e a unidade antes de publicar esses indicadores. [Conexões do cliente](../../apps/client/src/net/multiplayer.ts) · [Legenda do HUD](../../apps/client/src/ui/Environment.tsx)
+
+### MET-03 · Casa, minijogo e progresso
+
+| Percurso controlado | O que o progresso consegue registrar |
+|---|---|
+| Abrir a casa A, reabrir A e abrir a casa B depois de uma troca de ocupante em `plaza-01` | O painel chama `record("causes-visit-lot", "plaza-01")` três vezes. O progresso conserva uma chave distinta para o terreno. Esse marco também pode ocorrer em lotes listados disponíveis. Para atribuir visitas a ONGs, falta distinguir o ocupante no momento da visita. |
+| Entrar pelo catálogo em cada um dos nove jogos da saga, voltar ao catálogo, reabrir e vencer | Abertura, retorno e vitória em jogo livre deixam zero chamadas de progresso. |
+| Vencer o Trenó na Neve pela missão `b05-r1-07`, depois repetir e usar «Pular minijogo» após três tentativas | Ambas as ações registram a mesma interação `play-treno-na-neve` daquela missão. Contar essas chaves como vitórias incluiria o pulo. |
+| Abrir o Jogo da Memória pela casa três vezes e sair antes de jogar, depois resolver os quatro pares no catálogo | As saídas deixam zero chamadas de vitória. Completar o tabuleiro registra `play-memory:win`. A chave de progresso é reutilizada em rodadas seguintes. |
+
+IDs cobertos no catálogo livre da saga: `sino-afinado`, `fio-do-tempo`, `treno-na-neve`, `coro-dos-nomes`, `mapa-das-estrelas`, `lago-dos-reflexos`, `ponte-das-pegadas`, `forno-da-memoria` e `jardim-das-estacoes`. O décimo jogo é `jogo-da-memoria` (painel `memory`). [Catálogo](../../apps/client/src/ui/Games.tsx) · [Definições e interações](../../apps/client/src/game/story-games.ts) · [Jogo da Memória](../../apps/client/src/ui/MemoryGame.tsx)
+
+O ensaio monta os painéis reais no Chromium, usa o armazenamento de progresso normal em um perfil descartável e observa apenas as chamadas de `record` em memória. A troca de ONG e a rede offline são estados controlados. Ele não mede tráfego da Vila. Pedro e Augusto ainda precisam definir o momento de contar a visita ou a partida, como reconhecer um retorno e como tratar repetição e pulo. [Casa](../../apps/client/src/ui/Lot.tsx) · [Painel da saga](../../apps/client/src/ui/StoryGamePanel.tsx) · [Store de progresso](../../apps/client/src/game/store.ts)
+
+Para reproduzir localmente na raiz, com as dependências do lockfile e Chromium instalado:
+
+```sh
+(cd apps/server && ./node_modules/.bin/vitest run src/room.test.ts --maxWorkers=1)
+(cd apps/client && CHROMIUM_PATH=/usr/bin/chromium node scripts/verify-indicator-signals.mjs)
+```

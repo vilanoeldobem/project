@@ -347,7 +347,7 @@ for (const [name, time, weather, zoom, at, demo] of [
     .then(() => true)
     .catch(() => false);
   if (!seen) errors.push(`mp: B did not see A walk (remotes ${JSON.stringify(await b.evaluate(() => window.__vila.extra.remotes()))})`);
-  const chip = await b.getByRole("status", { name: /visitantes nesta praça/ }).textContent().catch(() => null);
+  const chip = await b.getByRole("status", { name: /conexões nesta praça/ }).textContent().catch(() => null);
   if (!chip?.includes("2")) errors.push(`mp: visitor chip shows "${chip}"`);
   await b.waitForTimeout(1500);
   await b.screenshot({ path: `${out}multiplayer-b.png` });

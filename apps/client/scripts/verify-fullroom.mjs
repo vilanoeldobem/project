@@ -95,7 +95,7 @@ async function measure(page, name) {
     const m = /calls (\d+) · tris (\d+)/.exec(line);
     if (m) (calls = Math.max(calls, +m[1])), (triangles = Math.max(triangles, +m[2]));
   }
-  const chip = await page.getByRole("status", { name: /visitantes nesta praça/ }).textContent().catch(() => null);
+  const chip = await page.getByRole("status", { name: /conexões nesta praça/ }).textContent().catch(() => null);
   stats[name] = { calls, triangles, chip: chip?.trim() ?? null };
   if (calls === 0) errors.push(`${name}: the debug overlay shows no render counters`);
   if (calls > BUDGET.calls || triangles > BUDGET.triangles) errors.push(`${name}: ${calls} calls and ${triangles} triangles, over ${BUDGET.calls} and ${BUDGET.triangles}`);

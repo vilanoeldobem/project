@@ -43,6 +43,7 @@ const ERROR_TEXT: Record<string, string> = {
   // Donations (IMPL-0023, PROPOSTA).
   payment_provider_unavailable: "O provedor de pagamento está indisponível no momento. Tente novamente em instantes.",
   ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
+  donation_terms_changed: "O destino ou a divisão do Pix mudou. Confira as condições atuais antes de tentar de novo.",
   global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",
   invalid_donation_amount: "O valor da doação precisa ser um número inteiro entre R$ 2,00 e R$ 50.000,00.",
   // Durable creation intent (IMPL-0028, PROPOSTA).

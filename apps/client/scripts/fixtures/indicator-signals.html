@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Verificação local dos sinais de presença e jogos</title>
+<div id="root"></div>
+<script type="module">
+  import { createElement as h } from "react";
+  import { createRoot } from "react-dom/client";
+  import { EnvironmentChip } from "../../src/ui/Environment.tsx";
+  import { Games } from "../../src/ui/Games.tsx";
+  import { Lot } from "../../src/ui/Lot.tsx";
+  import { MemoryGame } from "../../src/ui/MemoryGame.tsx";
+  import { StoryGamePanel } from "../../src/ui/StoryGamePanel.tsx";
+  import { STORY_GAMES, storyInteractionFor } from "../../src/game/story-games.ts";
+  import { useVila } from "../../src/game/store.ts";
+  import { useNet } from "../../src/net/multiplayer.ts";
+
+  const calls = [];
+  const record = useVila.getState().record;
+  useVila.setState({ record: (missionId, eventId) => {
+    calls.push([missionId, eventId]);
+    record(missionId, eventId);
+  }});
+  let occupant = "A";
+  function View() {
+    const panel = useVila(s => s.panel);
+    if (panel?.kind === "games") return h(Games);
+    if (panel?.kind === "memory") return h(MemoryGame, panel);
+    if (panel?.kind === "story-game") return h(StoryGamePanel, panel);
+    if (panel?.kind === "lot") return h(Lot, {lotId: panel.lotId,
+      info: {id: panel.lotId, ngo_name: "ONG " + occupant, ngo_id: occupant, state: "published"}});
+    return h(EnvironmentChip);
+  }
+  window.signalsProbe = {
+    calls,
+    seen: () => Object.keys(useVila.getState().progress.seen),
+    catalog: () => useVila.getState().open({kind: "games"}),
+    house(id) { occupant = id; useVila.getState().open({kind: "lot", lotId: "plaza-01"}); },
+    mission() {
+      const q = storyInteractionFor("play-treno-na-neve", "b05-r1-07");
+      useVila.getState().open({kind: "story-game", gameId: "treno-na-neve", questId: q.questId, interactionId: q.id});
+    },
+    presence: (status, others) => useNet.setState({ status, others }),
+    games: STORY_GAMES.map(({id, title, build}) => ({id, title, puzzle: build("normal", "r0")})),
+  };
+  createRoot(document.querySelector("#root")).render(h(View));
+</script>

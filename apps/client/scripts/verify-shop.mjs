@@ -1,22 +1,25 @@
 /**
  * verify-shop.mjs — the P08 provador end to end in a real Chrome, at 1440×900 and 390×844. For each of the
- * four shops it enters the panel from the avatar at the door, lists every category (8 free items; the 2 paid
- * previews per category stay hidden until PEN-022, `SHOW_PAID_PREVIEWS`), previews and equips one item, checks the
+ * four shops it enters the panel from the avatar at the door, compares every category with its free entries in COSMETICS_V2
+ * (paid previews stay hidden until PEN-022, `SHOW_PAID_PREVIEWS`), previews and equips one item, checks the
  * inventory count, and for the Ateliê it also checks that no paid card, purchase or price text shows and a locked
  * card (requirement, no equip). It proves that a
  * preview does not change the look, an equipped item does, the look persists in `vila.look.v2` across a reload,
  * that the dress/blouse rule holds, and that the phone layout does not scroll sideways.
  *
- * Local only. The page is seeded with the `explore-gifts` mission completed (30 of 80 free items owned) so the
+ * Local only. The page is seeded with the `explore-gifts` mission completed so the
  * flow is deterministic; the mission itself is covered by `verify.mjs` and the shared tests.
  *
- * Usage: node scripts/verify-shop.mjs [game=http://localhost:8799]
+ * Usage: [CHROMIUM_PATH=/path/to/chromium] node scripts/verify-shop.mjs [game=http://localhost:8799]
  */
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { chromium } from "playwright-core";
+import { runnerImport } from "vite";
 
 import { arrive } from "./arrive.mjs";
+import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const game = (process.argv[2] ?? "http://localhost:8799").replace(/\/$/, "");
 if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(game)) {
@@ -26,9 +29,15 @@ if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/.test(game)) {
 const out = new URL("../verify-output/", import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 
+const catalogPath = fileURLToPath(new URL("../../../packages/shared/src/game/cosmetics-v2.ts", import.meta.url));
+const { module: { COSMETICS_V2, isPaid, unlockedIdsIn } } = await runnerImport(catalogPath);
+const freeCatalog = COSMETICS_V2.filter(item => !isPaid(item));
+const progress = { xp: 30, counters: {}, completed: { "explore-gifts": true }, seen: {} };
+const owned = unlockedIdsIn(COSMETICS_V2, progress).size;
+const inventoryText = `No inventário: ${owned} de ${freeCatalog.length} visuais gratuitos.`;
 const SEED = {
   "vila.environment.v1": JSON.stringify({ quality: "low", multiplayer: false }),
-  "vila.progress.v2": JSON.stringify({ xp: 30, counters: {}, completed: { "explore-gifts": true }, seen: {} }),
+  "vila.progress.v2": JSON.stringify(progress),
 };
 
 /** The four shops: door point, panel title, categories and the free items this check equips. */
@@ -72,9 +81,12 @@ const SHOPS = [
   },
 ];
 
-const browser = await chromium.launch({ channel: "chrome", args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+const browser = await chromium.launch({
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : { channel: "chrome" }),
+  env: { ...process.env, TMPDIR: process.env.TMPDIR || "/tmp" },
+  args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--renderer-process-limit=2", "--disable-background-networking"],
+});
 const errors = [];
-const analyticsNoise = (text) => /googletagmanager|google-analytics|doubleclick|google\.com\/g\/collect|google\.com\.br\/ads/.test(text);
 
 const listen = (page, name) => {
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
@@ -92,6 +104,7 @@ for (const [name, viewport] of [
 ]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   listen(page, name);
+  await isolateAnalytics(page);
   await page.addInitScript((seed) => {
     for (const [key, value] of Object.entries(seed)) localStorage.setItem(key, value);
   }, SEED);
@@ -122,14 +135,16 @@ for (const [name, viewport] of [
   const wardrobe = (dialog) => dialog.locator(".wardrobe");
 
   const checkCategory = async (dialog, label) => {
-    await dialog.getByRole("button", { name: label, exact: true }).click();
-    await page.waitForTimeout(120);
-    const cards = await dialog.locator("[data-item-id]").count();
+    const tab = dialog.getByRole("button", { name: label, exact: true });
+    const slot = await tab.getAttribute("data-slot");
+    await tab.click();
+    const expected = freeCatalog.filter(item => item.slot === slot).map(item => item.id).sort();
+    const visible = await dialog.locator("[data-item-id]").evaluateAll(cards => cards.map(card => card.dataset.itemId).sort());
     const paid = await dialog.locator('[data-sale="paid"]').count();
     const free = await dialog.locator('[data-sale="free"]').count();
-    if (cards !== 8) errors.push(`${name}: "${label}" shows ${cards} items, not 8`);
+    if (!expected.length || !same(visible, expected)) errors.push(`${name}/${label}: visible IDs differ from the free ${slot} catalogue. Expected ${expected}, saw ${visible}`);
     if (paid !== 0) errors.push(`${name}: "${label}" shows ${paid} paid items; paid previews are hidden (PEN-022)`);
-    if (free !== 8) errors.push(`${name}: "${label}" shows ${free} free items, not 8`);
+    if (free !== expected.length) errors.push(`${name}: "${label}" marks ${free} cards as free, expected ${expected.length}`);
   };
 
   const equip = async (dialog, test) => {
@@ -163,9 +178,9 @@ for (const [name, viewport] of [
   for (const shop of SHOPS) {
     const dialog = await openShop(shop);
     if (!dialog) continue;
-    if ((await wardrobe(dialog).getAttribute("data-owned")) !== "30") errors.push(`${name}/${shop.id}: inventory owned is not 30`);
-    if ((await wardrobe(dialog).getAttribute("data-free")) !== "80") errors.push(`${name}/${shop.id}: free catalogue is not 80`);
-    if (!(await dialog.getByText("No inventário: 30 de 80 visuais gratuitos.").count())) errors.push(`${name}/${shop.id}: inventory line is missing`);
+    if ((await wardrobe(dialog).getAttribute("data-owned")) !== String(owned)) errors.push(`${name}/${shop.id}: inventory owned differs from ${owned}`);
+    if ((await wardrobe(dialog).getAttribute("data-free")) !== String(freeCatalog.length)) errors.push(`${name}/${shop.id}: free catalogue differs from ${freeCatalog.length}`);
+    if (!(await dialog.getByText(inventoryText).count())) errors.push(`${name}/${shop.id}: inventory line is missing`);
     for (const label of shop.categories) await checkCategory(dialog, label);
 
     const looks = [];
@@ -255,4 +270,4 @@ if (errors.length) {
   console.error(errors.join("\n"));
   process.exit(1);
 }
-console.log(`ok — shop screenshots in ${out}`);
+console.log(`ok — four shops on desktop and mobile. ${owned} of ${freeCatalog.length} free items owned, ${COSMETICS_V2.length - freeCatalog.length} paid catalogue items hidden. Screenshots in ${out}`);

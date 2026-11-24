@@ -55,6 +55,7 @@ export function EnvironmentChip() {
   const skyView = useVila((s) => s.skyView);
   const setSkyView = useVila((s) => s.setSkyView);
   const net = useNet();
+  const presenceLabel = `${net.others + 1} ${net.others ? "conexões" : "conexão"} nesta praça agora`;
   const c = saoPauloCivil(f.timestampMs);
   const w = WEATHER_LABEL[f.weather.kind];
   const event = f.events[f.events.length - 1];
@@ -75,7 +76,7 @@ export function EnvironmentChip() {
         <span className="env-chip__label">{event ? EVENT_LABEL[event.kind] : w.label}</span>
       </button>
       {net.status === "online" && (
-        <span className="btn btn--chip env-chip__people" role="status" aria-label={`${net.others + 1} ${net.others ? "visitantes" : "visitante"} nesta praça agora`}>
+        <span className="btn btn--chip env-chip__people" role="status" aria-label={presenceLabel} title={presenceLabel}>
           👥 {net.others + 1}
         </span>
       )}
