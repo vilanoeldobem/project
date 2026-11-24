@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
+
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
 
 - Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).

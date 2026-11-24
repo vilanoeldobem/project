@@ -11,6 +11,20 @@ const env = (db?: Partial<D1Database>): Env => ({
 const get = (path: string, e: Env, method = "GET") => handleApi(new Request(`https://vila.test${path}`, { method }), e);
 
 describe("worker /api", () => {
+  it("only exposes the optional account rehearsal in explicitly enabled local environments", async () => {
+    for (const environment of ["development", "test", "staging", "production"]) {
+      const config = async (flag?: string) => (await get("/config", {
+        ENVIRONMENT: environment, LOCAL_ACCOUNT_ACTIONS: flag,
+      })).json();
+      expect(await config()).not.toHaveProperty("localAccountActions");
+      if (environment === "test" || environment === "development") {
+        expect(await config("true")).toHaveProperty("localAccountActions", true);
+      } else {
+        expect(await config("true")).not.toHaveProperty("localAccountActions");
+      }
+    }
+  });
+
   it("health reports db presence and whether the mail key is set, never the key", async () => {
     const res = await get("/health", env());
     expect(res.status).toBe(200);

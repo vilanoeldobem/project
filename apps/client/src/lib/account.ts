@@ -18,7 +18,7 @@ import type { Progress } from "@vila/shared/game/progress";
 
 import { sendableEvents, setServerQuests } from "../game/questsFlag";
 import { setServerQuestsV2 } from "../game/questsV2Flag";
-import { useVila } from "../game/store";
+import { nextEvent, reserveLocalGuest, useVila } from "../game/store";
 import { discardUnsentDrafts, resumeDraft } from "./pix-draft";
 import { SERVICES } from "./services";
 
@@ -79,7 +79,8 @@ export const api = {
       withdrawal?: boolean;
       moderation?: Partial<ModerationConfig>;
       donations?: boolean;
-    }>("GET", "/config"),
+      localAccountActions?: boolean;
+    }>("GET", "/config", undefined, {}, localRehearsalPage() ? AbortSignal.timeout(5000) : undefined),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -88,7 +89,9 @@ export const api = {
   logout: () => call<null>("POST", "/auth/logout", {}),
   /** No body: the account to erase goes in a header, as for `deleteFile`. */
   deleteMe: () => call<null>("DELETE", "/me", undefined, { "X-Vila-Account": accountId() }),
-  progress: () => call<{ progress: Progress }>("GET", "/progress"),
+  progress: (owner?: string) => call<{ progress: Progress }>("GET", "/progress", undefined, owner ? { "X-Vila-Account": owner } : {}),
+  localRedirect: (ngoId: string, accountId: string) =>
+    call<{ url: string; tracked: boolean; titleCredit: "none" }>("POST", "/donations/redirect", { ngoId, accountId }),
   postEvents: (owner: string, events: Array<{ missionId: string; eventId: string }>) =>
     call<{ progress: Progress }>("POST", "/progress/events", { accountId: owner, events }),
   /** `files` is missing in the answer of an API older than IMPL-0017. */
@@ -138,6 +141,8 @@ interface AccountState {
   donations: boolean;
   user: Me | null;
   ready: boolean;
+  configReady: boolean;
+  localImportCount: number;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
   sync: "saved" | "pending";
   setUser: (u: Me | null) => void;
@@ -151,9 +156,19 @@ export const useAccount = create<AccountState>((set) => ({
   donations: false,
   user: null,
   ready: false,
+  configReady: false,
+  localImportCount: 0,
   sync: "saved",
   setUser: (user) => set({ user }),
 }));
+
+// An open game belongs to the session that started it. A logout, block or account change ends that round.
+useAccount.subscribe((state, previous) => {
+  const { panel, localActor, close } = useVila.getState();
+  if (!localActor || (state.user === previous.user)) return;
+  if ((panel.kind === "memory" || panel.kind === "story-game") &&
+      (!localActor() || state.user?.id !== previous.user?.id)) close();
+});
 
 type Event = { missionId: string; eventId: string };
 
@@ -193,9 +208,73 @@ function savePending(owner: string, events: Event[]) {
  */
 async function send(owner: string, all: Event[]): Promise<Progress> {
   const events = sendableEvents(all);
-  let server = (await api.progress()).progress;
+  let server = (await api.progress(useVila.getState().localActor ? owner : undefined)).progress;
   for (let i = 0; i < events.length; i += 50) server = (await api.postEvents(owner, events.slice(i, i + 50))).progress;
   return server;
+}
+
+const importKey = (owner: string) => `vila.local-import.v1:${owner}`;
+
+function localImport(owner: string): Event[] {
+  const raw = localStorage.getItem(importKey(owner));
+  return raw ? JSON.parse(raw) : [];
+}
+
+function holdLocalEvents(owner: string, events: Event[]): Event[] {
+  const batch = [...localImport(owner), ...events];
+  const unique = [...new Map(batch.map(e => [`${e.missionId}:${e.eventId}`, e])).values()];
+  if (events.length) localStorage.setItem(importKey(owner), JSON.stringify(unique));
+  return unique;
+}
+
+/** Verification reads the account. Guest events stay reserved to this account until its owner explicitly imports them. */
+async function readLocalAccount(owner: string) {
+  try {
+    const { progress } = await api.progress(owner);
+    if (!syncs(owner) || useVila.getState().localActor?.() !== owner) return;
+    const reserve = (canMigrateGuest: boolean) => {
+      const vila = useVila.getState();
+      if (vila.localActor?.() !== owner) return;
+      // Two already-open guest tabs can have identical stale in-memory progress. Consume only persisted events
+      // inside the cross-tab lock. Without Web Locks only this owner's existing queue may be recovered.
+      if (canMigrateGuest && vila.progressOwner === null) {
+        reserveLocalGuest(owner, (id, progress) => holdLocalEvents(id, seenEvents(progress)));
+      }
+      const unique = holdLocalEvents(owner, loadPending(owner));
+      savePending(owner, []);
+      vila.adoptProgress(progress, owner);
+      useAccount.setState({ localImportCount: sendableEvents(unique).length, sync: "saved" });
+    };
+    if (globalThis.navigator?.locks) await navigator.locks.request("vila.local-guest-import", () => reserve(true));
+    else reserve(false);
+  } catch {
+    useAccount.setState({ sync: "pending" });
+  }
+}
+
+export async function confirmLocalImport(owner: string) {
+  const vila = useVila.getState();
+  if (vila.localActor?.() !== owner || vila.progressOwner !== owner) return;
+  const held = localImport(owner);
+  const accepted = sendableEvents(held);
+  if (!accepted.length) return;
+  const server = await send(owner, accepted);
+  const finish = () => {
+    const current = useVila.getState();
+    if (current.localActor?.() !== owner || current.progressOwner !== owner) return;
+    // Another tab may have reserved more events while this request was in flight.
+    const confirmed = new Set(accepted.filter(e => server.seen[`${e.missionId}:${e.eventId}`] || server.completed[e.missionId])
+      .map(e => `${e.missionId}:${e.eventId}`));
+    const remaining = localImport(owner).filter(e => !confirmed.has(`${e.missionId}:${e.eventId}`));
+    if (remaining.length) localStorage.setItem(importKey(owner), JSON.stringify(remaining));
+    else localStorage.removeItem(importKey(owner));
+    // A gesture made while this request was in flight may still be waiting for the server.
+    const progress = seenEvents(current.progress).reduce((p, e) => nextEvent(p, e.missionId, e.eventId).progress, server);
+    current.adoptProgress(progress, owner);
+    useAccount.setState({ localImportCount: sendableEvents(remaining).length });
+  };
+  if (globalThis.navigator?.locks) await navigator.locks.request("vila.local-guest-import", finish);
+  else finish();
 }
 
 /**
@@ -204,6 +283,7 @@ async function send(owner: string, all: Event[]): Promise<Progress> {
  * shows the account's progress. Offline: the guest progress stays on screen and is migrated next time.
  */
 async function syncProgress(owner: string) {
+  if (useVila.getState().localActor) return readLocalAccount(owner);
   const vila = useVila.getState();
   const guest = vila.progressOwner === null ? seenEvents(vila.progress) : [];
   const queued = loadPending(owner);
@@ -291,7 +371,7 @@ function signedOutHere() {
   unsubscribe?.();
   unsubscribe = null;
   stillSignedIn = null;
-  useAccount.setState({ user: null, sync: "saved" });
+  useAccount.setState({ user: null, sync: "saved", localImportCount: 0 });
   useVila.getState().restoreGuest();
 }
 
@@ -310,7 +390,12 @@ export async function deleteAccount() {
     await refreshAccount();
     throw error;
   }
-  if (owner) savePending(owner, []);
+  if (owner) {
+    savePending(owner, []);
+    if (useVila.getState().localActor) {
+      try { localStorage.removeItem(importKey(owner)); } catch { /* storage unavailable */ }
+    }
+  }
   signedOutHere();
 }
 
@@ -397,12 +482,28 @@ function takeLoginToken(): string | null {
  * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
  * which need the API's flag, stay off).
  */
-export async function initAccount() {
+export const localRehearsalPage = () => import.meta.env.MODE !== "production" &&
+  typeof location !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+
+let localStartup: Promise<void> | undefined;
+export function initAccount(): Promise<void> {
+  if (!localRehearsalPage()) return readStartup();
+  // React StrictMode may mount the app twice. Verify the fragment and restore its session only once in flight.
+  localStartup ??= readStartup().finally(() => { localStartup = undefined; });
+  return localStartup;
+}
+
+async function readStartup() {
   try {
-    const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = await api.config();
+    const { accounts, quests, questsV2, files, withdrawal, moderation, donations, localAccountActions } = await api.config();
+    useVila.setState({ localActor: localRehearsalPage() && localAccountActions === true ? () => {
+      const user = useAccount.getState().user;
+      return user && !user.blocked && !user.deletionPending ? user.id : null;
+    } : null });
     setServerQuests(quests === true);
     setServerQuestsV2(questsV2 === true);
     useAccount.setState({
+      configReady: true,
       enabled: accounts,
       files: accounts && files === true,
       withdrawal: accounts && withdrawal === true,
@@ -443,7 +544,7 @@ export async function initAccount() {
   } catch {
     /* not signed in or API unavailable */
   } finally {
-    useAccount.setState({ ready: true });
+    useAccount.setState({ ready: true, configReady: true });
   }
 }
 

@@ -24,7 +24,7 @@ import { GIFTS, LOTS } from "@vila/shared/game/world";
 
 import { newId } from "./crypto";
 import { HttpError, json, NO_STORE, readJson } from "./http";
-import { assertAccount, requireUser } from "./session";
+import { assertAccount, rehearsesAccountActions, requireUser } from "./session";
 import type { Env } from "./api";
 
 /** The event ids the client can produce for each mission or quest. */
@@ -110,6 +110,8 @@ export async function loadProgress(env: Env, userId: string): Promise<Progress> 
 
 export async function getProgress(request: Request, env: Env): Promise<Response> {
   const user = await requireUser(request, env);
+  const expected = request.headers.get("X-Vila-Account");
+  if (expected !== null && rehearsesAccountActions(env)) assertAccount({ accountId: expected }, user);
   return json({ progress: await loadProgress(env, user.id) }, { headers: NO_STORE });
 }
 

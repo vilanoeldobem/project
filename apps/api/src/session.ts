@@ -104,3 +104,7 @@ export const meView = (u: User, block?: { message: string; at: string } | null) 
   id: u.id, name: u.name, nickname: u.nickname, city: u.city, email: u.email, role: u.role, deletionPending: Boolean(u.files_deleting),
   ...(block ? { blocked: block } : {}),
 });
+
+export function rehearsesAccountActions(env: Env): boolean {
+  return (env.ENVIRONMENT === "development" || env.ENVIRONMENT === "test") && env.LOCAL_ACCOUNT_ACTIONS === "true";
+}

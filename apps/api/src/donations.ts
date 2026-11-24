@@ -70,7 +70,7 @@ import {
 } from "./abacatepay";
 import { newId, sha256Hex } from "./crypto";
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
-import { assertAccount, assertStillAdmin, currentUser, readSessionToken, requireAdmin, requireUser, STILL_ADMIN } from "./session";
+import { assertAccount, assertStillAdmin, currentUser, readSessionToken, rehearsesAccountActions, requireAdmin, requireUser, STILL_ADMIN } from "./session";
 import type { Env } from "./api";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -701,12 +701,15 @@ export async function recordRedirect(request: Request, env: Env): Promise<Respon
   if (!env.DB) throw new HttpError(503, "db_unavailable");
   const body = await readJson(request, 2_000);
   if (typeof body.ngoId !== "string" || !UUID.test(body.ngoId)) throw new HttpError(400, "invalid", { ngoId: "Escolha uma ONG publicada na Vila." });
+  const rehearsal = rehearsesAccountActions(env);
+  if (rehearsal && env.ACCOUNTS_ENABLED !== "true") throw new HttpError(404, "accounts_disabled");
+  const user = rehearsal ? await requireUser(request, env) : await currentUser(request, env);
+  if (rehearsal && user) assertAccount(body, user);
   const ngo = await env.DB.prepare(PUBLISHED_NGO).bind(body.ngoId).first<{ id: string; name: string }>();
   if (!ngo) throw new HttpError(404, "not_found");
   const payment = await readPayment(env, ngo.id);
   if (payment?.payment_method !== "external_link" || payment.link_validated !== 1 || !payment.donation_url)
     throw new HttpError(409, "ngo_payment_not_configured");
-  const user = await currentUser(request, env);
   await env.DB.prepare("INSERT INTO donation_redirects (id, ngo_id, user_id, target_url) VALUES (?, ?, ?, ?)")
     .bind(newId(), ngo.id, user?.id ?? null, payment.donation_url)
     .run();

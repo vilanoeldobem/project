@@ -50,6 +50,7 @@ export function Missions({
   stories?: boolean;
 }) {
   const stored = useVila((s) => s.progress);
+  const claims = useVila((s) => s.missionClaims);
   const p = progress ?? stored;
   const open = useVila((s) => s.open);
   const v1 = useQuestsEnabled();
@@ -73,6 +74,11 @@ export function Missions({
         </span>
         <SheetProgress value={into} max={XP_PER_LEVEL} label={`Nível ${level}, ${into} de ${XP_PER_LEVEL} XP`} />
       </div>
+      {Object.entries(claims).map(([id, claim]) => (
+        <button key={id} className="btn btn--primary" onClick={() => useVila.getState().claimMission(id)}>
+          Concluir missão: {claim.title}
+        </button>
+      ))}
       {showStories && next && (
         <p className="note" role="status">
           Próximo passo: {next.title} com {npcName(world, next.giverNpcId)}.

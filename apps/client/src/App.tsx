@@ -6,7 +6,7 @@ import { useQuestsV2Enabled } from "./game/questsV2Flag";
 import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
 import { ALL_WORLD, V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { PixReview } from "./ui/PixReview";
-import { initAccount } from "./lib/account";
+import { initAccount, localRehearsalPage, useAccount } from "./lib/account";
 import { type ContextState, watchContext } from "./lib/context-watch";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { demoAllowed, isUnlisted, withDemoHouses } from "./lib/lots";
@@ -37,6 +37,7 @@ const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World
 
 export function App() {
   const panel = useVila((s) => s.panel);
+  const configReady = useAccount((s) => s.configReady);
   const quests = useQuestsEnabled();
   const quests2 = useQuestsV2Enabled();
   const catalog = catalogFor(quests, quests2);
@@ -58,6 +59,8 @@ export function App() {
   }, []);
   useEffect(() => () => stopWatch.current?.(), []);
 
+  // /config alone decides the local rehearsal. A slow /me never holds the village loading screen.
+  if (localRehearsalPage() && !configReady) return <p role="status">Acendendo as luzes da Vila…</p>;
   return (
     <>
       {/* The page heading. The brand is not on the gameplay screen (IMPL-0022): it shows while the village loads. */}
@@ -101,7 +104,7 @@ export function App() {
       {panel.kind === "life" && <LifeDialog charId={panel.charId} name={panel.name} role={panel.role} lines={panel.lines} />}
       {panel.kind === "indicators" && <Indicators />}
       {panel.kind === "environment" && <EnvironmentPanel />}
-      {panel.kind === "account" && <Account then={panel.then} />}
+      {panel.kind === "account" && <Account then={panel.then} reason={panel.reason} />}
       {panel.kind === "ngo" && <NgoApplicationPanel lotId={panel.lotId} />}
       <GameSound />
       <Presence />
