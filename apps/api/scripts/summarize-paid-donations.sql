@@ -13,8 +13,8 @@ by_destination AS (
   FROM entries
   GROUP BY target_kind, ngo_id
 )
-SELECT * FROM by_destination
+SELECT d.*, n.name AS ngo_name FROM by_destination d LEFT JOIN ngos n ON n.id = d.ngo_id
 UNION ALL
-SELECT 'total', NULL, SUM(pix_count), SUM(pix_gross_cents), SUM(proof_count), SUM(proof_amount_cents)
+SELECT 'total', NULL, SUM(pix_count), SUM(pix_gross_cents), SUM(proof_count), SUM(proof_amount_cents), NULL
 FROM by_destination
 ORDER BY scope, ngo_id;

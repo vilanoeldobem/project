@@ -89,6 +89,8 @@ Na revisão indicada acima, **6 testes focalizados de API/progresso e 3 de prese
 
 ## MET-01 · Conferência interna por destino e fonte
 
+Com doações habilitadas no ambiente, administradores consultam **Pendentes → Doações confirmadas por destino** no painel. O campo `paidByDestination` de `GET /admin/donations/overview` usa a mesma consulta abaixo, independentemente do limite da lista de configuração de ONGs e do histórico recente. A tabela mostra o acumulado da base em centavos convertidos para reais, somente para as cobranças atualmente pagas. Se a API ainda não informar os totais, o painel indica indisponibilidade. A divulgação pública de um indicador financeiro continua dependendo de decisão.
+
 Para conferir os registros da base D1 local, aplique as migrações e execute a [consulta por destino](../../apps/api/scripts/summarize-paid-donations.sql) a partir da raiz:
 
 ```sh

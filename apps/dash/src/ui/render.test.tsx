@@ -16,6 +16,7 @@ import type { UserAction } from "../lib/moderation";
 
 import { Applications, LogoRemovalConfirmation, Review } from "./Applications";
 import { Audit } from "./Audit";
+import { PaidByDestination } from "./Donations";
 import { Lots } from "./Lots";
 import { Pending } from "./Pending";
 import { Shell } from "./Shell";
@@ -25,6 +26,28 @@ import { focusAfterAction, SanctionsNote, UserConfirmation, Users, UserTable } f
 
 const html = (el: ReactElement) => renderToStaticMarkup(el);
 const count = (text: string, part: string) => text.split(part).length - 1;
+
+describe("internal paid donation totals", () => {
+  it("shows unavailable for an older overview and real zeros for an empty database", () => {
+    const legacy = html(<PaidByDestination rows={undefined} />);
+    expect(legacy).toContain("Totais por destino indisponíveis");
+    expect(legacy).not.toContain("<table");
+    const empty = html(<PaidByDestination rows={[{ scope: "total", ngo_id: null, ngo_name: null, pix_count: 0, pix_gross_cents: 0, proof_count: 0, proof_amount_cents: 0 }]} />);
+    expect(empty).toContain("Total geral");
+    expect(empty).toContain("0,00");
+  });
+
+  it("renders paid Pix and manual proof separately for an NGO", () => {
+    const row = { scope: "ngo" as const, ngo_id: "fixture", ngo_name: "Associação Exemplo", pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 };
+    const page = html(<PaidByDestination rows={[row]} />);
+    expect(page).toContain("Associação Exemplo");
+    expect(page).toContain('data-label="Bruto Pix"');
+    expect(page).toContain("7,25");
+    expect(page).toContain('data-label="Valor documentado"');
+    expect(page).toContain("5,00");
+    expect(html(<PaidByDestination rows={[{ ...row, ngo_id: null, ngo_name: null }]} />)).toContain("ONG sem vínculo");
+  });
+});
 const ADMIN: Me = { id: "u1", name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com", role: "admin" };
 
 const DETAIL: ApplicationDetail = {

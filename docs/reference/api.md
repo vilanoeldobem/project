@@ -841,7 +841,7 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 | `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
 | `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
-| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, paidByDestination, recentDonations, recentRedirects, reconciliation}`. `paidByDestination` contém a [conferência por destino e fonte](indicator-sources.md#met-01--conferência-interna-por-destino-e-fonte). `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028). |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, revision?, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
