@@ -1,8 +1,22 @@
 # N6.1 · Inventário de visuais e condições de teste da compra
 
-O AIOX QA verificou em 20/11/2026 a [main em 2c29476](https://github.com/vilanoeldobem/project/tree/2c294767aa7756ceaf759eadb4799b7175dedc73). A N6.1 da [#65](https://github.com/vilanoeldobem/project/issues/65) verifica o provador gratuito e delimita o que poderá ser testado em N6.2.
+Em 20/11/2026, o AIOX QA verificou a [main em 2c29476](https://github.com/vilanoeldobem/project/tree/2c294767aa7756ceaf759eadb4799b7175dedc73). A N6.1 da [#65](https://github.com/vilanoeldobem/project/issues/65) verifica o provador gratuito e delimita o que poderá ser testado em N6.2.
 
-## N6.1 · Resultado do gratuito
+## Verificação local de 23/11 · Catálogo da v0.9.0
+
+Em um perfil isolado do Chromium, um visitante com a missão `explore-gifts` concluída encontrou **30 de 110 visuais gratuitos disponíveis**. As dez categorias exibiram 110 peças gratuitas ao todo, zero peças pagas e zero controles de compra. Provar o Gorro de tricô conservou o capacete original. Equipar alterou o visual para `helmet-beanie`. Depois de recarregar a página, o cartão continuou **Em uso** e a contagem continuou 30 de 110. O navegador fez zero requisições de escrita durante esse percurso. O jogo e as respostas de API desta prova estavam restritos ao ambiente local.
+
+Os testes de categorias e interface em `src/game/wardrobe.test.ts` e `src/ui/Wardrobe.test.tsx` passaram nos cinco casos. O verificador de lojas agora lê o [catálogo usado pelo jogo](../../packages/shared/src/game/cosmetics-v2.ts) e compara os IDs que cada categoria exibe com o conjunto de peças gratuitas daquele slot. A contagem de itens liberados usa o mesmo progresso fictício do ensaio anterior. O teste também confere se a interface continua ocultando as peças pagas e os controles de compra. [Verificador das quatro lojas](../../apps/client/scripts/verify-shop.mjs)
+
+As quatro lojas passaram pelo mesmo verificador no Chromium em **1440 × 900** e **390 × 844**. Os cartões exibidos coincidiram com os IDs gratuitos esperados de cada categoria. As 50 peças pagas do catálogo técnico continuaram ocultas. O teste percorreu as portas das lojas e conferiu a prévia, a troca e a persistência do visual, os requisitos das peças bloqueadas e a navegação em tela pequena.
+
+Para repetir a prova das quatro lojas, inicie o jogo e a API locais e execute o comando na raiz do repositório. `CHROMIUM_PATH` pode ser omitido quando o canal Chrome está instalado.
+
+```sh
+CHROMIUM_PATH=/usr/bin/chromium node apps/client/scripts/verify-shop.mjs http://localhost:8799
+```
+
+## Ensaio de 20/11 · Catálogo anterior
 
 **Aprovado em navegador local.** Um visitante sem login equipou o Gorro de tricô (`helmet-beanie`, categoria Capacete). Após recarregar a página na mesma origem e reabrir **Aparência → Visuais**, o cartão voltou marcado **Em uso**. O inventário continuou com **30 de 80** gratuitos. Equipar mudou a seleção do avatar; a missão já dava acesso à peça.
 
@@ -42,7 +56,7 @@ Os dois arquivos do Vitest passaram (5/5). O build do cliente terminou com suces
 2. Abra **Aparência → Visuais → Capacete**. Confira “30 de 80”, prove o Gorro de tricô e consulte `JSON.parse(localStorage.getItem('vila.look.v2'))?.helmet` antes e depois de clicar em **Equipar**.
 3. Recarregue na mesma aba, reabra o provador e compare o cartão e a chave com a última linha da tabela. Percorra as dez categorias e confira a ausência de “Ver compra”.
 
-## Onde para o fluxo pago
+## Ensaio de 20/11 · Limites do fluxo pago
 
 No Chromium, as dez categorias mostraram oito cartões gratuitos cada. A contagem total foi de 80 gratuitos, zero pagos e zero botões “Ver compra”. O catálogo técnico inclui 20 entradas pagas nas dez categorias. A Coroa dourada (`helmet-crown`) serve como controle de ausência. Em `Wardrobe.tsx`, `SHOW_PAID_PREVIEWS = false` faz o filtro de `items` excluir essas entradas antes de criar os cartões. Assim, o jogador sequer chega a “Ver compra”. O código desse botão, hoje inacessível, apenas muda o estado local `paidNote` para exibir “A compra de visuais não está disponível.”. O ajuste de 14/11, incorporado ao ADR, registra a decisão de ocultar as prévias até resolver a exposição a menores. [Provador](../../apps/client/src/ui/Wardrobe.tsx) · [Ajuste da IMPL-0027](../decisions/0027-cosmetic-shop-wardrobe.md#ajuste-de-14112026-prévias-pagas-ocultas) · [PR #48](https://github.com/vilanoeldobem/project/pull/48).
 

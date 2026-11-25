@@ -69,6 +69,7 @@ export function DonationsAdmin({ accountId }: { accountId: string }) {
       <Live loading={overview === null} error={error} onRetry={load}>
         {overview && (
           <>
+            <PaidByDestination rows={overview.paidByDestination} />
             <GlobalSettings settings={overview.settings} accountId={accountId} onSaved={load} />
             <NgoPaymentList rows={overview.ngos} />
             <ExternalProof rows={overview.ngos} accountId={accountId} onSaved={load} />
@@ -77,6 +78,27 @@ export function DonationsAdmin({ accountId }: { accountId: string }) {
         )}
       </Live>
     </>
+  );
+}
+
+export function PaidByDestination({ rows }: { rows: DonationOverview["paidByDestination"] }) {
+  return (
+    <section>
+      <h3>Doações confirmadas por destino</h3>
+      {rows?.length ? (
+        <>
+          <p>Acumulado desta base. O Pix aparece pelo valor bruto. Um estorno retira a cobrança da contagem. Os comprovantes manuais aparecem em colunas próprias.</p>
+          <DataTable caption="Pix e comprovantes por destino" columns={["Destino", "Pix pagos", "Bruto Pix", "Comprovantes", "Valor documentado"]}
+            rows={rows.map(row => ({
+              key: `${row.scope}:${row.ngo_id ?? ""}`,
+              cells: [
+                row.scope === "global" ? "Doação global" : row.scope === "total" ? "Total geral" : row.ngo_name ?? row.ngo_id ?? "ONG sem vínculo",
+                row.pix_count, formatBrl(row.pix_gross_cents), row.proof_count, formatBrl(row.proof_amount_cents),
+              ],
+            }))} />
+        </>
+      ) : <p>Totais por destino indisponíveis.</p>}
+    </section>
   );
 }
 

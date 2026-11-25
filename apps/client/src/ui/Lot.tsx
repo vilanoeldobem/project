@@ -146,6 +146,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
                 <DonationStats donations={donationInfo.confirmedDonations} cents={donationInfo.confirmedAmountCents} />
                 <PixDonation
                   targetKind="ngo"
+                  lotId={lotId}
                   ngoId={ngoId}
                   recipientName={donationInfo.name}
                   ngoPercentBps={donationInfo.ngoPercentBps}

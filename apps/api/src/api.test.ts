@@ -26,6 +26,15 @@ describe("worker /api", () => {
     expect(body.indicators.every((i) => i.value === null)).toBe(true);
   });
 
+  it.each([
+    ["false", "Cadastro ainda não aberto ao público."],
+    ["true", "Contagem de usuários ainda não publicada."],
+  ])("describes unavailable user counts with accounts %s", async (accounts, note) => {
+    const res = await get("/indicators", { ...env(), ACCOUNTS_ENABLED: accounts });
+    const body = await res.json() as { indicators: { key: string; value: number | null; note?: string }[] };
+    expect(body.indicators.find(i => i.key === "registered_users")).toMatchObject({ value: null, note });
+  });
+
   it("indicators count only published NGOs that hold a published lot", async () => {
     let sql = "";
     const db = {

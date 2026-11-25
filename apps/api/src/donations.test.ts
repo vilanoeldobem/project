@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import countPaidGlobalPix from "../scripts/count-paid-global-pix.sql?raw";
+import summarizePaidDonations from "../scripts/summarize-paid-donations.sql?raw";
 import { configuredVars, devVar } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { ABACATEPAY_PUBLIC_KEY, createOrGetSubAccount, createPixCharge } from "./abacatepay";
@@ -93,7 +94,7 @@ const settings = (override: Record<string, unknown> = {}) =>
 const ngoPayment = (override: Record<string, unknown> = {}, ngoId = NGO) =>
   call("POST", `/admin/ngos/${ngoId}/payment-config`, { accountId: "admin", paymentMethod: "abacatepay", ngoPercentBps: 9500, fixedFeeCents: 80, ...override });
 /** A Pix request; each call is a new logical request unless the body carries its own `idempotencyKey`. */
-const pix = (body: Record<string, unknown>, user: string | null = null) => call("POST", "/donations/pix", { idempotencyKey: crypto.randomUUID(), ...body }, user);
+const pix = (body: Record<string, unknown>, user: string | null) => call("POST", "/donations/pix", { idempotencyKey: crypto.randomUUID(), ...body }, user);
 
 /** The provider's signature, exactly as abacatepay.ts verifies it (Web Crypto, base64 of the HMAC). */
 async function sign(raw: string): Promise<string> {
@@ -215,6 +216,29 @@ describe("configuration", () => {
     });
   });
 
+  it("sends a 100-character beneficiary name unchanged for both sub-accounts", async () => {
+    const name = "A".repeat(99) + "🌱";
+    await db.prepare("UPDATE ngos SET name=? WHERE id=?").bind(name, NGO).run();
+    expect((await settings({ primaryNgoName: name })).status).toBe(200);
+    expect((await ngoPayment()).status).toBe(200);
+    expect(calls.map(c => c.body?.name)).toEqual([name, name]);
+  });
+
+  it("rejects a 101-character beneficiary name before automatic provisioning and preserves the other routes", async () => {
+    const name = "A".repeat(100) + "🌱";
+    await db.prepare("UPDATE ngos SET name=? WHERE id=?").bind(name, NGO).run();
+    subAccountFailure = { status: 400, body: { error: "name too long" } };
+    for (const response of [await settings({ primaryNgoName: name }), await ngoPayment()]) {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_subaccount_name" });
+    }
+    expect([count("donation_settings"), count("ngo_payment_configs"), count("audit_events")]).toEqual([0, 0, 0]);
+    expect((await settings({ primaryNgoName: name, subAccountId: "sacc_global" })).status).toBe(200);
+    expect((await ngoPayment({ revision: 1, subAccountId: "sacc_ngo" })).status).toBe(200);
+    expect((await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true })).status).toBe(200);
+    expect(calls).toEqual([]);
+  });
+
   it("recovers the same NGO sub-account after the payment configuration transaction rolls back", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const subAccountId = `sacc_${NGO_CNPJ}`;
@@ -231,7 +255,7 @@ describe("configuration", () => {
     expect(provisioning()).toMatchObject([beneficiary]);
     expect(count("ngo_payment_configs")).toBe(0);
     expect(audits()).toEqual([]);
-    expect((await pix(directedPix)).status).toBe(409);
+    expect((await pix(directedPix, "donor")).status).toBe(409);
     expect(chargeCounter).toBe(0);
 
     await db.exec("DROP TRIGGER fail_payment_audit");
@@ -241,7 +265,7 @@ describe("configuration", () => {
       { ngo_id: NGO, sub_account_id: subAccountId },
     ]);
     expect(audits()).toEqual([{ actor: "admin", subject: `ngo:${NGO}` }]);
-    expect((await pix(directedPix)).status).toBe(201);
+    expect((await pix(directedPix, "donor")).status).toBe(201);
     expect(calls.filter((c) => c.path.endsWith("/transparents/create"))).toMatchObject([
       { body: { data: { splits: [{ subAccountId, amount: 870 }] } } },
     ]);
@@ -253,7 +277,7 @@ describe("configuration", () => {
     expect(dev.status).toBe(200);
     expect(((await dev.json()) as { settings: { subAccountId: string } }).settings.subAccountId).toBe(`dev_sacc_${PRIMARY_CNPJ}`);
     // The charge for a development sub-account carries no `splits`, but D1 keeps the full breakdown.
-    const created = await pix({ targetKind: "global", amountCents: 1000 });
+    const created = await pix({ targetKind: "global", amountCents: 1000 }, "donor");
     expect(created.status).toBe(201);
     const create = calls.find((c) => c.path.endsWith("/transparents/create"));
     expect((create?.body?.data as { splits?: unknown }).splits).toBeUndefined();
@@ -299,6 +323,123 @@ describe("configuration", () => {
   });
 });
 
+describe("access to Pix issuance", () => {
+  const targets = [{ targetKind: "global", amountCents: 1000 }, { targetKind: "ngo", ngoId: NGO, amountCents: 1000 }];
+  const expectRefusal = async (response: Response, status: number, error: string) => {
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error });
+  };
+  const expectNoIssuance = () => {
+    expect([count("donation_intents"), count("donations"), chargeCounter]).toEqual([0, 0, 0]);
+  };
+
+  it("keeps Pix dark on old schemas even with a cookie when donations are off", async () => {
+    env.DB = createD1({ upTo: 3 });
+    env.DONATIONS_ENABLED = "false";
+    for (const user of [null, "donor"]) await expectRefusal(await pix(targets[0], user), 404, "not_found");
+    expect(calls).toEqual([]);
+  });
+
+  it("requires both features for new global and directed Pix even with an existing session", async () => {
+    env.ACCOUNTS_ENABLED = "false";
+    for (const target of targets) await expectRefusal(await pix(target, "donor"), 404, "accounts_disabled");
+    expectNoIssuance();
+  });
+
+  it("refuses visitors, expired sessions and blocked accounts at both destinations", async () => {
+    await db.prepare("UPDATE sessions SET expires_at='2000-01-01' WHERE user_id='owner'").run();
+    await db.prepare("UPDATE users SET blocked=1 WHERE id='applicant'").run();
+    for (const target of targets) {
+      await expectRefusal(await pix(target, null), 401, "not_signed_in");
+      await expectRefusal(await pix(target, "owner"), 401, "not_signed_in");
+      await expectRefusal(await pix(target, "applicant"), 403, "session_blocked");
+    }
+    expectNoIssuance();
+    expect((await call("GET", `/ngos/${NGO}`, undefined, null)).status).toBe(200);
+    expect((await call("GET", "/donations/config", undefined, null)).status).toBe(200);
+  });
+
+  it("requires the session and public terms shown to the donor when the client includes them", async () => {
+    await settings({ ngoPercentBps: 9500, fixedFeeCents: 80 });
+    const expectedTerms = { recipientName: "Instituto Parceiro", ngoPercentBps: 9500, fixedFeeCents: 80 };
+    const body = { ...targets[0], accountId: "donor", expectedTerms, idempotencyKey: crypto.randomUUID() };
+    await expectRefusal(await pix(body, "owner"), 409, "account_changed");
+    await expectRefusal(await pix(body, null), 401, "not_signed_in");
+    for (const change of [{ recipientName: "Outra" }, { ngoPercentBps: 9200 }, { fixedFeeCents: 90 }])
+      await expectRefusal(await pix({ ...body, expectedTerms: { ...expectedTerms, ...change } }, "donor"), 409, "donation_terms_changed");
+    expectNoIssuance();
+    expect((await pix(body, "donor")).status).toBe(201);
+    expect((await pix(body, "donor")).status).toBe(200);
+    await expectRefusal(await pix(body, "owner"), 409, "account_changed");
+    expect(chargeCounter).toBe(1);
+  });
+
+  it("checks the session again when claiming a new intent", async () => {
+    await settings();
+    env.DONATION_LIMITER = { limit: async () => {
+      await db.prepare("DELETE FROM sessions WHERE user_id='donor'").run();
+      return { success: true };
+    } };
+    await expectRefusal(await pix(targets[0], "donor"), 401, "not_signed_in");
+    expectNoIssuance();
+  });
+
+  it("keeps historical anonymous payments anonymous through confirmation and refund", async () => {
+    const id = crypto.randomUUID(), charge = "pix_char_old";
+    await db.prepare(`INSERT INTO donations
+      (id,target_kind,ngo_id,recipient_name,provider,provider_charge_id,sub_account_id,amount_cents,ngo_share_cents,vila_share_cents,ngo_percent_bps,fixed_fee_cents)
+      VALUES (?, 'ngo', ?, 'ONG antiga', 'abacatepay', ?, 'sacc_original', 1000, 870, 130, 9500, 80)`).bind(id, NGO, charge).run();
+
+    for (const [action, state, expectedCount] of [["completed", "paid", 1], ["refunded", "refunded", 0]] as const) {
+      const response = await webhook(event(`log_legacy_${action}`, `transparent.${action}`, charge, state.toUpperCase()));
+      expect(await response.json()).toMatchObject({ applied: true });
+      expect(db.sql("SELECT user_id,ngo_id,sub_account_id,status,title_credited FROM donations WHERE id=?", id)).toEqual([
+        { user_id: null, ngo_id: NGO, sub_account_id: "sacc_original", status: state, title_credited: 0 },
+      ]);
+      expect(await (await call("GET", "/indicators", undefined, null)).json()).toMatchObject({ indicators: expect.arrayContaining([
+        expect.objectContaining({ key: "confirmed_donations", value: expectedCount }),
+        expect.objectContaining({ key: "confirmed_amount", value: expectedCount * 1000 }),
+      ]) });
+      expect(await (await call("GET", "/donations/my-title", undefined, "donor")).json()).toMatchObject({
+        title: { confirmedCount: 0 }, donations: [],
+      });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it.each(["true", "false"])("recovers an issued anonymous intent with accounts %s, without a new provider call", async (accounts) => {
+    const id = crypto.randomUUID(), key = crypto.randomUUID(), charge = "pix_char_stored";
+    const body = { ...targets[1], idempotencyKey: key };
+    const hash = await sha256Hex(JSON.stringify(["ngo", NGO, 1000, null]));
+    await db.prepare(`INSERT INTO donation_intents
+      (id,idempotency_key,request_hash,target_kind,ngo_id,recipient_name,sub_account_id,amount_cents,ngo_share_cents,vila_share_cents,
+       ngo_percent_bps,fixed_fee_cents,state,last_error,provider_charge_id,provider_status,br_code)
+      VALUES (?,?,?,'ngo',?,'ONG antiga','sacc_original',1000,870,130,9500,80,'unknown','store_failed',?,'PENDING','fixture-pix')`)
+      .bind(id, key, hash, NGO, charge).run();
+    const paid = event("log_before_row", "transparent.completed", charge, "PAID");
+    expect(await (await webhook(paid)).json()).toMatchObject({ unmatched: true });
+    await expectRefusal(await pix(body, "donor"), 409, "idempotency_key_reused");
+    env.ACCOUNTS_ENABLED = accounts;
+    await expectRefusal(await pix({ ...body, amountCents: 500 }, null), accounts === "true" ? 401 : 404, accounts === "true" ? "not_signed_in" : "accounts_disabled");
+    expect(count("donations")).toBe(0);
+    for (const status of [201, 200]) {
+      const recovered = await pix(body, null);
+      expect(recovered.status).toBe(status);
+      expect(await recovered.json()).toMatchObject({ donation: { id, status: "paid", titleCredited: false } });
+    }
+    env.ACCOUNTS_ENABLED = "true";
+    await expectRefusal(await pix(body, "donor"), 409, "idempotency_key_reused");
+    await expectRefusal(await pix(targets[1], null), 401, "not_signed_in");
+    expect(await (await webhook(paid)).json()).toMatchObject({ duplicate: true });
+    expect(db.sql("SELECT id,user_id,provider_charge_id,sub_account_id,title_credited FROM donations")).toEqual([
+      { id, user_id: null, provider_charge_id: charge, sub_account_id: "sacc_original", title_credited: 0 },
+    ]);
+    expect(db.sql("SELECT id,user_id,state FROM donation_intents")).toEqual([{ id, user_id: null, state: "created" }]);
+    expect(count("abacatepay_webhook_events")).toBe(1);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("Pix donations", () => {
   beforeEach(async () => {
     await settings();
@@ -306,7 +447,7 @@ describe("Pix donations", () => {
   });
 
   it("splits the R$ 2,00 minimum exactly and sends the NGO share to the sub-account", async () => {
-    const response = await pix({ targetKind: "global", amountCents: 200 });
+    const response = await pix({ targetKind: "global", amountCents: 200 }, "donor");
     expect(response.status).toBe(201);
     const { donation } = (await response.json()) as { donation: Record<string, unknown> };
     expect(donation).toMatchObject({
@@ -332,37 +473,37 @@ describe("Pix donations", () => {
 
   it("keeps the Pix description inside the provider's 140-character limit", async () => {
     await db.prepare("UPDATE ngos SET name = ? WHERE id = ?").bind("O".repeat(120), NGO).run();
-    const response = await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 });
+    const response = await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 }, "donor");
     expect(response.status).toBe(201);
     const create = calls.find((c) => c.path.endsWith("/transparents/create"));
     const description = (create?.body?.data as { description?: string } | undefined)?.description ?? "";
     expect(description.length).toBe(140);
   });
 
-  it("pays the NGO's own sub-account and keeps a visitor's donation out of any Título", async () => {
-    const response = await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 1000 });
+  it("pays the NGO's own sub-account and credits the account that issued the Pix", async () => {
+    const response = await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor");
     expect(response.status).toBe(201);
     const { donation } = (await response.json()) as { donation: { id: string } };
     const create = calls.find((c) => c.path.endsWith("/transparents/create"));
     expect((create?.body?.data as { splits: unknown[] }).splits).toEqual([{ subAccountId: `sacc_${NGO_CNPJ}`, amount: 870 }]);
     const chargeId = db.sql("SELECT provider_charge_id FROM donations WHERE id=?", donation.id)[0].provider_charge_id as string;
-    expect((await webhook(event("log_visitor", "transparent.completed", chargeId, "PAID"))).status).toBe(200);
-    expect(db.sql("SELECT status,title_credited FROM donations WHERE id=?", donation.id)[0]).toEqual({ status: "paid", title_credited: 0 });
+    expect((await webhook(event("log_donor", "transparent.completed", chargeId, "PAID"))).status).toBe(200);
+    expect(db.sql("SELECT status,user_id,title_credited FROM donations WHERE id=?", donation.id)[0]).toEqual({ status: "paid", user_id: "donor", title_credited: 1 });
   });
 
   it("refuses amounts and targets it cannot honour, before calling the provider", async () => {
     for (const amountCents of [199, 0, -100, 5_000_001, 2.5]) {
-      const response = await pix({ targetKind: "global", amountCents });
+      const response = await pix({ targetKind: "global", amountCents }, "donor");
       expect([amountCents, response.status, ((await response.json()) as { error: string }).error]).toEqual([amountCents, 400, "invalid_donation_amount"]);
     }
-    expect((await pix({ targetKind: "ngo", ngoId: "a0000000-0000-4000-8000-000000000099", amountCents: 500 })).status).toBe(404);
-    expect((await pix({ targetKind: "global", amountCents: 500 }, null)).status).toBe(201);
+    expect((await pix({ targetKind: "ngo", ngoId: "a0000000-0000-4000-8000-000000000099", amountCents: 500 }, "donor")).status).toBe(404);
+    expect((await pix({ targetKind: "global", amountCents: 500 }, "donor")).status).toBe(201);
     expect(calls.filter((c) => c.path.endsWith("/transparents/create"))).toHaveLength(1);
   });
 
   it("answers payment_provider_unavailable, writes no donation and keeps the intent when the provider fails", async () => {
     vi.stubGlobal("fetch", async () => reply(500, { data: null, error: "internal" }));
-    const response = await pix({ targetKind: "global", amountCents: 1000 });
+    const response = await pix({ targetKind: "global", amountCents: 1000 }, "donor");
     expect([response.status, ((await response.json()) as { error: string }).error]).toEqual([503, "payment_provider_unavailable"]);
     expect(count("donations")).toBe(0);
     // A 5xx may have created the charge: the intent stays, for an operator, with only the error code.
@@ -370,15 +511,15 @@ describe("Pix donations", () => {
   });
 
   it("refreshes a pending charge from the provider and answers a paid donation", async () => {
-    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 })).json()) as { donation: { id: string } };
+    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 }, "donor")).json()) as { donation: { id: string } };
     const refreshed = await call("GET", `/donations/${donation.id}?refresh=1`, undefined, null, null);
     expect(refreshed.status).toBe(200);
-    expect(await refreshed.json()).toMatchObject({ donation: { status: "paid", receiptUrl: "https://pay.test/receipt", titleCredited: false } });
+    expect(await refreshed.json()).toMatchObject({ donation: { status: "paid", receiptUrl: "https://pay.test/receipt", titleCredited: true } });
     expect((await call("GET", "/donations/not-a-uuid", undefined, null, null)).status).toBe(404);
   });
 
   it("lets a sandbox charge be simulated, but never in production", async () => {
-    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 })).json()) as { donation: { id: string } };
+    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 }, "donor")).json()) as { donation: { id: string } };
     const simulated = await call("POST", `/donations/${donation.id}/simulate`);
     expect(simulated.status).toBe(200);
     expect(await simulated.json()).toMatchObject({ donation: { status: "paid" } });
@@ -428,7 +569,7 @@ it("keeps the NGO and global splits and confirmed totals isolated across webhook
       body: { method: "PIX", data: { externalId: donation.id, metadata: { donationId: donation.id, targetKind: c.kind }, amount: c.gross, splits: [{ subAccountId: c.sub, amount: c.ngo }] } },
     });
     const snapshot = {
-      id: donation.id, provider_charge_id: c.charge, target_kind: c.kind, ngo_id: c.ngoId,
+      id: donation.id, user_id: "donor", provider_charge_id: c.charge, target_kind: c.kind, ngo_id: c.ngoId,
       recipient_name: c.name, sub_account_id: c.sub, amount_cents: c.gross,
       ngo_percent_bps: c.bps, fixed_fee_cents: c.fixed, ngo_share_cents: c.ngo, vila_share_cents: c.vila,
     };
@@ -655,7 +796,7 @@ describe("webhook reconciliation", () => {
     env.DONATIONS_ENABLED = "false";
     expect((await webhook(event("log_off", "transparent.completed", chargeId, "PAID"))).status).toBe(404);
     expect((await call("GET", "/donations/config", undefined, null, null)).status).toBe(404);
-    expect((await pix({ targetKind: "global", amountCents: 500 })).status).toBe(404);
+    expect((await pix({ targetKind: "global", amountCents: 500 }, "donor")).status).toBe(404);
   });
 });
 
@@ -688,7 +829,7 @@ describe("an NGO's own payment link", () => {
     expect(db.sql("SELECT ngo_id,user_id,target_url FROM donation_redirects")[0]).toEqual({ ngo_id: NGO, user_id: "donor", target_url: "https://ong.org.br/doar" });
     expect(count("donations")).toBe(0);
     // A Pix charge for this NGO is refused: it has no sub-account to receive it.
-    expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 })).status).toBe(409);
+    expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 }, "donor")).status).toBe(409);
   });
 
   it("records an admin-verified proof in the indicators without crediting a Título", async () => {
@@ -763,7 +904,7 @@ describe("NGO applications and donation destinations", () => {
       return published;
     }
     const original = await publishNgo("applicant", "ONG Primeira", APPLICATION.cnpj);
-    const issued = await pix({ targetKind: "ngo", ngoId: original.id, amountCents: 1000 });
+    const issued = await pix({ targetKind: "ngo", ngoId: original.id, amountCents: 1000 }, "donor");
     expect(issued.status).toBe(201);
     const { donation } = await issued.json() as { donation: { id: string } };
     const readDonation = () => db.sql(
@@ -865,14 +1006,14 @@ describe("NGO applications and donation destinations", () => {
   it.each(["true", "false"])("requires a new beneficiary after a CNPJ change with donations %s", async (flag) => {
     const target = { targetKind: "ngo", ngoId: NGO, amountCents: 1000 };
     expect((await ngoPayment()).status).toBe(200);
-    expect((await pix(target)).status).toBe(201);
+    expect((await pix(target, "donor")).status).toBe(201);
     await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
     env.DONATIONS_ENABLED = flag;
     expect((await resubmit(PRIMARY_CNPJ)).status).toBe(200);
     expect((await approve()).status).toBe(200);
     env.DONATIONS_ENABLED = "true";
     calls = [];
-    const refused = await pix(target);
+    const refused = await pix(target, "donor");
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ error: "ngo_payment_not_configured" });
     expect(calls).toEqual([]);
@@ -881,7 +1022,7 @@ describe("NGO applications and donation destinations", () => {
     expect(oldForm.status).toBe(409);
     expect((await ngoPayment({ subAccountId: `sacc_${NGO_CNPJ}` })).status).toBe(400);
     expect((await ngoPayment({ revision: 2 })).status).toBe(200);
-    expect((await pix(target)).status).toBe(201);
+    expect((await pix(target, "donor")).status).toBe(201);
     expect(calls.find((c) => c.path.endsWith("/transparents/create"))?.body?.data).toMatchObject({
       splits: [{ subAccountId: `sacc_${PRIMARY_CNPJ}`, amount: 870 }],
     });
@@ -905,7 +1046,7 @@ describe("NGO applications and donation destinations", () => {
     await db.prepare("UPDATE ngos SET status='changes_requested' WHERE id=?").bind(NGO).run();
     expect((await resubmit(NGO_CNPJ)).status).toBe(200);
     expect((await approve()).status).toBe(200);
-    expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 1000 })).status).toBe(201);
+    expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor")).status).toBe(201);
     expect(db.sql("SELECT sub_account_id FROM donations")[0].sub_account_id).toBe(`sacc_${NGO_CNPJ}`);
   });
 
@@ -1010,7 +1151,6 @@ describe("durable creation intent (IMPL-0028)", () => {
     for (const [body, user] of [
       [{ targetKind: "global", amountCents: 600 }, "donor"],
       [{ targetKind: "ngo", ngoId: NGO, amountCents: 500 }, "donor"],
-      [{ targetKind: "global", amountCents: 500 }, null],
       [{ targetKind: "global", amountCents: 500 }, "owner"],
     ] as const)
       expect(await errorOf(await pix({ idempotencyKey: key, ...body }, user))).toEqual([409, "idempotency_key_reused"]);
@@ -1025,7 +1165,7 @@ describe("durable creation intent (IMPL-0028)", () => {
       return forward();
     });
     const key = crypto.randomUUID();
-    const pending = [1, 2, 3].map(() => pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 }));
+    const pending = [1, 2, 3].map(() => pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor"));
     await new Promise((resolve) => setTimeout(resolve, 20));
     release();
     const answers = await Promise.all(pending.map(async (p) => errorOf(await p).catch(() => null)));
@@ -1033,7 +1173,7 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect(statuses).toEqual([201, 409, 409]);
     expect(answers.filter((a) => a?.[1] === "donation_in_progress")).toHaveLength(2);
     expect([creates().length, count("donations"), count("donation_intents")]).toEqual([1, 1, 1]);
-    expect((await pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 })).status).toBe(200);
+    expect((await pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor")).status).toBe(200);
     expect(creates()).toHaveLength(1);
   });
 
@@ -1068,18 +1208,18 @@ describe("durable creation intent (IMPL-0028)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     failStore({ times: 1, everything: true });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    expect(await errorOf(await pix(body))).toEqual([503, "donation_not_confirmed"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([503, "donation_not_confirmed"]);
     expect(intents()).toMatchObject([{ state: "pending_provider", provider_charge_id: null }]);
     env.DB = db;
     // Still inside the window of a live provider call.
-    expect(await errorOf(await pix(body))).toEqual([409, "donation_in_progress"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([409, "donation_in_progress"]);
     expect(await overview()).toMatchObject({ intents: [] });
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 61_000);
     expect((await overview()).intents).toMatchObject([{ state: "pending_provider" }]);
     // Stale: it becomes 'unknown' for an operator; nobody takes it over and calls the provider.
-    expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
-    expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([409, "donation_intent_unknown"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([409, "donation_intent_unknown"]);
     expect(intents()).toMatchObject([{ state: "unknown", last_error: "stale_in_flight", provider_charge_id: null }]);
     expect([creates().length, count("donations")]).toEqual([1, 0]);
     expect((await overview()).intents).toMatchObject([{ state: "unknown", lastError: "stale_in_flight" }]);
@@ -1093,17 +1233,17 @@ describe("durable creation intent (IMPL-0028)", () => {
       return forward();
     });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    const late = pix(body);
+    const late = pix(body, "donor");
     await new Promise((resolve) => setTimeout(resolve, 20));
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.now() + 61_000);
-    expect(await errorOf(await pix(body))).toEqual([409, "donation_intent_unknown"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([409, "donation_intent_unknown"]);
     release();
     // The provider answered after the intent went stale: no donation is written over the 'unknown' mark.
     expect(await errorOf(await late)).toEqual([503, "donation_not_confirmed"]);
     expect(count("donations")).toBe(0);
     expect(intents()).toMatchObject([{ state: "unknown", last_error: "store_failed", provider_charge_id: "pix_char_1", br_code: "000201-charge-1" }]);
-    const finish = await pix(body);
+    const finish = await pix(body, "donor");
     expect(finish.status).toBe(201);
     expect(await finish.json()).toMatchObject({ donation: { brCode: "000201-charge-1", status: "pending" } });
     expect(creates()).toHaveLength(1);
@@ -1113,9 +1253,9 @@ describe("durable creation intent (IMPL-0028)", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     failStore({ times: 1 });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    expect((await pix(body)).status).toBe(503);
+    expect((await pix(body, "donor")).status).toBe(503);
     env.DB = db;
-    const statuses = (await Promise.all([pix(body), pix(body)])).map((r) => r.status).sort();
+    const statuses = (await Promise.all([pix(body, "donor"), pix(body, "donor")])).map((r) => r.status).sort();
     expect(statuses).toEqual([200, 201]);
     expect([creates().length, count("donations")]).toEqual([1, 1]);
   });
@@ -1132,25 +1272,25 @@ describe("durable creation intent (IMPL-0028)", () => {
       return answer();
     });
     const body = { idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 };
-    expect(await errorOf(await pix(body))).toEqual([503, "payment_provider_unavailable"]);
+    expect(await errorOf(await pix(body, "donor"))).toEqual([503, "payment_provider_unavailable"]);
     expect(intents()).toMatchObject([{ state, provider_charge_id: null, last_error: "payment_provider_unavailable" }]);
-    for (let retry = 0; retry < 3; retry++) expect(await errorOf(await pix(body))).toEqual([409, code]);
+    for (let retry = 0; retry < 3; retry++) expect(await errorOf(await pix(body, "donor"))).toEqual([409, code]);
     expect([provider, count("donations")]).toEqual([1, 0]);
     // Only the outcome nobody knows needs an operator; a refusal created nothing.
     expect((await overview()).intents).toHaveLength(state === "unknown" ? 1 : 0);
     // A new key is a new request.
     stubProvider();
-    expect((await pix({ ...body, idempotencyKey: crypto.randomUUID() })).status).toBe(201);
+    expect((await pix({ ...body, idempotencyKey: crypto.randomUUID() }, "donor")).status).toBe(201);
   });
 
   it("checks the provider configuration before writing an intent, so a configuration error leaves nothing", async () => {
     env.ABACATEPAY_API_KEY = undefined;
-    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }))).toEqual([503, "payment_provider_unavailable"]);
+    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }, "donor"))).toEqual([503, "payment_provider_unavailable"]);
     env.ABACATEPAY_API_KEY = API_KEY;
     // A sandbox marker in production must never route money.
     await db.prepare("UPDATE donation_settings SET primary_sub_account_id = 'dev_sacc_x'").run();
     env.ENVIRONMENT = "production";
-    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }))).toEqual([409, "subaccounts_unavailable"]);
+    expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }, "donor"))).toEqual([409, "subaccounts_unavailable"]);
     expect([count("donation_intents"), creates().length]).toEqual([0, 0]);
   });
 
@@ -1178,7 +1318,7 @@ describe("durable creation intent (IMPL-0028)", () => {
   });
 
   it("drains waiting events on a status read when an earlier drain did not run", async () => {
-    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 })).json()) as { donation: { id: string } };
+    const { donation } = (await (await pix({ targetKind: "global", amountCents: 500 }, "donor")).json()) as { donation: { id: string } };
     db.sql("INSERT INTO abacatepay_pending_events (id, event, charge_id, next_status, provider_status) VALUES ('log_left', 'transparent.completed', 'pix_char_1', 'paid', 'PAID')");
     const read = await call("GET", `/donations/${donation.id}`, undefined, null, null);
     expect(await read.json()).toMatchObject({ donation: { status: "paid" } });
@@ -1217,19 +1357,17 @@ describe("durable creation intent (IMPL-0028)", () => {
     expect([count("donation_intents"), creates().length]).toEqual([1, 1]);
   });
 
-  it("limits charge creation per account, or per hash of the address, before writing anything", async () => {
+  it("limits new charges per account and rejects visitors before spending quota", async () => {
     const keys: string[] = [];
     env.DONATION_LIMITER = { limit: async ({ key }) => (keys.push(key), { success: false }) };
     const visitor = await request("POST", "/donations/pix", null, ORIGIN, { "Content-Type": "application/json", "CF-Connecting-IP": "203.0.113.7" },
       JSON.stringify({ idempotencyKey: crypto.randomUUID(), targetKind: "global", amountCents: 500 }));
-    expect(await errorOf(visitor)).toEqual([429, "too_many_requests"]);
+    expect(await errorOf(visitor)).toEqual([401, "not_signed_in"]);
     expect(await errorOf(await pix({ targetKind: "global", amountCents: 500 }, "donor"))).toEqual([429, "too_many_requests"]);
-    expect(keys[0]).toMatch(/^ip:[0-9a-f]{64}$/);
-    expect(keys[0]).not.toContain("203.0.113.7");
-    expect(keys[1]).toBe("account:donor");
+    expect(keys).toEqual(["account:donor"]);
     expect([count("donation_intents"), creates().length]).toEqual([0, 0]);
     env.DONATION_LIMITER = { limit: async () => ({ success: true }) };
-    expect((await pix({ targetKind: "global", amountCents: 500 })).status).toBe(201);
+    expect((await pix({ targetKind: "global", amountCents: 500 }, "donor")).status).toBe(201);
   });
 });
 
@@ -1390,7 +1528,7 @@ describe("schema behind the code", () => {
     expect((await settings()).status).toBe(200);
     expect((await call("GET", "/donations/config", undefined, null, null)).status).toBe(200);
     expect((await call("GET", `/ngos/${NGO}/donation-info`, undefined, null, null)).status).toBe(200);
-    expect((await pix({ targetKind: "global", amountCents: 500 })).status).toBe(503);
+    expect((await pix({ targetKind: "global", amountCents: 500 }, "donor")).status).toBe(503);
     expect((await call("GET", "/admin/donations/overview")).status).toBe(503);
     const hook = await webhook(event("log_v12", "transparent.completed", "pix_char_1", "PAID"));
     expect([hook.status, await hook.json()]).toEqual([503, { error: "schema_outdated" }]);
@@ -1423,7 +1561,7 @@ describe("schema behind the code", () => {
     for (const path of ["/donations/config", `/ngos/${NGO}/donation-info`])
       expect([path, (await call("GET", path, undefined, null, null)).status]).toEqual([path, 503]);
     expect((await call("GET", "/donations/my-title", undefined, "donor")).status).toBe(503);
-    expect((await pix({ targetKind: "global", amountCents: 500 })).status).toBe(503);
+    expect((await pix({ targetKind: "global", amountCents: 500 }, "donor")).status).toBe(503);
     const indicators = ((await (await call("GET", "/indicators", undefined, null, null)).json()) as { indicators: Array<{ key: string; value: number | null }> }).indicators;
     expect([indicators.find((i) => i.key === "confirmed_donations")?.value, indicators.find((i) => i.key === "confirmed_amount")?.value]).toEqual([null, null]);
     expect((await call("GET", "/lots", undefined, null, null)).status).toBe(200);
@@ -1436,4 +1574,63 @@ describe("shipping state", () => {
     expect(configuredVars("DONATIONS_ENABLED")).toEqual(["false", "false"]);
     expect(devVar("DONATIONS_ENABLED")).toBe("true");
   });
+});
+
+it("reports gross Pix and external evidence separately after an NGO leaves the village", async () => {
+  const report = async () => {
+    const response = await call("GET", "/admin/donations/overview");
+    expect(response.status).toBe(200);
+    return (await response.json() as { paidByDestination: unknown[] }).paidByDestination;
+  };
+  const zero = { pix_count: 0, pix_gross_cents: 0, proof_count: 0, proof_amount_cents: 0, ngo_name: null };
+  const global = { scope: "global", ngo_id: null, ...zero };
+  const ngo = { scope: "ngo", ngo_id: NGO, ...zero, ngo_name: "Associação Exemplo" };
+  const total = { scope: "total", ngo_id: null, ...zero };
+  expect(() => createD1({ upTo: 10 }).sql(summarizePaidDonations)).toThrow(/no such table: donations/i);
+  expect(createD1().sql(summarizePaidDonations)).toEqual([global, total]);
+  expect(await report()).toEqual([global, ngo, total]);
+
+  await settings({ subAccountId: "sacc_global" });
+  await ngoPayment({ revision: 1, subAccountId: "sacc_ngo" });
+  expect((await pix({ targetKind: "global", amountCents: 1000 }, "donor")).status).toBe(201);
+  expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 725 }, "donor")).status).toBe(201);
+  expect(await report()).toEqual([global, ngo, total]);
+
+  const directed = event("log_directed", "transparent.completed", "pix_char_2", "PAID", 725);
+  await webhook(event("log_global", "transparent.completed", "pix_char_1", "PAID"));
+  await webhook(directed);
+  expect(await (await webhook(directed)).json()).toMatchObject({ duplicate: true });
+  expect((await call("POST", "/admin/donations/external-proof", {
+    accountId: "admin", ngoId: NGO, amountCents: 500, proofReference: "Synthetic proof",
+  })).status).toBe(201);
+  env.NGO_WITHDRAWAL_ENABLED = "true";
+  expect((await call("POST", `/admin/ngos/${NGO}/withdraw`, {
+    accountId: "admin", revision: 1, reason: "Synthetic withdrawal",
+  })).status).toBe(200);
+
+  const directedAmounts = { ...ngo, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 };
+  expect(await report()).toEqual([
+    { ...global, pix_count: 1, pix_gross_cents: 1000 }, directedAmounts,
+    { ...total, pix_count: 2, pix_gross_cents: 1725, proof_count: 1, proof_amount_cents: 500 },
+  ]);
+  await webhook(event("log_refunded", "transparent.refunded", "pix_char_1", "REFUNDED"));
+  expect(await report()).toEqual([
+    global, directedAmounts, { ...total, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 },
+  ]);
+  expect(calls.filter((entry) => entry.path.endsWith("/transparents/create"))).toHaveLength(2);
+});
+
+it("includes named destinations outside the 200-organization payment settings list", async () => {
+  await db.exec(`WITH RECURSIVE seq(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM seq WHERE i<200)
+    INSERT INTO ngos(id,name,cnpj) SELECT 'fixture-'||i, 'A '||i, printf('%014d',i) FROM seq`);
+  const response = await call("GET", "/admin/donations/overview");
+  expect(response.status).toBe(200);
+  const overview = await response.json() as { ngos: { id: string }[]; paidByDestination: { ngo_id: string | null; ngo_name: string | null }[] };
+  expect(overview.ngos).toHaveLength(200);
+  expect(overview.ngos.some(row => row.id === NGO)).toBe(false);
+  expect(overview.paidByDestination).toContainEqual(expect.objectContaining({ ngo_id: NGO, ngo_name: "Associação Exemplo", pix_count: 0 }));
+  expect((await call("GET", "/admin/donations/overview", undefined, "donor")).status).toBe(403);
+  const publicIndicators = await call("GET", "/indicators", undefined, null, null);
+  expect(publicIndicators.status).toBe(200);
+  expect(await publicIndicators.json()).not.toHaveProperty("paidByDestination");
 });

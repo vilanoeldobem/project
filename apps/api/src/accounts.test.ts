@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MISSIONS } from "@vila/shared/game/progress";
 import { STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 
-import { devVar, productionVar } from "../test/config.mjs";
+import { devVar, productionVar, stagingVars } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { type Env, handleApi } from "./api";
 import { loginEmail } from "./mail";
@@ -83,6 +83,74 @@ function stubResend(respond: () => Response | Promise<Response> = () => Response
   });
   return calls;
 }
+
+it("uses links from the simulated staging mailbox for the game and dashboard through NGO publication", async () => {
+  const vars = stagingVars();
+  expect(vars.ENVIRONMENT).toBe("staging");
+  expect(vars.ACCOUNTS_ENABLED).toBe("false");
+  env = { ...vars, DB: db, ACCOUNTS_ENABLED: "true", RESEND_API_KEY: "test-only" };
+  const game = vars.GAME_ORIGIN;
+  const dash = vars.DASH_ORIGIN;
+  const inbox = stubResend();
+
+  // Obtain every session through the message actually produced for Resend. No development link is available.
+  async function enter(nickname: string, origin: string, register: boolean) {
+    const email = nickname + "@example.invalid";
+    const count = inbox.length;
+    const body = register ? { email, name: "Pessoa Teste", city: "Natal", nickname } : { email };
+    const request = await call("POST", register ? "/auth/register" : "/auth/link", body, undefined, origin);
+    expect(request.status).toBe(202);
+    expect(request.body.devLink).toBeUndefined();
+    expect(inbox).toHaveLength(count + 1);
+    const sent = inbox[count].body;
+    expect(sent.to).toEqual([email]);
+    const link = new URL(sent.text.split("\n").find(line => line.startsWith("https://"))!);
+    expect(link.origin).toBe(origin);
+    expect(link.search).toBe("");
+    const token = tokenOf(link.href);
+    expect(token).toBeTruthy();
+    const verified = await call("POST", "/auth/verify", { token }, undefined, origin);
+    expect(verified.status).toBe(200);
+    expect((await call("POST", "/auth/verify", { token }, undefined, origin)).body.error).toBe("invalid_token");
+    return { id: verified.body.user.id, cookie: verified.headers.get("Set-Cookie")!.split(";")[0] };
+  }
+
+  const applicant = await enter("ong_local", game, true);
+  const events = ["gift-bench", "gift-palm"].map(eventId => ({ missionId: "explore-gifts", eventId }));
+  const saved = await call("POST", "/progress/events", { accountId: applicant.id, events }, applicant.cookie, game);
+  expect(saved.body.progress.xp).toBe(30);
+  expect((await call("POST", "/auth/logout", {}, applicant.cookie, game)).status).toBe(204);
+  expect((await call("GET", "/progress", undefined, applicant.cookie, game)).status).toBe(401);
+  const returned = await enter("ong_local", game, false);
+  expect(returned.id).toBe(applicant.id);
+  expect((await call("GET", "/progress", undefined, returned.cookie, game)).body.progress).toEqual(saved.body.progress);
+  const operator = await enter("admin_local", game, true);
+  await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(operator.id).run();
+  const reviewer = await enter("admin_local", dash, false);
+  expect(reviewer.id).toBe(operator.id);
+  const application = await call("POST", "/ngo/application", { ...APP, accountId: returned.id }, returned.cookie, game);
+  expect(application.body.application.status).toBe("submitted");
+  const { id, revision } = application.body.application;
+  expect((await call("GET", "/admin/applications", undefined, returned.cookie, dash)).status).toBe(403);
+  const review = await call("POST", `/admin/applications/${id}/decision`, { action: "start_review", revision }, reviewer.cookie, dash);
+  expect(review.body.application.status).toBe("under_review");
+  const decisionPath = `/admin/applications/${id}/decision`;
+  const changes = await call("POST", decisionPath,
+    { action: "request_changes", revision, note: "Detalhe as atividades da associação." }, reviewer.cookie, dash);
+  expect(changes.body.application.status).toBe("changes_requested");
+  const publicLot = async () => (await call("GET", "/lots", undefined, undefined, game)).body.lots
+    .find((item: { id: string }) => item.id === APP.lotId);
+  expect((await publicLot()).ngo_id).toBeNull();
+  const resubmitted = await call("POST", "/ngo/application", {
+    ...APP, accountId: returned.id, summary: "Mantemos atividades educativas para famílias da região.",
+  }, returned.cookie, game);
+  expect(resubmitted.body.application).toMatchObject({ id, status: "submitted", revision: revision + 1 });
+  const approved = await call("POST", decisionPath,
+    { action: "approve", revision: resubmitted.body.application.revision, checks: ALL_CHECKS }, reviewer.cookie, dash);
+  expect(approved.body.application.status).toBe("published");
+  const lots = (await call("GET", "/lots", undefined, undefined, game)).body.lots;
+  expect(lots.find((item: { id: string }) => item.id === APP.lotId)).toMatchObject({ state: "published", ngo_name: APP.name });
+});
 
 describe("feature flag and origin", () => {
   it("hides every account route while accounts are disabled, and says so in /config", async () => {

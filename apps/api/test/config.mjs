@@ -16,11 +16,16 @@ export function configuredVars(name) {
   return [...read("wrangler.jsonc").matchAll(new RegExp(`"${name}":\\s*"([^"]*)"`, "g"))].map((match) => match[1]);
 }
 
+function workerConfig(environment) {
+  const config = JSON.parse(read("wrangler.jsonc").split("\n").filter(line => !line.trim().startsWith("//")).join("\n"));
+  return environment === "production" ? config : config.env[environment];
+}
+
+export const stagingVars = () => workerConfig("staging").vars;
+
 /** Rate limit bindings and namespace IDs in one API Worker environment. */
 export function rateLimitNamespaces(environment) {
-  const config = JSON.parse(read("wrangler.jsonc").split("\n").filter(line => !line.trim().startsWith("//")).join("\n"));
-  const worker = environment === "production" ? config : config.env[environment];
-  return worker.ratelimits.map(({ name, namespace_id }) => [name, namespace_id]);
+  return workerConfig(environment).ratelimits.map(({ name, namespace_id }) => [name, namespace_id]);
 }
 
 /** Names of the environments of the deployable wrangler.jsonc (local simulators live in their own config files). */

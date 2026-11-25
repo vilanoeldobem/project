@@ -19,6 +19,7 @@ import type { Progress } from "@vila/shared/game/progress";
 import { sendableEvents, setServerQuests } from "../game/questsFlag";
 import { setServerQuestsV2 } from "../game/questsV2Flag";
 import { useVila } from "../game/store";
+import { discardUnsentDrafts, resumeDraft } from "./pix-draft";
 import { SERVICES } from "./services";
 
 // Shapes and errors shared with the backoffice dashboard live in `@vila/shared/accounts/*`.
@@ -285,6 +286,8 @@ function stopSync() {
 
 /** Forgets the account on this page (no API call) and shows guest progress again. */
 function signedOutHere() {
+  const owner = useAccount.getState().user?.id;
+  if (owner) discardUnsentDrafts(owner);
   unsubscribe?.();
   unsubscribe = null;
   stillSignedIn = null;
@@ -404,9 +407,12 @@ export async function initAccount() {
       files: accounts && files === true,
       withdrawal: accounts && withdrawal === true,
       presenceModeration: accounts && moderation?.presence === true,
-      // Donations work for visitors too, so this flag is independent of the accounts flag.
+      // Public donation information remains available independently of authenticated Pix issuance.
       donations: donations === true,
     });
+    if ((!accounts || !donations) && discardUnsentDrafts()) {
+      useVila.getState().notify("A emissão de Pix está indisponível. Você pode continuar explorando a Vila.");
+    }
     if (!accounts) return;
     const token = takeLoginToken();
     if (token) {
@@ -417,17 +423,34 @@ export async function initAccount() {
           // The link proved the e-mail is theirs: show the message from the administration right away.
           useVila.getState().notify(BLOCKED_NOTICE);
           useVila.getState().open({ kind: "account" });
-        } else useVila.getState().notify(`Bem-vindo(a), ${user.nickname}! Seu progresso agora fica salvo na sua conta.`);
+          discardUnsentDrafts(null);
+        } else {
+          useVila.getState().notify(`Bem-vindo(a), ${user.nickname}! Seu progresso agora fica salvo na sua conta.`);
+          if (user.deletionPending) discardUnsentDrafts(null);
+          else if (donations) await openPixReview(user.id, true);
+        }
       } catch {
         useVila.getState().notify("Esse link expirou ou já foi usado. Peça um novo em Entrar.");
       }
       return;
     }
     const { user } = await api.me();
-    if (user) await signedIn(user);
+    if (user) {
+      await signedIn(user);
+      if (user.blocked || user.deletionPending) discardUnsentDrafts(user.id);
+      else if (donations) await openPixReview(user.id, false);
+    }
   } catch {
     /* not signed in or API unavailable */
   } finally {
     useAccount.setState({ ready: true });
   }
+}
+
+
+async function openPixReview(owner: string, fromLink: boolean) {
+  const { draft, ambiguous, unavailable } = await resumeDraft(owner, fromLink);
+  if (draft) useVila.getState().open({ kind: "pix-review", id: draft.id });
+  else if (unavailable) useVila.getState().notify("Escolha novamente o destinatário e o valor da doação neste navegador.");
+  else if (ambiguous) useVila.getState().notify("Há mais de uma doação em aberto. Escolha novamente o destinatário e o valor.");
 }

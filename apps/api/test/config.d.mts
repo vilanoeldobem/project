@@ -4,3 +4,4 @@ export function deployScript(): string;
 export function configuredVars(name: string): string[];
 export function environments(): string[];
 export function rateLimitNamespaces(environment: "production" | "staging"): [string, string][];
+export function stagingVars(): Record<string, string>;

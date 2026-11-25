@@ -9,11 +9,13 @@ import { events } from "./events";
 import { questsEnabled } from "./questsFlag";
 import { questsV2Enabled } from "./questsV2Flag";
 import { planWalk, sim } from "./sim";
+import { cancelDraft } from "../lib/pix-draft";
 import type { StoryGameId } from "./story-games";
 
 export type Panel =
   | { kind: "none" }
   | { kind: "donation" }
+  | { kind: "pix-review"; id: string }
   | { kind: "lot"; lotId: string }
   | { kind: "explore" }
   | { kind: "invite" }
@@ -342,7 +344,12 @@ export const useVila = create<VilaState>((set, get) => ({
   setSkyView: (skyView) => set({ skyView }),
   // A panel is the layer on top: opening one (also from code, like a sign-in link) closes the menu.
   open: (panel) => set({ panel, menu: null }),
-  close: () => set({ panel: { kind: "none" } }),
+  close: () => {
+    const panel = get().panel;
+    const review = panel.kind === "account" ? panel.then : panel;
+    if (review?.kind === "pix-review") cancelDraft(review.id);
+    set({ panel: { kind: "none" } });
+  },
   setNearby: (nearby) => {
     if (!sameNearby(get().nearby, nearby)) set({ nearby });
   },

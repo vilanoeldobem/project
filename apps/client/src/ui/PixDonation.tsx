@@ -4,13 +4,15 @@
  * from AbacatePay. A sandbox charge (`devMode`) offers the provider's simulation button, never in production.
  *
  * Nothing here completes a payment by itself: the donation is confirmed by the provider (webhook or status
- * check), and a visitor's donation never credits a Título because it has no account to credit.
+ * check). A new charge requires an active account and an explicit confirmation.
  */
 import { useRef, useState } from "react";
 
-import { errorText } from "@vila/shared/accounts/errors";
+import { ApiError, errorText } from "@vila/shared/accounts/errors";
 import { computeDonationSplit, formatBrl, parseBrlToCents, type DonationTargetKind } from "@vila/shared/donations/contract";
 
+import { useVila } from "../game/store";
+import { forgetDraft, interruptedDraft, newDraft, readDraft, startDraft, type PixDraft, type PixTarget } from "../lib/pix-draft";
 import { useAccount } from "../lib/account";
 import { createPixDonation, fetchDonationStatus, simulatePixDonation, type Donation } from "../lib/api";
 import { afterFailure, keyFor, type DonationKey } from "../lib/donation-key";
@@ -28,6 +30,9 @@ const STATUS_TEXT: Record<string, string> = {
 export function PixDonation({
   targetKind,
   ngoId,
+  lotId,
+  draft,
+  recheck,
   recipientName,
   ngoPercentBps,
   fixedFeeCents,
@@ -35,19 +40,25 @@ export function PixDonation({
 }: {
   targetKind: DonationTargetKind;
   ngoId?: string;
+  lotId?: string;
+  draft?: PixDraft;
+  recheck?: () => Promise<boolean>;
   recipientName: string;
   ngoPercentBps: number;
   fixedFeeCents: number;
   minAmountCents: number;
 }) {
   const user = useAccount((s) => s.user);
-  const [preset, setPreset] = useState(minAmountCents);
+  const accounts = useAccount((s) => s.enabled);
+  const [preset, setPreset] = useState(draft?.amount ?? minAmountCents);
   const [custom, setCustom] = useState("");
   const [donation, setDonation] = useState<Donation | null>(null);
   const [busy, setBusy] = useState(false);
   const [checking, setChecking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+  const [reviewEnded, setReviewEnded] = useState(false);
+  const inFlight = useRef(false);
   const operation = useRef<DonationKey | null>(null);
   const amountCents = custom.trim() ? (parseBrlToCents(custom) ?? Number.NaN) : preset;
   const split = (() => {
@@ -63,22 +74,60 @@ export function PixDonation({
   const generate = async () => {
     setError("");
     setCopied(false);
-    if (!split) {
+    if (!split || amountCents < minAmountCents) {
       setError(`Informe um valor a partir de ${formatBrl(minAmountCents)}.`);
       return;
     }
+    if (!accounts || user?.blocked || user?.deletionPending || inFlight.current || reviewEnded) return;
+    const target: PixTarget | null = targetKind === "global" ? { kind: "global" } : ngoId && lotId ? { kind: "ngo", ngoId, lotId } : null;
+    if (!user) {
+      if (draft || !target) return;
+      const pending = newDraft(target, recipientName, amountCents);
+      if (!pending) useVila.getState().notify("Depois de entrar, escolha novamente o destino e o valor neste navegador.");
+      useVila.getState().open({ kind: "account", then: pending ? { kind: "pix-review", id: pending.id } : undefined });
+      return;
+    }
+
+    if (!draft && target) {
+      const interrupted = interruptedDraft(user.id, target, amountCents);
+      if (interrupted) {
+        useVila.getState().open({ kind: "pix-review", id: interrupted.id });
+        return;
+      }
+    }
+    inFlight.current = true;
     setBusy(true);
-    // One key per request (IMPL-0028): see lib/donation-key.ts for when a retry keeps it and when it starts over.
-    const current = keyFor(operation.current, `${targetKind}:${ngoId ?? ""}:${amountCents}`);
-    operation.current = current;
+    const current = draft ? { request: draft.id, key: draft.id } : keyFor(operation.current, `${user.id}:${targetKind}:${ngoId ?? ""}:${amountCents}`);
     try {
-      const created = await createPixDonation({ idempotencyKey: current.key, targetKind, ...(ngoId ? { ngoId } : {}), amountCents });
+      if (recheck && !(await recheck())) return;
+      if (draft && !startDraft(draft.id, user.id)) {
+        setError("Esta doação expirou, foi cancelada ou pertence a outra conta. Volte à Vila para escolher novamente.");
+        return;
+      }
+      operation.current = current;
+      const created = await createPixDonation({
+        accountId: user.id,
+        idempotencyKey: current.key,
+        targetKind,
+        ...(ngoId ? { ngoId } : {}),
+        amountCents,
+        expectedTerms: { recipientName, ngoPercentBps, fixedFeeCents },
+      });
+      if (draft) forgetDraft(draft.id);
       operation.current = null;
       setDonation(created.donation);
     } catch (e) {
       operation.current = afterFailure(current, e);
+      if (draft && (!operation.current || (e instanceof ApiError && e.code === "donation_terms_changed"))) {
+        forgetDraft(draft.id);
+        setReviewEnded(true);
+      } else if (draft && e instanceof ApiError && ["account_changed", "not_signed_in", "session_blocked", "accounts_disabled"].includes(e.code)) {
+        // A lost earlier response might belong to the original account; keep its key for that account alone.
+        setReviewEnded(true);
+      }
       setError(errorText(e));
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
   };
@@ -126,6 +175,12 @@ export function PixDonation({
         <p className="lead">
           Doação de <strong>{formatBrl(donation.amountCents)}</strong> para <strong>{donation.recipientName}</strong>.
         </p>
+        {(donation.ngoPercentBps !== ngoPercentBps || donation.fixedFeeCents !== fixedFeeCents || donation.recipientName !== recipientName) && (
+          <p className="note" role="status">
+            Este Pix foi emitido na confirmação anterior. A divisão registrada é {formatBrl(donation.ngoShareCents)} para {donation.recipientName}
+            {" "}e {formatBrl(donation.vilaShareCents)} para a Vila. Confira essas parcelas antes de pagar.
+          </p>
+        )}
         <p>
           <span className="status">{STATUS_TEXT[donation.status] ?? donation.status}</span>
         </p>
@@ -162,7 +217,6 @@ export function PixDonation({
             <strong>Pagamento confirmado</strong>
             <p>Obrigado! A doação entrou nos indicadores verificados da Vila.</p>
             {donation.titleCredited && <p className="note">Esta doação foi creditada uma única vez ao seu Título de Doação (DEC-041).</p>}
-            {!user && <p className="note">Doações de visitantes não geram Título: entre na sua conta antes de doar para recebê-lo.</p>}
             {donation.receiptUrl && (
               <p>
                 <a href={donation.receiptUrl} target="_blank" rel="noopener noreferrer">
@@ -197,7 +251,7 @@ export function PixDonation({
         <dt>Total da doação</dt>
         <dd>{split ? formatBrl(split.amountCents) : "Informe um valor válido"}</dd>
       </dl>
-      <fieldset className="checks">
+      {!draft && <fieldset className="checks">
         <legend>Valor da doação (mínimo {formatBrl(minAmountCents)})</legend>
         <div className="look__options">
           {PRESETS.filter((cents) => cents >= minAmountCents).map((cents) => (
@@ -219,13 +273,15 @@ export function PixDonation({
           <span className="field__label">Outro valor (R$) — opcional, a partir de {formatBrl(minAmountCents)}</span>
           <input inputMode="decimal" value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="0,00" />
         </label>
-      </fieldset>
+      </fieldset>}
       {!split && <p className="note">O valor precisa ser pelo menos {formatBrl(minAmountCents)}.</p>}
       <div className="actions">
-        <button className="btn btn--primary" disabled={busy || !split} onClick={() => void generate()}>
-          {busy ? "Gerando Pix…" : "Gerar Pix de doação"}
+        <button className="btn btn--primary" disabled={busy || reviewEnded || !split || amountCents < minAmountCents || !accounts || Boolean(user?.blocked || user?.deletionPending)} onClick={() => void generate()}>
+          {busy ? "Gerando Pix…" : !user ? "Entrar para doar por Pix" : draft ? "Confirmar e gerar Pix" : "Gerar Pix de doação"}
         </button>
       </div>
+      {draft && <button className="btn" disabled={busy} onClick={() => useVila.getState().close()}>{reviewEnded || readDraft(draft.id)?.started ? "Fechar e voltar à Vila" : "Cancelar e voltar à Vila"}</button>}
+      {!accounts && <p className="note">O acesso por conta ainda está indisponível para emitir um Pix.</p>}
       {error && (
         <p className="form__error" role="alert">
           {error}

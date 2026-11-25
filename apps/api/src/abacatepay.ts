@@ -179,6 +179,8 @@ export function subAccountIdError(env: Env, id: string): string | null {
  * `dev_sacc_<cnpj>` marker instead of failing the whole configuration screen.
  */
 export async function createOrGetSubAccount(env: Env, input: { name: string; taxId: string; externalId: string }): Promise<{ id: string; devMode: boolean }> {
+  // The provider's string limit counts Unicode code points in the name sent to it.
+  if (!input.name.trim() || Array.from(input.name).length > 100) throw new HttpError(400, "invalid_subaccount_name");
   try {
     const data = await callProvider(env, "POST", "/sub-accounts/create", { name: input.name, taxId: input.taxId, externalId: input.externalId });
     const id = text(data.id);
