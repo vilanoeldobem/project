@@ -216,6 +216,29 @@ describe("configuration", () => {
     });
   });
 
+  it("sends a 100-character beneficiary name unchanged for both sub-accounts", async () => {
+    const name = "A".repeat(99) + "🌱";
+    await db.prepare("UPDATE ngos SET name=? WHERE id=?").bind(name, NGO).run();
+    expect((await settings({ primaryNgoName: name })).status).toBe(200);
+    expect((await ngoPayment()).status).toBe(200);
+    expect(calls.map(c => c.body?.name)).toEqual([name, name]);
+  });
+
+  it("rejects a 101-character beneficiary name before automatic provisioning and preserves the other routes", async () => {
+    const name = "A".repeat(100) + "🌱";
+    await db.prepare("UPDATE ngos SET name=? WHERE id=?").bind(name, NGO).run();
+    subAccountFailure = { status: 400, body: { error: "name too long" } };
+    for (const response of [await settings({ primaryNgoName: name }), await ngoPayment()]) {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "invalid_subaccount_name" });
+    }
+    expect([count("donation_settings"), count("ngo_payment_configs"), count("audit_events")]).toEqual([0, 0, 0]);
+    expect((await settings({ primaryNgoName: name, subAccountId: "sacc_global" })).status).toBe(200);
+    expect((await ngoPayment({ revision: 1, subAccountId: "sacc_ngo" })).status).toBe(200);
+    expect((await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true })).status).toBe(200);
+    expect(calls).toEqual([]);
+  });
+
   it("recovers the same NGO sub-account after the payment configuration transaction rolls back", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const subAccountId = `sacc_${NGO_CNPJ}`;

@@ -1398,6 +1398,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `global_donation_not_configured` | instituição parceira ou subconta da doação global ainda não configurada |
 | API | 409 | `ngo_payment_not_configured` | ONG sem subconta ativa ou com link próprio ainda não conferido |
 | API | 503 | `payment_provider_unavailable` | AbacatePay sem chave, fora do ar ou recusando a chamada |
+| API | 400 | `invalid_subaccount_name` | o nome enviado à criação automática da subconta precisa ter de 1 a 100 caracteres. A API valida esse campo antes de chamar a AbacatePay |
 | API | 409 | `subaccounts_unavailable` | em produção, a AbacatePay ainda não habilitou subcontas na conta |
 | API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
 | API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante; `resolution` inválida ao encerrar uma intenção |
