@@ -12,5 +12,5 @@ const services = {
 // The cross-app progress test imports the real game client under this Vitest config.
 export default defineConfig({
   define: { __VILA_SERVICES__: JSON.stringify(services) },
-  test: { include: ["src/**/*.test.ts", "../../tests/progress-account.test.mjs"], environment: "node" },
+  test: { include: ["src/**/*.test.ts", "scripts/*.test.mjs", "../../tests/progress-account.test.mjs"], environment: "node" },
 });

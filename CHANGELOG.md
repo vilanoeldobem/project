@@ -17,6 +17,8 @@ Cada versão indica o schema D1 que entrega.
 
 - Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).
 
+- Conferência local de cobranças Pix em ambos os sentidos para um extrato declarado completo, com período de criação e ambiente explícitos. [Guia de conciliação](docs/reference/indicator-sources.md#extrato-completo-conferir-os-identificadores-nos-dois-sentidos).
+
 ### Fixed
 
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
