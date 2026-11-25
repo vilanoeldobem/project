@@ -60,7 +60,9 @@ roda atrás destas duas mesmas flags e fica desligado junto com o resto do catá
 Total: **550 XP** de quest (mais os 110 XP das quatro missões rápidas, **660 XP** ao todo). Níveis continuam
 `floor(xp / 100) + 1` (`XP_PER_LEVEL = 100`): só as quests levam ao nível 6 (`floor(550 / 100) + 1`) e a soma com as
 missões rápidas leva ao **nível 7** (`floor(660 / 100) + 1`). O epílogo só abre depois de `story-page-delivery`; as
-outras cinco cadeias continuam abertas desde o início.
+outras cinco cadeias continuam abertas desde o início. Com a saga v2 ligada junto da v1, o catálogo da página aplica
+o portão do Livro V: as cinco raízes esperam `b05-c3-04`, e a sexta continua presa por `story-page-delivery`. Só com a
+v1 ligada, o comportamento acima permanece.
 
 ## 3. Máquina de estados
 

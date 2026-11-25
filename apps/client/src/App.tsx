@@ -27,6 +27,7 @@ import { StoryGamePanel } from "./ui/StoryGamePanel";
 import { GameMenu } from "./ui/Menu";
 import { ModerationFlag } from "./ui/Moderation";
 import { NgoApplicationPanel } from "./ui/NgoApplication";
+import { FinalScene } from "./ui/FinalScene";
 import { Missions } from "./ui/Missions";
 import { LifeDialog, NpcDialog } from "./ui/NpcDialog";
 import { BillboardPanel, PlotPanel, ShopPanel, SitePanel } from "./ui/Village";
@@ -97,6 +98,7 @@ export function App() {
       {panel.kind === "memory" && <MemoryGame interactionId={panel.interactionId} questId={panel.questId} done={panel.done} />}
       {panel.kind === "story-game" && <StoryGamePanel gameId={panel.gameId} interactionId={panel.interactionId} questId={panel.questId} done={panel.done} />}
       {panel.kind === "missions" && <Missions lots={lots} catalog={catalog} world={world} />}
+      {panel.kind === "finale" && <FinalScene />}
       {panel.kind === "npc" && <NpcDialog npcId={panel.npcId} lots={lots} catalog={catalog} world={world} />}
       {panel.kind === "life" && <LifeDialog charId={panel.charId} name={panel.name} role={panel.role} lines={panel.lines} />}
       {panel.kind === "indicators" && <Indicators />}

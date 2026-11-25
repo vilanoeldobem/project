@@ -2,8 +2,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_PROGRESS, MISSIONS } from "@vila/shared/game/progress";
-import { V1_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { EMPTY_PROGRESS, MISSIONS, type Progress } from "@vila/shared/game/progress";
+import { EPILOGUE_FINAL_QUESTS, V1_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import type { StoryCatalog, StoryNpc, StoryQuest, StoryWorld } from "@vila/shared/game/quests-v2/types";
 import { V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { Missions } from "./Missions";
@@ -76,6 +76,17 @@ describe("Missions", () => {
     expect(page).toContain("Epílogo");
     expect(page).toContain("A Noite de Voo");
     expect(page).toContain("Sinos do arreio");
+  });
+
+  it("offers the final scene only after the six epilogue chains", () => {
+    const done: Progress = {
+      ...EMPTY_PROGRESS,
+      completed: Object.fromEntries(EPILOGUE_FINAL_QUESTS.map((id) => [id, true] as const)),
+    };
+    const ready = renderToStaticMarkup(<Missions catalog={V1_CATALOG} world={V1_WORLD} progress={done} stories />);
+    expect(ready).toContain("Ver a cena final");
+    const locked = renderToStaticMarkup(<Missions catalog={V1_CATALOG} world={V1_WORLD} progress={EMPTY_PROGRESS} stories />);
+    expect(locked).not.toContain("Ver a cena final");
   });
 
   it("hides the quest book when no story flag is on, as v1 did", () => {

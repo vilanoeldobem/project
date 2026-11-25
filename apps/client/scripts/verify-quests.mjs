@@ -17,7 +17,6 @@ import { chromium } from "playwright-core";
 
 import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
 if (!/localhost|127\.0\.0\.1/.test(url + apiUrl)) {
@@ -239,7 +238,7 @@ async function solveMemory(page) {
 
 async function playMemory(page) {
   await page.getByRole("button", { name: /Jogar/ }).first().click();
-  await page.getByRole("dialog", { name: "Minijogos da Vila" }).getByRole("button", { name: "Jogar", exact: true }).click();
+  await page.getByRole("dialog", { name: "Minijogos da Vila" }).locator(".sheet-card").filter({ hasText: "Jogo da Memória" }).getByRole("button", { name: "Jogar" }).click();
   await page.getByRole("dialog", { name: "Jogo da Memória" }).waitFor({ timeout: 10000 });
   await solveMemory(page);
   await closePanel(page);

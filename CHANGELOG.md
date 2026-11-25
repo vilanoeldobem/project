@@ -29,6 +29,10 @@ Cada versão indica o schema D1 que entrega.
 
 - Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
 
+### Added — epílogo e pós-jogo (sessão 11)
+
+- **Epílogo e pós-jogo**: o catálogo v2 passa a exigir b05-c3-04 para as seis cadeias do epílogo v1, adiciona as 12 missões pg1-01 a pg2-06 (240 XP) e a cena final com créditos, atrás das flags existentes; sem migration e sem mudança de bandeira.
+
 ## [0.9.0] - 2026-11-22
 
 **Casas e chão mais detalhados, malha gulosa, minijogos da saga e Pix só com conta**

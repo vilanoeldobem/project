@@ -11,7 +11,7 @@ import { sim } from "./sim";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { type Panel, useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
-import { questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { catalogFor, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import { MANIFEST } from "@vila/shared/game/quests-v2/manifest";
 import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
@@ -100,14 +100,15 @@ export function installDevtools() {
       /** Every implemented story quest and milestone, with its state; the browser verifier reads this. */
       story: () => {
         const progress = useVila.getState().progress;
+        const catalog = catalogFor(questsEnabled(), true);
         return [
-          ...STORY_CATALOG.quests.map((quest) => ({
+          ...catalog.quests.map((quest) => ({
             id: quest.id,
             book: "book" in quest ? quest.book : 0,
             kind: "book" in quest ? quest.kind : "epilogue",
             order: quest.order,
             prerequisiteIds: "prerequisiteIds" in quest ? quest.prerequisiteIds : quest.prerequisiteId ? [quest.prerequisiteId] : [],
-            state: questStateIn(STORY_CATALOG, progress, quest.id),
+            state: questStateIn(catalog, progress, quest.id),
             xp: quest.xp,
             title: quest.title,
             objectiveType: quest.objectiveType,
@@ -116,7 +117,7 @@ export function installDevtools() {
             giverNpcId: quest.giverNpcId,
             turnInNpcId: quest.turnInNpcId,
           })),
-          ...STORY_CATALOG.milestones.map((milestone) => ({
+          ...catalog.milestones.map((milestone) => ({
             id: milestone.id,
             book: milestone.book,
             kind: "milestone",

@@ -26,6 +26,7 @@ export type Panel =
   | { kind: "memory"; interactionId?: string; questId?: string; done?: string }
   | { kind: "story-game"; gameId: StoryGameId; interactionId?: string; questId?: string; done?: string }
   | { kind: "missions" }
+  | { kind: "finale" }
   | { kind: "indicators" }
   | { kind: "environment" }
   | { kind: "account"; then?: Panel }
