@@ -144,7 +144,7 @@ describe("shell", () => {
         <p>conteúdo</p>
       </Shell>
     );
-    for (const [href, label] of [["#/applications", "Candidaturas"], ["#/lots", "ONGs e terrenos"], ["#/audit", "Auditoria"], ["#/users", "Usuários"], ["#/system", "Sistema"], ["#/pending", "Pendentes"]])
+    for (const [href, label] of [["#/applications", "Candidaturas"], ["#/lots", "ONGs e terrenos"], ["#/audit", "Auditoria"], ["#/users", "Usuários e permissões"], ["#/system", "Sistema"], ["#/pending", "Pendentes"]])
       expect(page).toContain(`href="${href}"`), expect(page).toContain(`>${label}</a>`);
     expect(page).toContain('<nav class="menu" aria-label="Seções">');
     expect(page).toContain('<a href="#/audit" aria-current="page">Auditoria</a>');

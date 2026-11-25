@@ -71,7 +71,7 @@ const SECTIONS = [
   { menu: "Candidaturas", title: "Candidaturas de ONGs", file: "applications", states: { "accounts-off": 1 } },
   { menu: "ONGs e terrenos", title: "ONGs e terrenos", file: "lots", states: { "accounts-off": 1 } },
   { menu: "Auditoria", title: "Auditoria", file: "audit", states: { "accounts-off": 1 } },
-  { menu: "Usuários", title: "Usuários", file: "users", states: { "accounts-off": 1, pending: 1 } },
+  { menu: "Usuários e permissões", title: "Usuários e permissões", file: "users", states: { "accounts-off": 1, pending: 1 } },
   { menu: "Sistema", title: "Sistema", file: "system", states: { "api-health": 1, flags: 1 } },
   { menu: "Pendentes", title: "Pendentes", file: "pending", states: { pending: 3 } },
 ];

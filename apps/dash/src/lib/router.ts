@@ -27,7 +27,7 @@ export const SECTIONS: ReadonlyArray<{ section: Section; label: string }> = [
   { section: "applications", label: "Candidaturas" },
   { section: "lots", label: "ONGs e terrenos" },
   { section: "audit", label: "Auditoria" },
-  { section: "users", label: "Usuários" },
+  { section: "users", label: "Usuários e permissões" },
   { section: "system", label: "Sistema" },
   { section: "pending", label: "Pendentes" },
 ];
