@@ -517,6 +517,53 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
   }
   const lot = (id: string) => db.sql("SELECT state, ngo_id FROM lots WHERE id = ?", id)[0];
 
+  it("keeps old applications reachable across tied pages and links lots to their current holders", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const oldId = (await apply(applicant, APP)).body.application.id;
+    expect((await decide(oldId, { action: "approve" }, admin)).status).toBe(200);
+    db.sql("UPDATE ngos SET updated_at = '2025-01-01T00:00:00.000Z' WHERE id = ?", oldId);
+    // Historical applications all requested this same lot, and all have the same timestamp.
+    db.sql(`WITH RECURSIVE seq(i) AS (VALUES(1) UNION ALL SELECT i + 1 FROM seq WHERE i < 205)
+      INSERT INTO ngos(id, name, cnpj, status, requested_lot_id, updated_at)
+      SELECT printf('00000000-0000-4000-8000-%012d', i), 'ONG teste', printf('%014d', i),
+             'rejected', 'plaza-03', '2025-01-02T00:00:00.000Z' FROM seq`);
+    const list = (query = "") => call("GET", "/admin/applications" + query, undefined, admin);
+    const first = (await list()).body;
+    const ids = (page: { applications: { id: string }[] }) => page.applications.map((row) => row.id);
+    expect(first.applications).toHaveLength(200);
+    expect(ids(first)).not.toContain(oldId);
+    expect(first.next).toEqual(expect.any(String));
+    const second = (await list("?before=" + encodeURIComponent(first.next))).body;
+    expect(second.next).toBeNull();
+    expect(ids(second)).toHaveLength(6);
+    expect(ids(second).at(-1)).toBe(oldId);
+    expect(new Set([...ids(first), ...ids(second)]).size).toBe(206);
+    const filtered = (await list("?status=rejected")).body;
+    const olderRejected = (await list("?status=rejected&before=" + encodeURIComponent(filtered.next))).body;
+    expect(ids(olderRejected)).toHaveLength(5);
+    expect(ids(olderRejected)).not.toContain(oldId);
+    expect((await list("?before=invalid")).status).toBe(400);
+    expect((await list("?status=published")).body.applications).toEqual([expect.objectContaining({ id: oldId })]);
+    const lots = (await call("GET", "/admin/lots", undefined, admin)).body.lots;
+    expect(lots.find((row: { id: string }) => row.id === "plaza-03")).toMatchObject({ applicationId: oldId, applicationStatus: "published", ngo_name: APP.name });
+  });
+
+  it("shows an unpublished lot holder only to an admin, with no link left after rejection", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, APP)).body.application.id;
+    const adminLot = async () => (await call("GET", "/admin/lots", undefined, admin)).body.lots.find((row: { id: string }) => row.id === "plaza-03");
+    expect((await call("GET", "/admin/lots")).status).toBe(401);
+    expect((await call("GET", "/admin/lots", undefined, applicant.cookie)).status).toBe(403);
+    const publicLot = (await call("GET", "/lots")).body.lots.find((row: { id: string }) => row.id === "plaza-03");
+    expect(publicLot).toMatchObject({ ngo_name: null, ngo_id: null });
+    expect(publicLot).not.toHaveProperty("applicationId");
+    expect(await adminLot()).toMatchObject({ applicationId: id, applicationStatus: "submitted", ngo_name: APP.name });
+    expect((await decide(id, { action: "reject", note: "Documentação incompleta." }, admin)).status).toBe(200);
+    expect(await adminLot()).toMatchObject({ applicationId: null, applicationStatus: null, ngo_name: null });
+  });
+
   it("validates, reserves the lot and refuses a second active application", async () => {
     const a = await signUp();
     const bad = await apply(a, { ...APP, cnpj: "11222333000180" });

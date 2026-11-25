@@ -713,13 +713,23 @@ Só contas com `role = 'admin'`; outras → `403 admin_only`. O primeiro adminis
 
 | Método e rota | Corpo | Resposta |
 |---|---|---|
-| `GET /admin/applications[?status=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}]}` (até 200, mais recentes primeiro) |
+| `GET /admin/applications[?status=…&before=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}], next}` (até 200 por página, mais recentes primeiro) |
+| `GET /admin/lots` | — | `{lots: [{id, state, ngo_name, applicationId, applicationStatus}]}`, com a ocupação atual de cada terreno |
 | `GET /admin/applications/:id` | — | `{application, applicant: {nickname, deletionPending} \| null, history: [{at, action, detail, actor}], files}` |
 | `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
 `status` filtra pelos cinco estados anteriores ou `withdrawn`, projetado junto com a revisão no mesmo snapshot.
 Sem filtro, lista candidaturas e retiradas, incluindo ONGs retiradas sem solicitante. ONGs publicadas sem
 candidatura e sem retirada continuam excluídas. `?status=published` não inclui retiradas.
+
+Para carregar a próxima página, use o valor opaco de `next` no parâmetro `before` com o mesmo filtro.
+`next: null` indica o fim. A ordem é por atualização e, em caso de empate, pelo ID da candidatura, ambos
+decrescentes. Mudanças feitas durante a leitura aparecem ao recarregar a lista.
+
+Em `/admin/lots`, `applicationId` e `applicationStatus` identificam a candidatura vinculada ao terreno.
+Nos terrenos livres e nas casas publicadas sem candidatura, os dois campos são `null`. O nome de uma ONG
+em análise aparece apenas no painel autenticado.
+
 `:id` é o UUID da candidatura. Quem enviou aparece só pelo nickname (`null` se a conta foi excluída); `actor` no
 histórico é o nickname do admin.
 
