@@ -15,7 +15,7 @@ import { buildCast, packVisible } from "./castGeometry";
 
 const RIGS = LIFE_CAST.map((c) => castRig(c.kind, c.seed));
 const CAST = buildCast(RIGS, () => [1, 1, 1]);
-const TRIANGLES = 12_516;
+const TRIANGLES = 7_766;
 const cells = (voxels: ReadonlyArray<readonly [number, number, number, string]>) => new Set(voxels.map(([x, y, z, c]) => `${x},${y},${z},${c}`));
 
 describe("the rigs of the cast", () => {
@@ -136,7 +136,7 @@ describe("the cast as one mesh", () => {
 
   it("costs a small, fixed number of triangles: the whole cast is lighter than one residential block", () => {
     const triangles = CAST.indices.length / 3;
-    // 12 516 triangles for the 30 characters, all drawn (the number is pinned so that a heavier cast is a decision).
+    // 7 766 triangles for the 30 characters, all drawn (greedy meshing, IMPL-0035) (the number is pinned so that a heavier cast is a decision).
     expect(triangles).toBe(TRIANGLES);
     expect(triangles).toBeLessThan(14_000);
     for (const [i, range] of CAST.ranges.entries()) expect(range.count / 3, LIFE_CAST[i].id).toBeLessThan(1_200);

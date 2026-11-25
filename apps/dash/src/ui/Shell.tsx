@@ -9,13 +9,15 @@ import type { Me } from "@vila/shared/accounts/contract";
 import { hrefOf, type Route, SECTIONS } from "../lib/router";
 import { SERVICES } from "../lib/services";
 
+const panelName = import.meta.env.MODE === "staging" ? "Painel administrativo de homologação" : "Painel administrativo";
+
 export function Shell({ route, user, onSignOut, children }: { route: Route; user: Me | null; onSignOut: () => void; children: ReactNode }) {
   const main = useRef<HTMLElement>(null);
   const label = SECTIONS.find((s) => s.section === route.section)!.label;
   const where = `${route.section}/${route.section === "applications" ? (route.id ?? (route.unknown ? "?" : "")) : ""}`;
   const shown = useRef(where);
   useEffect(() => {
-    document.title = `${label} — Painel administrativo — Vila Noel do Bem`;
+    document.title = `${label} — ${panelName} — Vila Noel do Bem`;
     // Only when the person navigates: on the first paint focus stays where the browser put it.
     if (shown.current === where) return;
     shown.current = where;
@@ -29,7 +31,7 @@ export function Shell({ route, user, onSignOut, children }: { route: Route; user
       <header className="top">
         <p className="top__brand">
           <img className="top__brand-logo" src="/logo-vilanoeldobem.png" width={380} height={360} alt="Vila Noel do Bem" />
-          <span>Painel administrativo</span>
+          <span>{panelName}</span>
         </p>
         <div className="top__user">
           {user ? (

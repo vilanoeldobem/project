@@ -38,3 +38,21 @@ export const MINIGAMES: readonly Minigame[] = [
   game("forno-da-memoria", "Forno da Memória"),
   game("jardim-das-estacoes", "Jardim das Estações"),
 ];
+
+const BY_TITLE = new Map(MINIGAMES.map((game) => [game.title, game]));
+const ALIASES: Readonly<Record<string, MinigameId>> = {
+  "sing-brasa-calm": "coro-dos-nomes",
+  "sing-brasa-again": "coro-dos-nomes",
+  "sing-lake-echo": "coro-dos-nomes",
+};
+
+/**
+ * The game a story interaction offers: the label after "Jogar " names the shared title, and the three
+ * "sing-*" interactions of Book IV name the Coro only in their dialogue, so they have explicit aliases.
+ */
+export function minigameForInteraction(interaction: { id: string; label?: string }): Minigame | undefined {
+  const alias = ALIASES[interaction.id];
+  if (alias) return MINIGAMES.find((game) => game.id === alias);
+  const label = interaction.label ?? "";
+  return label.startsWith("Jogar ") ? BY_TITLE.get(label.slice(6)) : undefined;
+}

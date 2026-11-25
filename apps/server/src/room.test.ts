@@ -9,6 +9,25 @@ import { MOVE_ALLOWANCE_CAP, RoomState, WALK_RATE } from "./room";
 
 const pose = (x: number, z: number, yaw = 0, speed = 0) => encodePose({ x, z, yaw, speed });
 
+describe("room occupancy units", () => {
+  it("counts each live connection in its room, including overlapping reconnects", () => {
+    const plazaA = new RoomState();
+    const plazaB = new RoomState();
+    const occupancy = () => [plazaA.size, plazaB.size];
+    expect(occupancy()).toEqual([0, 0]);
+    const tabOne = plazaA.join(0)!;
+    const tabTwo = plazaA.join(1)!; // same test participant, two independent connections
+    expect(tabOne).not.toBe(tabTwo);
+    expect(occupancy()).toEqual([2, 0]);
+    plazaB.join(2); // the second tab reconnects here before its first socket closes
+    expect(occupancy()).toEqual([2, 1]);
+    plazaA.leave(tabTwo);
+    expect(occupancy()).toEqual([1, 1]);
+    plazaA.leave(tabOne);
+    expect(occupancy()).toEqual([0, 1]);
+  });
+});
+
 describe("RoomState", () => {
   it("assigns anonymous ids and enforces capacity", () => {
     const r = new RoomState();

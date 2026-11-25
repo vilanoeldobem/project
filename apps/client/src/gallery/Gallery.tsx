@@ -12,9 +12,10 @@ import { perf } from "../scene/perf";
 import { BUDGETS, measure } from "../scene/gen/budget";
 import { byCategory } from "../scene/gen/catalog";
 import type { Category, GenModel, Generator } from "../scene/gen/types";
+import { refineBuilding } from "../scene/gen/refine";
 import { Voxels } from "../scene/Voxels";
 
-const CATEGORIES: Category[] = ["props", "houses", "civic", "characters", "animals", "cosmetics"];
+const CATEGORIES: Category[] = ["props", "saga", "houses", "civic", "characters", "animals", "cosmetics"];
 const SEEDS = Array.from({ length: 8 }, (_, i) => `gallery-${i}`);
 const SPACING = 3.6;
 
@@ -40,13 +41,14 @@ function fit(m: GenModel) {
 }
 
 function Row({ g, row }: { g: Generator; row: number }) {
-  const models = useMemo(() => SEEDS.map((s) => g.generate(s)), [g]);
+  // Buildings are shown as the village draws them: refined (IMPL-0035).
+  const models = useMemo(() => SEEDS.map((s) => (g.category === "houses" || g.category === "civic" ? refineBuilding(g.generate(s)) : g.generate(s))), [g]);
   return (
     <>
       {models.map((m, i) => (
         <Turntable key={i} x={(i - (SEEDS.length - 1) / 2) * SPACING} z={row * SPACING}>
           <group scale={fit(m)}>
-            <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} glow={m.glow} sway={m.sway} idle={m.idle} />
+            <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} glow={m.glow} sway={m.sway} idle={m.idle} ao={m.ao} />
           </group>
         </Turntable>
       ))}

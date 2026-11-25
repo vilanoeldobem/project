@@ -77,16 +77,15 @@
   "observability": { "enabled": true },
   "workers_dev": true,
   "preview_urls": false,
-  // Staging (docs/guides/staging-database.md): own D1, no routes, no workers.dev, no browser origins, accounts off.
-  // Bindings and secrets are not inherited: staging deliberately has no RESEND_API_KEY (sends fail closed), no
-  // AUTH_LIMITER and no FILES bucket (uploads answer 404 files_disabled).
+  // Staging uses its own Worker, D1, login rate limit and sibling browser origins.
+  // Keep accounts off until the sender, staging-only Resend secret and schema are ready.
   "env": {
     "staging": {
       "name": "vilanoeldobem-api-staging",
-      "routes": [],
+      "routes": [{ "pattern": "api-staging.vilanoeldobem.com.br", "custom_domain": true }],
       "workers_dev": false,
       "preview_urls": false,
-      "ratelimits": [],
+      "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "2101", "simple": { "limit": 10, "period": 60 } }],
       "r2_buckets": [],
       "vars": {
         "ENVIRONMENT": "staging",
@@ -101,11 +100,11 @@
         "RESIDENTIAL_PLOTS_ENABLED": "false",
         "DONATIONS_ENABLED": "false",
         "NGO_LEVELS_ENABLED": "false",
-        "MAIL_FROM": "",
-        "ALLOWED_ORIGINS": "",
-        "ACCOUNT_ORIGINS": "",
-        "DASH_ORIGIN": "",
-        "GAME_ORIGIN": ""
+        "MAIL_FROM": "acesso@vilanoeldobem.com.br",
+        "ALLOWED_ORIGINS": "https://play-staging.vilanoeldobem.com.br,https://www-staging.vilanoeldobem.com.br,https://dash-staging.vilanoeldobem.com.br",
+        "ACCOUNT_ORIGINS": "https://play-staging.vilanoeldobem.com.br,https://dash-staging.vilanoeldobem.com.br",
+        "DASH_ORIGIN": "https://dash-staging.vilanoeldobem.com.br",
+        "GAME_ORIGIN": "https://play-staging.vilanoeldobem.com.br"
       },
       "d1_databases": [
         {

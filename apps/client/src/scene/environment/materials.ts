@@ -148,41 +148,51 @@ idleMaterial.onBeforeCompile = (shader) => {
 idleMaterial.customProgramCacheKey = () => "vila-idle";
 
 /**
- * Block edges (IMPL-0033): a thin, darker line around every voxel face, so blocks of one colour read one by one
- * instead of melting into a slab. Drawn from `aFace` (the face corner, 1..2 on each axis; mesher.ts), which costs
- * no triangle and no draw call. The line keeps about one pixel on screen up close and fades out where a block is
- * only a few pixels wide, so far blocks never shimmer. A geometry without `aFace` (read as 0) draws no line.
+ * Block look (IMPL-0033, IMPL-0035): a thin, darker line around every block and a small shade of its own for each
+ * block, drawn per pixel from `aGrid` (position in voxel units and face axis; mesher.ts). Greedy meshing merges a
+ * wall into one rectangle; this keeps it reading as blocks, at no triangle or draw call. The line keeps about one
+ * pixel up close and both effects fade where a block is only a few pixels wide, so far blocks never shimmer. Fine models
+ * (`EDGE_MIN_SIZE` in mesher.ts) keep only the shade. A geometry without `aGrid` (read as 0) draws neither.
  */
-export const BLOCK_EDGE = { width: 0.06, strength: 0.2 } as const;
+export const BLOCK_LOOK = { width: 0.06, edge: 0.2, jitter: 0.045 } as const;
 
-const EDGE_VERTEX = "attribute vec2 aFace;\nvarying vec2 vFace;";
-const EDGE_FRAGMENT = /* glsl */ `
+const LOOK_VERTEX = "attribute vec4 aGrid;\nvarying vec4 vGrid;";
+const LOOK_FRAGMENT = /* glsl */ `
 #include <color_fragment>
-if (vFace.x > 0.5) {
-  vec2 vilaUv = vFace - 1.0;
-  vec2 vilaPx = fwidth(vilaUv);
-  vec2 vilaEdge = min(vilaUv, 1.0 - vilaUv);
-  vec2 vilaLine = 1.0 - smoothstep(max(vec2(${BLOCK_EDGE.width.toFixed(3)}), vilaPx), max(vec2(${BLOCK_EDGE.width.toFixed(3)}), vilaPx) * 1.8, vilaEdge);
+if (vGrid.w > 0.5) {
+  float vilaCode = floor(vGrid.w + 0.5);
+  float vilaEdges = vilaCode > 3.5 ? 0.0 : 1.0;
+  float vilaAxis = vilaCode > 3.5 ? vilaCode - 4.0 : vilaCode;
+  vec2 vilaP = vilaAxis < 1.5 ? vGrid.yz : (vilaAxis < 2.5 ? vGrid.zx : vGrid.xy);
+  float vilaPlane = floor((vilaAxis < 1.5 ? vGrid.x : (vilaAxis < 2.5 ? vGrid.y : vGrid.z)) + 0.5);
+  vec2 vilaCell = floor(vilaP);
+  vec2 vilaF = vilaP - vilaCell;
+  vec2 vilaPx = fwidth(vilaP);
+  vec2 vilaW = max(vec2(${BLOCK_LOOK.width.toFixed(3)}), vilaPx);
+  vec2 vilaEdge = min(vilaF, 1.0 - vilaF);
+  vec2 vilaLine = 1.0 - smoothstep(vilaW, vilaW * 1.8, vilaEdge);
   float vilaFar = 1.0 - smoothstep(0.08, 0.25, max(vilaPx.x, vilaPx.y));
-  diffuseColor.rgb *= 1.0 - ${BLOCK_EDGE.strength.toFixed(3)} * max(vilaLine.x, vilaLine.y) * vilaFar;
+  float vilaHash = fract(sin(dot(vec3(vilaCell, vilaPlane), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  diffuseColor.rgb *= (1.0 + (vilaHash - 0.5) * ${(2 * BLOCK_LOOK.jitter).toFixed(3)} * vilaFar)
+    * (1.0 - ${BLOCK_LOOK.edge.toFixed(3)} * vilaEdges * max(vilaLine.x, vilaLine.y) * vilaFar);
 }`;
 
-/** Adds the block edges to a material, after whatever its own `onBeforeCompile` does. */
-function withBlockEdges(material: MeshStandardMaterial, key: string): void {
+/** Adds the block look to a material, after whatever its own `onBeforeCompile` does. */
+function withBlockLook(material: MeshStandardMaterial, key: string): void {
   const own = material.onBeforeCompile.bind(material);
   material.onBeforeCompile = (shader, renderer) => {
     own(shader, renderer);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", `#include <common>\n${EDGE_VERTEX}`)
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFace = aFace;");
+      .replace("#include <common>", `#include <common>\n${LOOK_VERTEX}`)
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvGrid = aGrid;");
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vFace;")
-      .replace("#include <color_fragment>", EDGE_FRAGMENT);
+      .replace("#include <common>", "#include <common>\nvarying vec4 vGrid;")
+      .replace("#include <color_fragment>", LOOK_FRAGMENT);
   };
-  material.customProgramCacheKey = () => `${key}-edges`;
+  material.customProgramCacheKey = () => `${key}-blocks`;
 }
 
-withBlockEdges(solidMaterial, "vila-solid");
-withBlockEdges(windowMaterial, "vila-window");
-withBlockEdges(foliageMaterial, "vila-foliage");
-withBlockEdges(idleMaterial, "vila-idle");
+withBlockLook(solidMaterial, "vila-solid");
+withBlockLook(windowMaterial, "vila-window");
+withBlockLook(foliageMaterial, "vila-foliage");
+withBlockLook(idleMaterial, "vila-idle");

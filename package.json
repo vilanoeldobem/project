@@ -1,7 +1,7 @@
 {
   "name": "vilanoeldobem",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "license": "MIT",
   "description": "Vila Noel do Bem — virtual 3D voxel Christmas village (monorepo: site, client, api, server, dash, shared)",
   "scripts": {
@@ -11,6 +11,7 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "test": "pnpm -r run test",
+    "staging:check": "node scripts/check-staging.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "db:migrate:local": "pnpm --filter @vila/api db:migrate:local",
     "deploy:api": "pnpm --filter @vila/api run deploy",

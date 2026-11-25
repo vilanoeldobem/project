@@ -29,5 +29,21 @@
   "routes": [{ "pattern": "server.vilanoeldobem.com.br", "custom_domain": true }],
   "observability": { "enabled": true },
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "env": {
+    "staging": {
+      "name": "vilanoeldobem-server-staging",
+      "routes": [{ "pattern": "server-staging.vilanoeldobem.com.br", "custom_domain": true }],
+      "workers_dev": false,
+      "preview_urls": false,
+      "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "VillageRoom" }] },
+      "services": [{ "binding": "API", "service": "vilanoeldobem-api-staging" }],
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ALLOWED_ORIGINS": "https://play-staging.vilanoeldobem.com.br",
+        "IDLE_TIMEOUT_SECONDS": "300",
+        "PRESENCE_MODERATION_ENABLED": "false"
+      }
+    }
+  }
 }

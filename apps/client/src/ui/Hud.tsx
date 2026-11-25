@@ -1,12 +1,14 @@
 import { useEffect } from "react";
 
 import { activeInventory, questState } from "@vila/shared/game/quests";
-import { activeInventoryIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { activeInventoryIn, activeQuestIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { minigameForInteraction } from "@vila/shared/game/quests-v2/minigames";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { NPCS, QUEST_INTERACTIONS, SITES } from "@vila/shared/game/world";
 import { lifeAction, lifePanel } from "../game/village-life";
-import { useQuestsEnabled } from "../game/questsFlag";
-import { useQuestsV2Enabled } from "../game/questsV2Flag";
+import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
+import { questsV2Enabled, useQuestsV2Enabled } from "../game/questsV2Flag";
+import { storyInteractionFor } from "../game/story-games";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { pressEscape } from "../lib/escape";
@@ -76,14 +78,22 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
         if (done) vila.notify(done);
         return;
       }
-      const story = STORY_WORLD.interactions.find((i) => i.id === n.interactionId);
+      const progress = useVila.getState().progress;
+      const active = activeQuestIn(catalogFor(questsEnabled(), questsV2Enabled()), progress);
+      const story = storyInteractionFor(n.interactionId, active?.id);
       if (!story) return;
       if (story.kind === "talk") {
         if (story.npcId) vila.open({ kind: "npc", npcId: story.npcId });
         return;
       }
       if (story.kind === "minigame") {
-        vila.open({ kind: "games" });
+        const game = minigameForInteraction(story);
+        if (!game) vila.open({ kind: "games" });
+        else if (game.id === "jogo-da-memoria") {
+          vila.open({ kind: "memory", interactionId: story.id, questId: story.questId, done: story.done });
+        } else {
+          vila.open({ kind: "story-game", gameId: game.id, interactionId: story.id, questId: story.questId, done: story.done });
+        }
         return;
       }
       vila.record(story.questId, story.id);

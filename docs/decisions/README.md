@@ -1,6 +1,6 @@
 # Decisões técnicas (ADRs)
 
-> **Status:** Índice de decisões técnicas · **Atualizado em:** 2026-11-18
+> **Status:** Índice de decisões técnicas · **Atualizado em:** 2026-11-23
 > **Fonte de verdade:** este diretório; decisões de produto em `vilanoeldobem/docs/docs/decisions/registro-de-decisoes.md`
 
 ## Como funciona
@@ -52,5 +52,8 @@
 | [IMPL-0031](0031-village-rings-zoning-civic-buildings-and-boards.md) | A Vila em quatro anéis zoneados (raio 99 u): 97 terrenos de ONG e 23 casas (80/20), 11 prédios cívicos como cenário (Posto do Trenó no lugar do posto de gasolina), parques e praças, 37 placas em quatro formatos com o tamanho das artes definido; migration 0015 | Proposta — implementada, a validar; pedido do responsável técnico em 2026-11-19; planta final, placas e prédios **PENDENTES** (OQ-17, OQ-18, OQ-19, OQ-22); 0015 não aplicada no remoto |
 | [IMPL-0032](0032-ngo-building-levels.md) | Casa da ONG em cinco níveis conforme o total confirmado das doações: `ngo_level` em `GET /lots` (só o nível, nunca o valor), cinco construções com as cores da própria ONG, bandeira `NGO_LEVELS_ENABLED` | Proposta — implementada, desligada em produção e homologação (`NGO_LEVELS_ENABLED`, e depende de `DONATIONS_ENABLED`); política **PENDENTE** (OQ-23) |
 | [IMPL-0033](0033-block-look.md) | Visual de blocos: luz por face, tom por bloco e aresta fina de cada bloco no shader (`aFace`), sem triângulo ou chamada a mais; a grade dos modelos não muda | Aceita — implementada |
+| [IMPL-0034](0034-authenticated-pix-issuance.md) | Conta válida para emitir Pix e recuperação de intenções anônimas anteriores | Proposta da #65, recuperada para revisão local |
+| [IMPL-0035](0035-greedy-meshing-refined-buildings-ground-detail.md) | Malha gulosa, visual de blocos por pixel (`aGrid`), prédios refinados em blocos de um terço e detalhes no chão, dentro do orçamento de render | Aceita — implementada |
+| [IMPL-0036](0036-isolated-staging.md) | Homologação isolada do cadastro de ONG: cinco Workers e hosts irmãos, build `staging` com assets próprios, D1 próprio, analytics desligado, limite só no login, publicação manual pelo operador | Aceita — implementada (issue #65, PR #112); publicação e ativação **PENDENTES** (LGPD/ECA, remetente, acesso dos testadores, operador) |
 
 Perguntas que só o dono do produto responde: [open-questions.md](open-questions.md).

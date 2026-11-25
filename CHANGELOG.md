@@ -9,9 +9,58 @@ Cada versão indica o schema D1 que entrega.
 
 ## [Unreleased]
 
+### Added
+
+- Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
+
+- Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
+
+- Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).
+
+- Conferência local de cobranças Pix em ambos os sentidos para um extrato declarado completo, com período de criação e ambiente explícitos. [Guia de conciliação](docs/reference/indicator-sources.md#extrato-completo-conferir-os-identificadores-nos-dois-sentidos).
+
+### Fixed
+
+- O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
+- O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
+- O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
+
+### Changed
+
+- Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
+
 ### Added — epílogo e pós-jogo (sessão 11)
 
 - **Epílogo e pós-jogo**: o catálogo v2 passa a exigir b05-c3-04 para as seis cadeias do epílogo v1, adiciona as 12 missões pg1-01 a pg2-06 (240 XP) e a cena final com créditos, atrás das flags existentes; sem migration e sem mudança de bandeira.
+
+## [0.9.0] - 2026-11-22
+
+**Casas e chão mais detalhados, malha gulosa, minijogos da saga e Pix só com conta**
+([IMPL-0035](docs/decisions/0035-greedy-meshing-refined-buildings-ground-detail.md),
+[IMPL-0034](docs/decisions/0034-authenticated-pix-issuance.md)). Schema D1 **v15**, o mesmo da 0.8.0: nenhuma
+migration e nenhuma bandeira nova. A saga v2 (PEN-025), as contas e as doações (PEN-004, PEN-006) seguem desligadas
+em produção.
+
+### Changed — casas e chão mais detalhados, malha gulosa (IMPL-0035)
+
+- **Prédios refinados**: casas, chalés de ONG, lojas e prédios cívicos são desenhados em blocos de um terço, com vidro
+  recuado, verga e peitoril brancos, porta recuada com bandeira de vidro e maçaneta, telhas em fiadas, tijolos na
+  fundação, neve em camada fina, pingentes de gelo e chaminé com chapéu. Pegada, colisores e regras não mudam.
+- **Detalhes no chão**: tufos de grama, flores, pedrinhas e montinhos de neve nos quintais, parques e na neve,
+  iguais para todos, sem bloquear o caminho.
+- **Malha gulosa**: faces coplanares da mesma cor viram um retângulo; a aresta e o tom de cada bloco passam a ser
+  desenhados no shader. Na segunda rua, com casa em todo terreno: de 161 874 para 125 340 triângulos antes do
+  detalhe, 202 906 com ele (orçamento: 250 000).
+- `apps/client/scripts/verify-budget.mjs`: o orçamento de render sozinho, sem precisar da API local.
+
+### Added
+
+- [Ensaio de conciliação de Pix no D1 local](docs/reference/indicator-sources.md#fin-01--conferir-uma-cobrança-dirigida-no-d1-local), com comparação do destino, estado e valores em centavos por cobrança fictícia.
+
+- Teste da retomada do recebimento de Pix pela ONG após falha na gravação da auditoria: o provedor simulado devolve a mesma subconta, o D1 registra um único vínculo e a cobrança seguinte usa esse destino.
+- Teste de confirmação tardia de Pix após a retirada da ONG e a reocupação do terreno: o pagamento mantém o destino original e o saldo da nova ocupante continua zerado.
+
+- **Saga v2, arte e minijogos:** os nove minijogos novos e o Jogo da Memória como o décimo, os dez props de saga no ?gallery e o guia de estilo dos cosméticos; auditoria dos 60 cosméticos dos livros (160 no catálogo, 40/140 por camada). Nenhuma bandeira mudou.
 
 ## [0.8.0] - 2026-11-22
 

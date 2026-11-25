@@ -69,7 +69,7 @@ export function AccountChip() {
 
 export function Account({ then }: { then?: PanelState }) {
   const user = useAccount((s) => s.user);
-  if (!user) return <SignedOut />;
+  if (!user) return <SignedOut pix={then?.kind === "pix-review"} />;
   return user.blocked ? <BlockedAccount user={user} /> : <SignedIn then={then} />;
 }
 
@@ -150,7 +150,8 @@ export function BlockedAccount({ user }: { user: Me }) {
   );
 }
 
-function SignedOut() {
+function SignedOut({ pix }: { pix: boolean }) {
+  const cancel = pix && <button className="btn" onClick={() => useVila.getState().close()}>Cancelar e voltar à Vila</button>;
   const [mode, setMode] = useState<"register" | "login">("register");
   const [sent, setSent] = useState<{ email: string; devLink?: string } | null>(null);
   if (sent) {
@@ -166,11 +167,12 @@ function SignedOut() {
         </div>
         {sent.devLink && (
           <p>
-            <a className="btn btn--small" href={sent.devLink}>
+            <a className="btn btn--small" href={sent.devLink} target={pix ? "_blank" : undefined} rel={pix ? "noopener noreferrer" : undefined}>
               Abrir link (só em desenvolvimento)
             </a>
           </p>
         )}
+        {cancel}
         <button className="btn" onClick={() => setSent(null)}>
           Voltar
         </button>
@@ -187,6 +189,7 @@ function SignedOut() {
         onChange={(tab) => setMode(tab === "Criar conta" ? "register" : "login")}
       />
       {mode === "register" ? <RegisterForm onSent={setSent} /> : <LoginForm onSent={setSent} />}
+      {cancel}
     </Panel>
   );
 }

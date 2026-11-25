@@ -41,8 +41,10 @@ const ERROR_TEXT: Record<string, string> = {
   admin_account: "Esta conta é de um administrador. Mude o papel para Padrão antes de bloquear.",
   bad_transition: "A situação mudou enquanto esta tela estava aberta. Atualize a página e confira antes de tentar de novo.",
   // Donations (IMPL-0023, PROPOSTA).
+  invalid_subaccount_name: "A AbacatePay exige um nome de titular de 1 a 100 caracteres para criar a subconta. Confira o nome ou informe o ID de uma subconta já conferida para o mesmo CNPJ.",
   payment_provider_unavailable: "O provedor de pagamento está indisponível no momento. Tente novamente em instantes.",
   ngo_payment_not_configured: "Esta organização ainda não está com o recebimento de doações configurado.",
+  donation_terms_changed: "O destino ou a divisão do Pix mudou. Confira as condições atuais antes de tentar de novo.",
   global_donation_not_configured: "A instituição parceira da doação global ainda não foi configurada.",
   invalid_donation_amount: "O valor da doação precisa ser um número inteiro entre R$ 2,00 e R$ 50.000,00.",
   // Durable creation intent (IMPL-0028, PROPOSTA).

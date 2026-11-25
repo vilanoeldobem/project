@@ -419,8 +419,10 @@ export function App() {
               </ol>
 
               <p className="note ngo-note">
-                Toda candidatura passa por análise; só a aprovação publica a casa na Vila. O cadastro de ONGs abre em
-                breve.
+                Toda candidatura passa por análise; só a aprovação publica a casa na Vila.{" "}
+                {import.meta.env.MODE === "staging" ? (
+                  <>Quando o cadastro de teste estiver liberado, <a href={GAME_URL}>entre na Vila de teste</a> e escolha um terreno disponível.</>
+                ) : "O cadastro de ONGs abre em breve."}
               </p>
             </div>
           </div>

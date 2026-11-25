@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MAX_MESSAGE_BYTES, MAX_ROOMS } from "@vila/shared/net/protocol";
 
-import { configuredVars, devVar } from "../test/config.mjs";
+import { configuredVars, devVar, rateLimitNamespaces } from "../test/config.mjs";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
 import { randomToken, sha256Hex } from "./crypto";
@@ -290,8 +290,12 @@ describe("POST /moderation/consume (realtime server, service binding)", () => {
     expect(audit().map((row) => row.subject)).toEqual(["room:5"]);
     refuse = "";
     expect((await consume(ticket)).status).toBe(200);
-    // One namespace per limiter (1104 is DONATION_LIMITER, IMPL-0028): none shares another's budget.
-    expect(configuredVars("namespace_id")).toEqual(["1101", "1102", "1103", "1104"]);
+    // Production has four separate budgets; only login is rate-limited in staging, in its own namespace.
+    expect(rateLimitNamespaces("production")).toEqual([
+      ["AUTH_LIMITER", "1101"], ["FILE_LIMITER", "1102"],
+      ["MODERATION_LIMITER", "1103"], ["DONATION_LIMITER", "1104"],
+    ]);
+    expect(rateLimitNamespaces("staging")).toEqual([["AUTH_LIMITER", "2101"]]);
     // Without the binding (tests, staging) nothing is limited and nothing fails.
     env.MODERATION_LIMITER = undefined;
     expect((await handleApi(bindingRequest("A".repeat(32)), env)).status).toBe(404);

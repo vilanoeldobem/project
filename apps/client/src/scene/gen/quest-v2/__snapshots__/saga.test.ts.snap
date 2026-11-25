@@ -1,0 +1,131 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`saga props > aurora-crown keeps the gallery seeds stable 1`] = `
+[
+  "5f6f439c",
+  "9171cebe",
+  "9171cebe",
+  "58ca7283",
+  "cb002078",
+  "e9c8de4f",
+  "9e8cf893",
+  "ebd3a4a2",
+]
+`;
+
+exports[`saga props > dawn-thread keeps the gallery seeds stable 1`] = `
+[
+  "db2c666b",
+  "dbb69cd",
+  "7fbd8952",
+  "23da835e",
+  "6cf4b92",
+  "4b5c41f",
+  "bbb4a811",
+  "7fbd8952",
+]
+`;
+
+exports[`saga props > foundation-stone keeps the gallery seeds stable 1`] = `
+[
+  "66717e69",
+  "1a0cadc5",
+  "82ac85aa",
+  "c7c519a2",
+  "33fdb414",
+  "d3e5a2ee",
+  "8e628f25",
+  "2eee8a5b",
+]
+`;
+
+exports[`saga props > great-bell keeps the gallery seeds stable 1`] = `
+[
+  "26a350f2",
+  "9bc9d300",
+  "d44a84de",
+  "d013f885",
+  "2e12d855",
+  "fe1ad0fa",
+  "3a53cfd6",
+  "8b5e6029",
+]
+`;
+
+exports[`saga props > hand-right-candle keeps the gallery seeds stable 1`] = `
+[
+  "d5bdaec5",
+  "dd08fb4b",
+  "72b4c20e",
+  "fa86cc3d",
+  "ad60167e",
+  "4b895c24",
+  "ef67e80d",
+  "ad60167e",
+]
+`;
+
+exports[`saga props > ice-bridge keeps the gallery seeds stable 1`] = `
+[
+  "ab55479",
+  "58f7a55f",
+  "b685e24f",
+  "956b19e1",
+  "3dde476f",
+  "93f3b53e",
+  "30043c05",
+  "692cec63",
+]
+`;
+
+exports[`saga props > loom keeps the gallery seeds stable 1`] = `
+[
+  "bd76f404",
+  "b73ddcbb",
+  "112e12b1",
+  "839525c3",
+  "e525b9b",
+  "10fa40be",
+  "fdca8d9",
+  "b2670c15",
+]
+`;
+
+exports[`saga props > snow-archive keeps the gallery seeds stable 1`] = `
+[
+  "8b4e473a",
+  "f13eba62",
+  "48aec6cd",
+  "49f43b43",
+  "3ee15d75",
+  "dae25b1c",
+  "41a7d853",
+  "fe4f66a",
+]
+`;
+
+exports[`saga props > star-guide keeps the gallery seeds stable 1`] = `
+[
+  "ae79068c",
+  "99db62a3",
+  "2fcfcae5",
+  "c724b92a",
+  "21d59916",
+  "2eb68ea1",
+  "2800d7a0",
+  "9c1c7f6e",
+]
+`;
+
+exports[`saga props > time-tower keeps the gallery seeds stable 1`] = `
+[
+  "f3a0945",
+  "4a0d5852",
+  "ae9a5c64",
+  "fbe4c177",
+  "7316a5ed",
+  "f49e74e5",
+  "907edf95",
+  "72debd89",
+]
+`;

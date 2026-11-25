@@ -148,8 +148,8 @@ rota de posse; a bandeira hoje só muda o estado que `GET /residential-plots` re
 ([IMPL-0032](../decisions/0032-ngo-building-levels.md), **PROPOSTA**, desligada em produção e homologação): com
 ela, `GET /lots` informa o nível da casa de cada ONG publicada. Não depende de `accounts`.
 
-`donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a doação também
-existe para visitantes. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
+`donations` é `true` só com `DONATIONS_ENABLED = "true"`; não depende de `accounts`, porque a consulta pública, o redirecionamento
+e a conciliação de pagamentos continuam disponíveis sem conta. A emissão de um novo Pix exige as duas bandeiras. Com `false`, o jogo mantém os botões de doação desabilitados com a nota honesta
 (IMPL-0002) e nenhuma rota `/donations/*` existe. Doações são **PROPOSTA**
 ([IMPL-0023](../decisions/0023-donations-abacatepay.md), PEN-004/PEN-006/PEN-026): ligada no script local `dev`,
 desligada em produção e staging. As rotas de doação dependem da migration 0011; num banco atrás do código elas
@@ -824,7 +824,7 @@ de conta continuam funcionando. Com as contas ligadas, a migration vem antes da 
 ### Doações e conciliação com AbacatePay (IMPL-0023, PROPOSTA)
 
 **PROPOSTA**, atrás de `DONATIONS_ENABLED` (`"false"` em produção e staging; `"true"` no script local `dev`).
-Depende da migration 0011 e, nas rotas administrativas, de `ACCOUNTS_ENABLED`. A política — contrato da parceira,
+Depende da migration 0011 e, para emitir Pix ou usar as rotas administrativas, de `ACCOUNTS_ENABLED`. A política — contrato da parceira,
 provedor e Título — segue PENDENTE (PEN-004, PEN-006, PEN-026): o código não decide tarifas, repasses nem a regra
 do Título para links externos. Nenhuma doação é concluída sem confirmação do provedor (ou de um comprovante
 conferido por admin, no caso do link próprio).
@@ -835,18 +835,31 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 |---|---|---|
 | `GET /donations/config` | público | `{global: {enabled, recipientName, ngoPercentBps, fixedFeeCents, minAmountCents}}`; nunca CNPJ nem subconta |
 | `GET /ngos/:id/donation-info` | público | ONG publicada em terreno publicado: `{ngoId, name, method, enabled, ngoPercentBps, fixedFeeCents, minAmountCents, confirmedDonations, confirmedAmountCents}`; sem URL, subconta ou CNPJ |
-| `POST /donations/pix` | visitante ou conta | `{idempotencyKey, targetKind: "global" \| "ngo", ngoId?, amountCents}` → `201 {donation}`, com `brCode`, `brCodeBase64`, `expiresAt`, `devMode`; repetição com a mesma chave → `200 {donation}` (a mesma doação) |
+| `POST /donations/pix` | conta para nova emissão; repetição legada abaixo | `{idempotencyKey, targetKind: "global" \| "ngo", ngoId?, amountCents}` → `201 {donation}`, com `brCode`, `brCodeBase64`, `expiresAt`, `devMode`; repetição com a mesma chave → `200 {donation}` (a mesma doação) |
 | `GET /donations/:id[?refresh=1]` | público | `{donation}`; com `refresh=1` e status `pending`, consulta o provedor e concilia antes de responder |
 | `POST /donations/:id/simulate` | sandbox | só fora de produção e com cobrança `devMode`: simula o pagamento e concilia |
 | `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
 | `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
-| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, paidByDestination, recentDonations, recentRedirects, reconciliation}`. `paidByDestination` contém a [conferência por destino e fonte](indicator-sources.md#met-01--conferência-interna-por-destino-e-fonte). `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028). |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, revision?, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
 | `POST /admin/donations/intents/:id/resolve` | admin | `{accountId, resolution: "failed" \| "abandoned"}` → `{intent: {id, state: "failed", lastError: "resolved_by_admin", resolution}}` (IMPL-0028) |
 | `POST /admin/donations/events/:id/dismiss` | admin | `{accountId}` → `{event: {id, dismissed: true}}` (IMPL-0028) |
+
+Para emitir um novo Pix global ou dirigido, a API exige sessão válida de uma conta desbloqueada, inclusive ao
+gravar a intenção no D1. Com doações desligadas, a rota retorna `404 not_found`. Com doações ligadas e contas
+desligadas, um pedido novo retorna `404 accounts_disabled`. Com ambas ligadas, um pedido válido sem sessão ou
+com sessão expirada recebe `401 not_signed_in`; conta bloqueada recebe `403 session_blocked`.
+O cliente antigo que tentava emitir como visitante precisa autenticar antes de enviar um novo pedido.
+
+Uma intenção de visitante criada pela versão anterior ainda pode ser repetida com a chave, valor e destino originais,
+mesmo com contas desligadas. Se guarda a resposta de uma cobrança já emitida, a API conclui a gravação a partir
+dessa cópia e concilia o evento em espera. A repetição dispensa nova chamada ao provedor. O doador permanece
+anônimo inclusive se alguém entrar na conta em seguida. Usar uma sessão com a chave anônima original retorna
+`409 idempotency_key_reused` quando as contas estão ligadas. A consulta de pagamento, o webhook e a política
+de redirecionamento por link próprio conservam seus contratos. [IMPL-0034](../decisions/0034-authenticated-pix-issuance.md)
 
 O painel envia a revisão exibida em `revision`. Para informar uma subconta manual ou validar um link de recebimento, esse campo é obrigatório
 (`400 revision_required` se ausente). Uma revisão vencida retorna `409 stale_revision`. A troca de CNPJ no
@@ -910,8 +923,8 @@ Regras:
     `donation_not_confirmed`) e gera outra depois de uma doação concluída, de outro valor ou destino, e depois de
     `idempotency_key_reused`, `donation_intent_unknown`, `donation_intent_failed` ou `payment_provider_unavailable`
     (`apps/client/src/lib/donation-key.ts`).
-  - Limite de abuso: binding `DONATION_LIMITER` (10 pedidos a cada 60 s), por conta quando há sessão e por SHA-256
-    do `CF-Connecting-IP` para visitantes; a chave do limite não é gravada nem registrada em log. Só uma chave
+  - Limite de abuso: binding `DONATION_LIMITER` (10 pedidos a cada 60 s), por conta emissora;
+    a chave do limite não é gravada nem registrada em log. Só uma chave
     **nova** consome o limite, antes de gravar qualquer coisa; a repetição de uma chave que já tem intenção é
     respondida antes do limite (ela nunca chama o provedor). Excedido → `429 too_many_requests`. Sem o binding
     (local, testes, staging) não há limite.
@@ -1385,6 +1398,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `global_donation_not_configured` | instituição parceira ou subconta da doação global ainda não configurada |
 | API | 409 | `ngo_payment_not_configured` | ONG sem subconta ativa ou com link próprio ainda não conferido |
 | API | 503 | `payment_provider_unavailable` | AbacatePay sem chave, fora do ar ou recusando a chamada |
+| API | 400 | `invalid_subaccount_name` | o nome enviado à criação automática da subconta precisa ter de 1 a 100 caracteres. A API valida esse campo antes de chamar a AbacatePay |
 | API | 409 | `subaccounts_unavailable` | em produção, a AbacatePay ainda não habilitou subcontas na conta |
 | API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
 | API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante; `resolution` inválida ao encerrar uma intenção |

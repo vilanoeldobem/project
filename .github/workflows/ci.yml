@@ -30,6 +30,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - name: Validate and package the isolated staging Workers (dry-run)
+        run: pnpm staging:check
       - name: Local media, progress and withdrawal lifecycle (workerd, D1, R2)
         run: node scripts/verify-media-local.mjs --progress --withdrawal
         timeout-minutes: 3

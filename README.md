@@ -11,7 +11,7 @@ Este repositório contém o código; a definição do produto vive no repositór
 > Doações estão **desabilitadas** até a definição e o contrato da instituição parceira (PEN-004)
 > e do provedor de pagamento (PEN-006). Visual, paleta e logo são provisórios (DEC-023/024).
 
-**Versão atual: 0.8.0** (2026-11-22) · schema D1 v15, também em produção (contas e propostas desligadas em produção) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
+**Versão atual: 0.9.0** (2026-11-22) · schema D1 v15, também em produção (contas e propostas desligadas em produção) · [changelog](CHANGELOG.md) · [roadmap](ROADMAP.md) ·
 prazo oficial **30/11/2026** (DEC-043)
 
 **Site:** <https://www.vilanoeldobem.com.br> · **Jogo:** <https://play.vilanoeldobem.com.br>

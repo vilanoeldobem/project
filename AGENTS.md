@@ -23,7 +23,7 @@ before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 | Missions v1, story v2 | `packages/shared/src/game/quests.ts`, `quests-v2/` (`catalog.ts`, `books/book-NN.ts`) | content mirrors in `content/proposals/quests-v{1,2}/` |
 | Cosmetics | `packages/shared/src/game/cosmetics.ts` (v1 list), `cosmetics-v2.ts` (unified catalogue and its rules, `*In`) | the game uses the unified catalogue only |
 | Game UI and state | `apps/client/src/ui/`, `apps/client/src/game/store.ts` | zustand; one `Nearby` action (`ui/Hud.tsx`) |
-| Voxel rendering | `apps/client/src/scene/` (`mesher.ts`, `Voxels.tsx`, `environment/materials.ts`, `gen/`) | block look: IMPL-0033 |
+| Voxel rendering | `apps/client/src/scene/` (`mesher.ts`, `Voxels.tsx`, `environment/materials.ts`, `gen/`, `gen/refine.ts`, `groundDecor.ts`) | greedy meshing, block look, refined buildings: IMPL-0033, IMPL-0035 |
 | API routes | `apps/api/src/api.ts` (router) and one module per area beside it | `/health` is light, `/ready` reads D1 and R2 |
 | Realtime presence | `apps/server/src/` (`handler.ts`, `room-do.ts`, `room.ts`) | memory only; `/ready` pings room 0 |
 | Backoffice | `apps/dash/src/` | admin UI lives only here |
@@ -59,6 +59,7 @@ node apps/client/scripts/verify-shop.mjs http://localhost:8799         # the P08
 node apps/client/scripts/verify-quests.mjs http://localhost:5173       # missions v1 end to end (local only; `pnpm --filter @vila/client dev`)
 node apps/client/scripts/verify-story.mjs http://localhost:5173 book-01 # one story-v2 book end to end (local only; minigame steps need slice 12)
 node apps/client/scripts/gallery.mjs http://localhost:8799 props       # screenshots of generated models by category (local only)
+node apps/client/scripts/verify-budget.mjs http://localhost:8799       # render budget alone (150 calls, 250 000 triangles; needs no API)
 node content/proposals/quests-v2/validate-slice.mjs content/proposals/quests-v2/book-01   # a book's CSVs against the manifest
 # after a deploy only (not a pre-merge gate; verify.mjs above is local only):
 node apps/client/scripts/verify-live.mjs                                # deployed game: loads, no console/CSP errors, presence answers
@@ -154,9 +155,13 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   snow is an accent and roads are the darkest thing on the ground. `apps/client/src/scene/groundRuns.test.ts` keeps
   a contrast of at least 3:1 between every road tone and every yard tone and the share of snow tones under a fifth:
   a new ground colour goes through `PALETTE` and those lists, never a free hex value. The block look
-  ([IMPL-0033](docs/decisions/0033-block-look.md)) lives in the mesher and the shared materials (light by face, a
-  deterministic shade per block, block edges from `aFace`): a new voxel geometry built outside `voxelGeometries`
-  should carry `aFace` too, and a model's voxel `size` changes only with its collider, budget and snapshot.
+  ([IMPL-0033](docs/decisions/0033-block-look.md), [IMPL-0035](docs/decisions/0035-greedy-meshing-refined-buildings-ground-detail.md))
+  lives in the mesher (greedy meshing, light by face) and the shared materials (shade and edges per block from
+  `aGrid`): a new voxel geometry built outside `voxelGeometries` should carry `aGrid` too. Buildings keep their coarse
+  1 u massing in the generators (rules, colliders and tests are written against it) and are drawn through
+  `refineBuilding` (`gen/refine.ts`); detail a building there, by role, not by raising its voxel size. Ground detail
+  (`groundDecor.ts`) grows only on `YARD_KINDS`, stays under `DETAIL_MAX_HEIGHT` and is never solid. A model's voxel
+  `size` changes only with its collider, budget and snapshot; check the budget with `verify-budget.mjs`.
 - Village life ([IMPL-0025](docs/decisions/0025-village-life.md)) is **PROPOSTA**: the cast, its names, its routines
   and what it says are config and copy of the technical owner until the product owner answers OQ-20. **No language
   model or other AI service** drives a character or writes a line: behaviour is a schedule

@@ -105,10 +105,17 @@ async function doObjective(page, quest, eventId, storyWorld) {
     await dialogButton(page, /Continuar/);
   } else if (interaction.kind === "minigame") {
     await action(page);
-    await page.waitForSelector('[role="dialog"]', { timeout: 10000 });
-    const skip = page.getByRole("dialog").getByRole("button", { name: /Pular|Jogar|Continuar/i }).first();
-    await skip.click();
-    await page.waitForTimeout(500);
+    const dialog = page.getByRole("dialog");
+    await dialog.waitFor({ timeout: 10000 });
+    const check = dialog.getByRole("button", { name: /^Conferir$/ });
+    if (await check.count()) {
+      for (let attempt = 0; attempt < 3; attempt++) await check.click();
+    } else {
+      const retry = dialog.getByRole("button", { name: /Recomeçar|Tentar outra vez/ });
+      for (let attempt = 0; attempt < 3; attempt++) await retry.click();
+    }
+    await dialog.getByRole("button", { name: /^Pular minijogo$/ }).click();
+    await page.waitForTimeout(300);
   } else {
     await action(page);
   }
