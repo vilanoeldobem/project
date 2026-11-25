@@ -14,7 +14,7 @@ export function Pending({ locked = false, donationsOn = false, accountId }: { lo
   const manageDonations = donationsOn && !locked && Boolean(accountId);
   return (
     <>
-      <PageHead title="Pendentes" lead="Áreas que ainda não existem neste painel ou que dependem de uma decisão, e o que falta para cada uma. Aqui não há dados nem ações." />
+      <PageHead title="Pendentes" lead={manageDonations ? "Acompanhe os recebimentos e as configurações de doação da Vila." : "Áreas que ainda não existem neste painel ou que dependem de uma decisão, e o que falta para cada uma. Aqui não há dados nem ações."} />
       {manageDonations && <DonationsAdmin accountId={accountId!} />}
       {!manageDonations && (
         <Notice state="pending" title="Doações">

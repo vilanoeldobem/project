@@ -1554,20 +1554,24 @@ describe("shipping state", () => {
 });
 
 it("reports gross Pix and external evidence separately after an NGO leaves the village", async () => {
-  const report = () => db.sql(summarizePaidDonations);
-  const zero = { pix_count: 0, pix_gross_cents: 0, proof_count: 0, proof_amount_cents: 0 };
+  const report = async () => {
+    const response = await call("GET", "/admin/donations/overview");
+    expect(response.status).toBe(200);
+    return (await response.json() as { paidByDestination: unknown[] }).paidByDestination;
+  };
+  const zero = { pix_count: 0, pix_gross_cents: 0, proof_count: 0, proof_amount_cents: 0, ngo_name: null };
   const global = { scope: "global", ngo_id: null, ...zero };
-  const ngo = { scope: "ngo", ngo_id: NGO, ...zero };
+  const ngo = { scope: "ngo", ngo_id: NGO, ...zero, ngo_name: "Associação Exemplo" };
   const total = { scope: "total", ngo_id: null, ...zero };
   expect(() => createD1({ upTo: 10 }).sql(summarizePaidDonations)).toThrow(/no such table: donations/i);
   expect(createD1().sql(summarizePaidDonations)).toEqual([global, total]);
-  expect(report()).toEqual([global, ngo, total]);
+  expect(await report()).toEqual([global, ngo, total]);
 
   await settings({ subAccountId: "sacc_global" });
   await ngoPayment({ revision: 1, subAccountId: "sacc_ngo" });
   expect((await pix({ targetKind: "global", amountCents: 1000 }, "donor")).status).toBe(201);
   expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 725 }, "donor")).status).toBe(201);
-  expect(report()).toEqual([global, ngo, total]);
+  expect(await report()).toEqual([global, ngo, total]);
 
   const directed = event("log_directed", "transparent.completed", "pix_char_2", "PAID", 725);
   await webhook(event("log_global", "transparent.completed", "pix_char_1", "PAID"));
@@ -1582,13 +1586,28 @@ it("reports gross Pix and external evidence separately after an NGO leaves the v
   })).status).toBe(200);
 
   const directedAmounts = { ...ngo, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 };
-  expect(report()).toEqual([
+  expect(await report()).toEqual([
     { ...global, pix_count: 1, pix_gross_cents: 1000 }, directedAmounts,
     { ...total, pix_count: 2, pix_gross_cents: 1725, proof_count: 1, proof_amount_cents: 500 },
   ]);
   await webhook(event("log_refunded", "transparent.refunded", "pix_char_1", "REFUNDED"));
-  expect(report()).toEqual([
+  expect(await report()).toEqual([
     global, directedAmounts, { ...total, pix_count: 1, pix_gross_cents: 725, proof_count: 1, proof_amount_cents: 500 },
   ]);
   expect(calls.filter((entry) => entry.path.endsWith("/transparents/create"))).toHaveLength(2);
+});
+
+it("includes named destinations outside the 200-organization payment settings list", async () => {
+  await db.exec(`WITH RECURSIVE seq(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM seq WHERE i<200)
+    INSERT INTO ngos(id,name,cnpj) SELECT 'fixture-'||i, 'A '||i, printf('%014d',i) FROM seq`);
+  const response = await call("GET", "/admin/donations/overview");
+  expect(response.status).toBe(200);
+  const overview = await response.json() as { ngos: { id: string }[]; paidByDestination: { ngo_id: string | null; ngo_name: string | null }[] };
+  expect(overview.ngos).toHaveLength(200);
+  expect(overview.ngos.some(row => row.id === NGO)).toBe(false);
+  expect(overview.paidByDestination).toContainEqual(expect.objectContaining({ ngo_id: NGO, ngo_name: "Associação Exemplo", pix_count: 0 }));
+  expect((await call("GET", "/admin/donations/overview", undefined, "donor")).status).toBe(403);
+  const publicIndicators = await call("GET", "/indicators", undefined, null, null);
+  expect(publicIndicators.status).toBe(200);
+  expect(await publicIndicators.json()).not.toHaveProperty("paidByDestination");
 });
