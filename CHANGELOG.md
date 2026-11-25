@@ -21,6 +21,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
 

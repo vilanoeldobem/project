@@ -28,6 +28,7 @@ describe("account API contract", () => {
 
 describe("error text (pt-BR)", () => {
   it("has a sentence for known codes", () => {
+    expect(errorText(new ApiError(400, "invalid_subaccount_name"))).toMatch(/nome de titular de 1 a 100 caracteres/);
     expect(errorText(new ApiError(409, "stale_revision"))).toMatch(/nova versão/);
     expect(errorText(new ApiError(0, "network"))).toMatch(/Sem conexão/);
   });
