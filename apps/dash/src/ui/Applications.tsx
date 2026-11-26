@@ -290,10 +290,11 @@ export function Review({
           key={`${a.id}:${a.revision}:${a.ngoPayment?.updatedAt ?? "new"}`}
           ngoId={id}
           revision={a.revision}
+          published={a.status === "published"}
           accountId={accountId}
           requested={{ method: a.paymentMethod, donationUrl: a.donationUrl }}
           payment={a.ngoPayment}
-          onSaved={(payment) => onDetail({ ...d, application: { ...a, ...(payment ? { ngoPayment: payment } : {}) } })}
+          onSaved={(payment) => onDetail({ ...d, application: { ...a, ngoPayment: payment ?? undefined } })}
         />
       )}
       <fieldset className="checks" disabled={deleting}>

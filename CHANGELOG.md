@@ -21,6 +21,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
 - O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
 - O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
