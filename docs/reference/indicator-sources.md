@@ -12,6 +12,8 @@ No painel P02, uma chave presente com valor numérico gera um cartão, inclusive
 
 O cartão de valor converte os centavos de `confirmed_amount` em reais. Por exemplo, 1.725 centavos aparecem como R$ 17,25. A data mostrada é a da consulta ao painel.
 
+Em uma consulta bem-sucedida, o P02 informa em uma só nota quais medições de uso faltam na resposta. O cliente reconhece as chaves `unique_visitors`, `visits_by_ngo_house` e `players_by_minigame` para esse aviso. Uma chave presente conserva o cartão e o valor recebidos, inclusive zero ou `null` com motivo. Quando falta a série de visitantes, o painel explica que duas abas da mesma pessoa podem abrir duas conexões na praça. A definição das unidades, do período e da coleta segue em aberto.
+
 ## Dicionário de público e uso do jogo
 
 | Indicador da #65 | Fonte hoje e unidade observável | Granularidade, identidade e janela | Repetição, abas e reconexão | Zero, indisponibilidade e coleta que falta |

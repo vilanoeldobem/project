@@ -24,6 +24,24 @@ export function IndicatorCard({ indicator }: { indicator: Indicator }) {
   );
 }
 
+const usageMetrics = [
+  { key: "unique_visitors", label: "visitantes únicos desde o lançamento" },
+  { key: "visits_by_ngo_house", label: "visitas por casa de ONG" },
+  { key: "players_by_minigame", label: "jogadores por minijogo" },
+];
+
+/** P02 describes missing usage figures together. A metric that the API sends already has its own card and note. */
+export function UsageCoverage({ indicators }: { indicators: Indicator[] }) {
+  const missing = usageMetrics.filter(metric => !indicators.some(indicator => indicator.key === metric.key));
+  if (!missing.length) return null;
+  return (
+    <p className="note">
+      Sem medição disponível para {new Intl.ListFormat("pt-BR").format(missing.map(metric => metric.label))}.
+      {missing.some(metric => metric.key === "unique_visitors") && " O contador da praça mostra conexões ativas. Uma pessoa com duas abas pode aparecer duas vezes."}
+    </p>
+  );
+}
+
 export function Indicators() {
   const [data, setData] = useState<{ updatedAt: string; indicators: Indicator[] } | null | undefined>(undefined);
   useEffect(() => {
@@ -38,6 +56,7 @@ export function Indicators() {
           <div className="sheet-cards">
             {data.indicators.map((i) => <IndicatorCard key={i.key} indicator={i} />)}
           </div>
+          <UsageCoverage indicators={data.indicators} />
           {data.indicators.some((i) => i.key === "confirmed_donations" && i.value !== null) && (
             <div className="sheet-card">
               <h3>Doações confirmadas</h3>
