@@ -139,6 +139,10 @@ async function requestLink(page, target) {
   await openDestination(page, target);
   await page.getByPlaceholder("0,00").fill("12,34");
   await page.getByRole("button", { name:"Entrar para doar por Pix" }).click();
+  return requestSignInLink(page);
+}
+
+async function requestSignInLink(page) {
   await page.getByRole("tab", { name:"Já tenho conta" }).click();
   await page.getByLabel("E-mail da sua conta").fill(first.email);
   await page.getByRole("button", { name:"Enviar link de acesso" }).click();
@@ -312,13 +316,20 @@ try {
     assert.equal(state.user, null);
   });
   await scenario("an expired draft in the original profile is removed before a fresh selection", async (ctx, state) => {
-    const link = await requestLink(await open(ctx), "ngo");
+    const firstLink = await requestLink(await open(ctx), "ngo");
     const drafts = await savedDrafts(ctx);
     assert.equal(drafts.length, 1);
     const { expires } = JSON.parse(drafts[0].value);
     assert.ok(Number.isSafeInteger(expires));
     await ctx.clock.setFixedTime(new Date(expires + 1));
-    await expectFreshSelection(ctx, state, link);
+    // The first email link expires before the Pix draft. Request a new one from the account panel.
+    const login = await open(ctx);
+    assert.ok(await login.evaluate(deadline => Date.now() > deadline, expires));
+    await login.getByRole("button", { name: "Entrar ou criar conta" }).click();
+    const freshLink = await requestSignInLink(login);
+    assert.notEqual(freshLink, firstLink);
+    assert.deepEqual(await savedDrafts(ctx), drafts);
+    await expectFreshSelection(ctx, state, freshLink);
     assert.deepEqual(await savedDrafts(ctx), []);
   });
 } finally { await browser.close(); }
