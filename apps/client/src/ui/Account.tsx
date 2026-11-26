@@ -13,7 +13,7 @@ import { errorText } from "@vila/shared/accounts/errors";
 import { validateRegistration, type Registration } from "@vila/shared/accounts/validate";
 
 import { LOCAL_ACCOUNT_ACTIONS, useVila, type LocalAction, type Panel as PanelState } from "../game/store";
-import { api, ApiError, confirmLocalImport, deleteAccount, signOut, useAccount } from "../lib/account";
+import { api, ApiError, confirmLocalImport, deleteAccount, initAccount, signOut, useAccount } from "../lib/account";
 import { SERVICES } from "../lib/services";
 import { Confirm } from "./Confirm";
 import { Panel } from "./Panel";
@@ -69,6 +69,12 @@ export function AccountChip() {
 
 export function Account({ then, reason }: { then?: PanelState; reason?: LocalAction }) {
   const user = useAccount((s) => s.user);
+  const actionConfigUnavailable = useAccount((s) => s.actionConfigUnavailable);
+  if (reason && actionConfigUnavailable) return (
+    <Panel board="P13" sheet title="Configuração indisponível">
+      <ActionConfigRetry />
+    </Panel>
+  );
   if (!user && reason && !useAccount.getState().enabled) return (
     <Panel board="P13" sheet title="Contas indisponíveis">
       <p>O ensaio precisa de uma conta para {LOCAL_ACCOUNT_ACTIONS[reason]}. Você pode fechar e continuar explorando.</p>
@@ -76,6 +82,20 @@ export function Account({ then, reason }: { then?: PanelState; reason?: LocalAct
   );
   if (!user) return <SignedOut reason={reason} pix={then?.kind === "pix-review"} />;
   return user.blocked ? <BlockedAccount user={user} /> : <SignedIn then={then} />;
+}
+
+export function ActionConfigRetry() {
+  const [busy, setBusy] = useState(false);
+  const retry = async () => {
+    setBusy(true);
+    try { await initAccount(); } finally { setBusy(false); }
+  };
+  return <>
+    <p role="status">A Vila não conseguiu consultar as regras desta atividade. Você pode continuar explorando.</p>
+    <button type="button" className="btn" disabled={busy} onClick={() => void retry()}>
+      {busy ? "Consultando…" : "Consultar configuração novamente"}
+    </button>
+  </>;
 }
 
 /** "12 de novembro de 2026 às 10:00", São Paulo time; empty when the API sent no date. */

@@ -333,11 +333,13 @@ describe("registration and magic link (P13, OQ-03)", () => {
 });
 
 describe("server XP (P14, DEC-042)", () => {
-  it("refuses a rehearsal progress read if another tab switched the session cookie", async () => {
+  it.each(["test", "staging"])("refuses an account-action progress read after a session switch in %s", async (environment) => {
     const a = await signUp();
     const b = await signUp("outra_pessoa", "outra@example.invalid");
     const asA = { "X-Vila-Account": a.user.id };
-    env.LOCAL_ACCOUNT_ACTIONS = "true";
+    env.ENVIRONMENT = environment;
+    if (environment === "staging") env.STAGING_ACCOUNT_ACTIONS = "true";
+    else env.LOCAL_ACCOUNT_ACTIONS = "true";
     const wrong = await call("GET", "/progress", undefined, b.cookie, ORIGIN, asA);
     expect([wrong.status, wrong.body]).toEqual([409, { error: "account_changed" }]);
     expect((await call("GET", "/progress", undefined, a.cookie, ORIGIN, asA)).status).toBe(200);

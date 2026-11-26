@@ -80,7 +80,8 @@ export const api = {
       moderation?: Partial<ModerationConfig>;
       donations?: boolean;
       localAccountActions?: boolean;
-    }>("GET", "/config", undefined, {}, localRehearsalPage() ? AbortSignal.timeout(5000) : undefined),
+      stagingAccountActions?: boolean;
+    }>("GET", "/config", undefined, {}, accountActionFlag() ? AbortSignal.timeout(5000) : undefined),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -143,6 +144,7 @@ interface AccountState {
   user: Me | null;
   ready: boolean;
   configReady: boolean;
+  actionConfigUnavailable: boolean;
   localImportCount: number;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
   sync: "saved" | "pending";
@@ -158,6 +160,7 @@ export const useAccount = create<AccountState>((set) => ({
   user: null,
   ready: false,
   configReady: false,
+  actionConfigUnavailable: false,
   localImportCount: 0,
   sync: "saved",
   setUser: (user) => set({ user }),
@@ -483,27 +486,48 @@ function takeLoginToken(): string | null {
  * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
  * which need the API's flag, stay off).
  */
-export const localRehearsalPage = () => import.meta.env.MODE !== "production" &&
-  typeof location !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+export function accountActionFlag() {
+  if (typeof location === "undefined" || import.meta.env.MODE === "production") return null;
+  if (import.meta.env.MODE === "staging") {
+    return location.origin === "https://play-staging.vilanoeldobem.com.br" ? "stagingAccountActions" : null;
+  }
+  return ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "localAccountActions" : null;
+}
 
 let localStartup: Promise<void> | undefined;
 export function initAccount(): Promise<void> {
-  if (!localRehearsalPage()) return readStartup();
+  if (!accountActionFlag()) return readStartup();
   // React StrictMode may mount the app twice. Verify the fragment and restore its session only once in flight.
   localStartup ??= readStartup().finally(() => { localStartup = undefined; });
   return localStartup;
 }
 
 async function readStartup() {
+  const actionFlag = accountActionFlag();
+  let configRead = false;
   try {
-    const { accounts, quests, questsV2, files, withdrawal, moderation, donations, localAccountActions } = await api.config();
-    useVila.setState({ localActor: localRehearsalPage() && localAccountActions === true ? () => {
+    const config = await api.config();
+    if (actionFlag === "stagingAccountActions" && (typeof config?.accounts !== "boolean" ||
+        (config.stagingAccountActions !== undefined && typeof config.stagingAccountActions !== "boolean"))) {
+      throw new ApiError(503, "unknown");
+    }
+    configRead = true;
+    const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = config;
+    const requireAccount = actionFlag && config[actionFlag] === true && (actionFlag !== "stagingAccountActions" || accounts === true);
+    if (useAccount.getState().actionConfigUnavailable) {
+      const vila = useVila.getState();
+      if (vila.panel.kind === "account" && vila.panel.reason) vila.close();
+      // Guest completion can be tried again in the normal flow after an explicit opt-out.
+      if (!requireAccount) useVila.setState({ missionClaims: {} });
+    }
+    useVila.setState({ localActor: requireAccount ? () => {
       const user = useAccount.getState().user;
       return user && !user.blocked && !user.deletionPending ? user.id : null;
     } : null });
     setServerQuests(quests === true);
     setServerQuestsV2(questsV2 === true);
     useAccount.setState({
+      actionConfigUnavailable: false,
       configReady: true,
       enabled: accounts,
       files: accounts && files === true,
@@ -543,7 +567,11 @@ async function readStartup() {
       else if (donations) await openPixReview(user.id, false);
     }
   } catch {
-    /* not signed in or API unavailable */
+    if (actionFlag === "stagingAccountActions" && !configRead) {
+      // Reuse all four gesture guards. The panel offers a config retry while the policy is unknown.
+      useVila.setState({ localActor: () => null });
+      useAccount.setState({ actionConfigUnavailable: true });
+    }
   } finally {
     useAccount.setState({ ready: true, configReady: true });
   }

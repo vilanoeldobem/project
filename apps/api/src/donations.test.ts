@@ -832,10 +832,12 @@ describe("an NGO's own payment link", () => {
     expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 }, "donor")).status).toBe(409);
   });
 
-  it("compares guest and account-only external links in a local rehearsal without creating a payment", async () => {
+  it.each(["test", "staging"])("compares guest and account-only external links in %s without creating a payment", async (environment) => {
     await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true });
     const redirect = (user: string | null, accountId?: string) => call("POST", "/donations/redirect", { ngoId: NGO, accountId }, user);
-    env.LOCAL_ACCOUNT_ACTIONS = "true";
+    env.ENVIRONMENT = environment;
+    if (environment === "staging") env.STAGING_ACCOUNT_ACTIONS = "true";
+    else env.LOCAL_ACCOUNT_ACTIONS = "true";
     expect((await redirect(null)).status).toBe(401);
     expect((await redirect("donor", "other")).status).toBe(409);
     expect(count("donation_redirects")).toBe(0);
@@ -843,10 +845,10 @@ describe("an NGO's own payment link", () => {
     expect(allowed.status).toBe(200);
     expect(await allowed.json()).toMatchObject({ tracked: true, titleCredit: "none", url: "https://ong.org.br/doar" });
     env.ACCOUNTS_ENABLED = "false";
-    expect((await redirect(null)).status).toBe(404);
+    expect((await redirect(null)).status).toBe(environment === "staging" ? 200 : 404);
     env.ENVIRONMENT = "production";
     expect((await redirect(null)).status).toBe(200);
-    expect(count("donation_redirects")).toBe(2);
+    expect(count("donation_redirects")).toBe(environment === "staging" ? 3 : 2);
     expect(count("donations")).toBe(0);
   });
 

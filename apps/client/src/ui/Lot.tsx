@@ -9,6 +9,7 @@ import { useVila } from "../game/store";
 import { api, useAccount } from "../lib/account";
 import { fetchGallery, fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type GalleryPhoto, type LotInfo, type NgoDonationInfo } from "../lib/api";
 import { UNLISTED_LABEL } from "../lib/lots";
+import { ActionConfigRetry } from "./Account";
 import { BlobImage } from "./BlobImage";
 import { LotModeration, useLotModerating } from "./LotModeration";
 import { Panel, Status } from "./Panel";
@@ -46,6 +47,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   const n = lotNumber(lotId);
   const accounts = useAccount((s) => s.enabled);
   const donations = useAccount((s) => s.donations);
+  const actionConfigUnavailable = useAccount((s) => s.actionConfigUnavailable);
   const ngoId = info?.state === "published" ? (info.ngo_id ?? null) : null;
   /** `undefined` while loading, `null` when the read failed. */
   const [donationInfo, setDonationInfo] = useState<NgoDonationInfo | null | undefined>(undefined);
@@ -127,7 +129,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
         )}
         <SheetSection n={withPhotos ? 3 : 2} icon="❤️" title="Doação voluntária">
           <p className="note">Destinatário: esta ONG</p>
-          {donations && ngoId ? (
+          {actionConfigUnavailable && ngoId ? <ActionConfigRetry /> : donations && ngoId ? (
             donationInfo === undefined ? (
               <p className="note">Carregando as doações desta ONG…</p>
             ) : donationInfo === null ? (
