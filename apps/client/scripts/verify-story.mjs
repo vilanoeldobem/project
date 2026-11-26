@@ -76,8 +76,8 @@ async function expectEpilogueOpen(page) {
     const state = entries.find((entry) => entry.id === id)?.state;
     if (state !== "available") fail(`epilogue ${id}: expected available after ${EPILOGUE_GATE}, got ${state}`);
   }
-  const bough = entries.find((entry) => entry.id === "welcome-bough")?.state;
-  if (bough !== "locked") fail(`epilogue welcome-bough: expected locked before story-page-delivery, got ${bough}`);
+  const bough = entries.find((entry) => entry.id === "bough-ribbon")?.state;
+  if (bough !== "locked") fail(`epilogue bough-ribbon: expected locked before story-page-delivery, got ${bough}`);
 }
 
 const seen = (page, questId, eventId) => page.evaluate(([q, e]) => Boolean(window.__vila.progress().seen[`${q}:${e}`]), [questId, eventId]);
