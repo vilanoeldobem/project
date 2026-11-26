@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { type Look } from "@vila/shared/game/cosmetics";
+import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, sanitizeLookIn, unlockedIdsIn } from "@vila/shared/game/cosmetics-v2";
 import { DEFAULT_APPEARANCE, sanitizeAppearance, type Appearance } from "@vila/shared/game/appearance";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
@@ -153,12 +153,12 @@ function migrateLook(raw: unknown): Partial<Look> | null {
   return Object.keys(out).length ? out : null;
 }
 
-function loadLook(p: Progress): Look {
+function loadLookPreference(): Partial<Record<string, unknown>> | null {
   const current = readLook(LOOK_KEY);
-  if (current) return sanitizeLookIn(COSMETICS_V2, current, p);
+  if (current) return current;
   const old = migrateLook(readLook(LOOK_KEY_V1));
-  if (!old) return sanitizeLookIn(COSMETICS_V2, null, p);
-  const look = sanitizeLookIn(COSMETICS_V2, old, p);
+  if (!old) return null;
+  const look = { ...DEFAULT_LOOK, ...old };
   try {
     localStorage.setItem(LOOK_KEY, JSON.stringify(look));
     localStorage.removeItem(LOOK_KEY_V1);
@@ -295,6 +295,8 @@ let toastSeq = 0;
 export const TOAST_MS = 3_600;
 
 const initialProgress = loadProgress();
+// The stored choice belongs to the browser. Only the look displayed for the current progress is filtered.
+let preferredLook = loadLookPreference();
 
 export const useVila = create<VilaState>((set, get) => ({
   panel: { kind: "none" },
@@ -320,9 +322,10 @@ export const useVila = create<VilaState>((set, get) => ({
   target: null,
   progress: initialProgress,
   progressOwner: null,
-  look: loadLook(initialProgress),
+  look: sanitizeLookIn(COSMETICS_V2, preferredLook, initialProgress),
   setLook: (patch) => {
     const look = sanitizeLookIn(COSMETICS_V2, { ...get().look, ...patch }, get().progress);
+    preferredLook = look;
     try {
       localStorage.setItem(LOOK_KEY, JSON.stringify(look));
     } catch {
@@ -391,10 +394,10 @@ export const useVila = create<VilaState>((set, get) => ({
       events.emit({ type: "mission", missionId: completed.id });
     }
   },
-  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, get().look, p) }),
+  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, preferredLook, p) }),
   restoreGuest: () => {
     const p = loadProgress();
-    set({ progress: p, progressOwner: null, look: sanitizeLookIn(COSMETICS_V2, get().look, p) });
+    set({ progress: p, progressOwner: null, look: sanitizeLookIn(COSMETICS_V2, preferredLook, p) });
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),

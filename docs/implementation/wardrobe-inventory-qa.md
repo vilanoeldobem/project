@@ -4,6 +4,8 @@ Em 20/11/2026, o AIOX QA verificou a [main em 2c29476](https://github.com/vilano
 
 ## Verificação local de 23/11 · Catálogo da v0.9.0
 
+Na reentrada, o cliente conserva a preferência de visual deste navegador enquanto carrega o progresso da conta. Mostra a peça equipada assim que o progresso confirma o desbloqueio. Quem usa outra conta ou visita a Vila vê apenas as peças que seu próprio progresso permite. Uma nova escolha explícita ao equipar substitui a preferência do navegador.
+
 Em um perfil isolado do Chromium, um visitante com a missão `explore-gifts` concluída encontrou **30 de 110 visuais gratuitos disponíveis**. As dez categorias exibiram 110 peças gratuitas ao todo, zero peças pagas e zero controles de compra. Provar o Gorro de tricô conservou o capacete original. Equipar alterou o visual para `helmet-beanie`. Depois de recarregar a página, o cartão continuou **Em uso** e a contagem continuou 30 de 110. O navegador fez zero requisições de escrita durante esse percurso. O jogo e as respostas de API desta prova estavam restritos ao ambiente local.
 
 Os testes de categorias e interface em `src/game/wardrobe.test.ts` e `src/ui/Wardrobe.test.tsx` passaram nos cinco casos. O verificador de lojas agora lê o [catálogo usado pelo jogo](../../packages/shared/src/game/cosmetics-v2.ts) e compara os IDs que cada categoria exibe com o conjunto de peças gratuitas daquele slot. A contagem de itens liberados usa o mesmo progresso fictício do ensaio anterior. O teste também confere se a interface continua ocultando as peças pagas e os controles de compra. [Verificador das quatro lojas](../../apps/client/scripts/verify-shop.mjs)
