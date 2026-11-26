@@ -70,7 +70,8 @@ for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mob
   await page.screenshot({ path: `${out}${name}-3-indicadores.png` });
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: /Jogar/ }).first().click();
-  await page.getByRole("dialog", { name: "Minijogos da Vila" }).getByRole("button", { name: "Jogar", exact: true }).click();
+  // The catalogue lists the memory game first; the other nine are story games with the same "Jogar" label.
+  await page.getByRole("dialog", { name: "Minijogos da Vila" }).getByRole("button", { name: "Jogar", exact: true }).first().click();
   await page.getByRole("dialog", { name: "Jogo da Memória" }).waitFor({ timeout: 10000 });
   await page.waitForTimeout(300);
   await page.screenshot({ path: `${out}${name}-4-memoria.png` });

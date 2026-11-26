@@ -290,7 +290,7 @@ function validateArt() {
 }
 
 const args = process.argv.slice(2);
-const mode = args[0]?.startsWith("--kind=") ? args.shift().slice(7) : "book";
+const mode = args[0] === "--all" ? "all" : args[0]?.startsWith("--kind=") ? args.shift().slice(7) : "book";
 if (mode === "spine") validateSpine();
 else if (mode === "epilogue") validateEpilogue(args[0] ?? "content/proposals/quests-v2/epilogue");
 else if (mode === "art") validateArt();
