@@ -13,18 +13,27 @@ Cada versão indica o schema D1 que entrega.
 
 - Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
 
+- Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
+
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
 
 - Preparação local dos cinco serviços de homologação para testar cadastro e aprovação de ONGs, com conferência do cartão de ONGs aprovadas após a decisão do administrador. [Roteiro de homologação](docs/guides/staging-database.md#preparar-a-versão-de-teste).
 
+- Conferência local de cobranças Pix em ambos os sentidos para um extrato declarado completo, com período de criação e ambiente explícitos. [Guia de conciliação](docs/reference/indicator-sources.md#extrato-completo-conferir-os-identificadores-nos-dois-sentidos).
+
 ### Fixed
 
+- O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
 
 ### Changed
 
 - Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
+
+### Added — epílogo e pós-jogo (sessão 11)
+
+- **Epílogo e pós-jogo**: o catálogo v2 passa a exigir b05-c3-04 para as seis cadeias do epílogo v1, adiciona as 12 missões pg1-01 a pg2-06 (240 XP) e a cena final com créditos, atrás das flags existentes; sem migration e sem mudança de bandeira.
 
 ## [0.9.0] - 2026-11-22
 

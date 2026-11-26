@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "@vila/shared/game/progress";
+import { catalogFor, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import type { StoryCatalog, StoryQuest } from "@vila/shared/game/quests-v2/types";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
@@ -273,6 +274,18 @@ describe("quests-v2 planner", () => {
     );
     expect(progress.completed["play-memory"]).toBe(true);
     expect(planned.size).toBe(1);
+  });
+
+  it("keeps the v2 epilogue behind b05-c3-04 for new events", () => {
+    const { progress, planned } = planProgress(
+      STORY_CATALOG,
+      [],
+      [{ missionId: "harness-bells", eventId: "accept" }],
+      { v1: true, v2: true },
+      catalogFor(true, true)
+    );
+    expect(progress.seen["harness-bells:accept"]).toBeUndefined();
+    expect(planned.size).toBe(0);
   });
 
   it("still rejects an unknown v2 event id at the route", async () => {

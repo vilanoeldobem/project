@@ -17,7 +17,7 @@
  * 3D scene. XP grants nothing that money could buy, and a donation grants no XP.
  */
 import { EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
-import { applyEventIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { applyEventIn, catalogFor, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import type { StoryCatalog } from "@vila/shared/game/quests-v2/types";
 import { QUESTS } from "@vila/shared/game/quests";
 import { GIFTS, LOTS } from "@vila/shared/game/world";
@@ -67,13 +67,15 @@ const isQuestId = (missionId: string) => QUEST_IDS.has(missionId);
 
 /**
  * Replays the stored log and plans the valid part of one incoming batch. Pure and testable with a synthetic
- * catalog; the route calls it with `STORY_CATALOG`.
+ * catalog; the route calls it with `STORY_CATALOG`. Saved events replay through `catalog`, so a v1-only
+ * account keeps its epilogue progress; new events may use `applyCatalog` (the v2-gated catalog).
  */
 export function planProgress(
   catalog: StoryCatalog,
   saved: StoredEvent[],
   valid: Event[],
-  flags: ProgressFlags
+  flags: ProgressFlags,
+  applyCatalog: StoryCatalog = catalog
 ): { progress: Progress; planned: Map<string, Event> } {
   const existing = new Set(saved.map((e) => `${e.mission_id}:${e.event_id}`));
   let progress = saved.reduce((p, e) => applyEventIn(catalog, p, e.mission_id, e.event_id).progress, EMPTY_PROGRESS);
@@ -84,7 +86,7 @@ export function planProgress(
     const isQuest = questIds.has(e.missionId);
     if (V1_QUEST_IDS.has(e.missionId) && !flags.v1) continue;
     if (v2Ids.has(e.missionId) && !flags.v2) continue;
-    const next = applyEventIn(catalog, progress, e.missionId, e.eventId).progress;
+    const next = applyEventIn(applyCatalog, progress, e.missionId, e.eventId).progress;
     if (isQuest && next === progress) continue;
     progress = next;
     // Accepted quest rows never move. Only an old ignored row, now a valid transition, can be replaced.
@@ -150,7 +152,8 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
     if (attempt) await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));
     const saved = await snapshot(db, user.id);
     const existing = new Set(saved.events.map((e) => `${e.mission_id}:${e.event_id}`));
-    const { progress, planned } = planProgress(STORY_CATALOG, saved.events, valid, flags);
+    const applyCatalog = flags.v1 && flags.v2 ? catalogFor(true, true) : STORY_CATALOG;
+    const { progress, planned } = planProgress(STORY_CATALOG, saved.events, valid, flags, applyCatalog);
     const additions = [...planned.keys()].filter((key) => !existing.has(key)).length;
     if (saved.events.length + additions > MAX_EVENTS_PER_USER) throw new HttpError(429, "too_many_events");
     if (!planned.size) return response(progress);

@@ -841,7 +841,7 @@ Rotas (valores sempre em **centavos** inteiros; mínimo R$ 2,00, máximo R$ 50.0
 | `POST /donations/redirect` | visitante ou conta | `{ngoId}` de ONG com link próprio conferido → `{url, tracked: true, titleCredit: "none"}`; registra o clique, não a doação |
 | `POST /webhooks/abacatepay` | AbacatePay | eventos `transparent.completed`, `transparent.refunded`, `transparent.disputed`, `transparent.lost` |
 | `GET /donations/my-title` | conta | `{title: {eligibleCents, confirmedCount, tier, tierLabel, nextTierCents}, donations}` |
-| `GET /admin/donations/overview` | admin | `{settings, ngos, recentDonations, recentRedirects, reconciliation}`; `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028) |
+| `GET /admin/donations/overview` | admin | `{settings, ngos, paidByDestination, recentDonations, recentRedirects, reconciliation}`. `paidByDestination` contém a [conferência por destino e fonte](indicator-sources.md#met-01--conferência-interna-por-destino-e-fonte). `reconciliation` = `{staleAfterSeconds, intents, unmatchedEvents}` (IMPL-0028). |
 | `POST /admin/donations/settings` | admin | `{accountId, primaryNgoName, primaryNgoCnpj, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{settings}` |
 | `POST /admin/ngos/:id/payment-config` | admin | `{accountId, revision?, paymentMethod, donationUrl?, linkValidated?, ngoPercentBps, fixedFeeCents, subAccountId?}` → `{payment}` |
 | `POST /admin/donations/external-proof` | admin | `{accountId, ngoId, amountCents, proofReference, note?}` → `201 {donation}` |
@@ -1398,6 +1398,7 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 409 | `global_donation_not_configured` | instituição parceira ou subconta da doação global ainda não configurada |
 | API | 409 | `ngo_payment_not_configured` | ONG sem subconta ativa ou com link próprio ainda não conferido |
 | API | 503 | `payment_provider_unavailable` | AbacatePay sem chave, fora do ar ou recusando a chamada |
+| API | 400 | `invalid_subaccount_name` | o nome enviado à criação automática da subconta precisa ter de 1 a 100 caracteres. A API valida esse campo antes de chamar a AbacatePay |
 | API | 409 | `subaccounts_unavailable` | em produção, a AbacatePay ainda não habilitou subcontas na conta |
 | API | 401 | `invalid_webhook_signature` | webhook com segredo diferente de `ABACATEPAY_WEBHOOK_SECRET` ou assinatura HMAC inválida |
 | API | 400 | `invalid` (+ `fields`) | configuração de doação inválida: CNPJ, split, link HTTPS ou referência do comprovante; `resolution` inválida ao encerrar uma intenção |

@@ -69,6 +69,7 @@ import {
   type PixCharge,
 } from "./abacatepay";
 import { newId, sha256Hex } from "./crypto";
+import summarizePaidDonations from "../scripts/summarize-paid-donations.sql?raw" with { type: "text" };
 import { allowedOrigins, HttpError, json, NO_STORE, readBytes, readJson } from "./http";
 import { assertAccount, assertStillAdmin, currentUser, readSessionToken, rehearsesAccountActions, requireAdmin, requireUser, STILL_ADMIN } from "./session";
 import type { Env } from "./api";
@@ -912,8 +913,9 @@ export async function adminDonationOverview(request: Request, env: Env): Promise
   const { results: recentRedirects } = await db
     .prepare("SELECT r.id, r.ngo_id, n.name AS ngo_name, r.created_at FROM donation_redirects r LEFT JOIN ngos n ON n.id = r.ngo_id ORDER BY r.created_at DESC LIMIT 50")
     .all();
+  const { results: paidByDestination } = await db.prepare(summarizePaidDonations).all();
   return json(
-    { settings: settingsView(settings, true), ngos, recentDonations: recentDonations.map(donationView), recentRedirects, reconciliation: await reconciliation(env) },
+    { settings: settingsView(settings, true), ngos, paidByDestination, recentDonations: recentDonations.map(donationView), recentRedirects, reconciliation: await reconciliation(env) },
     { headers: NO_STORE }
   );
 }

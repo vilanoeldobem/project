@@ -85,6 +85,15 @@ export interface DonationRedirect {
 }
 
 export interface DonationOverview {
+  paidByDestination?: Array<{
+    scope: "global" | "ngo" | "total";
+    ngo_id: string | null;
+    ngo_name: string | null;
+    pix_count: number;
+    pix_gross_cents: number;
+    proof_count: number;
+    proof_amount_cents: number;
+  }>;
   settings: DonationSettings;
   ngos: NgoPaymentRow[];
   recentDonations: DonationRow[];

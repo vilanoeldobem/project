@@ -6,6 +6,7 @@ import {
   canAcceptIn,
   isStoryQuest,
   prerequisitesOf,
+  finalSceneReady,
   questProgressIn,
   questStateIn,
   V1_CATALOG,
@@ -173,6 +174,7 @@ function QuestBook({
   world: StoryWorld;
   counters: Counters;
 }) {
+  const open = useVila((s) => s.open);
   const hasPublishedLot = Object.values(lots).some((l) => l.state === "published" && Boolean(l.ngo_name));
   const bag = activeInventoryIn(catalog, progress);
   const stateLine = (quest: CatalogQuest) => {
@@ -278,6 +280,15 @@ function QuestBook({
               );
             })}
           </ul>
+        </section>
+      )}
+      {finalSceneReady(progress) && (
+        <section className="track quest-finale">
+          <h2>A próxima Longa Noite</h2>
+          <p className="note">As seis cadeias do epílogo estão concluídas. A cena final e os créditos estão prontos.</p>
+          <button className="btn btn--primary" onClick={() => open({ kind: "finale" })}>
+            Ver a cena final
+          </button>
         </section>
       )}
     </>

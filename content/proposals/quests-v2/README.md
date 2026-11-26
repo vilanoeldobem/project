@@ -24,7 +24,7 @@
 | 13 | revisão jurídica | `story/13-revisao-juridica` | auditoria e correções |
 | 14 | integração | `story/14-integracao` | playthrough, índice, documentação |
 
-Estado: fatias 00 a 10 integradas; 11 a 13 pendentes; 14 em andamento ([quests-v2.md §7](../../../docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)). O spine é a única fatia que edita arquivos compartilhados. Cada livro edita somente
+Estado: fatias 00 a 11 integradas; 12 e 13 pendentes; 14 em andamento ([quests-v2.md §7](../../../docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)). A fatia 11 edita o próprio módulo, os testes, a UI do Caderno e a ponte mínima em `catalog.ts`/`progress.ts`; a sessão 12 segue pendente. Cada livro edita somente
 o próprio módulo, a própria pasta de conteúdo, os próprios 4 props, os próprios 6 cosméticos e os próprios testes; a
 única exceção compartilhada é uma linha no `CHANGELOG.md` em `[Unreleased]`.
 

@@ -1,7 +1,7 @@
 # Story v2: runtime e catálogo
 
-> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime e os dez livros implementados (PRs #79 a
-> #88); epílogo novo, pós-jogo e minijogos da saga pendentes (§7). **Atualizado em:** 2026-11-22. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
+> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime, os dez livros (PRs #79 a #88), o epílogo e
+> o pós-jogo implementados; minijogos da saga pendentes (§7). **Atualizado em:** 2026-11-22. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
 > `apps/client/src/game/questsV2Flag.ts`, `apps/api/src/progress.ts`; o epílogo continua em
 > [quests.md](quests.md) e `quests.ts`.
 
@@ -75,9 +75,17 @@ são ignorados e o resto é gravado; id desconhecido dá `400`.
 
 ## 6. Epílogo e pós-jogo
 
-O epílogo é o catálogo v1, importado sem edição. A última missão principal, `b05-c3-04`, libera as seis cadeias do
-epílogo; a ordem é livre e a cena final espera as seis. O módulo `book-00-epilogue.ts` recebe o pós-jogo e a cena
-final na sessão 11, sem editar `catalog.ts` nem `progress.ts`.
+O epílogo jogável continua sendo o catálogo v1, importado sem edição. Com as duas bandeiras ligadas, `catalogFor`
+devolve `EPILOGUE_QUESTS`: os cinco inícios sem pré-requisito esperam `b05-c3-04`, e `welcome-bough` espera pela
+cadeia que passa por `story-page-delivery`. A ordem das seis cadeias é livre. Com só a v1 ligada, o catálogo mantém o
+comportamento legado e `verify-quests.mjs` continua funcionando. A API, quando v2 está ligada, aplica o mesmo portão
+aos eventos novos; o replay dos eventos salvos continua no catálogo canônico para preservar contas v1.
+
+O módulo `book-00-epilogue.ts` tem as 12 missões de pós-jogo (`pg1-01` a `pg2-06`, 20 XP cada), sem pré-requisito no
+manifesto, e a cena final. `finalSceneReady` espera as seis últimas missões do epílogo: `charm-for-the-flight`,
+`market-lucky-game`, `newest-house-visit`, `lantern-for-the-flight`, `story-page-delivery` e `bough-delivery`. O
+Caderno de Missões mostra "Ver a cena final" e o painel "A próxima Longa Noite" traz os créditos fictícios. Sem casa
+publicada, `newest-house-visit` e a cena continuam bloqueadas.
 
 ## 7. Estado das fatias (2026-11-22)
 
@@ -85,7 +93,7 @@ final na sessão 11, sem editar `catalog.ts` nem `progress.ts`.
 |---|---|
 | 00, spine | integrada (PR #78) |
 | 01 a 10, livros | integrados (PRs #79 a #88): 45 entradas, 4 props e 6 cosméticos cada; 450 entradas e 10.500 XP |
-| 11, epílogo e pós-jogo | pendente: `book-00-epilogue.ts` está vazio; o epílogo jogável é o catálogo v1 |
+| 11, epílogo e pós-jogo | integrada: 12 pós-jogo/240 XP, portão `b05-c3-04`, cena final e créditos; o epílogo jogável continua sendo o catálogo v1 |
 | 12, arte, cosméticos e minijogos | pendente: os minijogos da saga não estão registrados no jogo, então `verify-story.mjs` para no primeiro objetivo de minijogo de cada livro (no Livro I, `b01-r1-04`) |
 | 13, revisão jurídica | pendente |
 | 14, integração | em andamento: esta referência, o índice de `content/proposals/quests-v2/` e o CHANGELOG |

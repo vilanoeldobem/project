@@ -62,7 +62,40 @@ pnpm exec wrangler d1 migrations apply ngo-media-review-local --local -c wrangle
 | `pix_fin01_missing` | `missing_in_d1` | A linha do extrato não encontrou uma cobrança Pix com esse ID. |
 | `pix_fin01_duplicate` | `ambiguous_statement` | O extrato trouxe duas linhas para a mesma cobrança. É preciso identificar a linha correta antes de comparar valores. |
 
-Para outro ensaio, substitua os valores de `statement` em uma cópia local da [consulta](../../apps/api/scripts/reconcile-pix-statement.sql) e aponte o último comando para a cópia. Informe uma linha por cobrança com os IDs do mesmo ambiente, valores em centavos inteiros e o estado no vocabulário do D1, como `paid` ou `refunded`. A lista de cobranças vem do extrato fornecido. Para identificar cobranças presentes só no D1, a conferência futura precisa de extrato completo para o mesmo ambiente e período. Um ID vazio recebe `missing_charge_id`. Uma falha de leitura ou de schema interrompe o comando. A [fixture de D1](../../apps/api/test/fixtures/pix-statement.sql) permite reproduzir os quatro resultados acima.
+Para outro ensaio, substitua os valores de `statement` em uma cópia local da [consulta](../../apps/api/scripts/reconcile-pix-statement.sql) e aponte o último comando para a cópia. Informe uma linha por cobrança com os IDs do mesmo ambiente, valores em centavos inteiros e o estado no vocabulário do D1, como `paid` ou `refunded`. A lista de cobranças vem do extrato fornecido. Para identificar cobranças presentes só no D1, use a conferência de extrato completo descrita a seguir. Um ID vazio recebe `missing_charge_id`. Uma falha de leitura ou de schema interrompe o comando. A [fixture de D1](../../apps/api/test/fixtures/pix-statement.sql) permite reproduzir os quatro resultados acima.
+
+### Extrato completo: conferir os identificadores nos dois sentidos
+
+Use esta conferência quando o titular fornecer **todos os IDs de cobrança** de uma mesma conta e ambiente da AbacatePay, no intervalo de criação especificado. O extrato deve incluir todos os estados, inclusive pendências e estornos. Uma lista parcial ou um extrato de liquidações por data de crédito pode produzir ausências esperadas. A consulta por campos do exemplo anterior continua disponível para conferir destino, estado e diferenças em centavos.
+
+Salve um JSON local com os IDs extraídos do extrato higienizado. `from` inclui o instante inicial e `until` exclui o instante final. Use UTC com segundos e, opcionalmente, três dígitos de milissegundos. `devMode: true` seleciona as cobranças de teste. Uma lista vazia precisa vir como `"chargeIds": []` e exige confirmação de que o extrato está completo.
+
+```json
+{
+  "complete": true,
+  "devMode": true,
+  "from": "2026-11-01T00:00:00Z",
+  "until": "2026-12-01T00:00:00Z",
+  "chargeIds": ["pix_fin01_match", "pix_fin01_cent"]
+}
+```
+
+Na raiz do projeto, com Node 24 e as dependências do workspace, passe o caminho do JSON e a pasta local de estado que foi usada em `wrangler d1 ... --persist-to`. A pasta, o banco migrado e os lançamentos de teste devem existir. Ajuste o período do exemplo à data de criação dos lançamentos da sua fixture.
+
+```sh
+node apps/api/scripts/check-complete-pix-statement.mjs /caminho/extrato-teste.json /caminho/estado-wrangler
+```
+
+O [verificador](../../apps/api/scripts/check-complete-pix-statement.mjs) executa um `SELECT` no D1 local usando a configuração de conciliação existente. Lê somente os identificadores do registro e da cobrança e um sinal de data ilegível. Comprovantes manuais ficam fora da consulta. Os IDs do arquivo são comparados localmente. Preserve o relatório no ambiente de teste.
+
+| Resultado | Interpretação |
+|---|---|
+| `d1_only` | O D1 registrou a criação na janela selecionada e o ID falta na lista do extrato. |
+| `statement_only_in_scope` | O extrato contém o ID e a consulta no recorte do D1 não o encontrou. Conferir a conta, o ambiente e as bordas do período. |
+| `duplicate_statement` | O mesmo ID consta mais de uma vez no extrato normalizado. |
+| `missing_d1_charge_id` ou `unknown_d1_creation_time` | O registro local precisa de investigação antes de concluir a comparação. Uma data ilegível no ambiente selecionado impede situar o registro dentro ou fora da janela. |
+
+O processo termina com código **0** quando as listas conferem, **1** quando o relatório contém diferenças e **2** quando a entrada ou a consulta falha. A conferência cobre os IDs de criação das cobranças. Os relógios de criação no provedor e de gravação no D1 podem divergir junto aos limites. Reconfira esses IDs no período vizinho antes de concluir que falta uma cobrança. Um resultado 0 não comprova valor, crédito à beneficiária ou liquidação; essas conferências usam o extrato financeiro em FIN-02.
 
 ## Exemplo de contagem
 
@@ -88,6 +121,8 @@ Na revisão indicada acima, **6 testes focalizados de API/progresso e 3 de prese
 ```
 
 ## MET-01 · Conferência interna por destino e fonte
+
+Com doações habilitadas no ambiente, administradores consultam **Pendentes → Doações confirmadas por destino** no painel. O campo `paidByDestination` de `GET /admin/donations/overview` usa a mesma consulta abaixo, independentemente do limite da lista de configuração de ONGs e do histórico recente. A tabela mostra o acumulado da base em centavos convertidos para reais, somente para as cobranças atualmente pagas. Se a API ainda não informar os totais, o painel indica indisponibilidade. A divulgação pública de um indicador financeiro continua dependendo de decisão.
 
 Para conferir os registros da base D1 local, aplique as migrações e execute a [consulta por destino](../../apps/api/scripts/summarize-paid-donations.sql) a partir da raiz:
 
