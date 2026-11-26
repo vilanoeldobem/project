@@ -89,6 +89,7 @@
       "r2_buckets": [],
       "vars": {
         "ENVIRONMENT": "staging",
+        "STAGING_ACCOUNT_ACTIONS": "false",
         "ACCOUNTS_ENABLED": "false",
         "QUESTS_V1_ENABLED": "false",
         "QUESTS_V2_ENABLED": "false",

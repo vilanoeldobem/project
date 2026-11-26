@@ -80,7 +80,8 @@ export const api = {
       moderation?: Partial<ModerationConfig>;
       donations?: boolean;
       localAccountActions?: boolean;
-    }>("GET", "/config", undefined, {}, localRehearsalPage() ? AbortSignal.timeout(5000) : undefined),
+      stagingAccountActions?: boolean;
+    }>("GET", "/config", undefined, {}, accountActionFlag() ? AbortSignal.timeout(5000) : undefined),
   register: (b: { name: string; nickname: string; city: string; email: string }) => call<{ ok: true; devLink?: string }>("POST", "/auth/register", b),
   requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
   verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
@@ -482,12 +483,17 @@ function takeLoginToken(): string | null {
  * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
  * which need the API's flag, stay off).
  */
-export const localRehearsalPage = () => import.meta.env.MODE !== "production" &&
-  typeof location !== "undefined" && ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+export function accountActionFlag() {
+  if (typeof location === "undefined" || import.meta.env.MODE === "production") return null;
+  if (import.meta.env.MODE === "staging") {
+    return location.origin === "https://play-staging.vilanoeldobem.com.br" ? "stagingAccountActions" : null;
+  }
+  return ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "localAccountActions" : null;
+}
 
 let localStartup: Promise<void> | undefined;
 export function initAccount(): Promise<void> {
-  if (!localRehearsalPage()) return readStartup();
+  if (!accountActionFlag()) return readStartup();
   // React StrictMode may mount the app twice. Verify the fragment and restore its session only once in flight.
   localStartup ??= readStartup().finally(() => { localStartup = undefined; });
   return localStartup;
@@ -495,8 +501,11 @@ export function initAccount(): Promise<void> {
 
 async function readStartup() {
   try {
-    const { accounts, quests, questsV2, files, withdrawal, moderation, donations, localAccountActions } = await api.config();
-    useVila.setState({ localActor: localRehearsalPage() && localAccountActions === true ? () => {
+    const config = await api.config();
+    const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = config;
+    const actionFlag = accountActionFlag();
+    const requireAccount = actionFlag && config[actionFlag] === true && (actionFlag !== "stagingAccountActions" || accounts === true);
+    useVila.setState({ localActor: requireAccount ? () => {
       const user = useAccount.getState().user;
       return user && !user.blocked && !user.deletionPending ? user.id : null;
     } : null });

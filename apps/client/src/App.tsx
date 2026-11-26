@@ -6,7 +6,7 @@ import { useQuestsV2Enabled } from "./game/questsV2Flag";
 import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
 import { ALL_WORLD, V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { PixReview } from "./ui/PixReview";
-import { initAccount, localRehearsalPage, useAccount } from "./lib/account";
+import { accountActionFlag, initAccount, useAccount } from "./lib/account";
 import { type ContextState, watchContext } from "./lib/context-watch";
 import { fetchLots, type LotInfo } from "./lib/api";
 import { demoAllowed, isUnlisted, withDemoHouses } from "./lib/lots";
@@ -60,8 +60,8 @@ export function App() {
   }, []);
   useEffect(() => () => stopWatch.current?.(), []);
 
-  // /config alone decides the local rehearsal. A slow /me never holds the village loading screen.
-  if (localRehearsalPage() && !configReady) return <p role="status">Acendendo as luzes da Vila…</p>;
+  // /config decides the account policy. A slow /me never holds the village loading screen.
+  if (accountActionFlag() && !configReady) return <p role="status">Acendendo as luzes da Vila…</p>;
   return (
     <>
       {/* The page heading. The brand is not on the gameplay screen (IMPL-0022): it shows while the village loads. */}

@@ -217,6 +217,34 @@ describe("local account actions (#65)", () => {
     expect(page.useVila.getState().panel.kind).toBe("memory");
   });
 
+  it.each([
+    ["staging", "https://play-staging.vilanoeldobem.com.br", true, true],
+    ["staging", "https://play-staging.vilanoeldobem.com.br", false, false],
+    ["development", "https://play-staging.vilanoeldobem.com.br", true, false],
+    ["production", "https://play-staging.vilanoeldobem.com.br", true, false],
+    ["staging", "http://play-staging.vilanoeldobem.com.br", true, false],
+    ["staging", "https://play.vilanoeldobem.com.br", true, false],
+    ["production", "https://play.vilanoeldobem.com.br", true, false],
+  ])("checks the staging build, origin and API opt-in (%s, %s, %s)", async (mode, origin, flag, enabled) => {
+    vi.stubEnv("MODE", String(mode));
+    stubPage({ accounts: true, stagingAccountActions: flag, localAccountActions: true });
+    vi.stubGlobal("location", new URL(String(origin)));
+    const page = await load(false);
+    await page.initAccount();
+    expect(Boolean(page.useVila.getState().localActor)).toBe(enabled);
+  });
+
+  it("never invites a staging visitor to an unavailable account service", async () => {
+    vi.stubEnv("MODE", "staging");
+    stubPage({ accounts: false, stagingAccountActions: true });
+    vi.stubGlobal("location", new URL("https://play-staging.vilanoeldobem.com.br"));
+    const page = await load(false);
+    await page.initAccount();
+    expect(page.useVila.getState().localActor).toBeNull();
+    page.useVila.getState().open({ kind: "memory" });
+    expect(page.useVila.getState().panel.kind).toBe("memory");
+  });
+
   it("releases local exploration when the API switches the comparison off, even if session restoration is slow", async () => {
     localPage();
     let finish!: () => void;

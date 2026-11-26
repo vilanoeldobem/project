@@ -74,7 +74,8 @@ O visitante escolhe um destino e um valor e abre a conta. Ao voltar pelo link de
 
 ## Ensaio local das quatro ações da #65
 
-Este ramo permite que Augusto, Pedro, Bernard e Nicolas comparem o fluxo de visitante com uma alternativa que pede conta. A exploração da Vila continua livre. A regra de lançamento depende da decisão registrada em OQ-02.
+O ensaio local permite comparar a exploração livre com a exigência de conta ao iniciar as quatro ações. Pedro
+registrou a confirmação de Bernard para essas ações no [PR #114](https://github.com/vilanoeldobem/project/pull/114#issuecomment-7198977103).
 
 Para comparar os modos em uma cópia descartável, aplique as migrações locais com `pnpm db:migrate:local`. Em um terminal, execute `pnpm --filter @vila/api run dev --var LOCAL_ACCOUNT_ACTIONS:true`. Em outro, execute `pnpm --filter @vila/client dev` e abra o endereço local indicado pelo Vite. Confira `http://localhost:8787/config` antes de começar. A resposta deve conter `localAccountActions: true`. Para repetir com o comportamento habitual, reinicie a API sem o argumento extra. A configuração normal de staging e produção ignora a opção.
 
@@ -86,3 +87,16 @@ Para comparar os modos em uma cópia descartável, aplique as migrações locais
 | Iniciar minijogo | Usar o catálogo e o atalho de uma casa fictícia. Fechar o convite e voltar ao mapa. Entrar e repetir a ação para iniciar uma vez. |
 
 O ensaio usa contas e dados fictícios. A migração do progresso do visitante também deve ser avaliada quando ele e a conta têm etapas parciais da mesma missão.
+
+## Homologação das quatro ações
+
+Pedro registrou a confirmação de Bernard em 26/11: explorar é livre. Equipar um visual, concluir uma missão, iniciar um minijogo e abrir o link da ONG pedem conta. [Confirmação no PR #114](https://github.com/vilanoeldobem/project/pull/114#issuecomment-7198977103).
+
+Para testar a regra na homologação, o Worker precisa usar `ENVIRONMENT=staging`, `STAGING_ACCOUNT_ACTIONS=true` e `ACCOUNTS_ENABLED=true`.
+A configuração versionada deixa a opção desligada. A build `staging` do jogo aceita `stagingAccountActions: true`
+de `GET /config` na origem `https://play-staging.vilanoeldobem.com.br`. O login exige contas habilitadas e uma
+caixa de teste que receba o link. Para conferir o link externo da ONG, habilite doações no ambiente do ensaio
+e use uma ONG fictícia publicada com link validado. O clique registra o redirecionamento e não gera pagamento.
+
+O comando `node apps/client/scripts/verify-account-actions.mjs --staging` verifica os dois modos em Chromium
+local, com as origens de homologação interceptadas, os componentes do jogo e uma API simulada.

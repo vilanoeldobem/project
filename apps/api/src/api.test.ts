@@ -11,18 +11,25 @@ const env = (db?: Partial<D1Database>): Env => ({
 const get = (path: string, e: Env, method = "GET") => handleApi(new Request(`https://vila.test${path}`, { method }), e);
 
 describe("worker /api", () => {
-  it("only exposes the optional account rehearsal in explicitly enabled local environments", async () => {
-    for (const environment of ["development", "test", "staging", "production"]) {
-      const config = async (flag?: string) => (await get("/config", {
-        ENVIRONMENT: environment, LOCAL_ACCOUNT_ACTIONS: flag,
-      })).json();
-      expect(await config()).not.toHaveProperty("localAccountActions");
-      if (environment === "test" || environment === "development") {
-        expect(await config("true")).toHaveProperty("localAccountActions", true);
-      } else {
-        expect(await config("true")).not.toHaveProperty("localAccountActions");
+  it("exposes only the account-action opt-in for the current environment", async () => {
+    for (const environment of ["development", "test", "staging", "production", undefined]) {
+      for (const local of [undefined, "true"]) {
+        for (const staging of [undefined, "false", "true"]) {
+          const config = await (await get("/config", {
+            ENVIRONMENT: environment, ACCOUNTS_ENABLED: "true", LOCAL_ACCOUNT_ACTIONS: local, STAGING_ACCOUNT_ACTIONS: staging,
+          })).json() as Record<string, unknown>;
+          expect(config.localAccountActions).toBe((environment === "test" || environment === "development") && local === "true" ? true : undefined);
+          expect(config.stagingAccountActions).toBe(environment === "staging" && staging === "true" ? true : undefined);
+        }
       }
     }
+  });
+
+  it("keeps the staging account policy off when the account service is disabled", async () => {
+    const config = await (await get("/config", {
+      ENVIRONMENT: "staging", ACCOUNTS_ENABLED: "false", STAGING_ACCOUNT_ACTIONS: "true",
+    })).json();
+    expect(config).not.toHaveProperty("stagingAccountActions");
   });
 
   it("health reports db presence and whether the mail key is set, never the key", async () => {

@@ -106,5 +106,6 @@ export const meView = (u: User, block?: { message: string; at: string } | null) 
 });
 
 export function rehearsesAccountActions(env: Env): boolean {
+  if (env.ENVIRONMENT === "staging") return env.ACCOUNTS_ENABLED === "true" && env.STAGING_ACCOUNT_ACTIONS === "true";
   return (env.ENVIRONMENT === "development" || env.ENVIRONMENT === "test") && env.LOCAL_ACCOUNT_ACTIONS === "true";
 }

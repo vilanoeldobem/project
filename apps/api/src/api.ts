@@ -126,6 +126,8 @@ export interface Env {
   DONATIONS_ENABLED?: string;
   /** Opt-in local rehearsal of the account rules requested in #65. */
   LOCAL_ACCOUNT_ACTIONS?: string;
+  /** Opt-in for the four account actions on the isolated staging Worker. */
+  STAGING_ACCOUNT_ACTIONS?: string;
   /**
    * "true" adds the level of each published NGO's building to `GET /lots` (PROPOSTA; IMPL-0032, OQ-23). It is the
    * confirmed donation total turned into a level from 1 to 5, so it needs `DONATIONS_ENABLED` too. Off in production.
@@ -340,7 +342,7 @@ async function route(request: Request, env: Env): Promise<Response> {
           residentialPlots: residentialPlotsEnabled(env),
           // Public lookup, external redirects and reconciliation work independently of the account feature.
           donations: env.DONATIONS_ENABLED === "true",
-          ...(rehearsesAccountActions(env) ? { localAccountActions: true } : {}),
+          ...(rehearsesAccountActions(env) ? { [env.ENVIRONMENT === "staging" ? "stagingAccountActions" : "localAccountActions"]: true } : {}),
           // Levels of the NGO buildings (IMPL-0032, PROPOSTA): a projection of the donations, on only with them.
           ngoLevels: ngoLevelsEnabled(env),
         }, { headers: NO_STORE });

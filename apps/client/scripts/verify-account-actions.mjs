@@ -30,8 +30,9 @@ function Surface(){
 createRoot(document.getElementById('root')).render(h(Surface));
 window.review={store:useVila,account:useAccount,activate};
 `;
+const staging = process.argv.includes("--staging");
 const server = await createServer({
-  root, server: { host: "127.0.0.1", port: 0, open: false, hmr: false },
+  root, mode: staging ? "staging" : "development", server: { host: "127.0.0.1", port: 0, open: false, hmr: false },
   plugins: [{ name: "local-account-test-page",
     resolveId(id) { if (id === "virtual:account-actions") return "\0" + id; },
     load(id) { if (id === "\0virtual:account-actions") return entry; },
@@ -45,8 +46,9 @@ const server = await createServer({
 let browser;
 try {
   await server.listen();
-  const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
-  const api = "http://localhost:8787";
+  const local = `http://127.0.0.1:${server.httpServer.address().port}`;
+  const origin = staging ? "https://play-staging.vilanoeldobem.com.br" : local;
+  const api = staging ? "https://api-staging.vilanoeldobem.com.br" : "http://localhost:8787";
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/usr/bin/chromium",
     args: ["--disable-dev-shm-usage", "--disable-gpu"], env: { ...process.env, TMPDIR:"/tmp", TZ:"UTC" } });
   for (const enabled of [true, false]) {
@@ -58,19 +60,25 @@ try {
     const user = { id: "player-a", nickname: "Alice", name: "Alice Teste", email:"a@example.invalid", city:"Vila", role:"player" };
     const initial = { xp:30, completed:{"explore-gifts":true}, counters:{}, seen:{} };
     let active = null;
-    await context.addInitScript(({initial}) => {
-      if (location.protocol !== "http:") return;
+    await context.addInitScript(({initial, origin}) => {
+      if (location.origin !== origin) return;
       if (!localStorage.getItem("seeded")) {
         localStorage.setItem("seeded","1");
         localStorage.setItem("vila.progress.v2",JSON.stringify(initial));
       }
       window.open = url => { window.reviewWindows.push(url); return null; };
       window.reviewWindows = [];
-    },{initial});
+    },{initial, origin});
+    if (staging) await context.routeWebSocket("**/*", socket => socket.close());
     await context.route("**/*",async route=>{
       const req = route.request();
       const url = new URL(req.url());
-      if (url.origin === origin) return route.continue();
+      if (url.origin === origin) {
+        if (!staging) return route.continue();
+        const asset = await fetch(local + url.pathname + url.search);
+        return route.fulfill({status:asset.status, contentType:asset.headers.get("content-type") ?? "application/octet-stream",
+          body:Buffer.from(await asset.arrayBuffer())});
+      }
       if (url.origin !== api) { visited.push(url.origin); return route.abort(); }
       const headers={"access-control-allow-origin":origin,"access-control-allow-credentials":"true",
         "access-control-allow-headers":"content-type,x-vila-account","access-control-allow-methods":"GET,POST,OPTIONS"};
@@ -78,7 +86,7 @@ try {
       const path=url.pathname;
       requests.push({path,body:req.postDataJSON()});
       let body={}, status=200;
-      if(path==="/config") body={accounts:true,donations:true,localAccountActions:enabled};
+      if(path==="/config") body={accounts:true,donations:true,[staging?"stagingAccountActions":"localAccountActions"]:enabled};
       if(path==="/me") body={user:active};
       if(path==="/auth/link") {
         assert.equal(req.postDataJSON().email,user.email);
@@ -120,6 +128,7 @@ try {
     await open("lot");
     await page.getByRole("button",{name:"Jogar gratuitamente"}).click();
     await expectPanel(enabled?"account":"memory");
+    assert.equal(await page.evaluate(()=>Boolean(window.review.store.getState().progress.completed["causes-visit-lot"])),!enabled);
     await page.evaluate(()=>window.review.activate({kind:"quest",interactionId:"play-treno-na-neve"}));
     await expectPanel(enabled?"account":"story-game");
     await open("lot");
@@ -171,7 +180,7 @@ try {
     assert.deepEqual(errors,[]);
     assert.deepEqual(visited,[]);
     await context.close();
-    console.log(enabled?"Ensaio local ligado: OK":"Comportamento oficial: OK");
+    console.log(`${staging ? "Staging" : "Local"} account actions (opt-in ${enabled ? "on" : "off"}): OK`);
   }
 } finally {
   await browser?.close();

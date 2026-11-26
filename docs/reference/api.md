@@ -97,6 +97,11 @@ resposta nunca traz a mensagem de erro, uma chave ou um nome de arquivo.
 
 Bandeiras que o cliente precisa saber antes de mostrar interface. `Cache-Control: no-store`.
 
+As quatro ações com conta da #65 usam opt-ins por ambiente. A API de homologação inclui
+`stagingAccountActions: true` somente com `ENVIRONMENT=staging`, `ACCOUNTS_ENABLED=true` e `STAGING_ACCOUNT_ACTIONS=true`.
+Em desenvolvimento e teste, o ensaio existente usa `LOCAL_ACCOUNT_ACTIONS=true` e devolve
+`localAccountActions: true`. Em produção os dois campos ficam ausentes.
+
 ```json
 { "accounts": false, "quests": false, "questsV2": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
   "residentialPlots": false, "donations": false, "ngoLevels": false }
