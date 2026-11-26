@@ -186,11 +186,19 @@ async function expectState(page, id, expected) {
 }
 
 async function openNpc(page, name) {
+  // With v2 on, the books add NPCs around the square and a fixed walk point can be closer to one of them
+  // (Tia Bete at the market). Approach the v1 NPC itself so the contextual action names the right person.
+  const npc = (await page.evaluate(() => window.__vila.extra.npcs())).find((candidate) => candidate.name === name);
+  if (npc) {
+    await page.evaluate(([x, z]) => window.__vila.extra.teleport(x, z), [npc.x, npc.z]);
+    await page.waitForTimeout(250);
+  }
   try {
     await page.getByRole("button", { name: new RegExp(`Falar com ${name}`) }).click({ timeout: 20000 });
   } catch (e) {
     const p = await page.evaluate(() => window.__vila.pose());
-    fail(`npc ${name}: no action button — avatar at (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+    const target = await page.evaluate(() => window.__vila.extra.nearby());
+    fail(`npc ${name}: no action button — avatar at (${p.x.toFixed(1)}, ${p.z.toFixed(1)}), nearby ${JSON.stringify(target)}`);
     throw e;
   }
   await page.getByRole("dialog").waitFor({ timeout: 10000 });

@@ -29,6 +29,7 @@ Cada versão indica o schema D1 que entrega.
 - O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
+- O verificador do epílogo com a v2 ligada aproxima o avatar do NPC v1 pelo nome, para não confundir Dona Filó com a Tia Bete do Livro I.
 
 ### Changed
 
