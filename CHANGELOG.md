@@ -26,6 +26,7 @@ Cada versão indica o schema D1 que entrega.
 ### Fixed
 
 - O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
+- O teste de Pix concorrente verifica as duas repetições enquanto o provedor de teste ainda processa a primeira cobrança, sem depender de um temporizador.
 - Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
 - Após falha de envio do primeiro e-mail de cadastro, o jogo permite pedir outro link para o mesmo endereço.
 - O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
