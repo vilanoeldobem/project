@@ -3,7 +3,8 @@
  * one set by hand in D1, see docs/guides/deploy.md; the others from the dashboard, IMPL-0021) reach these routes. Every decision writes `audit_events` with the
  * admin's id (never an e-mail) and no personal data; the message to the applicant lives on the application.
  *
- *   GET  /admin/applications?status=…        → {applications}
+ *   GET  /admin/applications?status=…&before=… → {applications, next}
+ *   GET  /admin/lots                         → {lots} with their current application
  *   GET  /admin/applications/:id             → {application, applicant: {nickname}, history, files}
  *   POST /admin/applications/:id/decision {action, revision, note?, checks?} → {application}
  *
@@ -17,6 +18,8 @@
  * No decision applies to a published NGO. Taking one out of the village is the withdrawal (IMPL-0020, PROPOSTA;
  * ngo-withdrawal.ts); lists and details here show its effective status `withdrawn`.
  */
+import type { AdminLot, ApplicationPage, ApplicationSummary } from "@vila/shared/accounts/contract";
+
 import { newId } from "./crypto";
 import { readNgoPayment } from "./donations";
 import { HttpError, json, NO_STORE, readJson } from "./http";
@@ -35,19 +38,45 @@ const RULES: Record<Action, { from: string[]; to: string; lot: string | null }> 
 };
 
 const STATUSES = ["submitted", "under_review", "changes_requested", "published", "rejected", "withdrawn"];
+const PAGE_SIZE = 200;
 
 export async function listApplications(request: Request, env: Env): Promise<Response> {
   await requireAdmin(request, env);
-  const status = new URL(request.url).searchParams.get("status");
+  const query = new URL(request.url).searchParams;
+  const status = query.get("status");
+  const before = query.get("before");
+  const cursor = before?.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\|(.+)$/);
+  if (before !== null && (!cursor || Number.isNaN(Date.parse(cursor[1])))) throw new HttpError(400, "bad_before");
   // The stored status of a withdrawn NGO stays 'published' (IMPL-0020): lists show and filter the effective one.
   const effectiveStatus = "CASE WHEN w.ngo_id IS NOT NULL THEN 'withdrawn' ELSE n.status END";
-  const where = status && STATUSES.includes(status) ? `WHERE ${effectiveStatus} = ?` : "WHERE n.applicant_id IS NOT NULL OR n.status != 'published' OR w.ngo_id IS NOT NULL";
-  const stmt = env.DB!.prepare(
+  const filtered = status !== null && STATUSES.includes(status);
+  const where = filtered ? `${effectiveStatus} = ?` : "(n.applicant_id IS NOT NULL OR n.status != 'published' OR w.ngo_id IS NOT NULL)";
+  const params = filtered ? [status] : [];
+  if (cursor) params.push(cursor[1], cursor[2]);
+  const { results } = await env.DB!.prepare(
     `SELECT n.id, n.name, n.city, ${effectiveStatus} AS status, n.revision, n.requested_lot_id AS lotId, n.created_at AS createdAt, n.updated_at AS updatedAt
-       FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id ${where} ORDER BY n.updated_at DESC LIMIT 200`
-  );
-  const { results } = await (status && STATUSES.includes(status) ? stmt.bind(status) : stmt).all();
-  return json({ applications: results }, { headers: NO_STORE });
+       FROM ngos n LEFT JOIN ngo_withdrawals w ON w.ngo_id = n.id WHERE ${where}
+       ${cursor ? "AND (n.updated_at, n.id) < (?, ?)" : ""}
+       ORDER BY n.updated_at DESC, n.id DESC LIMIT ?`
+  ).bind(...params, PAGE_SIZE + 1).all<ApplicationSummary>();
+  const applications = results.slice(0, PAGE_SIZE);
+  const last = applications.at(-1);
+  const next = results.length > PAGE_SIZE && last ? `${last.updatedAt}|${last.id}` : null;
+  return json({ applications, next } satisfies ApplicationPage, { headers: NO_STORE });
+}
+
+/** Read the current assignment from the lot itself, regardless of when its application was updated. */
+export async function listAdminLots(request: Request, env: Env): Promise<Response> {
+  await requireAdmin(request, env);
+  const { results } = await env.DB!.prepare(
+    `SELECT l.id, l.state, n.name AS ngo_name,
+            CASE WHEN n.applicant_id IS NOT NULL OR n.status != 'published' THEN n.id END AS applicationId,
+            CASE WHEN n.applicant_id IS NOT NULL OR n.status != 'published' THEN n.status END AS applicationStatus
+       FROM lots l LEFT JOIN ngos n ON n.id = l.ngo_id AND l.state != 'available' AND n.status != 'rejected'
+            AND NOT EXISTS (SELECT 1 FROM ngo_withdrawals w WHERE w.ngo_id = n.id)
+      ORDER BY l.street, l.slot`
+  ).all<AdminLot>();
+  return json({ lots: results }, { headers: NO_STORE });
 }
 
 export async function getApplicationAdmin(request: Request, env: Env, id: string): Promise<Response> {

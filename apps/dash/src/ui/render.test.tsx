@@ -17,7 +17,7 @@ import type { UserAction } from "../lib/moderation";
 import { Applications, LogoRemovalConfirmation, Review } from "./Applications";
 import { Audit } from "./Audit";
 import { PaidByDestination } from "./Donations";
-import { Lots } from "./Lots";
+import { Lots, LotTable } from "./Lots";
 import { Pending } from "./Pending";
 import { Shell } from "./Shell";
 import { Blocked, NotAdmin, SignIn } from "./SignIn";
@@ -165,6 +165,18 @@ describe("shell", () => {
     expect(page).toContain("Sem sessão");
     expect(page).not.toContain(">Sair</button>");
   });
+});
+
+it("links the exact current application on each lot and keeps public rows free of review links", () => {
+  const id = DETAIL.application.id;
+  const page = html(<LotTable rows={[
+    { id: "plaza-01", state: "available", ngo_name: null },
+    { id: "plaza-02", state: "published", ngo_name: "Casa pública" },
+    { id: "plaza-03", state: "published", ngo_name: "Associação", applicationId: id, applicationStatus: "published" },
+  ]} />);
+  expect(count(page, 'href="#/applications/')).toBe(1);
+  expect(page).toContain(`href="#/applications/${id}">Aprovada e publicada</a>`);
+  expect(page).toContain("Casa pública");
 });
 
 describe("sections with accounts off", () => {

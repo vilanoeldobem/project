@@ -32,9 +32,9 @@ O quadro abaixo registra **11/11/2026**. Os números indicam o que a equipe obse
   único parcial da 0005), 8 terrenos, `PRAGMA foreign_key_check` sem violações. Serve de ensaio para a aplicação de
   0004-0005 em produção naquela rodada.
 
-## Ensaio local do upgrade 0005 → 0015
+## Ensaio local do upgrade 0005 → 0016
 
-Em 22/11, a equipe executou as dez migrations seguintes sobre o schema 0005 em SQLite em memória, usando o
+O ensaio aplica as onze migrations seguintes sobre o schema 0005 em SQLite em memória, usando o
 [harness D1 da suíte](../../apps/api/test/d1.mjs). Antes do upgrade, a fixture insere um cidadão verificado,
 uma sessão e uma candidatura em estado `submitted` com o terreno `plaza-01` reservado. O ensaio verifica os
 campos da conta, o vínculo da sessão, a revisão da candidatura e as duas referências entre ONG e terreno.
@@ -48,7 +48,8 @@ node apps/api/scripts/verify-staging-upgrade.mjs
 |---|---|
 | Registros anteriores | A mesma conta, sessão e candidatura mantiveram os valores conferidos. `plaza-01` continuou associado à ONG em `application_sent`. |
 | Terrenos | A base passou de 8 para 97 terrenos de ONG. Ao final havia 23 terrenos residenciais. |
-| Integridade após a 0015 | `PRAGMA foreign_key_check` retornou zero linhas e `PRAGMA integrity_check` retornou `ok`. |
+| Histórico de candidaturas | A migration 0016 criou o índice por atualização e ID. |
+| Integridade após a 0016 | `PRAGMA foreign_key_check` retornou zero linhas e `PRAGMA integrity_check` retornou `ok`. |
 
 O [script](../../apps/api/scripts/verify-staging-upgrade.mjs) falha se um desses critérios divergir. A prova cobre o
 schema e os vínculos dos dados fictícios. A atualização do banco remoto, o acesso com uma sessão válida no navegador
@@ -115,7 +116,7 @@ Antes de habilitar contas (passo 5), confirme:
 - a revisão de LGPD / ECA Digital foi registrada pelo responsável.
 
 1. Combine os domínios e o acesso dos testadores com Augusto. Confirme a conta Cloudflare, o remetente verificado no Resend (a configuração propõe `acesso@vilanoeldobem.com.br`) e quem tem acesso à caixa de teste. Use dados fictícios. Os domínios personalizados ficam acessíveis publicamente quando publicados. Antes de habilitar contas, o operador deve aplicar o controle de acesso aos testadores que a equipe definir e confirmar que uma pessoa de fora não entra. O papel de administrador do painel controla a revisão das candidaturas dentro da aplicação.
-2. Faça o backup e a atualização **do banco de homologação** conforme a seção [Aplicar migrations](#aplicar-migrations). Confira os nomes no histórico até a `0015` e `PRAGMA foreign_key_check` antes de publicar.
+2. Faça o backup e a atualização **do banco de homologação** conforme a seção [Aplicar migrations](#aplicar-migrations). Confira os nomes no histórico até a última migration do código que será publicado e execute `PRAGMA foreign_key_check`.
 3. Após o aceite da revisão, prepare os arquivos com `pnpm staging:check` no mesmo checkout que será publicado. Use o ambiente explícito em cada comando, a partir da raiz. A primeira publicação mantém contas e doações desligadas.
 
 ```sh
