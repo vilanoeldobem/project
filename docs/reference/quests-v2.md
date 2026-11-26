@@ -1,7 +1,8 @@
 # Story v2: runtime e catálogo
 
-> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime, os dez livros (PRs #79 a #88), o epílogo e
-> o pós-jogo implementados; minijogos da saga pendentes (§7). **Atualizado em:** 2026-11-22. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
+> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime, os dez livros (PRs #79 a #88), o epílogo,
+> o pós-jogo e os minijogos implementados; fatias 13 e 14 fechadas; lacunas de marcos e props de estado em §7.
+> **Atualizado em:** 2026-11-26. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
 > `apps/client/src/game/questsV2Flag.ts`, `apps/api/src/progress.ts`; o epílogo continua em
 > [quests.md](quests.md) e `quests.ts`.
 
@@ -87,27 +88,28 @@ manifesto, e a cena final. `finalSceneReady` espera as seis últimas missões do
 Caderno de Missões mostra "Ver a cena final" e o painel "A próxima Longa Noite" traz os créditos fictícios. Sem casa
 publicada, `newest-house-visit` e a cena continuam bloqueadas.
 
-## 7. Estado das fatias (2026-11-22)
+## 7. Estado das fatias (2026-11-26)
 
 | Fatia | Estado |
 |---|---|
 | 00, spine | integrada (PR #78) |
 | 01 a 10, livros | integrados (PRs #79 a #88): 45 entradas, 4 props e 6 cosméticos cada; 450 entradas e 10.500 XP |
 | 11, epílogo e pós-jogo | integrada: 12 pós-jogo/240 XP, portão `b05-c3-04`, cena final e créditos; o epílogo jogável continua sendo o catálogo v1 |
-| 12, arte, cosméticos e minijogos | pendente: os minijogos da saga não estão registrados no jogo, então `verify-story.mjs` para no primeiro objetivo de minijogo de cada livro (no Livro I, `b01-r1-04`) |
-| 13, revisão jurídica | pendente |
-| 14, integração | em andamento: esta referência, o índice de `content/proposals/quests-v2/` e o CHANGELOG |
+| 12, arte, cosméticos e minijogos | integrada (PR #105, land #106): 9 minijogos, Jogo da Memória como o décimo, 10 props de saga, guia de estilo e 60 cosméticos; o verificador cobre os objetivos de minijogo |
+| 13, revisão jurídica | integrada: relatório em [story-v2-legal-review.md](../implementation/story-v2-legal-review.md); uma correção de texto em `b01-s4`; nenhuma bandeira mudou |
+| 14, integração | integrada: `validate-slice.mjs --all`, playthrough completo no navegador (correção de `count-stars-west`, que coincidia com Dona Geada, separação do aviso de desmontagem do React e XP comparado exatamente com as entradas concluídas), portão `b05-c3-04` conferido na sessão v2, progresso dos dez livros levado ao `verify-quests.mjs` com a v2 ligada e cena final aberta; índice, ROADMAP, CHANGELOG e esta referência |
 
 Lacunas conhecidas, registradas pelos livros e ainda sem código:
 
-- O jogo não calcula os contadores dos marcos (`missions`, `trades`) nem chama `settleMilestonesIn`; os testes
-  cobrem a regra e a recompensa.
-- Os estados de mundo de cada livro (por exemplo `bell-rung`, `market-open`) são calculados e testados, mas nenhum
-  prop persistente é desenhado conforme o estado.
-- Um objetivo de minijogo deve registrar o event id do alvo `kind: "minigame"` da missão ativa, não só o `eventId`
-  do catálogo de minijogos.
+- Contadores de marcos: `milestones.ts` e os testes cobrem a regra e a recompensa, mas o cliente não calcula os
+  contadores nem chama `settleMilestonesIn`; os 1.200 XP dos marcos não são creditados em jogo. Falta desenho de
+  persistência (cliente e API) antes de ligar a v2.
+- Props de estado: `worldStatesIn` calcula os estados, mas nenhum livro declara `requires` em NPCs, spawns ou
+  interações e nenhum prop persistente muda com o estado. O seletor existe e é testado; falta conteúdo visual.
+- Casas: o limiar 97 de `b02-m1` é fixo no manifesto; falta um seletor do total publicado no cliente.
 
 ## Ver também
 
 [quests.md](quests.md) · [api.md](api.md) · [content.md](content.md) ·
+[story-v2-legal-review.md](../implementation/story-v2-legal-review.md) ·
 [`content/proposals/quests-v2/`](../../content/proposals/quests-v2/README.md)

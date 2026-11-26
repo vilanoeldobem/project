@@ -8,9 +8,11 @@ import { remotes } from "../net/multiplayer";
 import { questsEnabled } from "./questsFlag";
 import { questsV2Enabled } from "./questsV2Flag";
 import { sim } from "./sim";
+import { newlyCompletedXp } from "./story-xp";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { type Panel, useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
+import { NPCS } from "@vila/shared/game/world";
 import { catalogFor, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import { MANIFEST } from "@vila/shared/game/quests-v2/manifest";
 import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
@@ -131,6 +133,11 @@ export function installDevtools() {
         ];
       },
       storyManifest: () => ({ length: MANIFEST.length, ids: MANIFEST.map((entry) => entry.id) }),
+      /** The v1 village NPCs (name and place): the epilogue verifier must approach the right one when v2 is on. */
+      npcs: () => NPCS.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z })),
+      /** XP gained between two progress snapshots, from the canonical manifest; the verifiers compare it exactly. */
+      newlyCompletedXp: (before, after) =>
+        newlyCompletedXp(before as Record<string, true>, after as Record<string, true>, MANIFEST),
       storyWorld: () => ({
         npcs: STORY_WORLD.npcs.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z, book: npc.book })),
         spawns: STORY_WORLD.spawns.map((spawn) => ({ id: spawn.id, questId: spawn.questId, x: spawn.x, z: spawn.z, book: spawn.book })),

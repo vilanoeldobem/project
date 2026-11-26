@@ -187,7 +187,7 @@ export function Player({ published }: { published: string }) {
       }
       // Gifts: collected by proximity ("explore" track). Remaining gifts vanish once the mission is done.
       const progress = useVila.getState().progress;
-      if (!progress.completed["explore-gifts"]) {
+      if (!progress.completed["explore-gifts"] && !s.missionClaims["explore-gifts"]) {
         for (const gift of GIFTS) {
           if (progress.seen[`explore-gifts:${gift.id}`]) continue;
           if (Math.hypot(gift.x - b.x, gift.z - b.z) >= GIFT_RADIUS) continue;

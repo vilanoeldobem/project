@@ -30,7 +30,7 @@
 import { localSnapshot } from "@vila/shared/environment/config";
 
 import { blockAccount, changeRole, unblockAccount } from "./account-moderation";
-import { decide, getApplicationAdmin, listApplications } from "./admin";
+import { decide, getApplicationAdmin, listAdminLots, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
 import {
@@ -61,6 +61,8 @@ import { residentialPlots, residentialPlotsEnabled } from "./residential-plots";
 import { decidePhoto, deleteOwnPhoto, listPhotos, pendingPhotos, photoContent, uploadPhoto } from "./ngo-photos";
 import { withdrawNgo } from "./ngo-withdrawal";
 import { consumeTicket, issueTicket } from "./presence-moderation";
+
+import { rehearsesAccountActions } from "./session";
 
 export interface Env {
   DB?: D1Database;
@@ -122,6 +124,8 @@ export interface Env {
   NGO_FILES_ENABLED?: string;
   /** "true" turns on donations and the AbacatePay reconciliation (PROPOSTA; IMPL-0023, PEN-004/PEN-006/PEN-026). Off in production. */
   DONATIONS_ENABLED?: string;
+  /** Opt-in local rehearsal of the account rules requested in #65. */
+  LOCAL_ACCOUNT_ACTIONS?: string;
   /**
    * "true" adds the level of each published NGO's building to `GET /lots` (PROPOSTA; IMPL-0032, OQ-23). It is the
    * confirmed donation total turned into a level from 1 to 5, so it needs `DONATIONS_ENABLED` too. Off in production.
@@ -336,6 +340,7 @@ async function route(request: Request, env: Env): Promise<Response> {
           residentialPlots: residentialPlotsEnabled(env),
           // Public lookup, external redirects and reconciliation work independently of the account feature.
           donations: env.DONATIONS_ENABLED === "true",
+          ...(rehearsesAccountActions(env) ? { localAccountActions: true } : {}),
           // Levels of the NGO buildings (IMPL-0032, PROPOSTA): a projection of the donations, on only with them.
           ngoLevels: ngoLevelsEnabled(env),
         }, { headers: NO_STORE });
@@ -433,6 +438,7 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   const adminFile = ADMIN_FILE.exec(pathname);
   if (adminFile && method === "GET") return downloadFileAdmin(request, env, adminFile[1], adminFile[2]);
   if (is("GET", "/admin/applications")) return listApplications(request, env);
+  if (is("GET", "/admin/lots")) return listAdminLots(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
   if (is("GET", "/admin/donations/overview")) return adminDonationOverview(request, env);
