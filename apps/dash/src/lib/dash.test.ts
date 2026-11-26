@@ -1,7 +1,7 @@
 /** Pure logic of the dashboard: API client, session rules, routes, login fragment, formatting. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ApplicationDetail, ApplicationSummary, Me, UserSummary } from "@vila/shared/accounts/contract";
+import type { ApplicationDetail, Me, UserSummary } from "@vila/shared/accounts/contract";
 import { ApiError } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { BLOCK_MESSAGE_ERROR, BLOCK_MESSAGE_MAX } from "@vila/shared/accounts/moderation";
@@ -11,7 +11,7 @@ import { PALETTE } from "@vila/shared/game/world";
 import loginFragmentScript from "../../public/login-fragment.js?raw";
 import { type Api, createApi, type Page } from "./api";
 import { downloadDocument, REVOKE_AFTER_MS, saveBlob } from "./files";
-import { ACTION_LABEL, actionText, applicationIdOf, FLAG_LABEL, fileSize, flagRows, flagText, occupantOf, prettyJson, roleLabel } from "./format";
+import { ACTION_LABEL, actionText, applicationIdOf, FLAG_LABEL, fileSize, flagRows, flagText, prettyJson, roleLabel } from "./format";
 import { readPages } from "./hooks";
 import { isId } from "./ids";
 import { splitLoginFragment } from "./login-token";
@@ -131,6 +131,21 @@ describe("API client", () => {
     const withdrawal = sent[sent.length - 1];
     expect([withdrawal.init.method, withdrawal.url.slice(BASE.length)]).toEqual(["POST", `/admin/ngos/${APP}/withdraw`]);
     expect(JSON.parse(String(withdrawal.init.body))).toEqual({ accountId: "u1", revision: 4, reason: "Mensagem para a organização." });
+  });
+
+  it("keeps the selected status and opaque cursor together and reads current lots directly", async () => {
+    const { fetcher } = fakeFetch({
+      "GET /admin/applications?status=rejected": [200, { applications: [], next: "time|id" }],
+      "GET /admin/applications?status=rejected&before=time%7Cid": [200, { applications: [], next: null }],
+      "GET /admin/applications": [200, { applications: [] }],
+      "GET /admin/lots": [200, { lots: [{ id: "plaza-01" }] }],
+    });
+    const api = createApi(BASE, fetcher);
+    const first = await api.adminList("rejected");
+    expect(first.next).toBe("time|id");
+    expect(await api.adminList("rejected", first.next!)).toEqual({ items: [], next: null });
+    expect(await api.adminList()).toEqual({ items: [], next: null });
+    expect(await api.adminLots()).toEqual({ lots: [{ id: "plaza-01" }] });
   });
 
   it("asks the donation routes with the admin account and only the fields the API validates", async () => {
@@ -1038,14 +1053,6 @@ describe("what the screens print", () => {
 
   it("prints file sizes for people", () => {
     expect([fileSize(0), fileSize(734), fileSize(1024), fileSize(186_368), fileSize(512 * 1024), fileSize(1_572_864), fileSize(5 * 1024 * 1024)]).toEqual(["0 bytes", "734 bytes", "1 KB", "182 KB", "512 KB", "1,5 MB", "5 MB"]);
-  });
-
-  it("shows the current lot occupant, excluding rejected and withdrawn historical applications", () => {
-    const app = (id: string, lotId: string, status: ApplicationSummary["status"]): ApplicationSummary => ({ id, lotId, status, name: id, city: "Recife", revision: 1, createdAt: "", updatedAt: "" });
-    const apps = [app("withdrawn", "plaza-03", "withdrawn"), app("old", "plaza-03", "rejected"), app("now", "plaza-03", "under_review"), app("other", "plaza-04", "published"), app("gone", "plaza-05", "withdrawn")];
-    expect(occupantOf({ id: "plaza-03" }, apps)?.id).toBe("now");
-    expect(occupantOf({ id: "plaza-04" }, apps)?.id).toBe("other");
-    expect(occupantOf({ id: "plaza-05" }, apps)).toBeUndefined();
   });
 
   it("takes every colour from the product palette", () => {

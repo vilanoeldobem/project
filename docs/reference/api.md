@@ -424,6 +424,10 @@ pt-BR, texto e HTML, sem rastreio nem marketing.
 
 O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 
+Uma falha no envio pode ocorrer depois da criação da conta. Ao receber `503 mail_unavailable` no
+cadastro, o jogo abre a entrada por e-mail com o endereço preenchido para pedir outro link por
+`POST /auth/link`. A confirmação mantém a resposta genérica da rota.
+
 ### Missões e XP no servidor (P14, DEC-040, DEC-042)
 
 | Método e rota | Corpo | Resposta |
@@ -498,6 +502,11 @@ apagar `.progress-smoke-seed.sql` e encerrar o Worker após a prova. As flags ac
 |---|---|
 | `GET /ngo/application` | `{application, files}` (a da própria conta) ou `{application: null, files: []}` |
 | `POST /ngo/application` | `201 {application, files}` (primeira) ou `200 {application, files}` (reenvio); corpo com `accountId` e os campos abaixo |
+
+O jogo inclui `revision` no envio, com `0` para a primeira candidatura ou a versão que a pessoa abriu para editar.
+Se uma candidatura editável avançou de versão, a API devolve `409 application_changed` e preserva os dados e o terreno.
+Clientes anteriores podem omitir o campo. Se faltar a confirmação do envio, **Conferir candidatura salva** consulta
+`GET /ngo/application`. O jogo abre a versão encontrada ou mantém o formulário se o envio ainda não consta.
 
 Quatro etapas do wireframe; a lista de campos é **PROPOSTA** (G08, PEN-019). Os critérios são declarados; logo e
 documentos são opcionais e seguem [§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017) (`files` vem
@@ -713,13 +722,23 @@ Só contas com `role = 'admin'`; outras → `403 admin_only`. O primeiro adminis
 
 | Método e rota | Corpo | Resposta |
 |---|---|---|
-| `GET /admin/applications[?status=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}]}` (até 200, mais recentes primeiro) |
+| `GET /admin/applications[?status=…&before=…]` | — | `{applications: [{id, name, city, status, revision, lotId, createdAt, updatedAt}], next}` (até 200 por página, mais recentes primeiro) |
+| `GET /admin/lots` | — | `{lots: [{id, state, ngo_name, applicationId, applicationStatus}]}`, com a ocupação atual de cada terreno |
 | `GET /admin/applications/:id` | — | `{application, applicant: {nickname, deletionPending} \| null, history: [{at, action, detail, actor}], files}` |
 | `POST /admin/applications/:id/decision` | `{action, revision, note?, checks?}` | `{application}` |
 
 `status` filtra pelos cinco estados anteriores ou `withdrawn`, projetado junto com a revisão no mesmo snapshot.
 Sem filtro, lista candidaturas e retiradas, incluindo ONGs retiradas sem solicitante. ONGs publicadas sem
 candidatura e sem retirada continuam excluídas. `?status=published` não inclui retiradas.
+
+Para carregar a próxima página, use o valor opaco de `next` no parâmetro `before` com o mesmo filtro.
+`next: null` indica o fim. A ordem é por atualização e, em caso de empate, pelo ID da candidatura, ambos
+decrescentes. Mudanças feitas durante a leitura aparecem ao recarregar a lista.
+
+Em `/admin/lots`, `applicationId` e `applicationStatus` identificam a candidatura vinculada ao terreno.
+Nos terrenos livres e nas casas publicadas sem candidatura, os dois campos são `null`. O nome de uma ONG
+em análise aparece apenas no painel autenticado.
+
 `:id` é o UUID da candidatura. Quem enviou aparece só pelo nickname (`null` se a conta foi excluída); `actor` no
 histórico é o nickname do admin.
 
@@ -1002,7 +1021,7 @@ no-store`. Mais recentes primeiro. Consultar não grava `audit_events` (só muta
 - Papel e bloqueio mudam só pelas rotas de [papéis](#papéis-impl-0021) e de
   [bloqueio de conta](#bloqueio-de-conta-impl-0021-proposta). Não existe rota que altere os dados ou apague a
   conta de terceiros. Quais sanções existem e quem as aplica continua PENDENTE (OQ-11, DEC-037).
-- No painel, essas ações ficam na seção "Usuários" e a remoção de logo, no detalhe da candidatura
+- No painel, essas ações ficam na seção "Usuários e permissões" e a remoção de logo, no detalhe da candidatura
   ([architecture §11](architecture.md#11-painel-administrativo-appsdashsrc)).
 
 ### Papéis (IMPL-0021)

@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
+
 - Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
 
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
@@ -21,13 +23,17 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
+- Após falha de envio do primeiro e-mail de cadastro, o jogo permite pedir outro link para o mesmo endereço.
 - O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
+- O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
 - O guarda-roupa recupera o visual gratuito equipado ao recarregar ou entrar novamente no mesmo navegador, quando a conta tem a peça desbloqueada.
 
 ### Changed
 
+- A seção **Usuários e permissões** do painel indica onde conceder ou retirar o papel de administrador.
 - Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
 
 ### Added — epílogo e pós-jogo (sessão 11)

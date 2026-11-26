@@ -26,14 +26,15 @@ assert.equal(before.length, 1);
 assert.equal(db.sql("SELECT COUNT(*) AS n FROM lots")[0].n, 8);
 
 const directory = new URL("../../../migrations/", import.meta.url);
-const steps = readdirSync(directory).filter(file => /^(000[6-9]|001[0-5])_.*\.sql$/.test(file)).sort();
-assert.deepEqual(steps.map(file => Number(file.slice(0, 4))), [6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
+const steps = readdirSync(directory).filter(file => /^\d{4}_.*\.sql$/.test(file) && Number(file.slice(0, 4)) > 5).sort();
+assert.deepEqual(steps.map(file => Number(file.slice(0, 4))), steps.map((_, i) => i + 6));
 for (const step of steps) db.migrate(step);
 
 assert.deepEqual(db.sql(linkedRows), before);
 assert.equal(db.sql("SELECT COUNT(*) AS n FROM lots")[0].n, 97);
 assert.equal(db.sql("SELECT COUNT(*) AS n FROM residential_plots")[0].n, 23);
+assert.deepEqual(db.sql("PRAGMA index_info(idx_ngos_updated_id)").map(row => row.name), ["updated_at", "id"]);
 assert.deepEqual(db.sql("PRAGMA foreign_key_check"), []);
 assert.equal(db.sql("PRAGMA integrity_check")[0].integrity_check, "ok");
-console.log("0005 -> 0015: 10 migrations; citizen, session and application preserved; plaza-01 reserved.");
+console.log(`0005 -> ${steps.at(-1).slice(0, 4)}: ${steps.length} migrations; application history index ready; citizen, session and application preserved; plaza-01 reserved.`);
 console.log("NGO lots: 8 -> 97; residential plots: 23; foreign key violations: 0; integrity_check: ok.");

@@ -336,7 +336,7 @@ try {
     await page.getByRole("heading", { level: 1, name: "Candidaturas de ONGs", exact: true }).waitFor();
 
     /* 3. Accounts. */
-    await section(page, "Usuários");
+    await section(page, "Usuários e permissões");
     await rowOf(page, player).waitFor();
     await assertNoPersonalData(page, "users");
     assert.equal(await cell(page, admin, "Nickname").innerText(), `@${admin.nickname} (você)`);
@@ -432,7 +432,7 @@ try {
     await signIn(s.page, second.email);
     await s.page.getByRole("heading", { level: 1, name: NGO_NAME, exact: true }).waitFor();
     assert.equal(new URL(s.page.url()).hash, `#/applications/${NGO}`);
-    await section(s.page, "Usuários");
+    await section(s.page, "Usuários e permissões");
     await rowOf(s.page, second).waitFor();
 
     const { page } = a;
@@ -491,7 +491,7 @@ try {
     assert.ok(!(await page.content()).includes(BLOCK_MESSAGE), "the audit trail never carries the block message");
     await assertNoPersonalData(page, "audit");
     await page.setViewportSize({ width: 390, height: 844 });
-    await section(page, "Usuários");
+    await section(page, "Usuários e permissões");
     await rowOf(page, player).waitFor();
     await fits(page, "users, phone size");
     await shot(page, "7-users-phone");
@@ -504,7 +504,7 @@ try {
     const { page } = locked;
     await page.goto(`${dash.origin}/#users`, { waitUntil: "networkidle" });
     const main = page.getByRole("main");
-    await main.getByRole("heading", { level: 1, name: "Usuários", exact: true }).waitFor();
+    await main.getByRole("heading", { level: 1, name: "Usuários e permissões", exact: true }).waitFor();
     assert.deepEqual([await main.locator('[data-state="accounts-off"]').count(), await main.locator('[data-state="pending"]').count(), await main.getByRole("button").count()], [1, 1, 0]);
     assert.match(await main.innerText(), /PROPOSTA \(IMPL-0021\)[^]*OQ-11/);
     await section(page, "Sistema");

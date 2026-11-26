@@ -133,6 +133,7 @@ export function NpcDialog({
         className="btn btn--primary"
         onClick={() => {
           record(turnIn.id, "turn-in");
+          if (useVila.getState().localActor && !useVila.getState().progress.completed[turnIn.id]) return;
           const next = catalog.quests.some(
             (q) => q.giverNpcId === npcId && questStateIn(catalog, useVila.getState().progress, q.id) === "available"
           );

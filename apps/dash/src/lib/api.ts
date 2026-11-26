@@ -3,7 +3,9 @@
  * cookie the API host sets (`credentials: "include"`); this module never sees it. No account is created here.
  */
 import type {
+  AdminLot,
   ApplicationDetail,
+  ApplicationPage,
   ApplicationStatus,
   ApplicationSummary,
   AuditEvent,
@@ -191,12 +193,18 @@ export function createApi(base: string, fetcher: typeof fetch = fetch, onError: 
       call<{ donation: DonationRow }>("POST", "/admin/donations/external-proof", body),
     config: () => call<Config>("GET", "/config"),
     lots: () => call<{ lots: Lot[] }>("GET", "/lots"),
+    adminLots: () => call<{ lots: AdminLot[] }>("GET", "/admin/lots"),
     requestLink: (email: string) => call<{ ok: true; devLink?: string }>("POST", "/auth/link", { email }),
     verify: (token: string) => call<{ user: Me }>("POST", "/auth/verify", { token }),
     me: () => call<{ user: Me | null }>("GET", "/me"),
     logout: () => call<null>("POST", "/auth/logout", {}),
-    adminList: (status?: ApplicationStatus) =>
-      call<{ applications: ApplicationSummary[] }>("GET", `/admin/applications${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+    adminList: async (status?: ApplicationStatus, before?: string): Promise<Page<ApplicationSummary>> => {
+      const query = new URLSearchParams();
+      if (status) query.set("status", status);
+      if (before) query.set("before", before);
+      const page = await call<ApplicationPage>("GET", `/admin/applications${query.size ? "?" + query : ""}`);
+      return { items: page.applications, next: page.next ?? null };
+    },
     adminGet: async (id: string) => call<ApplicationDetail>("GET", `/admin/applications/${segment(id)}`),
     /** `revision` is the version on screen: a newer resubmission makes the API refuse (409 stale_revision). */
     adminDecide: async (id: string, action: ReviewAction, revision: number, note?: string, checks?: EligibilityChecks) =>
