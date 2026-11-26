@@ -32,7 +32,7 @@ de cartão (G, D, Q, M) são citados aqui. Mudanças de ordem são registradas a
 | Moderação, entrada direta, expansão e vida na Vila (IMPL-0021..0025) | 0.5.0 | — | — | **Entregue** 2026-11-14 (propostas desligadas em produção) | 13–14/11 |
 | Pranchas P01–P15, provador P08 e auditoria técnica (IMPL-0026..0028) | 0.6.0 | P01–P15, P08 | D20 | **Entregue** 2026-11-14 (prévias pagas ocultas; propostas desligadas) | 14/11 |
 | A Vila em quatro anéis, menos neve, níveis da casa da ONG e logotipo em teste (IMPL-0029..0032) | 0.7.0 | — | — | **Entregue** 2026-11-19 (propostas desligadas; sem teste em celular) | 19/11 |
-| Correções pós-0.6.0 (provador P08 e saúde das dependências), visual de blocos, saga v2 | 0.8.0 | P08 (acessibilidade) | D20 | **Entregue** (2026-11-22) | — |
+| Correções pós-0.6.0 (provador P08 e saúde das dependências), visual de blocos, saga v2 | 0.8.0 | P08 (acessibilidade) | D20 | **Entregue** (2026-11-22); revisão jurídica e integração da saga fechadas em 2026-11-26, lacunas de marcos e props de estado em [quests-v2.md §7](docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-26) | — |
 | Visual de voxel: prédios refinados, chão, malha gulosa (IMPL-0035) | 0.9.0 | — | — | **Entregue** (2026-11-22) | — |
 | HUD da ONG e segundo jogo | 0.10.x | P04 completo, P09 | D10, D24 | **Próximo** | 16–19/11 |
 | Doação e badges | 0.11.0 | P01 doação, P15 | D13, D14 | **Bloqueado** (G13 contrato, PEN-004/006) | 20–23/11 |
@@ -102,8 +102,8 @@ Publicadas na 0.8.0 (o número sobe para MINOR porque a janela trouxe funcionali
   a 0.7.0 (2026-11-19; registro em [`docs/reference/releases.md`](docs/reference/releases.md)). Bandeiras seguem como
   estão.
 
-Integrados na mesma janela: os dez livros da saga v2 (PRs #79 a #88, PROPOSTA, desligados; pendências em
-[quests-v2.md §7](docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)) e o visual de blocos
+Integrados na mesma janela: os dez livros da saga v2 (PRs #79 a #88, PROPOSTA, desligados; lacunas conhecidas em
+[quests-v2.md §7](docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-26)) e o visual de blocos
 ([IMPL-0033](docs/decisions/0033-block-look.md)).
 
 ### HUD da ONG e segundo jogo (0.10.x) — próximo
