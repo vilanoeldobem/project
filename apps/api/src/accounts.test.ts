@@ -295,6 +295,24 @@ describe("registration and magic link (P13, OQ-03)", () => {
     expect((await call("POST", "/auth/link", { email: "bia@example.com" })).status).toBe(202);
   });
 
+  it("recovers the same registration with a fresh link after mail service returns", async () => {
+    env.ENVIRONMENT = "staging";
+    const account = { name: "Pessoa Teste", nickname: "teste_qa", city: "Natal", email: "cadastro@example.invalid" };
+    const first = await call("POST", "/auth/register", account);
+    expect([first.status, first.body.error]).toEqual([503, "mail_unavailable"]);
+    const [{ id }] = db.sql("SELECT id FROM users");
+
+    env.RESEND_API_KEY = "test-only";
+    const inbox = stubResend();
+    const retry = await call("POST", "/auth/link", { email: account.email });
+    expect([retry.status, retry.body]).toEqual([202, { ok: true }]);
+    expect(inbox).toHaveLength(1);
+    const link = inbox[0].body.text.split("\n").find(line => line.startsWith("https://"))!;
+    const verified = await call("POST", "/auth/verify", { token: tokenOf(link) });
+    expect([verified.status, verified.body.user.id, verified.body.user.nickname]).toEqual([200, id, account.nickname]);
+    expect(db.sql("SELECT id FROM users")).toEqual([{ id }]);
+  });
+
   it("logs out and deletes the account with its sessions and mission events", async () => {
     const a = await signUp();
     const { cookie, user } = a;
@@ -315,6 +333,17 @@ describe("registration and magic link (P13, OQ-03)", () => {
 });
 
 describe("server XP (P14, DEC-042)", () => {
+  it("refuses a rehearsal progress read if another tab switched the session cookie", async () => {
+    const a = await signUp();
+    const b = await signUp("outra_pessoa", "outra@example.invalid");
+    const asA = { "X-Vila-Account": a.user.id };
+    env.LOCAL_ACCOUNT_ACTIONS = "true";
+    const wrong = await call("GET", "/progress", undefined, b.cookie, ORIGIN, asA);
+    expect([wrong.status, wrong.body]).toEqual([409, { error: "account_changed" }]);
+    expect((await call("GET", "/progress", undefined, a.cookie, ORIGIN, asA)).status).toBe(200);
+    expect((await call("GET", "/progress", undefined, b.cookie)).status).toBe(200);
+  });
+
   it("is idempotent per event and grants a mission's XP once", async () => {
     const a = await signUp();
     const ev = (eventId: string) => ({ missionId: "explore-gifts", eventId });
@@ -517,6 +546,53 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
   }
   const lot = (id: string) => db.sql("SELECT state, ngo_id FROM lots WHERE id = ?", id)[0];
 
+  it("keeps old applications reachable across tied pages and links lots to their current holders", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const oldId = (await apply(applicant, APP)).body.application.id;
+    expect((await decide(oldId, { action: "approve" }, admin)).status).toBe(200);
+    db.sql("UPDATE ngos SET updated_at = '2025-01-01T00:00:00.000Z' WHERE id = ?", oldId);
+    // Historical applications all requested this same lot, and all have the same timestamp.
+    db.sql(`WITH RECURSIVE seq(i) AS (VALUES(1) UNION ALL SELECT i + 1 FROM seq WHERE i < 205)
+      INSERT INTO ngos(id, name, cnpj, status, requested_lot_id, updated_at)
+      SELECT printf('00000000-0000-4000-8000-%012d', i), 'ONG teste', printf('%014d', i),
+             'rejected', 'plaza-03', '2025-01-02T00:00:00.000Z' FROM seq`);
+    const list = (query = "") => call("GET", "/admin/applications" + query, undefined, admin);
+    const first = (await list()).body;
+    const ids = (page: { applications: { id: string }[] }) => page.applications.map((row) => row.id);
+    expect(first.applications).toHaveLength(200);
+    expect(ids(first)).not.toContain(oldId);
+    expect(first.next).toEqual(expect.any(String));
+    const second = (await list("?before=" + encodeURIComponent(first.next))).body;
+    expect(second.next).toBeNull();
+    expect(ids(second)).toHaveLength(6);
+    expect(ids(second).at(-1)).toBe(oldId);
+    expect(new Set([...ids(first), ...ids(second)]).size).toBe(206);
+    const filtered = (await list("?status=rejected")).body;
+    const olderRejected = (await list("?status=rejected&before=" + encodeURIComponent(filtered.next))).body;
+    expect(ids(olderRejected)).toHaveLength(5);
+    expect(ids(olderRejected)).not.toContain(oldId);
+    expect((await list("?before=invalid")).status).toBe(400);
+    expect((await list("?status=published")).body.applications).toEqual([expect.objectContaining({ id: oldId })]);
+    const lots = (await call("GET", "/admin/lots", undefined, admin)).body.lots;
+    expect(lots.find((row: { id: string }) => row.id === "plaza-03")).toMatchObject({ applicationId: oldId, applicationStatus: "published", ngo_name: APP.name });
+  });
+
+  it("shows an unpublished lot holder only to an admin, with no link left after rejection", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, APP)).body.application.id;
+    const adminLot = async () => (await call("GET", "/admin/lots", undefined, admin)).body.lots.find((row: { id: string }) => row.id === "plaza-03");
+    expect((await call("GET", "/admin/lots")).status).toBe(401);
+    expect((await call("GET", "/admin/lots", undefined, applicant.cookie)).status).toBe(403);
+    const publicLot = (await call("GET", "/lots")).body.lots.find((row: { id: string }) => row.id === "plaza-03");
+    expect(publicLot).toMatchObject({ ngo_name: null, ngo_id: null });
+    expect(publicLot).not.toHaveProperty("applicationId");
+    expect(await adminLot()).toMatchObject({ applicationId: id, applicationStatus: "submitted", ngo_name: APP.name });
+    expect((await decide(id, { action: "reject", note: "Documentação incompleta." }, admin)).status).toBe(200);
+    expect(await adminLot()).toMatchObject({ applicationId: null, applicationStatus: null, ngo_name: null });
+  });
+
   it("validates, reserves the lot and refuses a second active application", async () => {
     const a = await signUp();
     const bad = await apply(a, { ...APP, cnpj: "11222333000180" });
@@ -581,6 +657,58 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
     await decide(id, { action: "reject", note: "CNPJ inativo na Receita Federal." }, admin);
     expect(lot("plaza-03")).toEqual({ state: "available", ngo_id: null });
     expect((await apply(applicant, APP)).body.application).toMatchObject({ status: "submitted", revision: 2 });
+  });
+
+  it("preserves the newer editable revision when an old tab submits", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, { ...APP, revision: 0 })).body.application.id;
+    const requestChanges = () => decide(id, { action: "request_changes", note: "Atualize o relatório da organização." }, admin);
+    expect((await requestChanges()).status).toBe(200);
+    const newerName = "Associação revisada";
+    expect((await apply(applicant, { ...APP, name: newerName, revision: 1 })).body.application.revision).toBe(2);
+    expect((await requestChanges()).status).toBe(200);
+    const stale = await apply(applicant, { ...APP, revision: 1, lotId: "plaza-04" });
+    expect([stale.status, stale.body.error]).toEqual([409, "application_changed"]);
+    expect((await call("GET", "/ngo/application", undefined, applicant.cookie)).body.application)
+      .toMatchObject({ id, name: newerName, revision: 2, status: "changes_requested", lotId: "plaza-03" });
+    expect(lot("plaza-04").state).toBe("available");
+    expect(db.sql("SELECT action FROM audit_events WHERE action = 'ngo.resubmit'")).toHaveLength(1);
+  });
+
+  it("recognizes the applicant's saved application when two tabs submit it for the first time", async () => {
+    const applicant = await signUp();
+    const batch = db.batch.bind(db);
+    vi.spyOn(db, "batch").mockImplementationOnce(async (statements) => {
+      expect((await apply(applicant, { ...APP, revision: 0 })).status).toBe(201);
+      return batch(statements);
+    });
+    const other = await apply(applicant, { ...APP, revision: 0, lotId: "plaza-04" });
+    expect([other.status, other.body.error]).toEqual([409, "application_active"]);
+    expect(db.sql("SELECT revision, requested_lot_id FROM ngos")).toEqual([{ revision: 1, requested_lot_id: "plaza-03" }]);
+    expect(lot("plaza-04").state).toBe("available");
+  });
+
+  it("applies the lot, payment preference and audit only for the winning resubmission", async () => {
+    env.DONATIONS_ENABLED = "true";
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, APP)).body.application.id;
+    await decide(id, { action: "request_changes", note: "Atualize o relatório da organização." }, admin);
+    const batch = db.batch.bind(db);
+    const winner = { ...APP, revision: 1, paymentMethod: "external_link", donationUrl: "https://example.org/doar" };
+    vi.spyOn(db, "batch").mockImplementationOnce(async (statements) => {
+      expect((await apply(applicant, winner)).status).toBe(200);
+      return batch(statements);
+    });
+    const loser = await apply(applicant, { ...APP, revision: 1, lotId: "plaza-04", paymentMethod: "abacatepay" });
+    expect([loser.status, loser.body.error]).toEqual([409, "application_changed"]);
+    expect(lot("plaza-03")).toEqual({ state: "application_sent", ngo_id: id });
+    expect(lot("plaza-04").state).toBe("available");
+    expect(db.sql("SELECT payment_method, donation_url FROM ngo_payment_configs WHERE ngo_id = ?", id))
+      .toEqual([{ payment_method: "external_link", donation_url: winner.donationUrl }]);
+    expect(db.sql("SELECT detail FROM audit_events WHERE action = 'ngo.resubmit'"))
+      .toEqual([{ detail: JSON.stringify({ lot: "plaza-03", revision: 2 }) }]);
   });
 
   it("keeps the application (without the applicant link) when the account is deleted", async () => {

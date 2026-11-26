@@ -15,19 +15,20 @@
  * `#applications/<id>` (the link the game builds) opens one application here. An address that names an
  * application that does not exist, or not with a well-formed id, shows "Candidatura não encontrada."
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-import { APPLICATION_STATUSES, type ApplicationDetail, type ApplicationStatus, type ApplicationSummary, lotNumber, type ReviewAction, STATUS_LABEL } from "@vila/shared/accounts/contract";
+import { APPLICATION_STATUSES, type ApplicationDetail, type ApplicationStatus, lotNumber, type ReviewAction, STATUS_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { NGO_TAGS, formatBrDate, type NgoTag } from "@vila/shared/accounts/validate";
 
 import { downloadDocument } from "../lib/files";
 import { actionText, dateTime, FILE_TYPE_LABEL, fileSize } from "../lib/format";
+import { usePaged } from "../lib/hooks";
 import { logoRefusalText, sendDecision, sendLogoRemoval, sendWithdrawal } from "../lib/review";
 import { hrefOf } from "../lib/router";
 import { api } from "../lib/services";
-import { AccountsOff, Confirmation, Field, Notice, PageHead, Status } from "./common";
+import { AccountsOff, Confirmation, Field, Live, Notice, PageHead, Status } from "./common";
 import { NgoPaymentConfig } from "./Donations";
 
 /** `unknown`: the address names one application, but not with a well-formed id (lib/router.ts). */
@@ -66,20 +67,6 @@ function NotFound() {
 }
 
 function ApplicationList({ filter, onFilter }: { filter: ApplicationStatus | ""; onFilter: (s: ApplicationStatus | "") => void }) {
-  const [rows, setRows] = useState<ApplicationSummary[] | null>(null);
-  const [error, setError] = useState("");
-  const load = useCallback(() => {
-    let live = true;
-    setError("");
-    api.adminList(filter || undefined).then(
-      (r) => live && setRows(r.applications),
-      (e) => live && setError(errorText(e))
-    );
-    return () => {
-      live = false;
-    };
-  }, [filter]);
-  useEffect(load, [load]);
   return (
     <>
       <PageHead title="Candidaturas de ONGs" lead="Análise administrativa: só a aprovação publica a casa na Vila (DEC-037). Cada decisão fica na auditoria." />
@@ -90,35 +77,39 @@ function ApplicationList({ filter, onFilter }: { filter: ApplicationStatus | "";
           </button>
         ))}
       </div>
-      <div aria-live="polite">
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        {rows === null ? (
-          !error && <p className="muted">Carregando…</p>
-        ) : rows.length === 0 ? (
-          <p className="muted" data-state="empty">
-            Nenhuma candidatura nesta situação.
-          </p>
-        ) : (
-          <ul className="rows">
-            {rows.map((r) => (
-              <li key={r.id}>
-                <a className="row" href={hrefOf({ section: "applications", id: r.id })}>
-                  <strong>{r.name}</strong>{" "}
-                  <span className="muted">
-                    {r.city} · {r.lotId ? `Terreno ${lotNumber(r.lotId)}` : "sem terreno"} · versão {r.revision}
-                  </span>{" "}
-                  <Status code={r.status}>{STATUS_LABEL[r.status]}</Status>
-                </a>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <ApplicationRows key={filter} filter={filter} />
     </>
+  );
+}
+
+function ApplicationRows({ filter }: { filter: ApplicationStatus | "" }) {
+  const page = usePaged((before) => api.adminList(filter || undefined, before));
+  const rows = page.items;
+  return (
+    <Live loading={page.loading} error={page.error} onRetry={page.retry}>
+      {rows && (rows.length === 0 ? (
+        <p className="muted" data-state="empty">
+          Nenhuma candidatura nesta situação.
+        </p>
+      ) : (
+        <ul className="rows">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <a className="row" href={hrefOf({ section: "applications", id: r.id })}>
+                <strong>{r.name}</strong>{" "}
+                <span className="muted">
+                  {r.city} · {r.lotId ? `Terreno ${lotNumber(r.lotId)}` : "sem terreno"} · versão {r.revision}
+                </span>{" "}
+                <Status code={r.status}>{STATUS_LABEL[r.status]}</Status>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ))}
+      {page.hasMore && (
+        <button className="btn" disabled={page.loading} onClick={page.more}>Carregar mais candidaturas</button>
+      )}
+    </Live>
   );
 }
 

@@ -112,7 +112,13 @@ export function NgoApplicationPanel({ lotId }: { lotId?: string }) {
         onStale={load}
       />
     );
-  return <Wizard initial={initialApplication(app, lotId)} heldLot={app?.lotId} onDone={(a) => (setApp(a), setEditing(false))} />;
+  return (
+    <Wizard initial={initialApplication(app, lotId)} saved={app} onDone={(application, attachments) => {
+      setApp(application);
+      setFiles(attachments);
+      setEditing(false);
+    }} />
+  );
 }
 
 /** What the applicant sees about an application already sent. Exported for the render test. */
@@ -182,7 +188,11 @@ export function ApplicationStatusView({
   );
 }
 
-function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot?: string; onDone: (a: Application) => void }) {
+function Wizard({ initial, saved, onDone }: {
+  initial: NgoApplication;
+  saved: Application | null;
+  onDone: (a: Application, files: ApplicationFile[]) => void;
+}) {
   const [form, setForm] = useState<NgoApplication>(initial);
   const [step, setStep] = useState(1);
   /** The opening date as it is typed (dd/mm/aaaa); the form keeps the ISO day the API stores. */
@@ -190,10 +200,13 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
   const [shown, setShown] = useState<Partial<Record<keyof NgoApplication, string>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [checkSaved, setCheckSaved] = useState(false);
+  const [notice, setNotice] = useState("");
   const [lots, setLots] = useState<LotInfo[]>([]);
   const filesOn = useAccount((s) => s.files);
   const donationsOn = useAccount((s) => s.donations);
   useEffect(() => void fetchLots().then((r) => r && setLots(r.lots)), []);
+  const heldLot = saved?.lotId;
   const available = useMemo(() => LOTS.filter((l) => l.id === heldLot || lots.find((x) => x.id === l.id)?.state === "available"), [lots, heldLot]);
   const validate = () => validateApplication(form, new Date(), donationsOn);
   const { errors } = validate();
@@ -204,6 +217,28 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
     setShown(found);
     if (!Object.keys(found).length) setStep(step + 1);
   };
+  const recover = async () => {
+    setBusy(true);
+    try {
+      const { application, files } = await api.application();
+      if (application === undefined) throw new ApiError(0, "network");
+      if (saved && application?.id === saved.id && application.revision < saved.revision) {
+        setError("A consulta retornou uma versão anterior. Confira novamente para obter a candidatura atual.");
+        return;
+      }
+      if (application && (application.id !== saved?.id || application.revision !== saved.revision || application.status !== saved.status)) {
+        onDone(application, files ?? []);
+      } else {
+        setCheckSaved(false);
+        setError("");
+        setNotice("O envio não aparece na candidatura. Seus dados continuam no formulário para você enviar novamente.");
+      }
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const submit = async () => {
     const { value, errors: found } = validate();
     if (Object.keys(found).length) {
@@ -213,11 +248,19 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
     }
     setBusy(true);
     setError("");
+    setNotice("");
     try {
-      const { application } = await api.submitApplication(value);
+      const { application, files } = await api.submitApplication(value, saved?.revision ?? 0);
+      if (!application) throw new ApiError(0, "network");
       useVila.getState().notify("Candidatura enviada! A administração da Vila vai analisar.");
-      onDone(application);
+      onDone(application, files ?? []);
     } catch (e) {
+      if (e instanceof ApiError && (e.status === 0 || e.status >= 500 ||
+          ["application_active", "application_changed", "application_withdrawn"].includes(e.code))) {
+        setCheckSaved(true);
+        setError("Confira a candidatura salva na Vila para verificar o resultado do envio.");
+        return;
+      }
       if (e instanceof ApiError && Object.keys(e.fields).length) {
         setShown(e.fields as typeof shown);
         setStep(Math.min(...Object.keys(e.fields).map((k) => APPLICATION_STEP[k as keyof NgoApplication] ?? 4)));
@@ -406,13 +449,18 @@ function Wizard({ initial, heldLot, onDone }: { initial: NgoApplication; heldLot
           </>
         )}
         {error && <p className="form__error" role="alert">{error}</p>}
+        {notice && <p role="status">{notice}</p>}
         <div className="actions">
-          {step > 1 && (
-            <button type="button" className="btn" onClick={() => setStep(step - 1)}>
+          {step > 1 && !checkSaved && (
+            <button type="button" className="btn" disabled={busy} onClick={() => setStep(step - 1)}>
               Voltar
             </button>
           )}
-          {step < 4 ? (
+          {checkSaved ? (
+            <button type="button" className="btn btn--primary" disabled={busy} onClick={() => void recover()}>
+              {busy ? "Conferindo…" : "Conferir candidatura salva"}
+            </button>
+          ) : step < 4 ? (
             <button type="button" className="btn btn--primary" onClick={next}>
               Continuar
             </button>

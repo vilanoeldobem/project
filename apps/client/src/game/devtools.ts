@@ -8,6 +8,7 @@ import { remotes } from "../net/multiplayer";
 import { questsEnabled } from "./questsFlag";
 import { questsV2Enabled } from "./questsV2Flag";
 import { sim } from "./sim";
+import { newlyCompletedXp } from "./story-xp";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
 import { type Panel, useVila } from "./store";
 import { QUESTS, questState } from "@vila/shared/game/quests";
@@ -131,6 +132,9 @@ export function installDevtools() {
         ];
       },
       storyManifest: () => ({ length: MANIFEST.length, ids: MANIFEST.map((entry) => entry.id) }),
+      /** XP gained between two progress snapshots, from the canonical manifest; the verifiers compare it exactly. */
+      newlyCompletedXp: (before, after) =>
+        newlyCompletedXp(before as Record<string, true>, after as Record<string, true>, MANIFEST),
       storyWorld: () => ({
         npcs: STORY_WORLD.npcs.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z, book: npc.book })),
         spawns: STORY_WORLD.spawns.map((spawn) => ({ id: spawn.id, questId: spawn.questId, x: spawn.x, z: spawn.z, book: spawn.book })),

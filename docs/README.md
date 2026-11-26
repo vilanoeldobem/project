@@ -1,7 +1,7 @@
 # Documentação técnica — Vila Noel do Bem
 
-> **Status:** Implementado (0.5.0) · **Versão do software:** 0.5.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-14
+> **Status:** Implementado (0.9.0) · **Versão do software:** 0.9.0 · **Schema D1:** v15 ·
+> **Atualizado em:** 2026-11-26
 > **Fonte de verdade:** código em `apps/` (`client`, `api`, `server`, `site`, `dash`), `packages/shared/` e `migrations/`;
 > produto em `vilanoeldobem/docs`
 
@@ -33,6 +33,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [reference/environment.md](reference/environment.md) — hora real de São Paulo, clima procedural, efeitos e presets.
 - [reference/display-boards.md](reference/display-boards.md) — placas da Vila (PROPOSTA): quatro formatos, tamanho das artes e como prepará-las.
 - [reference/quests.md](reference/quests.md) — missões narrativas `quests-v1` (PROPOSTA): estados, eventos, flags, NPCs, painel de doação e portão da casa publicada.
+- [reference/quests-v2.md](reference/quests-v2.md) — saga das Longas Noites (PROPOSTA, desligada): runtime, 10 livros, epílogo/pós-jogo, minijogos, marcos e lacunas.
 - [reference/storage.md](reference/storage.md) — schema D1, migrations, estados; arquivos de ONG no R2.
 - [reference/versioning.md](reference/versioning.md) — SemVer, schema, changelog e release.
 - [reference/releases.md](reference/releases.md) — registro de cada publicação em produção: commit, hosts, schema, R2, bandeiras e conferências.
@@ -47,8 +48,9 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 - [implementation/ngo-files-reconciliation-report.md](implementation/ngo-files-reconciliation-report.md) — conciliação de arquivos, galeria e respostas às revisões.
 - [implementation/progress-persistence-report.md](implementation/progress-persistence-report.md) — persistência concorrente e correção do progresso divergente ao entrar na conta.
 - [implementation/ngo-withdrawal-report.md](implementation/ngo-withdrawal-report.md) — retirada de ONG publicada (PROPOSTA, desligada): porte para o fluxo canônico e respostas à revisão.
+- [implementation/story-v2-legal-review.md](implementation/story-v2-legal-review.md) — revisão jurídica e de conteúdo da saga v2 (checklist, não parecer).
 
-## Status por área (2026-11-14)
+## Status por área (2026-11-26)
 
 | Área | Status | Referência |
 |---|---|---|
@@ -65,7 +67,7 @@ Organizada segundo [Diátaxis](https://diataxis.fr/): cada documento responde a 
 | Vida na Vila: personagens e animais que andam | Implementado como PROPOSTA, visível (sem dado, rota nem mensagem novos); elenco, nomes, rotinas e falas PENDENTES do dono do produto (OQ-20) (IMPL-0025) | [architecture](reference/architecture.md#25-vida-na-vila-impl-0025-proposta) · [content](reference/content.md) · [0025](decisions/0025-village-life.md) |
 | Contas (P13, link mágico) | Implementado, desligado em produção até a revisão LGPD / ECA Digital (IMPL-0011) | [api](reference/api.md#contas-impl-0011) |
 | Painel administrativo (`apps/dash`, `dash.*`) | Publicado em 2026-11-12, contas desligadas (IMPL-0015): análise de ONGs, terrenos, auditoria, contas, sistema; doações, indicadores e documentos só como avisos | [architecture](reference/architecture.md#11-painel-administrativo-appsdashsrc) |
-| Missões e XP | Parcial (local; no servidor só com conta); `quests-v1` atrás de flags, conteúdo PROPOSTA (PEN-025) | [quests](reference/quests.md) · [domain-model](explanation/domain-model.md) |
+| Missões e XP | Parcial (local; no servidor só com conta); `quests-v1` e `quests-v2` atrás de flags, conteúdo PROPOSTA (PEN-025); a saga v2 tem 484 entradas/11.400 XP e lacunas de marcos e props de estado | [quests](reference/quests.md) · [quests-v2](reference/quests-v2.md) · [domain-model](explanation/domain-model.md) |
 | Doações | Não implementado (bloqueado, IMPL-0002) | [0002](decisions/0002-donations-disabled-until-partner-contract.md) |
 | Chat, avatar, skins, badges | Planejado | [ROADMAP](../ROADMAP.md) |
 

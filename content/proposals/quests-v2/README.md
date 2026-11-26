@@ -1,7 +1,9 @@
 # quests-v2: saga das Longas Noites
 
-> **Status: PROPOSTA.** O runtime do spine e os dez livros estão implementados atrás de `VITE_QUESTS_V2_ENABLED` /
-> `?quests2=1` no cliente e `QUESTS_V2_ENABLED` na API, desligados em produção e homologação.
+> **Status: PROPOSTA.** O runtime do spine, os dez livros, o epílogo/pós-jogo e a arte/minijogos estão implementados
+> atrás de `VITE_QUESTS_V2_ENABLED` / `?quests2=1` no cliente e `QUESTS_V2_ENABLED` na API, desligados em produção e
+> homologação. As fatias 13 e 14 foram fechadas em 2026-11-26; restam as lacunas de marcos e props de estado
+> registradas em [`docs/reference/quests-v2.md` §7](../../../docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-26).
 > Nada aqui é decisão de produto: catálogo, XP e conteúdo continuam pendentes de aprovação.
 
 ## Índice das fatias
@@ -24,7 +26,8 @@
 | 13 | revisão jurídica | `story/13-revisao-juridica` | auditoria e correções |
 | 14 | integração | `story/14-integracao` | playthrough, índice, documentação |
 
-Estado: fatias 00 a 11 integradas; 12 e 13 pendentes; 14 em andamento ([quests-v2.md §7](../../../docs/reference/quests-v2.md#7-estado-das-fatias-2026-11-22)). A fatia 11 edita o próprio módulo, os testes, a UI do Caderno e a ponte mínima em `catalog.ts`/`progress.ts`; a sessão 12 segue pendente. Cada livro edita somente
+Estado: fatias 00 a 14 integradas; a 12 entrou no #105 (land #106) e as 13/14 em 2026-11-26. Nada aqui é decisão de
+produto: catálogo, XP e conteúdo continuam pendentes de aprovação. Cada livro edita somente
 o próprio módulo, a própria pasta de conteúdo, os próprios 4 props, os próprios 6 cosméticos e os próprios testes; a
 única exceção compartilhada é uma linha no `CHANGELOG.md` em `[Unreleased]`.
 

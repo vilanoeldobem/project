@@ -109,7 +109,9 @@ describe("administrative NGO withdrawal", () => {
     expect(await (await call("GET", "/ngo/application", undefined, "owner")).json()).toMatchObject(result);
     expect(await (await call("GET", `/admin/applications/${NGO}`)).json()).toMatchObject(result);
     expect(await (await call("GET", "/admin/applications?status=withdrawn")).json()).toMatchObject({ applications: [{ id: NGO, status: "withdrawn" }] });
-    expect(await (await call("GET", "/admin/applications?status=published")).json()).toEqual({ applications: [] });
+    expect(await (await call("GET", "/admin/applications?status=published")).json()).toEqual({ applications: [], next: null });
+    const adminLots = await (await call("GET", "/admin/lots")).json() as { lots: { id: string }[] };
+    expect(adminLots.lots.find((row) => row.id === "plaza-01")).toMatchObject({ applicationId: null, applicationStatus: null, ngo_name: null });
     for (const path of [`/ngos/${NGO}`, `/ngos/${NGO}/logo`, `/ngos/${NGO}/photos/${PHOTO}`]) {
       for (const method of ["GET", "HEAD"]) {
         const res = await publicGet(path, method); expect(res.status).toBe(404); expect(res.headers.get("Cache-Control")).toBe("no-store");

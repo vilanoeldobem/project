@@ -192,3 +192,166 @@ describe("pending account erasure", () => {
     expect(page.useAccount.getState().user).toBeNull();
   });
 });
+
+describe("local account actions (#65)", () => {
+  function localPage(guest = false) {
+    let queue: Promise<unknown> = Promise.resolve();
+    vi.stubGlobal("navigator", { locks: { request: (_: string, callback: () => void) => {
+      const acquired = queue.then(callback);
+      queue = acquired.catch(() => undefined);
+      return acquired;
+    } } });
+    stubPage({ accounts: true, quests: true, localAccountActions: true });
+    vi.stubGlobal("location", { hash: "", search: "", hostname: "localhost", pathname: "/" });
+    if (guest) vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(
+      new URL(url).pathname === "/config" ? { accounts: true, quests: true, localAccountActions: true } : { user: null }
+    )));
+  }
+
+  it("never applies the comparison on a public hostname, even with a misconfigured API", async () => {
+    stubPage({ accounts: true, localAccountActions: true });
+    const page = await load(false);
+    await page.initAccount();
+    expect(page.useVila.getState().localActor).toBeNull();
+    page.useVila.getState().open({ kind: "memory" });
+    expect(page.useVila.getState().panel.kind).toBe("memory");
+  });
+
+  it("releases local exploration when the API switches the comparison off, even if session restoration is slow", async () => {
+    localPage();
+    let finish!: () => void;
+    const slow = new Promise<void>(resolve => { finish = resolve; });
+    const page = await load(false);
+    vi.spyOn(page.api, "config").mockResolvedValue({ accounts:true, localAccountActions:false });
+    vi.spyOn(page.api, "me").mockImplementation(async () => { await slow; return { user:null }; });
+    const startup = page.initAccount();
+    await Promise.resolve();
+    expect(page.useAccount.getState()).toMatchObject({ configReady:true, ready:false });
+    expect(page.useVila.getState().localActor).toBeNull();
+    finish();
+    await startup;
+  });
+
+  it("leaves exploration available and captures only mission completion, including the last narrative turn-in", async () => {
+    localPage(true);
+    const page = await load(true);
+    await page.initAccount();
+    const state = page.useVila.getState;
+    state().open({ kind: "lot", lotId: "lot-01" });
+    state().record("causes-visit-lot", "lot-01");
+    expect(state().panel.kind).toBe("lot");
+    expect(state().progress.xp).toBe(0);
+    state().claimMission("causes-visit-lot");
+    expect(state().panel).toEqual({ kind: "account", reason: "mission" });
+    state().close();
+    for (const event of ["accept", "bell-pine-north", "bell-pine-east", "turn-in"]) state().record("harness-bells", event);
+    expect(state().panel).toEqual({ kind: "account", reason: "mission" });
+    expect(state().progress.counters["harness-bells"]).toBe(2);
+    expect(state().progress.seen["harness-bells:turn-in"]).toBeUndefined();
+    expect(state().progress.xp).toBe(0);
+  });
+
+  it("validates the current account, recalculates a ready mission and credits it once", async () => {
+    localPage();
+    const page = await load(true);
+    await page.initAccount();
+    const state = page.useVila.getState;
+    state().record("causes-visit-lot", "lot-01");
+    page.useAccount.getState().setUser({ ...USER, id: "another" });
+    state().claimMission("causes-visit-lot");
+    expect(state().progress.xp).toBe(0);
+    page.useAccount.getState().setUser(USER);
+    state().claimMission("causes-visit-lot");
+    state().claimMission("causes-visit-lot");
+    expect(state().progress.xp).toBe(20);
+    for (const event of ["accept", "bell-pine-north", "bell-pine-east", "turn-in", "turn-in"]) state().record("harness-bells", event);
+    expect(state().progress.xp).toBe(40);
+  });
+
+  it("reserves persisted guest progress once across two already open tabs signing in as different accounts", async () => {
+    localPage();
+    guestProgress();
+    const a = await load(true);
+    const b = await load(true);
+    expect(a.useVila.getState().progress.seen).toEqual(b.useVila.getState().progress.seen);
+    let waiting = 0;
+    let release!: () => void;
+    const concurrent = new Promise<void>(resolve => { release = resolve; });
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const path = new URL(url).pathname;
+      if (path === "/config") return Response.json({ accounts:true, quests:true, localAccountActions:true });
+      if (path === "/me") return Response.json({ user:null });
+      if (path === "/progress" && ++waiting < 2) await concurrent;
+      else release();
+      return Response.json({ progress:EMPTY });
+    }));
+    await Promise.all([a.initAccount(), b.initAccount()]);
+    await Promise.all([a.signedIn(USER), b.signedIn({ ...USER, id:"other" })]);
+    const counts = [a.useAccount.getState().localImportCount, b.useAccount.getState().localImportCount].sort();
+    expect(counts).toEqual([0, 2]);
+    expect([...storage.keys()].filter(k => k.startsWith("vila.local-import.v1:"))).toHaveLength(1);
+    expect(posted).toEqual([]);
+  });
+
+  it("a stale visitor tab records only its new gesture after another tab reserved the old events", async () => {
+    localPage(true);
+    guestProgress();
+    const a = await load(true);
+    const b = await load(true);
+    await Promise.all([a.initAccount(), b.initAccount()]);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ progress: EMPTY })));
+    await a.signedIn(USER);
+    b.useVila.getState().record("explore-gifts","fresh");
+    expect(b.useVila.getState().progress.seen).toEqual({ "explore-gifts:fresh":true });
+    await b.signedIn({ ...USER, id:"other" });
+    expect(JSON.parse(storage.get("vila.local-import.v1:other")!)).toEqual([{ missionId:"explore-gifts", eventId:"fresh" }]);
+  });
+
+  it("recovers an interrupted reservation for its original owner, even when the next login belongs to someone else", async () => {
+    localPage(true);
+    guestProgress();
+    const a = await load(true);
+    const b = await load(true);
+    await Promise.all([a.initAccount(), b.initAccount()]);
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ progress: EMPTY })));
+    const write = vi.spyOn(localStorage, "setItem").mockImplementationOnce((key, value) => {
+      // Source was atomically reserved. The next storage write, to A's holding queue, fails.
+      storage.set(key, value);
+      write.mockImplementationOnce(() => { throw new Error("unavailable"); });
+    });
+    await a.signedIn(USER);
+    expect(a.useAccount.getState().sync).toBe("pending");
+    await b.signedIn({ ...USER, id:"other" });
+    expect(b.useAccount.getState().localImportCount).toBe(0);
+    expect(JSON.parse(storage.get("vila.local-import.v1:u1")!)).toHaveLength(2);
+    expect(storage.has("vila.local-import.v1:other")).toBe(false);
+  });
+
+  it("verifying a link does not credit a guest event that would complete a mission on this account", async () => {
+    localPage();
+    storage.set("vila.progress.v2", JSON.stringify({ ...EMPTY, counters: { "explore-gifts": 1 }, seen: { "explore-gifts:second": true } }));
+    const first = { ...EMPTY, counters: { "explore-gifts": 1 }, seen: { "explore-gifts:first": true } };
+    const done = { xp: 30, counters: { "explore-gifts": 2 }, completed: { "explore-gifts": true }, seen: { ...first.seen, "explore-gifts:second": true } };
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const path = new URL(url).pathname;
+      requests.push(path);
+      if (path === "/auth/verify") return Response.json({ user: USER });
+      if (path === "/config") return Response.json({ accounts: true, localAccountActions: true });
+      return Response.json({ progress: path === "/progress/events" ? done : first });
+    }));
+    window.__vilaLoginToken = "local-test-link";
+    const page = await load(false);
+    await page.initAccount();
+    expect(requests).toEqual(["/config", "/auth/verify", "/progress"]);
+    expect(page.useVila.getState().progress.xp).toBe(0);
+    expect(page.useVila.getState().panel.kind).toBe("none");
+    expect(page.useAccount.getState().localImportCount).toBe(1);
+    await page.confirmLocalImport("another");
+    expect(requests).not.toContain("/progress/events");
+    await page.confirmLocalImport(USER.id);
+    expect(page.useVila.getState().progress.xp).toBe(30);
+    await page.confirmLocalImport(USER.id);
+    expect(requests.filter(path => path === "/progress/events")).toHaveLength(1);
+  });
+});

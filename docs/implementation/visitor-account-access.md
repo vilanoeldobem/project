@@ -71,3 +71,18 @@ Para a ação escolhida, registrem **o último gesto livre e o primeiro efeito p
 ## Ensaio local do retorno ao Pix
 
 O visitante escolhe um destino e um valor e abre a conta. Ao voltar pelo link de e-mail no mesmo navegador, o jogo busca as condições atuais e pede uma confirmação explícita. Para uma casa, a retomada exige a ONG original no mesmo terreno. Cancelar antes de confirmar não gera Pix. Uma repetição após resposta incerta reusa a chave da mesma operação. Abrir o link em outro aparelho sem o rascunho requer uma nova escolha. O rascunho local vence em 30 minutos e não contém QR Code nem credencial. O ensaio de navegador usa os serviços simulados em loopback.
+
+## Ensaio local das quatro ações da #65
+
+Este ramo permite que Augusto, Pedro, Bernard e Nicolas comparem o fluxo de visitante com uma alternativa que pede conta. A exploração da Vila continua livre. A regra de lançamento depende da decisão registrada em OQ-02.
+
+Para comparar os modos em uma cópia descartável, aplique as migrações locais com `pnpm db:migrate:local`. Em um terminal, execute `pnpm --filter @vila/api run dev --var LOCAL_ACCOUNT_ACTIONS:true`. Em outro, execute `pnpm --filter @vila/client dev` e abra o endereço local indicado pelo Vite. Confira `http://localhost:8787/config` antes de começar. A resposta deve conter `localAccountActions: true`. Para repetir com o comportamento habitual, reinicie a API sem o argumento extra. A configuração normal de staging e produção ignora a opção.
+
+| Ação a revisar | Critério observável |
+|---|---|
+| Abrir o link de uma ONG | Uma ONG fictícia publicada precisa ter link próprio validado. O visitante recebe o convite para entrar. É preciso escolher o link outra vez depois do login. O clique não gera doação nem título. |
+| Equipar um visual | Com uma peça liberada, provar mantém o visual atual. Testar fechar o convite de conta, retornar e equipar a peça escolhida. |
+| Concluir missão | Comparar uma missão por exploração com a entrega final de uma missão narrativa. Conferir os eventos e o XP antes de entrar, ao confirmar e ao repetir. |
+| Iniciar minijogo | Usar o catálogo e o atalho de uma casa fictícia. Fechar o convite e voltar ao mapa. Entrar e repetir a ação para iniciar uma vez. |
+
+O ensaio usa contas e dados fictícios. A migração do progresso do visitante também deve ser avaliada quando ele e a conta têm etapas parciais da mesma missão.

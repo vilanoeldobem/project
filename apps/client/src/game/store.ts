@@ -4,13 +4,22 @@ import { type Look } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, sanitizeLookIn, unlockedIdsIn } from "@vila/shared/game/cosmetics-v2";
 import { DEFAULT_APPEARANCE, sanitizeAppearance, type Appearance } from "@vila/shared/game/appearance";
 import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
-import { applyEventIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { applyEventIn, catalogFor, questStateIn } from "@vila/shared/game/quests-v2/catalog";
 import { events } from "./events";
 import { questsEnabled } from "./questsFlag";
 import { questsV2Enabled } from "./questsV2Flag";
 import { planWalk, sim } from "./sim";
 import { cancelDraft } from "../lib/pix-draft";
 import type { StoryGameId } from "./story-games";
+
+export const LOCAL_ACCOUNT_ACTIONS = {
+  donation: "abrir a página de pagamento da ONG",
+  wardrobe: "equipar este item",
+  mission: "concluir a missão",
+  game: "começar o minijogo",
+} as const;
+export type LocalAction = keyof typeof LOCAL_ACCOUNT_ACTIONS;
+type MissionClaim = { eventId: string; title: string; owner: string | null };
 
 export type Panel =
   | { kind: "none" }
@@ -29,7 +38,7 @@ export type Panel =
   | { kind: "finale" }
   | { kind: "indicators" }
   | { kind: "environment" }
-  | { kind: "account"; then?: Panel }
+  | { kind: "account"; then?: Panel; reason?: LocalAction }
   | { kind: "ngo"; lotId?: string }
   | { kind: "npc"; npcId: string }
   // The expanded village (IMPL-0024, PROPOSTA): panels that say what is there today, no purchase and no claim.
@@ -98,19 +107,42 @@ export function sameNearby(a: Nearby, b: Nearby): boolean {
 // person never inherits it (IMPL-0011).
 const STORAGE_KEY = "vila.progress.v2";
 
-function loadProgress(): Progress {
+export function loadGuestProgress(): Progress {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...EMPTY_PROGRESS, ...(JSON.parse(raw) as Progress) };
+    if (raw) {
+      const { localReservation: _reservation, ...progress } = JSON.parse(raw);
+      return { ...EMPTY_PROGRESS, ...progress };
+    }
   } catch {
     /* storage unavailable: progress lives for this session only */
   }
   return EMPTY_PROGRESS;
 }
 
+/** Atomically detach the source before crediting a browser import. If interrupted, only its named owner can receive it. */
+export function reserveLocalGuest(owner: string, receive: (id: string, progress: Progress) => void) {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return;
+  const stored = JSON.parse(raw) as Progress & { localReservation?: { owner: string; progress: Progress } };
+  const { localReservation, ...current } = stored;
+  if (localReservation) receive(localReservation.owner, localReservation.progress);
+  if (Object.keys(current.seen ?? {}).length) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...EMPTY_PROGRESS, localReservation: { owner, progress: current } }));
+    receive(owner, current);
+  }
+  if (localReservation || Object.keys(current.seen ?? {}).length) localStorage.removeItem(STORAGE_KEY);
+}
+
 function saveProgress(p: Progress) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(p));
+    let serialized = JSON.stringify(p);
+    if (useVila.getState().localActor) {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      const reservation = saved && JSON.parse(saved).localReservation;
+      if (reservation) serialized = JSON.stringify({ ...p, localReservation: reservation });
+    }
+    localStorage.setItem(STORAGE_KEY, serialized);
   } catch {
     /* same as above */
   }
@@ -223,6 +255,11 @@ function rememberMoved() {
 }
 
 interface VilaState {
+  /** Provided only by the opt-in local account rehearsal. Read the current session at each gesture. */
+  localActor: (() => string | null) | null;
+  requireLocalAccount: (reason: LocalAction) => boolean;
+  missionClaims: Record<string, MissionClaim>;
+  claimMission: (missionId: string) => void;
   /** The panel over the village; the visitor arrives with none (IMPL-0022). */
   panel: Panel;
   menu: MenuView | null;
@@ -294,9 +331,35 @@ let toastSeq = 0;
  */
 export const TOAST_MS = 3_600;
 
-const initialProgress = loadProgress();
+const initialProgress = loadGuestProgress();
 
 export const useVila = create<VilaState>((set, get) => ({
+  localActor: null,
+  missionClaims: {},
+  requireLocalAccount: (reason) => {
+    const actor = get().localActor;
+    if (!actor) return true;
+    const owner = actor();
+    if (owner && get().progressOwner === owner) return true;
+    if (owner) {
+      get().notify("Aguarde o carregamento do progresso da sua conta e tente novamente.");
+      return false;
+    }
+    set({ panel: { kind: "account", reason }, menu: null });
+    return false;
+  },
+  claimMission: (missionId) => {
+    const s = get();
+    const claim = s.missionClaims[missionId];
+    if (!claim || !s.localActor || !s.requireLocalAccount("mission")) return;
+    if (!claim.owner || claim.owner !== s.localActor() || claim.owner !== s.progressOwner) return;
+    // Nothing is replayed on login. A second click recomputes eligibility with today's progress and catalog.
+    const { progress, completed } = nextEvent(s.progress, missionId, claim.eventId);
+    const remaining = { ...s.missionClaims };
+    delete remaining[missionId];
+    set({ missionClaims: remaining });
+    if (completed && progress !== s.progress) finishEvent(s.progress, progress, completed);
+  },
   panel: { kind: "none" },
   menu: null,
   openMenu: () => {
@@ -344,7 +407,16 @@ export const useVila = create<VilaState>((set, get) => ({
   skyView: false,
   setSkyView: (skyView) => set({ skyView }),
   // A panel is the layer on top: opening one (also from code, like a sign-in link) closes the menu.
-  open: (panel) => set({ panel, menu: null }),
+  open: (panel) => {
+    if (get().localActor && (panel.kind === "memory" || panel.kind === "story-game")) {
+      if (!get().requireLocalAccount("game")) return;
+      if (panel.questId && questStateIn(catalogFor(questsEnabled(), questsV2Enabled()), get().progress, panel.questId) !== "active") {
+        get().notify("Esta missão já não está ativa na sua conta. Consulte o diário.");
+        return;
+      }
+    }
+    set({ panel, menu: null });
+  },
   close: () => {
     const panel = get().panel;
     const review = panel.kind === "account" ? panel.then : panel;
@@ -374,27 +446,41 @@ export const useVila = create<VilaState>((set, get) => ({
     set({ zoom, skyView: false });
   },
   record: (missionId, eventId) => {
-    const previous = get().progress;
-    const { progress, completed } = questsV2Enabled()
-      ? applyEventIn(catalogFor(questsEnabled(), true), previous, missionId, eventId)
-      : applyEvent(previous, missionId, eventId);
-    if (progress === get().progress) return;
-    if (get().progressOwner === null) saveProgress(progress);
-    set({ progress });
-    if (completed) {
-      // New cosmetics are a consequence of the mission, never a separate reward roll (PROPOSTA).
-      const before = unlockedIdsIn(COSMETICS_V2, previous);
-      const fresh = COSMETICS_V2.filter((c) => unlockedIdsIn(COSMETICS_V2, progress).has(c.id) && !before.has(c.id));
-      const names = fresh.map((c) => c.name);
-      const summary = names.length > 3 ? `${names.slice(0, 3).join(", ")} e mais ${names.length - 3}` : names.join(", ");
-      get().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${summary}` : ""));
-      events.emit({ type: "mission", missionId: completed.id });
+    let previous = get().progress;
+    if (get().localActor && get().progressOwner === null) {
+      // Another tab may already have reserved the guest's events. Never write an older snapshot back over it.
+      const canonical = loadGuestProgress();
+      if (Object.keys(previous.seen).length !== Object.keys(canonical.seen).length ||
+          Object.keys(previous.seen).some(key => !canonical.seen[key])) {
+        previous = canonical;
+        set({ progress: previous, missionClaims: {} });
+      }
     }
+    const { progress, completed } = nextEvent(previous, missionId, eventId);
+    if (progress === previous) return;
+    const actor = get().localActor;
+    if (completed && actor) {
+      const owner = actor();
+      if (eventId === "turn-in") {
+        if (!get().requireLocalAccount("mission")) return;
+      } else {
+        // Proximity and panel visits may fire every frame. Exploration stays available and no XP is given here.
+        const claims = get().missionClaims;
+        if (claims[missionId]?.owner === owner && claims[missionId]?.eventId === eventId) return;
+        set({ missionClaims: { ...claims, [missionId]: { eventId, title: completed.title, owner } } });
+        get().notify("Seu último objetivo está pronto. Abra Missões para confirmar a conclusão.");
+        return;
+      }
+    }
+    finishEvent(previous, progress, completed);
   },
-  adoptProgress: (p, owner) => set({ progress: p, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, get().look, p) }),
+  adoptProgress: (progress, owner) => set({
+    progress, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, get().look, progress),
+    ...(get().progressOwner !== owner && { missionClaims: {} }),
+  }),
   restoreGuest: () => {
-    const p = loadProgress();
-    set({ progress: p, progressOwner: null, look: sanitizeLookIn(COSMETICS_V2, get().look, p) });
+    const p = loadGuestProgress();
+    set({ progress: p, progressOwner: null, missionClaims: {}, look: sanitizeLookIn(COSMETICS_V2, get().look, p) });
   },
   clearGuest: () => saveProgress(EMPTY_PROGRESS),
   notify: (text) => set({ toast: { id: ++toastSeq, text } }),
@@ -402,5 +488,23 @@ export const useVila = create<VilaState>((set, get) => ({
     if (get().toast?.id === id) set({ toast: null });
   },
 }));
+
+export function nextEvent(progress: Progress, missionId: string, eventId: string) {
+  return questsV2Enabled()
+    ? applyEventIn(catalogFor(questsEnabled(), true), progress, missionId, eventId)
+    : applyEvent(progress, missionId, eventId);
+}
+
+function finishEvent(previous: Progress, progress: Progress, completed?: Mission | null) {
+  if (useVila.getState().progressOwner === null) saveProgress(progress);
+  useVila.setState({ progress });
+  if (!completed) return;
+  const before = unlockedIdsIn(COSMETICS_V2, previous);
+  const fresh = COSMETICS_V2.filter((c) => unlockedIdsIn(COSMETICS_V2, progress).has(c.id) && !before.has(c.id));
+  const names = fresh.map((c) => c.name);
+  const summary = names.length > 3 ? `${names.slice(0, 3).join(", ")} e mais ${names.length - 3}` : names.join(", ");
+  useVila.getState().notify(missionDoneMessage(completed) + (fresh.length ? ` · Novo visual: ${summary}` : ""));
+  events.emit({ type: "mission", missionId: completed.id });
+}
 
 const missionDoneMessage = (m: Mission) => `Missão concluída: ${m.title} · +${m.xp} XP`;

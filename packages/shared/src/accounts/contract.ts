@@ -104,6 +104,21 @@ export interface FileUploaded {
 /** Row of `GET /admin/applications`. */
 export type ApplicationSummary = Pick<Application, "id" | "name" | "city" | "status" | "revision" | "lotId" | "createdAt" | "updatedAt">;
 
+export interface ApplicationPage {
+  applications: ApplicationSummary[];
+  /** Opaque cursor to pass as `before` with the same status filter. */
+  next: string | null;
+}
+
+/** Admin-only lot projection. Historical requests for the lot are excluded. */
+export interface AdminLot {
+  id: string;
+  state: string;
+  ngo_name: string | null;
+  applicationId: string | null;
+  applicationStatus: ApplicationStatus | null;
+}
+
 /** One `audit_events` row as the admin routes return it: `actor` is a nickname (null once the account is gone). */
 export interface AuditEntry {
   at: string;
