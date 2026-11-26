@@ -21,6 +21,8 @@ Cada versão indica o schema D1 que entrega.
 
 - Conferência local de cobranças Pix em ambos os sentidos para um extrato declarado completo, com período de criação e ambiente explícitos. [Guia de conciliação](docs/reference/indicator-sources.md#extrato-completo-conferir-os-identificadores-nos-dois-sentidos).
 
+- Conferência local de valores, destinatários e estados das linhas de um extrato Pix por arquivo JSON. [Guia de conciliação](docs/reference/indicator-sources.md#conferir-as-linhas-de-um-extrato-normalizado).
+
 ### Fixed
 
 - Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
