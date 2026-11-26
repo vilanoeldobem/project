@@ -159,7 +159,10 @@ export function Wardrobe({ shopId }: { shopId?: string }) {
                       onClick={(e) => {
                         // The button turns into a disabled "Em uso": keep the keyboard on this card's preview.
                         const thumb = e.currentTarget.closest("li")?.querySelector<HTMLButtonElement>(".item-card__thumb");
-                        setLook(wearIn(COSMETICS_V2, look, c.id));
+                        const current = useVila.getState();
+                        if (!current.requireLocalAccount("wardrobe")) return;
+                        if (!isUnlockedIn(COSMETICS_V2, c, current.progress)) return;
+                        setLook(wearIn(COSMETICS_V2, current.look, c.id));
                         requestAnimationFrame(() => thumb?.focus());
                         setPreview(null);
                         setPaidNote(false);

@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
+
 - Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
 
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
@@ -22,6 +24,8 @@ Cada versão indica o schema D1 que entrega.
 ### Fixed
 
 - O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
+- Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
+- Após falha de envio do primeiro e-mail de cadastro, o jogo permite pedir outro link para o mesmo endereço.
 - O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
 - O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
@@ -35,6 +39,18 @@ Cada versão indica o schema D1 que entrega.
 ### Added — epílogo e pós-jogo (sessão 11)
 
 - **Epílogo e pós-jogo**: o catálogo v2 passa a exigir b05-c3-04 para as seis cadeias do epílogo v1, adiciona as 12 missões pg1-01 a pg2-06 (240 XP) e a cena final com créditos, atrás das flags existentes; sem migration e sem mudança de bandeira.
+
+### Added — saga v2, revisão jurídica e integração (fatias 13 e 14)
+
+- **Revisão jurídica**: relatório de risco dos 10 livros, epílogo e cosméticos em
+  [docs/implementation/story-v2-legal-review.md](docs/implementation/story-v2-legal-review.md); correção de uma
+  fala de `b01-s4`; nenhuma bandeira mudou.
+- **Integração**: `validate-slice.mjs --all` valida 484 entradas, 20 correntes de marcos, 60 cosméticos e 50 props
+  (40 de livro e 10 de saga) em uma chamada; o playthrough completo corrigiu `count-stars-west`, que coincidia com
+  Dona Geada, e separou o aviso de desmontagem do React do erro de página no verificador. O XP de cada livro é
+  comparado exatamente com as entradas concluídas, o portão `b05-c3-04` é conferido na sessão v2 e o progresso dos
+  dez livros abre a cena final no `verify-quests.mjs`. Índice, referência, ROADMAP e `tasks/todo.md` alinhados ao
+  estado real. A saga continua desligada em produção e homologação.
 
 ## [0.9.0] - 2026-11-22
 

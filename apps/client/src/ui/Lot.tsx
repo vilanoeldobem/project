@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { lotNumber } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
@@ -6,7 +6,7 @@ import { formatBrl } from "@vila/shared/donations/contract";
 import { questState } from "@vila/shared/game/quests";
 import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
-import { useAccount } from "../lib/account";
+import { api, useAccount } from "../lib/account";
 import { fetchGallery, fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type GalleryPhoto, type LotInfo, type NgoDonationInfo } from "../lib/api";
 import { UNLISTED_LABEL } from "../lib/lots";
 import { BlobImage } from "./BlobImage";
@@ -50,6 +50,11 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   /** `undefined` while loading, `null` when the read failed. */
   const [donationInfo, setDonationInfo] = useState<NgoDonationInfo | null | undefined>(undefined);
   const [donationError, setDonationError] = useState("");
+  const liveRecipient = useRef<string | null>(null);
+  useEffect(() => {
+    liveRecipient.current = ngoId;
+    return () => { liveRecipient.current = null; };
+  }, [ngoId]);
   const [opening, setOpening] = useState(false);
   /** The public gallery: `undefined` while loading, `null` when unreadable, `[]` when the API has photos off. */
   const [photos, setPhotos] = useState<GalleryPhoto[] | null | undefined>(undefined);
@@ -69,11 +74,20 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
 
   /** The payment happens on the NGO's own page; the Vila only logs that it sent the visitor there. */
   const openExternal = async () => {
+    const vila = useVila.getState();
     if (!ngoId) return;
+    if (vila.localActor && (liveRecipient.current !== ngoId || donationInfo?.ngoId !== ngoId ||
+        !donationInfo.enabled || donationInfo.method !== "external_link")) {
+      setDonationError("As informações desta casa mudaram. Reabra a casa para ver o destinatário atual.");
+      return;
+    }
+    if (!vila.requireLocalAccount("donation")) return;
+    const actor = vila.localActor?.() ?? undefined;
     setOpening(true);
     setDonationError("");
     try {
-      const result = await recordDonationRedirect(ngoId);
+      const result = actor ? await api.localRedirect(ngoId, actor) : await recordDonationRedirect(ngoId);
+      if (actor && (liveRecipient.current !== ngoId || useVila.getState().localActor?.() !== actor)) return;
       if (result?.url) window.open(result.url, "_blank", "noopener,noreferrer");
       else setDonationError("O link desta ONG não está disponível agora.");
     } catch (e) {
