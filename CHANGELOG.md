@@ -31,6 +31,7 @@ Cada versão indica o schema D1 que entrega.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
 - O verificador do epílogo com a v2 ligada aproxima o avatar do NPC v1 pelo nome, para não confundir Dona Filó com a Tia Bete do Livro I.
 - O guarda-roupa recupera o visual gratuito equipado ao recarregar ou entrar novamente no mesmo navegador, quando a conta tem a peça desbloqueada.
+- O painel de indicadores informa quando faltam medições de visitantes, visitas por casa de ONG e jogadores por minijogo. O contador da praça informa conexões ativas.
 
 ### Changed
 
