@@ -295,6 +295,24 @@ describe("registration and magic link (P13, OQ-03)", () => {
     expect((await call("POST", "/auth/link", { email: "bia@example.com" })).status).toBe(202);
   });
 
+  it("recovers the same registration with a fresh link after mail service returns", async () => {
+    env.ENVIRONMENT = "staging";
+    const account = { name: "Pessoa Teste", nickname: "teste_qa", city: "Natal", email: "cadastro@example.invalid" };
+    const first = await call("POST", "/auth/register", account);
+    expect([first.status, first.body.error]).toEqual([503, "mail_unavailable"]);
+    const [{ id }] = db.sql("SELECT id FROM users");
+
+    env.RESEND_API_KEY = "test-only";
+    const inbox = stubResend();
+    const retry = await call("POST", "/auth/link", { email: account.email });
+    expect([retry.status, retry.body]).toEqual([202, { ok: true }]);
+    expect(inbox).toHaveLength(1);
+    const link = inbox[0].body.text.split("\n").find(line => line.startsWith("https://"))!;
+    const verified = await call("POST", "/auth/verify", { token: tokenOf(link) });
+    expect([verified.status, verified.body.user.id, verified.body.user.nickname]).toEqual([200, id, account.nickname]);
+    expect(db.sql("SELECT id FROM users")).toEqual([{ id }]);
+  });
+
   it("logs out and deletes the account with its sessions and mission events", async () => {
     const a = await signUp();
     const { cookie, user } = a;
