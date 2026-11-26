@@ -97,7 +97,7 @@ publicada, `newest-house-visit` e a cena continuam bloqueadas.
 | 11, epílogo e pós-jogo | integrada: 12 pós-jogo/240 XP, portão `b05-c3-04`, cena final e créditos; o epílogo jogável continua sendo o catálogo v1 |
 | 12, arte, cosméticos e minijogos | integrada (PR #105, land #106): 9 minijogos, Jogo da Memória como o décimo, 10 props de saga, guia de estilo e 60 cosméticos; o verificador cobre os objetivos de minijogo |
 | 13, revisão jurídica | integrada: relatório em [story-v2-legal-review.md](../implementation/story-v2-legal-review.md); uma correção de texto em `b01-s4`; nenhuma bandeira mudou |
-| 14, integração | integrada: `validate-slice.mjs --all`, playthrough completo no navegador (correção de `count-stars-west`, que coincidia com Dona Geada, e separação do aviso de desmontagem do React no verificador), índice, ROADMAP, CHANGELOG e esta referência |
+| 14, integração | integrada: `validate-slice.mjs --all`, playthrough completo no navegador (correção de `count-stars-west`, que coincidia com Dona Geada, separação do aviso de desmontagem do React e XP comparado exatamente com as entradas concluídas), portão `b05-c3-04` conferido na sessão v2, progresso dos dez livros levado ao `verify-quests.mjs` com a v2 ligada e cena final aberta; índice, ROADMAP, CHANGELOG e esta referência |
 
 Lacunas conhecidas, registradas pelos livros e ainda sem código:
 

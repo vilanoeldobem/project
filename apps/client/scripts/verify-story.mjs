@@ -57,6 +57,29 @@ const story = (page) => page.evaluate(() => window.__vila.extra.story());
 const world = (page) => page.evaluate(() => window.__vila.extra.storyWorld());
 const teleport = (page, x, z) => page.evaluate(([px, pz]) => window.__vila.extra.teleport(px, pz), [x, z]);
 const stateOf = async (page, id) => (await story(page)).find((entry) => entry.id === id)?.state;
+const EPILOGUE_GATE = "b05-c3-04";
+const EPILOGUE_ROOTS = ["harness-bells", "market-invitations", "frozen-mailbox", "lake-lanterns", "tree-promise-visit"];
+
+async function expectEpilogueLocked(page) {
+  const entries = await story(page);
+  if (entries.find((entry) => entry.id === EPILOGUE_GATE)?.state === "completed") fail(`epilogue gate: ${EPILOGUE_GATE} completed before Book V`);
+  for (const id of EPILOGUE_ROOTS) {
+    const state = entries.find((entry) => entry.id === id)?.state;
+    if (state !== "locked") fail(`epilogue ${id}: expected locked before ${EPILOGUE_GATE}, got ${state}`);
+  }
+}
+
+async function expectEpilogueOpen(page) {
+  const entries = await story(page);
+  if (entries.find((entry) => entry.id === EPILOGUE_GATE)?.state !== "completed") fail(`epilogue gate: ${EPILOGUE_GATE} not completed after Book V`);
+  for (const id of EPILOGUE_ROOTS) {
+    const state = entries.find((entry) => entry.id === id)?.state;
+    if (state !== "available") fail(`epilogue ${id}: expected available after ${EPILOGUE_GATE}, got ${state}`);
+  }
+  const bough = entries.find((entry) => entry.id === "welcome-bough")?.state;
+  if (bough !== "locked") fail(`epilogue welcome-bough: expected locked before story-page-delivery, got ${bough}`);
+}
+
 const seen = (page, questId, eventId) => page.evaluate(([q, e]) => Boolean(window.__vila.progress().seen[`${q}:${e}`]), [questId, eventId]);
 const waitSeen = (page, questId, eventId) =>
   page.waitForFunction(([q, e]) => Boolean(window.__vila.progress().seen[`${q}:${e}`]), [questId, eventId], { timeout: 15000 });
@@ -169,7 +192,7 @@ async function playBook(page, book, seed) {
     if (needed.size > 0) await page.evaluate((ids) => window.__vila.extra.seedStory(ids), [...needed]);
     await page.waitForTimeout(300);
   }
-  const baseline = await page.evaluate(() => window.__vila.progress().xp);
+  const baseline = await page.evaluate(() => window.__vila.progress());
   let storyWorld = await world(page);
   for (let step = 0; step < 200; step++) {
     entries = await story(page);
@@ -201,13 +224,16 @@ async function playBook(page, book, seed) {
   const final = await story(page);
   const incomplete = final.filter((entry) => entry.book === book && ["main", "regional", "side"].includes(entry.kind) && entry.state !== "completed");
   if (incomplete.length > 0) fail(`book-${book}: unfinished ${incomplete.map((entry) => `${entry.id}:${entry.state}`).join(", ")}`);
-  const xp = (await page.evaluate(() => window.__vila.progress().xp)) - baseline;
-  const expected = narrative.reduce((sum, entry) => sum + entry.xp, 0);
-  // The four quick missions are always active and can complete incidentally while a book is played (a gift
-  // picked up on the way, a memory win); their 110 XP are legitimate, and the 33 book quests are checked above.
-  const incidental = xp - expected;
-  if (incidental < 0 || incidental > 110) fail(`book-${book}: XP delta ${xp}, expected ${expected} (up to +110 from quick missions)`);
-  else if (incidental > 0) console.log(`note: book-${book}: +${incidental} XP from quick missions`);
+  const finalProgress = await page.evaluate(() => window.__vila.progress());
+  const xp = finalProgress.xp - baseline.xp;
+  const granted = await page.evaluate(
+    ([before, after]) => window.__vila.extra.newlyCompletedXp(before, after),
+    [baseline.completed, finalProgress.completed]
+  );
+  if (granted.unknown.length > 0) fail(`book-${book}: completed ids missing from the manifest: ${granted.unknown.join(", ")}`);
+  const incidental = granted.quick.reduce((sum, entry) => sum + entry.xp, 0);
+  if (xp !== granted.total) fail(`book-${book}: XP delta ${xp}, expected ${granted.total} from completed entries (${incidental} from quick missions)`);
+  else if (incidental > 0) console.log(`note: book-${book}: +${incidental} XP from quick missions (${granted.quick.map((entry) => entry.id).join(", ")})`);
 }
 
 async function playPostgame(page) {
@@ -236,10 +262,13 @@ async function playPostgame(page) {
   }
 }
 
-function runEpilogue() {
+function runEpilogue({ stateFile, v2 = false } = {}) {
   const script = new URL("./verify-quests.mjs", import.meta.url).pathname;
+  const env = { ...process.env };
+  if (stateFile) env.VILA_STORY_PROGRESS = stateFile;
+  if (v2) env.VILA_STORY_V2 = "1";
   try {
-    execFileSync(process.execPath, [script, url, apiUrl], { stdio: "inherit", env: process.env });
+    execFileSync(process.execPath, [script, url, apiUrl], { stdio: "inherit", env });
   } catch {
     fail("epilogue: verify-quests.mjs failed");
   }
@@ -251,8 +280,15 @@ try {
   if (slice === "epilogue") runEpilogue();
   else if (slice === "postgame") await playPostgame(page);
   else if (slice === "all") {
-    for (let book = 1; book <= 10; book++) await playBook(page, book, false);
-    runEpilogue();
+    for (let book = 1; book <= 10; book++) {
+      await playBook(page, book, false);
+      if (book === 4) await expectEpilogueLocked(page);
+      if (book === 5) await expectEpilogueOpen(page);
+    }
+    await page.waitForTimeout(300);
+    const stateFile = `${out}story-progress.json`;
+    await page.context().storageState({ path: stateFile });
+    runEpilogue({ stateFile, v2: true });
     await playPostgame(page);
   } else {
     const match = /^book-(\d{1,2})$/.exec(slice);

@@ -40,8 +40,10 @@ Cada versão indica o schema D1 que entrega.
   fala de `b01-s4`; nenhuma bandeira mudou.
 - **Integração**: `validate-slice.mjs --all` valida 484 entradas, 20 correntes de marcos, 60 cosméticos e 50 props
   (40 de livro e 10 de saga) em uma chamada; o playthrough completo corrigiu `count-stars-west`, que coincidia com
-  Dona Geada, e separou o aviso de desmontagem do React do erro de página no verificador. Índice, referência,
-  ROADMAP e `tasks/todo.md` alinhados ao estado real. A saga continua desligada em produção e homologação.
+  Dona Geada, e separou o aviso de desmontagem do React do erro de página no verificador. O XP de cada livro é
+  comparado exatamente com as entradas concluídas, o portão `b05-c3-04` é conferido na sessão v2 e o progresso dos
+  dez livros abre a cena final no `verify-quests.mjs`. Índice, referência, ROADMAP e `tasks/todo.md` alinhados ao
+  estado real. A saga continua desligada em produção e homologação.
 
 ## [0.9.0] - 2026-11-22
 
