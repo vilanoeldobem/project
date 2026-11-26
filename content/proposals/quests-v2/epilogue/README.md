@@ -50,4 +50,4 @@ node apps/client/scripts/verify-story.mjs http://localhost:8799 postgame
 
 ## Divergência registrada
 
-A referência antiga dizia que a sessão não editaria `catalog.ts`. A ponte exige uma edição mínima nesse arquivo para aplicar o portão de `b05-c3-04` e ordenar livros, epílogo e pós-jogo. O `quests.ts`, o `world.ts` v1 e os arquivos do PR #63 continuam intactos. A prova `verify-story.mjs all` segue presa nos minijogos da saga, que pertencem à sessão 12.
+A referência antiga dizia que a sessão não editaria `catalog.ts`. A ponte exige uma edição mínima nesse arquivo para aplicar o portão de `b05-c3-04` e ordenar livros, epílogo e pós-jogo. O `quests.ts`, o `world.ts` v1 e os arquivos do PR #63 continuam intactos. A prova `verify-story.mjs all` cobre os minijogos da saga, o portão `b05-c3-04` na sessão v2 e a abertura da cena final; o progresso dos dez livros é levado ao `verify-quests.mjs` com a v2 ligada.
