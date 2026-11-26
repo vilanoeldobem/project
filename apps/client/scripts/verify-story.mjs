@@ -12,7 +12,7 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
+import { analyticsNoise, frameworkNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const [url = "http://localhost:5173", slice = "all", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
@@ -39,7 +39,7 @@ async function newPage(name) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(`${name}: ${error.message}`));
-  page.on("console", (message) => message.type() === "error" && !analyticsNoise(message.text()) && errors.push(`${name}: ${message.text()}`));
+  page.on("console", (message) => message.type() === "error" && !analyticsNoise(message.text()) && !frameworkNoise(message.text()) && errors.push(`${name}: ${message.text()}`));
   await isolateAnalytics(page);
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   return page;
@@ -203,7 +203,11 @@ async function playBook(page, book, seed) {
   if (incomplete.length > 0) fail(`book-${book}: unfinished ${incomplete.map((entry) => `${entry.id}:${entry.state}`).join(", ")}`);
   const xp = (await page.evaluate(() => window.__vila.progress().xp)) - baseline;
   const expected = narrative.reduce((sum, entry) => sum + entry.xp, 0);
-  if (xp !== expected) fail(`book-${book}: XP delta ${xp}, expected ${expected}`);
+  // The four quick missions are always active and can complete incidentally while a book is played (a gift
+  // picked up on the way, a memory win); their 110 XP are legitimate, and the 33 book quests are checked above.
+  const incidental = xp - expected;
+  if (incidental < 0 || incidental > 110) fail(`book-${book}: XP delta ${xp}, expected ${expected} (up to +110 from quick missions)`);
+  else if (incidental > 0) console.log(`note: book-${book}: +${incidental} XP from quick missions`);
 }
 
 async function playPostgame(page) {

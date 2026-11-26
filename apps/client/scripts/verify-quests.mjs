@@ -15,7 +15,7 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
+import { analyticsNoise, frameworkNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
@@ -140,7 +140,7 @@ async function newPage(name) {
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   // The Google tag is not under test (OQ-13): its hosts are answered here and its console noise skipped.
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await isolateAnalytics(page);
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   return page;

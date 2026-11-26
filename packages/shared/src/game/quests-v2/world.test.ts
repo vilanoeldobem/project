@@ -25,4 +25,17 @@ describe("story world", () => {
     expect(ALL_WORLD.spawns).toHaveLength(V1_WORLD.spawns.length + STORY_WORLD.spawns.length);
     expect(ALL_WORLD.interactions).toHaveLength(V1_WORLD.interactions.length + STORY_WORLD.interactions.length);
   });
+
+  it("keeps a non-talk objective from sharing a spot with a character", () => {
+    // Within 0.5 the closer-centre rule falls back to priority, and a character beats the objective.
+    for (const interaction of STORY_WORLD.interactions) {
+      if (interaction.kind === "talk") continue;
+      for (const npc of ALL_WORLD.npcs) {
+        expect(
+          Math.hypot(npc.x - interaction.x, npc.z - interaction.z),
+          `${interaction.id}/${npc.id}`
+        ).toBeGreaterThan(0.5);
+      }
+    }
+  });
 });
