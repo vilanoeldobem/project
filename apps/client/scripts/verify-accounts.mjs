@@ -326,13 +326,17 @@ async function openLink(page, link, signedIn, who) {
   if (new URL(page.url()).hash.includes("login")) errors.push(`${who}: login token left in the address bar`);
 }
 
-/** Fills the game's sign-up form; returns the dev link without opening it. Accounts are created in the game only. */
-async function register(page, nickname, email) {
+async function fillRegistration(page, nickname, email) {
   await click(page.getByRole("button", { name: "Entrar ou criar conta" }));
   await page.getByLabel("Nome *").fill(`Pessoa ${nickname}`);
   await page.getByLabel("Nickname *").fill(nickname);
   await page.getByLabel("Cidade *").fill("Recife");
   await page.getByLabel("E-mail *").fill(email);
+}
+
+/** Returns the game's dev link without opening it. Accounts are created in the game only. */
+async function register(page, nickname, email) {
+  await fillRegistration(page, nickname, email);
   await authBudget();
   await click(page.getByRole("button", { name: "Criar conta", exact: true }));
   const link = await devLink(page, nickname);
@@ -342,6 +346,30 @@ async function register(page, nickname, email) {
 
 async function signUp(page, nickname, email) {
   await openLink(page, await register(page, nickname, email), page.getByRole("button", { name: `Sua conta: ${nickname}` }), nickname);
+}
+
+// This page exercises the UI when registration reserved the nickname but sending the first link failed.
+// The normal sign-up and sign-in checks below use real Worker responses.
+{
+  const recovery = await newPage("registration after mail failure");
+  const email = "retorno@example.invalid";
+  await recovery.evaluate((api) => {
+    const send = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      if (init?.method === "POST" && String(input) === api + "/auth/register")
+        return Response.json({ error: "mail_unavailable" }, { status: 503 });
+      if (init?.method === "POST" && String(input) === api + "/auth/link")
+        return Response.json({ ok: true }, { status: 202 });
+      return send(input, init);
+    };
+  }, BUILD_API);
+  await fillRegistration(recovery, "retorno_qa", email);
+  await click(recovery.getByRole("button", { name: "Criar conta", exact: true }));
+  if (await recovery.getByLabel("E-mail da sua conta").inputValue({ timeout: API_WAIT }) !== email)
+    errors.push("registration: recovery did not keep the address for the link request");
+  await click(recovery.getByRole("button", { name: "Enviar link de acesso" }));
+  await recovery.getByRole("heading", { name: "Confira seu e-mail" }).waitFor({ timeout: API_WAIT });
+  await recovery.context().close();
 }
 
 // 1. Applicant (game): local progress first, then sign-up (progress migrates), then the application.

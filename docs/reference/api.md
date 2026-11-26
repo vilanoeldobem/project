@@ -424,6 +424,10 @@ pt-BR, texto e HTML, sem rastreio nem marketing.
 
 O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 
+Uma falha no envio pode ocorrer depois da criação da conta. Ao receber `503 mail_unavailable` no
+cadastro, o jogo abre a entrada por e-mail com o endereço preenchido para pedir outro link por
+`POST /auth/link`. A confirmação mantém a resposta genérica da rota.
+
 ### Missões e XP no servidor (P14, DEC-040, DEC-042)
 
 | Método e rota | Corpo | Resposta |
