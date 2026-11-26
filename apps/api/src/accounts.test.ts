@@ -647,6 +647,19 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
     expect(db.sql("SELECT action FROM audit_events WHERE action = 'ngo.resubmit'")).toHaveLength(1);
   });
 
+  it("recognizes the applicant's saved application when two tabs submit it for the first time", async () => {
+    const applicant = await signUp();
+    const batch = db.batch.bind(db);
+    vi.spyOn(db, "batch").mockImplementationOnce(async (statements) => {
+      expect((await apply(applicant, { ...APP, revision: 0 })).status).toBe(201);
+      return batch(statements);
+    });
+    const other = await apply(applicant, { ...APP, revision: 0, lotId: "plaza-04" });
+    expect([other.status, other.body.error]).toEqual([409, "application_active"]);
+    expect(db.sql("SELECT revision, requested_lot_id FROM ngos")).toEqual([{ revision: 1, requested_lot_id: "plaza-03" }]);
+    expect(lot("plaza-04").state).toBe("available");
+  });
+
   it("applies the lot, payment preference and audit only for the winning resubmission", async () => {
     env.DONATIONS_ENABLED = "true";
     const applicant = await signUp();

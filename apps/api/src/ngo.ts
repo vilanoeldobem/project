@@ -222,7 +222,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
     // Blocked while this was being sent (IMPL-0021): nothing was written, and the reason is not the lot.
     if (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()) throw new HttpError(403, "session_blocked");
     const active = await myApplication(env, user.id);
-    if (active && ACTIVE.includes(active.status) && active.revision !== revision) throw new HttpError(409, "application_active");
+    if (active && ACTIVE.includes(active.status) && (!current || active.revision !== revision)) throw new HttpError(409, "application_active");
     const dup = await db.prepare("SELECT id FROM ngos WHERE cnpj = ? AND id != ?").bind(value.cnpj, ngoId).first();
     if (dup) throw new HttpError(409, "cnpj_in_use", { cnpj: "Já existe uma candidatura com esse CNPJ." });
     // The application moved on while this was being sent (a file was added or removed, IMPL-0017): not the lot's fault.
