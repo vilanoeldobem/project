@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Conferência local de valores, destinatários e estados das linhas de um extrato Pix por arquivo JSON. [Guia de conciliação](docs/reference/indicator-sources.md#conferir-as-linhas-de-um-extrato-normalizado).
+
 - Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
 
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
