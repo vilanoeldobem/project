@@ -117,6 +117,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
   const current = await myApplication(env, user.id);
   if (current?.withdrawn_at) throw new HttpError(409, "application_withdrawn");
   if (current && ACTIVE.includes(current.status)) throw new HttpError(409, "application_active");
+  // Clients that edited a known revision cannot overwrite a newer round of requested changes.
+  if (body.revision !== undefined && body.revision !== (current?.revision ?? 0)) throw new HttpError(409, "application_changed");
 
   const lot = await db.prepare("SELECT id, state, ngo_id FROM lots WHERE id = ?").bind(value.lotId).first<{ id: string; state: string; ngo_id: string | null }>();
   const ngoId = current?.id ?? newId();
@@ -130,19 +132,22 @@ export async function submitApplication(request: Request, env: Env, today = new 
   ];
   const now = new Date().toISOString();
   const revision = current ? current.revision + 1 : 1;
+  // A new applicant has a fresh id. Resubmissions share an id and can race for the same revision.
+  const writeToken = current ? newId() : null;
+  const applied = writeToken ? "id = ? AND file_write_token = ?" : "id = ?";
+  const appliedParams = writeToken ? [ngoId, writeToken] : [ngoId];
   const LOT_HELD = "EXISTS (SELECT 1 FROM lots WHERE id = ? AND ngo_id = ?)";
   // The applicant is not erasing the account and was not blocked meanwhile (IMPL-0021): checked again in SQL.
   const EDITABLE = "status IN ('changes_requested', 'rejected') AND NOT EXISTS (SELECT 1 FROM users u WHERE u.id = ngos.applicant_id AND (u.files_deleting = 1 OR u.blocked = 1))";
   /*
    * One transaction where every write is guarded by the previous one: reserve the lot (only if the lot is
    * free and the application is still in the state we read) → write the application (only if the lot is
-   * now ours) → release an old lot and audit (only if the application now has the new revision). A lost
+   * now ours) → release an old lot and audit (only if this submission wrote the application). A lost
    * race makes the guards false and nothing is written; foreign keys are checked at commit, so a new row
    * may be referenced by the lot before it exists in the same transaction.
    */
   const statements = [db.prepare("PRAGMA defer_foreign_keys = true")];
   if (current) {
-    const writeToken = newId();
     statements.push(
       db.prepare(
         `UPDATE lots SET state = 'application_sent', ngo_id = ? WHERE id = ? AND (state = 'available' OR ngo_id = ?)
@@ -159,15 +164,15 @@ export async function submitApplication(request: Request, env: Env, today = new 
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ngo_payment_configs'"
     ).first())) {
       statements.push(db.prepare(`UPDATE ngo_payment_configs SET sub_account_id = NULL, link_validated = 0, updated_at = ?
-        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND file_write_token = ?)`)
-        .bind(now, ngoId, ngoId, writeToken));
+        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE ${applied})`)
+        .bind(now, ngoId, ...appliedParams));
     }
     if (current.requested_lot_id && current.requested_lot_id !== value.lotId)
       statements.push(
         db.prepare(
           `UPDATE lots SET state = 'available', ngo_id = NULL WHERE id = ? AND ngo_id = ? AND state != 'published'
-             AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ? AND status = 'submitted')`
-        ).bind(current.requested_lot_id, ngoId, ngoId, revision)
+             AND EXISTS (SELECT 1 FROM ngos WHERE ${applied})`
+        ).bind(current.requested_lot_id, ngoId, ...appliedParams)
       );
   } else {
     statements.push(
@@ -185,8 +190,8 @@ export async function submitApplication(request: Request, env: Env, today = new 
   }
   statements.push(
     db.prepare(
-      "INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ? AND status = 'submitted')"
-    ).bind(newId(), user.id, current ? "ngo.resubmit" : "ngo.submit", `ngo:${ngoId}`, JSON.stringify({ lot: value.lotId, revision }), ngoId, revision)
+      `INSERT INTO audit_events (id, actor, action, subject, detail) SELECT ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM ngos WHERE ${applied})`
+    ).bind(newId(), user.id, current ? "ngo.resubmit" : "ngo.submit", `ngo:${ngoId}`, JSON.stringify({ lot: value.lotId, revision }), ...appliedParams)
   );
   // IMPL-0023 (PROPOSTA): with donations on, the requested payment mode is kept for the admin's review. Off,
   // preferences stay untouched; a change of holder still revokes its old verification above.
@@ -194,14 +199,14 @@ export async function submitApplication(request: Request, env: Env, today = new 
     const method = value.paymentMethod ?? "abacatepay";
     const url = method === "external_link" ? value.donationUrl ?? "" : "";
     statements.push(
-      db.prepare("INSERT OR IGNORE INTO ngo_payment_configs (ngo_id, payment_method, donation_url) SELECT id, ?, ? FROM ngos WHERE id = ? AND revision = ?").bind(method, url, ngoId, revision)
+      db.prepare(`INSERT OR IGNORE INTO ngo_payment_configs (ngo_id, payment_method, donation_url) SELECT id, ?, ? FROM ngos WHERE ${applied}`).bind(method, url, ...appliedParams)
     );
     // An older client or a form that loaded with donations off sends no preference. Keep any existing one.
     if (body.paymentMethod !== undefined) statements.push(
       db.prepare(`UPDATE ngo_payment_configs SET payment_method = ?, donation_url = ?,
         link_validated = CASE WHEN payment_method = ? AND donation_url = ? THEN link_validated ELSE 0 END, updated_at = ?
-        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE id = ? AND revision = ?)`)
-        .bind(method, url, method, url, now, ngoId, ngoId, revision)
+        WHERE ngo_id = ? AND EXISTS (SELECT 1 FROM ngos WHERE ${applied})`)
+        .bind(method, url, method, url, now, ngoId, ...appliedParams)
     );
   }
   let written = 0;
@@ -217,7 +222,7 @@ export async function submitApplication(request: Request, env: Env, today = new 
     // Blocked while this was being sent (IMPL-0021): nothing was written, and the reason is not the lot.
     if (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()) throw new HttpError(403, "session_blocked");
     const active = await myApplication(env, user.id);
-    if (active && ACTIVE.includes(active.status) && active.revision !== revision) throw new HttpError(409, "application_active");
+    if (active && ACTIVE.includes(active.status) && (!current || active.revision !== revision)) throw new HttpError(409, "application_active");
     const dup = await db.prepare("SELECT id FROM ngos WHERE cnpj = ? AND id != ?").bind(value.cnpj, ngoId).first();
     if (dup) throw new HttpError(409, "cnpj_in_use", { cnpj: "Já existe uma candidatura com esse CNPJ." });
     // The application moved on while this was being sent (a file was added or removed, IMPL-0017): not the lot's fault.

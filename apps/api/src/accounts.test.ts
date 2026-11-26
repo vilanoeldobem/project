@@ -648,6 +648,58 @@ describe("NGO application and admin review (P12, DEC-015, DEC-037)", () => {
     expect((await apply(applicant, APP)).body.application).toMatchObject({ status: "submitted", revision: 2 });
   });
 
+  it("preserves the newer editable revision when an old tab submits", async () => {
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, { ...APP, revision: 0 })).body.application.id;
+    const requestChanges = () => decide(id, { action: "request_changes", note: "Atualize o relatório da organização." }, admin);
+    expect((await requestChanges()).status).toBe(200);
+    const newerName = "Associação revisada";
+    expect((await apply(applicant, { ...APP, name: newerName, revision: 1 })).body.application.revision).toBe(2);
+    expect((await requestChanges()).status).toBe(200);
+    const stale = await apply(applicant, { ...APP, revision: 1, lotId: "plaza-04" });
+    expect([stale.status, stale.body.error]).toEqual([409, "application_changed"]);
+    expect((await call("GET", "/ngo/application", undefined, applicant.cookie)).body.application)
+      .toMatchObject({ id, name: newerName, revision: 2, status: "changes_requested", lotId: "plaza-03" });
+    expect(lot("plaza-04").state).toBe("available");
+    expect(db.sql("SELECT action FROM audit_events WHERE action = 'ngo.resubmit'")).toHaveLength(1);
+  });
+
+  it("recognizes the applicant's saved application when two tabs submit it for the first time", async () => {
+    const applicant = await signUp();
+    const batch = db.batch.bind(db);
+    vi.spyOn(db, "batch").mockImplementationOnce(async (statements) => {
+      expect((await apply(applicant, { ...APP, revision: 0 })).status).toBe(201);
+      return batch(statements);
+    });
+    const other = await apply(applicant, { ...APP, revision: 0, lotId: "plaza-04" });
+    expect([other.status, other.body.error]).toEqual([409, "application_active"]);
+    expect(db.sql("SELECT revision, requested_lot_id FROM ngos")).toEqual([{ revision: 1, requested_lot_id: "plaza-03" }]);
+    expect(lot("plaza-04").state).toBe("available");
+  });
+
+  it("applies the lot, payment preference and audit only for the winning resubmission", async () => {
+    env.DONATIONS_ENABLED = "true";
+    const applicant = await signUp();
+    const admin = await asAdmin();
+    const id = (await apply(applicant, APP)).body.application.id;
+    await decide(id, { action: "request_changes", note: "Atualize o relatório da organização." }, admin);
+    const batch = db.batch.bind(db);
+    const winner = { ...APP, revision: 1, paymentMethod: "external_link", donationUrl: "https://example.org/doar" };
+    vi.spyOn(db, "batch").mockImplementationOnce(async (statements) => {
+      expect((await apply(applicant, winner)).status).toBe(200);
+      return batch(statements);
+    });
+    const loser = await apply(applicant, { ...APP, revision: 1, lotId: "plaza-04", paymentMethod: "abacatepay" });
+    expect([loser.status, loser.body.error]).toEqual([409, "application_changed"]);
+    expect(lot("plaza-03")).toEqual({ state: "application_sent", ngo_id: id });
+    expect(lot("plaza-04").state).toBe("available");
+    expect(db.sql("SELECT payment_method, donation_url FROM ngo_payment_configs WHERE ngo_id = ?", id))
+      .toEqual([{ payment_method: "external_link", donation_url: winner.donationUrl }]);
+    expect(db.sql("SELECT detail FROM audit_events WHERE action = 'ngo.resubmit'"))
+      .toEqual([{ detail: JSON.stringify({ lot: "plaza-03", revision: 2 }) }]);
+  });
+
   it("keeps the application (without the applicant link) when the account is deleted", async () => {
     const applicant = await signUp();
     await apply(applicant, APP);

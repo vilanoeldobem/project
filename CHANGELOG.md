@@ -21,6 +21,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
 - Após falha de envio do primeiro e-mail de cadastro, o jogo permite pedir outro link para o mesmo endereço.
 - O painel informa o limite de 100 caracteres do nome da beneficiária ao criar uma subconta da AbacatePay para a parceira global ou para uma ONG.
 - O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.

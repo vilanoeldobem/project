@@ -93,7 +93,8 @@ export const api = {
     call<{ progress: Progress }>("POST", "/progress/events", { accountId: owner, events }),
   /** `files` is missing in the answer of an API older than IMPL-0017. */
   application: () => call<Pick<OwnApplication, "application"> & { files?: ApplicationFile[] }>("GET", "/ngo/application"),
-  submitApplication: (a: NgoApplication) => call<{ application: Application }>("POST", "/ngo/application", { ...a, accountId: accountId() }),
+  submitApplication: (a: NgoApplication, revision: number) =>
+    call<{ application: Application; files?: ApplicationFile[] }>("POST", "/ngo/application", { ...a, accountId: accountId(), revision }),
   /**
    * Sends a file of the caller's application (IMPL-0017): the body is the file itself, so the account goes in a
    * header. (The copy is for `fetch`, which takes a view of a plain `ArrayBuffer` only.)
