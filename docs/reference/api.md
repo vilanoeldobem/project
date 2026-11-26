@@ -424,6 +424,10 @@ pt-BR, texto e HTML, sem rastreio nem marketing.
 
 O log nunca traz endereço, link, chave nem a mensagem de erro do Resend.
 
+Uma falha no envio pode ocorrer depois da criação da conta. Ao receber `503 mail_unavailable` no
+cadastro, o jogo abre a entrada por e-mail com o endereço preenchido para pedir outro link por
+`POST /auth/link`. A confirmação mantém a resposta genérica da rota.
+
 ### Missões e XP no servidor (P14, DEC-040, DEC-042)
 
 | Método e rota | Corpo | Resposta |
@@ -498,6 +502,11 @@ apagar `.progress-smoke-seed.sql` e encerrar o Worker após a prova. As flags ac
 |---|---|
 | `GET /ngo/application` | `{application, files}` (a da própria conta) ou `{application: null, files: []}` |
 | `POST /ngo/application` | `201 {application, files}` (primeira) ou `200 {application, files}` (reenvio); corpo com `accountId` e os campos abaixo |
+
+O jogo inclui `revision` no envio, com `0` para a primeira candidatura ou a versão que a pessoa abriu para editar.
+Se uma candidatura editável avançou de versão, a API devolve `409 application_changed` e preserva os dados e o terreno.
+Clientes anteriores podem omitir o campo. Se faltar a confirmação do envio, **Conferir candidatura salva** consulta
+`GET /ngo/application`. O jogo abre a versão encontrada ou mantém o formulário se o envio ainda não consta.
 
 Quatro etapas do wireframe; a lista de campos é **PROPOSTA** (G08, PEN-019). Os critérios são declarados; logo e
 documentos são opcionais e seguem [§ Arquivos da candidatura](#arquivos-da-candidatura-impl-0017) (`files` vem

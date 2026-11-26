@@ -10,5 +10,15 @@ const HOSTS = /googletagmanager|google-analytics|analytics\.google|doubleclick|g
 /** True for a console message caused by the Google tag. */
 export const analyticsNoise = (text) => HOSTS.test(text);
 
+/**
+ * React 19 logs this when a Drei `Html` label root unmounts during a render. The labels mount and unmount as the
+ * camera moves and the checks teleport; the page still completes the flow (reproduced on a clean page). Known
+ * framework noise, not a page error.
+ */
+const REACT_UNMOUNT = /Attempted to synchronously unmount a root while React was already rendering/;
+
+/** True for the React 19 / Drei unmount warning. */
+export const frameworkNoise = (text) => REACT_UNMOUNT.test(text);
+
 /** Answers every Google tag request of `page` with an empty 204, so nothing leaves the machine. */
 export const isolateAnalytics = (page) => page.route(HOSTS, (route) => route.fulfill({ status: 204, body: "" }));

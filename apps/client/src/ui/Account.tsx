@@ -12,8 +12,8 @@ import { type Me, ROLE_LABEL } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import { validateRegistration, type Registration } from "@vila/shared/accounts/validate";
 
-import { useVila, type Panel as PanelState } from "../game/store";
-import { api, ApiError, deleteAccount, signOut, useAccount } from "../lib/account";
+import { LOCAL_ACCOUNT_ACTIONS, useVila, type LocalAction, type Panel as PanelState } from "../game/store";
+import { api, ApiError, confirmLocalImport, deleteAccount, signOut, useAccount } from "../lib/account";
 import { SERVICES } from "../lib/services";
 import { Confirm } from "./Confirm";
 import { Panel } from "./Panel";
@@ -67,9 +67,14 @@ export function AccountChip() {
   );
 }
 
-export function Account({ then }: { then?: PanelState }) {
+export function Account({ then, reason }: { then?: PanelState; reason?: LocalAction }) {
   const user = useAccount((s) => s.user);
-  if (!user) return <SignedOut pix={then?.kind === "pix-review"} />;
+  if (!user && reason && !useAccount.getState().enabled) return (
+    <Panel board="P13" sheet title="Contas indisponíveis">
+      <p>O ensaio precisa de uma conta para {LOCAL_ACCOUNT_ACTIONS[reason]}. Você pode fechar e continuar explorando.</p>
+    </Panel>
+  );
+  if (!user) return <SignedOut reason={reason} pix={then?.kind === "pix-review"} />;
   return user.blocked ? <BlockedAccount user={user} /> : <SignedIn then={then} />;
 }
 
@@ -115,7 +120,8 @@ export function BlockedAccount({ user }: { user: Me }) {
         <p data-field="block-message">{block.message || "A administração não deixou uma mensagem."}</p>
       </div>
       <p>
-        Você continua podendo explorar a Vila e jogar como visitante: o progresso fica só neste navegador. Enquanto a conta estiver bloqueada, ela não salva
+        {useVila.getState().localActor ? "Você continua podendo explorar a Vila como visitante." :
+          "Você continua podendo explorar a Vila e jogar como visitante: o progresso fica só neste navegador."} Enquanto a conta estiver bloqueada, ela não salva
         progresso nem envia ou altera candidatura de ONG.
       </p>
       <p className="note">O que você ainda pode fazer com esta conta: sair ou excluí-la.</p>
@@ -150,21 +156,19 @@ export function BlockedAccount({ user }: { user: Me }) {
   );
 }
 
-function SignedOut({ pix }: { pix: boolean }) {
+function SignedOut({ pix, reason }: { pix: boolean; reason?: LocalAction }) {
   const cancel = pix && <button className="btn" onClick={() => useVila.getState().close()}>Cancelar e voltar à Vila</button>;
   const [mode, setMode] = useState<"register" | "login">("register");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
   const [sent, setSent] = useState<{ email: string; devLink?: string } | null>(null);
   if (sent) {
     return (
       <Panel board="P13" sheet icon="👤" title="Confira seu e-mail" subtitle="Cadastro rápido">
         <p className="lead">
-          Enviamos um link de acesso para <strong>{sent.email}</strong>. Ele vale por 15 minutos e só funciona uma vez.
+          Se <strong>{sent.email}</strong> for o e-mail da sua conta, procure a mensagem com o link de acesso. O link vale por 15 minutos e só funciona uma vez.
         </p>
         <p className="note">Não chegou? Veja a caixa de spam ou peça outro link daqui a pouco.</p>
-        <div className="sheet-card">
-          <h3>Cadastro recebido</h3>
-          <p className="note">Fluxo de acesso a definir.</p>
-        </div>
+        {reason && <p className="note">Ao entrar, volte ao jogo e escolha a ação de novo.</p>}
         {sent.devLink && (
           <p>
             <a className="btn btn--small" href={sent.devLink} target={pix ? "_blank" : undefined} rel={pix ? "noopener noreferrer" : undefined}>
@@ -181,20 +185,39 @@ function SignedOut({ pix }: { pix: boolean }) {
   }
   return (
     <Panel board="P13" sheet icon="👤" title={mode === "register" ? "Criar conta na Vila" : "Entrar na Vila"} subtitle="Cadastro rápido">
-      <p className="note">Explorar e jogar não precisa de conta. Com conta, seu progresso fica salvo e você pode cadastrar uma ONG.</p>
+      <p className="note">{reason
+        ? `Entre para ${LOCAL_ACCOUNT_ACTIONS[reason]}. Depois de entrar, volte ao local e repita a ação. Você pode fechar e continuar explorando.`
+        : useVila.getState().localActor ? "Você pode conhecer a Vila como visitante. Entre para jogar e concluir missões."
+        : "Explorar e jogar não precisa de conta. Com conta, seu progresso fica salvo e você pode cadastrar uma ONG."}</p>
       <SheetTabs
         label="Entrar ou criar conta"
         tabs={["Criar conta", "Já tenho conta"] as const}
         value={mode === "register" ? "Criar conta" : "Já tenho conta"}
-        onChange={(tab) => setMode(tab === "Criar conta" ? "register" : "login")}
+        onChange={(tab) => {
+          setRecoveryEmail("");
+          setMode(tab === "Criar conta" ? "register" : "login");
+        }}
       />
-      {mode === "register" ? <RegisterForm onSent={setSent} /> : <LoginForm onSent={setSent} />}
+      {mode === "register" ? (
+        <RegisterForm onSent={setSent} onMailUnavailable={(email) => {
+          setRecoveryEmail(email);
+          setMode("login");
+        }} />
+      ) : (
+        <LoginForm recoveryEmail={recoveryEmail} onSent={(result) => {
+          setRecoveryEmail("");
+          setSent(result);
+        }} />
+      )}
       {cancel}
     </Panel>
   );
 }
 
-function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: string }) => void }) {
+function RegisterForm({ onSent, onMailUnavailable }: {
+  onSent: (s: { email: string; devLink?: string }) => void;
+  onMailUnavailable: (email: string) => void;
+}) {
   const look = useVila((s) => s.look);
   const appearance = useVila((s) => s.appearance);
   const [form, setForm] = useState<Registration>({ name: "", nickname: "", city: "", email: "" });
@@ -213,6 +236,10 @@ function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: strin
       const r = await api.register(value);
       onSent({ email: value.email, devLink: r.devLink });
     } catch (err) {
+      if (err instanceof ApiError && err.code === "mail_unavailable") {
+        onMailUnavailable(value.email);
+        return;
+      }
       if (err instanceof ApiError) setErrors(err.fields as typeof errors);
       setError(errorText(err));
     } finally {
@@ -256,10 +283,10 @@ function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: strin
   );
 }
 
-function LoginForm({ onSent }: { onSent: (s: { email: string; devLink?: string }) => void }) {
-  const [email, setEmail] = useState("");
+function LoginForm({ recoveryEmail, onSent }: { recoveryEmail: string; onSent: (s: { email: string; devLink?: string }) => void }) {
+  const [email, setEmail] = useState(recoveryEmail);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(recoveryEmail ? "O envio do e-mail falhou. Confira o endereço e peça um link de acesso." : "");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -287,6 +314,8 @@ function LoginForm({ onSent }: { onSent: (s: { email: string; devLink?: string }
 }
 
 function SignedIn({ then }: { then?: PanelState }) {
+  const importCount = useAccount(s => s.localImportCount);
+  const [importError, setImportError] = useState("");
   const user = useAccount((s) => s.user)!;
   const open = useVila((s) => s.open);
   const close = useVila((s) => s.close);
@@ -316,6 +345,19 @@ function SignedIn({ then }: { then?: PanelState }) {
             {busy ? "Concluindo exclusão…" : "Tentar concluir exclusão"}
           </button>
           {error && <p className="form__error" role="alert">Não foi possível concluir agora. Tente novamente mais tarde.</p>}
+        </div>
+      )}
+      {importCount > 0 && !user.deletionPending && (
+        <div className="sheet-card">
+          <p>Há progresso deste navegador reservado para @{user.nickname}. Incorporá-lo pode concluir missões e creditar XP.</p>
+          <button className="btn" disabled={busy} onClick={async () => {
+            setBusy(true);
+            setImportError("");
+            try { await confirmLocalImport(user.id); }
+            catch (err) { setImportError(errorText(err)); }
+            finally { setBusy(false); }
+          }}>Incorporar meu progresso</button>
+          {importError && <p className="form__error" role="alert">{importError}</p>}
         </div>
       )}
       {then && !user.deletionPending && (

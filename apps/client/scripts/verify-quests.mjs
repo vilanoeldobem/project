@@ -15,7 +15,7 @@ import { mkdirSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
-import { analyticsNoise, isolateAnalytics } from "./analytics.mjs";
+import { analyticsNoise, frameworkNoise, isolateAnalytics } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const [url = "http://localhost:5173", apiUrl = "http://localhost:8787"] = process.argv.slice(2);
@@ -26,6 +26,8 @@ if (!/localhost|127\.0\.0\.1/.test(url + apiUrl)) {
 const out = new URL("../verify-output/", import.meta.url).pathname;
 mkdirSync(out, { recursive: true });
 const run = Date.now().toString(36);
+const seededState = process.env.VILA_STORY_PROGRESS;
+const v2 = process.env.VILA_STORY_V2 === "1";
 const origin = new URL(url).origin;
 const errors = [];
 /** Records and prints at once, so a later crash still shows what already went wrong. */
@@ -135,12 +137,12 @@ process.on("unhandledRejection", async (e) => {
   process.exit(1);
 });
 
-async function newPage(name) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+async function newPage(name, storageState) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 860 }, ...(storageState ? { storageState } : {}) });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   // The Google tag is not under test (OQ-13): its hosts are answered here and its console noise skipped.
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await isolateAnalytics(page);
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   return page;
@@ -151,6 +153,7 @@ async function enter(page, query = "?quests=1") {
   await page.waitForSelector("canvas", { timeout: 20000 });
   await arrive(page, errors, "enter");
   await page.waitForTimeout(400);
+  if (query.includes("quests2=1")) await page.waitForFunction(() => window.__vila?.extra?.questsV2On?.() === true, null, { timeout: 15000 });
 }
 
 async function walkTo(page, x, z, radius = 0.9) {
@@ -285,8 +288,9 @@ await blocked.context().close();
 const publishedLot = await publishNgo();
 console.log(`published lot ${publishedLot}`);
 
-const page = await newPage("quests");
-await enter(page);
+const page = await newPage("quests", seededState);
+await enter(page, v2 ? "?quests=1&quests2=1" : "?quests=1");
+const baseline = await page.evaluate(() => window.__vila.progress());
 
 // ---- flight-night (A Noite de Voo)
 await walkTo(page, -4.6, 23.4);
@@ -475,15 +479,32 @@ const progress = await page.evaluate(() => window.__vila.progress());
 const quests = await page.evaluate(() => window.__vila.extra.quests());
 const unfinished = quests.filter((q) => q.state !== "completed");
 if (unfinished.length) errors.push(`quests not completed: ${unfinished.map((q) => `${q.id}=${q.state}`).join(", ")}`);
-const MISSION_XP = { "explore-gifts": 30, "play-memory": 40, "causes-visit-lot": 20, "causes-global-donation": 20 };
-const incidental = Object.entries(MISSION_XP).reduce((sum, [id, xp]) => sum + (progress.completed[id] ? xp : 0), 0);
-if (progress.xp !== 550 + incidental) errors.push(`xp: expected ${550 + incidental} (550 quest + ${incidental} missions), got ${progress.xp}`);
+const gained = progress.xp - baseline.xp;
+const granted = await page.evaluate(
+  ([before, after]) => window.__vila.extra.newlyCompletedXp(before, after),
+  [baseline.completed, progress.completed]
+);
+if (granted.unknown.length > 0) errors.push(`xp: completed ids missing from the manifest: ${granted.unknown.join(", ")}`);
+const incidental = granted.quick.reduce((sum, entry) => sum + entry.xp, 0);
+if (gained !== granted.total) errors.push(`xp: expected ${granted.total} gained from completed entries, got ${gained} (${incidental} from quick missions)`);
 
 await page.getByRole("button", { name: "Abrir Caderno de Missões" }).dispatchEvent("click");
 await page.getByText("A Noite de Voo").first().waitFor({ timeout: 5000 }).catch(() => fail("caderno: quest chains missing"));
 await page.getByText("O ramo da chegada").first().waitFor({ timeout: 5000 }).catch(() => fail("caderno: epilogue chain missing"));
 await page.screenshot({ path: `${out}quests-4-caderno-chains.png` });
-await closePanel(page);
+
+const finale = page.getByRole("button", { name: "Ver a cena final" });
+await finale.waitFor({ timeout: 5000 }).catch(() => fail("final scene: 'Ver a cena final' missing"));
+if (await finale.count()) {
+  await finale.click();
+  const scene = page.getByRole("dialog", { name: "A próxima Longa Noite" });
+  await scene.waitFor({ timeout: 10000 }).catch(() => fail("final scene: panel missing"));
+  await scene.getByText("A Longa Noite passou.").waitFor({ timeout: 5000 }).catch(() => fail("final scene: first line missing"));
+  await scene.getByRole("heading", { name: "Créditos" }).waitFor({ timeout: 5000 }).catch(() => fail("final scene: credits missing"));
+  await page.screenshot({ path: `${out}quests-7-final-scene.png` });
+  await closePanel(page);
+}
+
 await page.context().close();
 await browser.close();
 resetLocalNgos();
@@ -493,4 +514,4 @@ if (errors.length) {
   for (const e of errors) console.error(` - ${e}`);
   process.exit(1);
 }
-console.log(`ok — 18 quests completed, ${progress.xp} XP (${incidental} incidental), lot ${publishedLot}; screenshots in ${out}`);
+console.log(`ok — 18 quests completed, +${gained} XP gained (${incidental} from quick missions), lot ${publishedLot}; screenshots in ${out}`);

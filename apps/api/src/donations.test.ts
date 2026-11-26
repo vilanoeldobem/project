@@ -832,6 +832,24 @@ describe("an NGO's own payment link", () => {
     expect((await pix({ targetKind: "ngo", ngoId: NGO, amountCents: 500 }, "donor")).status).toBe(409);
   });
 
+  it("compares guest and account-only external links in a local rehearsal without creating a payment", async () => {
+    await ngoPayment({ revision: 1, paymentMethod: "external_link", donationUrl: "https://ong.org.br/doar", linkValidated: true });
+    const redirect = (user: string | null, accountId?: string) => call("POST", "/donations/redirect", { ngoId: NGO, accountId }, user);
+    env.LOCAL_ACCOUNT_ACTIONS = "true";
+    expect((await redirect(null)).status).toBe(401);
+    expect((await redirect("donor", "other")).status).toBe(409);
+    expect(count("donation_redirects")).toBe(0);
+    const allowed = await redirect("donor", "donor");
+    expect(allowed.status).toBe(200);
+    expect(await allowed.json()).toMatchObject({ tracked: true, titleCredit: "none", url: "https://ong.org.br/doar" });
+    env.ACCOUNTS_ENABLED = "false";
+    expect((await redirect(null)).status).toBe(404);
+    env.ENVIRONMENT = "production";
+    expect((await redirect(null)).status).toBe(200);
+    expect(count("donation_redirects")).toBe(2);
+    expect(count("donations")).toBe(0);
+  });
+
   it("records an admin-verified proof in the indicators without crediting a Título", async () => {
     const proof = await call("POST", "/admin/donations/external-proof", {
       accountId: "admin",

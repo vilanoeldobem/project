@@ -1205,3 +1205,31 @@ Scope: what is on `main` at `d4dc614` (IMPL-0028 follow-ups, 0029, 0030, 0031, 0
 - [x] Voxel overhaul (IMPL-0035, PR #107): greedy meshing, refined buildings, ground detail; release 0.9.0 (PR #108,
   tag v0.9.0) deployed 2026-11-22 20h35 UTC; smoke 19/19.
 - Lesson: at a third of a block, per-vertex AO quadruples the faces; refined models skip AO and keep shadows.
+
+---
+
+# Task: fechar a saga v2 — revisão jurídica e integração (fatias 13 e 14) — 2026-11-26
+
+## Plan
+- [x] Auditar os 10 livros, epílogo e cosméticos e escrever o relatório de risco
+- [x] Corrigir a fala de `b01-s4` e registrar as decisões de baixo risco
+- [x] Fazer `validate-slice.mjs --all` funcionar e validar 484/11.400
+- [x] Atualizar referência, índice, ROADMAP, CHANGELOG e esta lista
+- [x] Rodar `pnpm check`
+- [x] Playthrough completo no navegador
+
+## Review (2026-11-26)
+- Gates: `pnpm check` passou (typecheck, testes e build) e `validate-slice.mjs --all` devolveu
+  `OK all: manifest=484 entries=11400 XP`. A galeria de `saga` mediu 149 chamadas e 30.940 triângulos; a de
+  `cosmetics`, 36 chamadas e 2.806 triângulos.
+- `verify-story.mjs … all` terminou com `OK story all`: os 10 livros, o epílogo (18 quests, 630 XP, 80
+  incidentais) e o pós-jogo passaram. O único desvio foi `book-5: +30 XP from quick missions`, aceito pelo
+  verificador (as quatro missões rápidas somam 110 XP e podem completar no caminho).
+- O playthrough revelou que `count-stars-west` coincidia com Dona Geada (Livro V); o ponto foi movido para
+  `(-13, -1.6)` e um teste novo impede objetivo sem conversa de compartilhar o lugar de um personagem. O aviso de
+  desmontagem do React 19/Drei foi separado do erro de página no verificador, com comentário no código.
+- `verify.mjs` e `verify-budget.mjs` ainda falham por um excesso de render pré-existente na segunda rua
+  (282.514 triângulos contra o orçamento de 250.000) e pelo aviso de desmontagem do React nas páginas de
+  ambiente; o código de cena não mudou neste PR. `verify-story.mjs` e `smoke-api.sh` passam.
+- Não feito: contadores de marcos e props de estado continuam documentados como lacuna; nenhum merge, deploy,
+  migration remota ou mudança de bandeira.
