@@ -12,6 +12,8 @@ No painel P02, uma chave presente com valor numérico gera um cartão, inclusive
 
 O cartão de valor converte os centavos de `confirmed_amount` em reais. Por exemplo, 1.725 centavos aparecem como R$ 17,25. A data mostrada é a da consulta ao painel.
 
+Em uma consulta bem-sucedida, o P02 informa em uma só nota quais medições de uso faltam na resposta. O cliente reconhece as chaves `unique_visitors`, `visits_by_ngo_house` e `players_by_minigame` para esse aviso. Uma chave presente conserva o cartão e o valor recebidos, inclusive zero ou `null` com motivo. Quando falta a série de visitantes, o painel explica que duas abas da mesma pessoa podem abrir duas conexões na praça. A definição das unidades, do período e da coleta segue em aberto.
+
 ## Dicionário de público e uso do jogo
 
 | Indicador da #65 | Fonte hoje e unidade observável | Granularidade, identidade e janela | Repetição, abas e reconexão | Zero, indisponibilidade e coleta que falta |
@@ -62,7 +64,37 @@ pnpm exec wrangler d1 migrations apply ngo-media-review-local --local -c wrangle
 | `pix_fin01_missing` | `missing_in_d1` | A linha do extrato não encontrou uma cobrança Pix com esse ID. |
 | `pix_fin01_duplicate` | `ambiguous_statement` | O extrato trouxe duas linhas para a mesma cobrança. É preciso identificar a linha correta antes de comparar valores. |
 
-Para outro ensaio, substitua os valores de `statement` em uma cópia local da [consulta](../../apps/api/scripts/reconcile-pix-statement.sql) e aponte o último comando para a cópia. Informe uma linha por cobrança com os IDs do mesmo ambiente, valores em centavos inteiros e o estado no vocabulário do D1, como `paid` ou `refunded`. A lista de cobranças vem do extrato fornecido. Para identificar cobranças presentes só no D1, use a conferência de extrato completo descrita a seguir. Um ID vazio recebe `missing_charge_id`. Uma falha de leitura ou de schema interrompe o comando. A [fixture de D1](../../apps/api/test/fixtures/pix-statement.sql) permite reproduzir os quatro resultados acima.
+A [fixture de D1](../../apps/api/test/fixtures/pix-statement.sql) permite reproduzir esses quatro resultados. Na consulta de exemplo, um ID vazio recebe `missing_charge_id`. Uma falha de leitura ou de schema interrompe o comando.
+
+### Conferir as linhas de um extrato normalizado
+
+Para conferir uma amostra ou um arquivo diferente da fixture, salve localmente um JSON em UTF-8 e informe o diretório de estado usado no `wrangler d1 ... --persist-to`. Use uma linha por cobrança e dados do mesmo ambiente. `devMode: true` seleciona a sandbox no D1 local. O exemplo usa a primeira cobrança da fixture anterior.
+
+```json
+{
+  "devMode": true,
+  "rows": [
+    {
+      "charge_id": "pix_fin01_match",
+      "target_kind": "ngo",
+      "ngo_id": "ngo-fin01",
+      "sub_account_id": "sacc_fin01",
+      "amount_cents": 1000,
+      "ngo_share_cents": 900,
+      "vila_share_cents": 100,
+      "status": "paid"
+    }
+  ]
+}
+```
+
+Preencha os oito campos com os valores da fonte de conferência. Para uma doação global, use `target_kind: "global"`, `ngo_id: null` e a subconta da parceira. As três quantias são inteiros em centavos. Os estados aceitos são `pending`, `paid`, `refunded`, `under_dispute`, `expired` e `cancelled`. Separe as linhas cuja fonte ainda não informa o destino, o split ou o estado. Consulte o titular antes de atribuir esses valores.
+
+```sh
+node apps/api/scripts/check-pix-statement-fields.mjs /caminho/linhas.json /caminho/estado-wrangler
+```
+
+O [verificador](../../apps/api/scripts/check-pix-statement-fields.mjs) compara exclusivamente as cobranças listadas (`coverage: "listed_rows"`) com os Pix do ambiente escolhido. A posição `row` começa em 1. `difference` indica o campo divergente e, para quantias, a diferença em centavos (extrato menos D1). `missing_in_environment` indica que a cobrança está ausente nesse recorte. O relatório omite identificadores e valores brutos. O código de saída é 0 quando todas as linhas conferem, 1 quando há divergências e 2 quando o arquivo ou a leitura do banco falha. Lista vazia, ID duplicado, campo obrigatório ausente e centavos inválidos interrompem a conferência. Para atestar o crédito efetivo, a fonte deve identificar o lançamento da beneficiária.
 
 ### Extrato completo: conferir os identificadores nos dois sentidos
 

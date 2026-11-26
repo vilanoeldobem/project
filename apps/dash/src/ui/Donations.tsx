@@ -10,7 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { STATUS_LABEL, type ApplicationStatus, type NgoPayment } from "@vila/shared/accounts/contract";
 import { ApiError, errorText } from "@vila/shared/accounts/errors";
-import { computeDonationSplit, formatBrl, parseBrlToCents, parseDecimal, validateExternalDonationUrl } from "@vila/shared/donations/contract";
+import { computeDonationSplit, formatBrl, parseBrlToCents, parseDecimal, validateExternalDonationUrl, validateSplitConfig } from "@vila/shared/donations/contract";
 
 import type { DonationOverview, DonationRow, NgoPaymentRow } from "../lib/api";
 import { dateTime } from "../lib/format";
@@ -28,16 +28,16 @@ const STATUS_TEXT: Record<string, string> = {
 const TARGET_TEXT: Record<string, string> = { global: "Doação global", ngo: "ONG" };
 
 /** Cents preview of the R$ 2,00 minimum, or the pt-BR reason the numbers do not close. */
-function previewOf(percent: string, fee: string): { ngo: string; vila: string } | { error: string } {
-  const parsedPercent = parseDecimal(percent);
-  const parsedFee = parseDecimal(fee);
-  if (parsedPercent === null || parsedFee === null) return { error: "Confira a porcentagem e a taxa fixa." };
-  try {
-    const split = computeDonationSplit(200, { ngoPercentBps: Math.round(parsedPercent * 100), fixedFeeCents: Math.round(parsedFee) });
-    return { ngo: formatBrl(split.ngoShareCents), vila: formatBrl(split.vilaShareCents) };
-  } catch (error) {
-    return { error: error instanceof RangeError ? error.message : "Confira a porcentagem e a taxa fixa." };
-  }
+export function previewOf(percent: string, fee: string) {
+  const ngoPercentBps = parseBrlToCents(percent);
+  const fixedFeeCents = parseDecimal(fee);
+  if (ngoPercentBps === null) return { error: "Informe a porcentagem com até duas casas decimais." };
+  if (fixedFeeCents === null || !Number.isSafeInteger(fixedFeeCents)) return { error: "Informe a taxa em centavos inteiros." };
+  const config = { ngoPercentBps, fixedFeeCents };
+  const [error] = Object.values(validateSplitConfig(config));
+  if (error) return { error };
+  const split = computeDonationSplit(200, config);
+  return { config, ngo: formatBrl(split.ngoShareCents), vila: formatBrl(split.vilaShareCents) };
 }
 
 function fieldErrorsOf(error: unknown): Record<string, string> {
@@ -113,6 +113,7 @@ function GlobalSettings({ settings, accountId, onSaved }: { settings: DonationOv
   const [busy, setBusy] = useState(false);
   const preview = previewOf(percent, fee);
   const save = async () => {
+    if (busy || !preview.config) return;
     setBusy(true);
     setErrors({});
     setMessage("");
@@ -121,8 +122,7 @@ function GlobalSettings({ settings, accountId, onSaved }: { settings: DonationOv
         accountId,
         primaryNgoName: name,
         primaryNgoCnpj: cnpj,
-        ngoPercentBps: Math.round((parseDecimal(percent) ?? 0) * 100),
-        fixedFeeCents: Math.round(parseDecimal(fee) ?? 0),
+        ...preview.config,
         ...(subAccountId.trim() ? { subAccountId: subAccountId.trim() } : {}),
       });
       setMessage("Configuração da doação global salva.");
@@ -167,7 +167,7 @@ function GlobalSettings({ settings, accountId, onSaved }: { settings: DonationOv
         </p>
       )}
       <div className="actions">
-        <button className="btn btn--primary" disabled={busy} onClick={() => void save()}>
+        <button className="btn btn--primary" disabled={busy || !preview.config} onClick={() => void save()}>
           {busy ? "Salvando…" : "Salvar e vincular subconta primária"}
         </button>
       </div>
@@ -337,6 +337,19 @@ function DonationHistory({ donations, redirects }: { donations: DonationRow[]; r
   );
 }
 
+function SavedNgoPayment({ payment }: { payment?: NgoPayment }) {
+  if (!payment) return <p data-payment-saved="none">Configuração salva: nenhuma informada. Escolha a forma de recebimento abaixo.</p>;
+  if (payment.method === "external_link") {
+    if (payment.linkValidated && payment.donationUrl) {
+      return <p data-payment-saved="link_validated">Configuração salva: link próprio conferido — {payment.donationUrl}</p>;
+    }
+    return <p data-payment-saved="link_pending">Configuração salva: link próprio pendente de conferência. Confira a página de doação da ONG e salve a confirmação.</p>;
+  }
+  return payment.subAccountId
+    ? <p data-payment-saved="pix_configured">Configuração salva: Pix com subconta vinculada.</p>
+    : <p data-payment-saved="pix_pending">Configuração salva: Pix sem subconta vinculada. Confira os dados da ONG e salve para vincular a subconta.</p>;
+}
+
 /**
  * The payment configuration of one NGO, inside its application review. `requested` is what the organisation asked
  * for; the admin may change it, but an external link only becomes active after it is opened and ticked.
@@ -344,6 +357,7 @@ function DonationHistory({ donations, redirects }: { donations: DonationRow[]; r
 export function NgoPaymentConfig({
   ngoId,
   revision,
+  published,
   accountId,
   requested,
   payment,
@@ -351,6 +365,7 @@ export function NgoPaymentConfig({
 }: {
   ngoId: string;
   revision: number;
+  published: boolean;
   accountId?: string;
   requested?: { method?: string; donationUrl?: string };
   payment?: NgoPayment;
@@ -367,8 +382,9 @@ export function NgoPaymentConfig({
   const [busy, setBusy] = useState(false);
   const preview = previewOf(percent, fee);
   const link = validateExternalDonationUrl(url);
+  const canSave = Boolean(accountId) && !busy && Boolean(preview.config) && (method !== "external_link" || Boolean(link.url && validated));
   const save = async () => {
-    if (!accountId) return;
+    if (!accountId || !canSave || !preview.config) return;
     setBusy(true);
     setErrors({});
     setMessage("");
@@ -378,8 +394,7 @@ export function NgoPaymentConfig({
         revision,
         paymentMethod: method,
         ...(method === "external_link" ? { donationUrl: url, linkValidated: validated } : {}),
-        ngoPercentBps: Math.round((parseDecimal(percent) ?? 0) * 100),
-        fixedFeeCents: Math.round(parseDecimal(fee) ?? 0),
+        ...preview.config,
         ...(method === "abacatepay" && subAccountId.trim() ? { subAccountId: subAccountId.trim() } : {}),
       });
       setMessage("Configuração de pagamento salva.");
@@ -395,11 +410,13 @@ export function NgoPaymentConfig({
   return (
     <section data-action="payment-config">
       <h2>Recebimento de doações (PROPOSTA)</h2>
-      <p className="muted">
-        Pedido na candidatura:{" "}
-        {requested?.method === "external_link" ? `link próprio${requested.donationUrl ? ` (${requested.donationUrl})` : ""}` : "AbacatePay (subconta Pix)"}. A
-        casa só recebe doações depois desta configuração.
-      </p>
+      <SavedNgoPayment payment={payment} />
+      {!published && <p className="muted" data-payment-publication="unpublished">A casa precisa estar publicada para oferecer doações na Vila.</p>}
+      {requested?.method && (
+        <p className="muted">
+          Pedido na candidatura: {requested.method === "external_link" ? `link próprio${requested.donationUrl ? ` (${requested.donationUrl})` : ""}` : "AbacatePay (subconta Pix)"}.
+        </p>
+      )}
       <Field label="Forma de recebimento">
         <select value={method} onChange={(e) => setMethod(e.target.value === "external_link" ? "external_link" : "abacatepay")}>
           <option value="abacatepay">AbacatePay (subconta Pix pelo CNPJ)</option>
@@ -438,7 +455,7 @@ export function NgoPaymentConfig({
         </p>
       )}
       <div className="actions">
-        <button className="btn btn--primary" disabled={busy || !accountId} onClick={() => void save()}>
+        <button className="btn btn--primary" disabled={!canSave} onClick={() => void save()}>
           {busy ? "Salvando…" : "Salvar configuração de pagamento"}
         </button>
       </div>

@@ -312,6 +312,40 @@ describe("the avatar look (P08, IMPL-0027)", () => {
     expect(useVila.getState().look).toEqual(DEFAULT_LOOK);
   });
 
+  it("restores a saved piece only when the active progress allows it, including after re-entry", async () => {
+    storage.set("vila.look.v1", JSON.stringify({ hat: "hat-holly" }));
+    const earned = { xp: 20, counters: {}, completed: { "causes-visit-lot": true as const }, seen: {} };
+    const { useVila } = await load();
+    expect(useVila.getState().look.helmet).toBe(DEFAULT_LOOK.helmet);
+    useVila.getState().adoptProgress(earned, "member-a");
+    expect(useVila.getState().look.helmet).toBe("helmet-holly");
+    const { useVila: reloaded } = await load();
+    reloaded.getState().adoptProgress(earned, "member-a");
+    expect(reloaded.getState().look.helmet).toBe("helmet-holly");
+    reloaded.getState().restoreGuest();
+    expect(reloaded.getState().look.helmet).toBe(DEFAULT_LOOK.helmet);
+    reloaded.getState().adoptProgress({ ...earned, completed: {}, xp: 0 }, "member-b");
+    expect(reloaded.getState().look.helmet).toBe(DEFAULT_LOOK.helmet);
+    reloaded.getState().adoptProgress(earned, "member-a");
+    expect(reloaded.getState().look.helmet).toBe("helmet-holly");
+    reloaded.getState().setLook({ helmet: DEFAULT_LOOK.helmet });
+    reloaded.getState().restoreGuest();
+    reloaded.getState().adoptProgress(earned, "member-a");
+    expect(reloaded.getState().look.helmet).toBe(DEFAULT_LOOK.helmet);
+  });
+
+  it("keeps the selected piece in this session when storage is unavailable", async () => {
+    vi.stubGlobal("localStorage", undefined);
+    const { useVila } = await load();
+    const earned = { xp: 20, counters: {}, completed: { "causes-visit-lot": true as const }, seen: {} };
+    useVila.getState().adoptProgress(earned, "member");
+    useVila.getState().setLook({ helmet: "helmet-holly" });
+    useVila.getState().restoreGuest();
+    expect(useVila.getState().look.helmet).toBe(DEFAULT_LOOK.helmet);
+    useVila.getState().adoptProgress(earned, "member");
+    expect(useVila.getState().look.helmet).toBe("helmet-holly");
+  });
+
   it("equips a free item, writes v2, and lets a blouse take the dress off", async () => {
     storage.set("vila.progress.v2", progress({ "explore-gifts": true }));
     const { useVila } = await load();

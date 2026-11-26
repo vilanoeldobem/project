@@ -21,8 +21,11 @@ Cada versão indica o schema D1 que entrega.
 
 - Conferência local de cobranças Pix em ambos os sentidos para um extrato declarado completo, com período de criação e ambiente explícitos. [Guia de conciliação](docs/reference/indicator-sources.md#extrato-completo-conferir-os-identificadores-nos-dois-sentidos).
 
+- Conferência local de valores, destinatários e estados das linhas de um extrato Pix por arquivo JSON. [Guia de conciliação](docs/reference/indicator-sources.md#conferir-as-linhas-de-um-extrato-normalizado).
+
 ### Fixed
 
+- O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
 - O teste de Pix concorrente verifica as duas repetições enquanto o provedor de teste ainda processa a primeira cobrança, sem depender de um temporizador.
 - Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
 - Após falha de envio do primeiro e-mail de cadastro, o jogo permite pedir outro link para o mesmo endereço.
@@ -30,6 +33,9 @@ Cada versão indica o schema D1 que entrega.
 - O painel permite carregar candidaturas anteriores às 200 mais recentes. A tela de terrenos abre a candidatura que ocupa cada lote, mesmo quando ela é antiga.
 - O contador da praça identifica conexões simultâneas na legenda e no leitor de tela.
 - O painel de indicadores exibe o valor confirmado em reais e distingue um zero medido de um valor indisponível.
+- O verificador do epílogo com a v2 ligada aproxima o avatar do NPC v1 pelo nome, para não confundir Dona Filó com a Tia Bete do Livro I.
+- O guarda-roupa recupera o visual gratuito equipado ao recarregar ou entrar novamente no mesmo navegador, quando a conta tem a peça desbloqueada.
+- O painel de indicadores informa quando faltam medições de visitantes, visitas por casa de ONG e jogadores por minijogo. O contador da praça informa conexões ativas.
 
 ### Changed
 

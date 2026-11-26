@@ -7,7 +7,7 @@ import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { ApplicationDetail, Me, UserSummary } from "@vila/shared/accounts/contract";
+import type { ApplicationDetail, Me, NgoPayment, UserSummary } from "@vila/shared/accounts/contract";
 import type { ApplicationFile } from "@vila/shared/accounts/files";
 import { BLOCK_MESSAGE_ERROR } from "@vila/shared/accounts/moderation";
 
@@ -16,7 +16,7 @@ import type { UserAction } from "../lib/moderation";
 
 import { Applications, LogoRemovalConfirmation, Review } from "./Applications";
 import { Audit } from "./Audit";
-import { PaidByDestination } from "./Donations";
+import { NgoPaymentConfig, PaidByDestination, previewOf } from "./Donations";
 import { Lots, LotTable } from "./Lots";
 import { Pending } from "./Pending";
 import { Shell } from "./Shell";
@@ -664,6 +664,44 @@ describe("files of an application (IMPL-0017)", () => {
 });
 
 describe("donations in the dashboard (IMPL-0023, PROPOSTA)", () => {
+  const pix: NgoPayment = { method: "abacatepay", donationUrl: null, subAccountId: null, ngoPercentBps: 9500, fixedFeeCents: 80, linkValidated: false, updatedAt: null };
+  const link: NgoPayment = { ...pix, method: "external_link", donationUrl: "https://example.org/doar" };
+
+  it.each([
+    [undefined, "none", false],
+    [pix, "pix_pending", false],
+    [{ ...pix, subAccountId: "sacc_fixture" }, "pix_configured", false],
+    [link, "link_pending", true],
+    [{ ...link, linkValidated: true }, "link_validated", false],
+    [{ ...link, linkValidated: true, donationUrl: null }, "link_pending", true],
+  ] as const)("renders saved receiving state and validates the form (%s)", (payment, state, disabled) => {
+    const page = html(<NgoPaymentConfig ngoId="fixture" revision={1} accountId={ADMIN.id} published payment={payment} />);
+    expect(page).toContain(`data-payment-saved="${state}"`);
+    expect(page).not.toContain("Pedido na candidatura");
+    expect(page).not.toContain("sacc_fixture");
+    expect(page).not.toContain("data-payment-publication");
+    expect(page.includes('disabled=""')).toBe(disabled);
+  });
+
+  it("keeps the original request distinct from the saved method and from publication", () => {
+    const page = html(<NgoPaymentConfig ngoId="fixture" revision={1} published={false} requested={{ method: "external_link", donationUrl: link.donationUrl! }} payment={pix} />);
+    expect(page).toContain('data-payment-saved="pix_pending"');
+    expect(page).toContain("Pedido na candidatura: link próprio (https://example.org/doar)");
+    expect(page).toContain('data-payment-publication="unpublished"');
+    expect(page).toContain('disabled=""');
+  });
+
+  it.each([["", "80"], ["95", ""], ["95,005", "80"], ["95", "80,5"], ["95", "79"], ["40", "80"]])(
+    "does not prepare a global or NGO split with percentage %s and fee %s", (percent, fee) => {
+      expect(previewOf(percent, fee)).toHaveProperty("error");
+      expect(previewOf(percent, fee).config).toBeUndefined();
+    }
+  );
+
+  it("previews the exact basis points and integer cents used for saving", () => {
+    expect(previewOf("95,50", "80")).toEqual({ config: { ngoPercentBps: 9550, fixedFeeCents: 80 }, ngo: "R$ 1,11", vila: "R$ 0,89" });
+  });
+
   it("shows the management area only with the flag on and an admin account on screen", () => {
     const on = html(<Pending donationsOn accountId={ADMIN.id} />);
     expect(on).toContain("Doações e AbacatePay (PROPOSTA)");
