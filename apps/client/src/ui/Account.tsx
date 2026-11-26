@@ -153,18 +153,15 @@ export function BlockedAccount({ user }: { user: Me }) {
 function SignedOut({ pix }: { pix: boolean }) {
   const cancel = pix && <button className="btn" onClick={() => useVila.getState().close()}>Cancelar e voltar à Vila</button>;
   const [mode, setMode] = useState<"register" | "login">("register");
+  const [recoveryEmail, setRecoveryEmail] = useState("");
   const [sent, setSent] = useState<{ email: string; devLink?: string } | null>(null);
   if (sent) {
     return (
       <Panel board="P13" sheet icon="👤" title="Confira seu e-mail" subtitle="Cadastro rápido">
         <p className="lead">
-          Enviamos um link de acesso para <strong>{sent.email}</strong>. Ele vale por 15 minutos e só funciona uma vez.
+          Se <strong>{sent.email}</strong> for o e-mail da sua conta, procure a mensagem com o link de acesso. O link vale por 15 minutos e só funciona uma vez.
         </p>
         <p className="note">Não chegou? Veja a caixa de spam ou peça outro link daqui a pouco.</p>
-        <div className="sheet-card">
-          <h3>Cadastro recebido</h3>
-          <p className="note">Fluxo de acesso a definir.</p>
-        </div>
         {sent.devLink && (
           <p>
             <a className="btn btn--small" href={sent.devLink} target={pix ? "_blank" : undefined} rel={pix ? "noopener noreferrer" : undefined}>
@@ -186,15 +183,31 @@ function SignedOut({ pix }: { pix: boolean }) {
         label="Entrar ou criar conta"
         tabs={["Criar conta", "Já tenho conta"] as const}
         value={mode === "register" ? "Criar conta" : "Já tenho conta"}
-        onChange={(tab) => setMode(tab === "Criar conta" ? "register" : "login")}
+        onChange={(tab) => {
+          setRecoveryEmail("");
+          setMode(tab === "Criar conta" ? "register" : "login");
+        }}
       />
-      {mode === "register" ? <RegisterForm onSent={setSent} /> : <LoginForm onSent={setSent} />}
+      {mode === "register" ? (
+        <RegisterForm onSent={setSent} onMailUnavailable={(email) => {
+          setRecoveryEmail(email);
+          setMode("login");
+        }} />
+      ) : (
+        <LoginForm recoveryEmail={recoveryEmail} onSent={(result) => {
+          setRecoveryEmail("");
+          setSent(result);
+        }} />
+      )}
       {cancel}
     </Panel>
   );
 }
 
-function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: string }) => void }) {
+function RegisterForm({ onSent, onMailUnavailable }: {
+  onSent: (s: { email: string; devLink?: string }) => void;
+  onMailUnavailable: (email: string) => void;
+}) {
   const look = useVila((s) => s.look);
   const appearance = useVila((s) => s.appearance);
   const [form, setForm] = useState<Registration>({ name: "", nickname: "", city: "", email: "" });
@@ -213,6 +226,10 @@ function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: strin
       const r = await api.register(value);
       onSent({ email: value.email, devLink: r.devLink });
     } catch (err) {
+      if (err instanceof ApiError && err.code === "mail_unavailable") {
+        onMailUnavailable(value.email);
+        return;
+      }
       if (err instanceof ApiError) setErrors(err.fields as typeof errors);
       setError(errorText(err));
     } finally {
@@ -256,10 +273,10 @@ function RegisterForm({ onSent }: { onSent: (s: { email: string; devLink?: strin
   );
 }
 
-function LoginForm({ onSent }: { onSent: (s: { email: string; devLink?: string }) => void }) {
-  const [email, setEmail] = useState("");
+function LoginForm({ recoveryEmail, onSent }: { recoveryEmail: string; onSent: (s: { email: string; devLink?: string }) => void }) {
+  const [email, setEmail] = useState(recoveryEmail);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(recoveryEmail ? "O envio do e-mail falhou. Confira o endereço e peça um link de acesso." : "");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
