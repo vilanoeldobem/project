@@ -28,10 +28,9 @@ const browser = await chromium.launch({
   args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--renderer-process-limit=2", "--disable-background-networking"],
 });
 
-async function scenario(name, run) {
+async function withProfile(name, state, run) {
   const ctx = await browser.newContext({ viewport: { width: 960, height: 680 }, deviceScaleFactor: 1, serviceWorkers: "block" });
   try {
-    const state = { user: null, tenant: a, mailbox: new Map(), posts: [], issued: new Map(), dropNext: false };
     const pageErrors = [];
     ctx.on("page", p => p.on("pageerror", e => pageErrors.push(e.message)));
     ctx.setDefaultTimeout(25000);
@@ -107,11 +106,16 @@ async function scenario(name, run) {
     });
     await run(ctx, state);
     assert.deepEqual(pageErrors, [], "application errors");
-    console.log(`PASS ${name}: ${state.posts.length} POST(s), ${state.issued.size} distinct charge(s).`);
   } catch (error) {
     for (const p of ctx.pages()) console.error(name, await p.locator("body").innerText().catch(() => "Page closed"));
     throw error;
   } finally { await ctx.close(); }
+}
+
+async function scenario(name, run) {
+  const state = { user: null, tenant: a, mailbox: new Map(), posts: [], issued: new Map(), dropNext: false };
+  await withProfile(name, state, run);
+  console.log(`PASS ${name}: ${state.posts.length} POST(s), ${state.issued.size} distinct charge(s).`);
 }
 
 async function open(ctx, href = game) {
@@ -122,22 +126,49 @@ async function open(ctx, href = game) {
   return page;
 }
 
-async function requestLink(page, target) {
+async function openDestination(page, target) {
   if (target === "global") await page.getByRole("button", { name:"Doação global", exact:true }).click();
   else {
     // Existing loopback-only QA hook opens the same house panel as reaching plaza-01 from the square.
     await page.waitForFunction(() => typeof window.__vila?.extra.panel === "function");
     await page.evaluate(lot => window.__vila.extra.panel("lot", lot), plaza);
   }
+}
+
+async function requestLink(page, target) {
+  await openDestination(page, target);
   await page.getByPlaceholder("0,00").fill("12,34");
   await page.getByRole("button", { name:"Entrar para doar por Pix" }).click();
+  return requestSignInLink(page);
+}
+
+async function requestSignInLink(page) {
   await page.getByRole("tab", { name:"Já tenho conta" }).click();
   await page.getByLabel("E-mail da sua conta").fill(first.email);
   await page.getByRole("button", { name:"Enviar link de acesso" }).click();
   const devLink = await page.getByRole("link", { name:/Abrir link/ }).getAttribute("href");
   assert.ok(devLink, "the local mailbox received a link");
-  await page.close(); // The return opens the game in another tab of the same profile.
+  await page.close();
   return devLink;
+}
+
+async function savedDrafts(ctx) {
+  const { origins } = await ctx.storageState();
+  return (origins.find(origin => origin.origin === game)?.localStorage ?? []).filter(entry => entry.name.startsWith("vila.pix.draft.v1:"));
+}
+
+async function expectFreshSelection(ctx, state, link) {
+  const page = await open(ctx, link);
+  await page.getByRole("button", { name: `Sua conta: ${first.nickname}` }).waitFor();
+  await page.getByText(`Bem-vindo(a), ${first.nickname}!`, { exact: false }).waitFor();
+  assert.equal(state.user?.id, first.id);
+  assert.equal(await page.getByRole("dialog", { name: "Confirmar doação por Pix" }).count(), 0);
+  await openDestination(page, "ngo");
+  await page.getByRole("button", { name: "Gerar Pix de doação" }).waitFor();
+  assert.equal(await page.getByPlaceholder("0,00").inputValue(), "");
+  await page.getByRole("button", { name: /^R\$\s*2,00$/, pressed: true }).waitFor();
+  assert.equal(state.posts.length, 0);
+  assert.equal(state.issued.size, 0);
 }
 
 const confirm = page => page.getByRole("button", { name:"Confirmar e gerar Pix" });
@@ -269,5 +300,35 @@ try {
     assert.equal(state.posts.length, 1);
     assert.equal(state.posts[0].accountId, first.id);
     assert.equal(state.issued.size, 0);
+  });
+  await scenario("the emailed link opened in a different profile starts a fresh selection", async (source, state) => {
+    const link = await requestLink(await open(source), "ngo");
+    const original = await savedDrafts(source);
+    assert.equal(original.length, 1);
+    // Profiles have separate sessions and storage against the same mailbox and payment API.
+    await withProfile("receiving profile", { ...state, user: null }, async (other, recipient) => {
+      assert.deepEqual(await savedDrafts(other), []);
+      await expectFreshSelection(other, recipient, link);
+      assert.deepEqual(await savedDrafts(other), []);
+    });
+    assert.deepEqual(await savedDrafts(source), original);
+    assert.equal(state.user, null);
+  });
+  await scenario("an expired draft in the original profile is removed before a fresh selection", async (ctx, state) => {
+    const firstLink = await requestLink(await open(ctx), "ngo");
+    const drafts = await savedDrafts(ctx);
+    assert.equal(drafts.length, 1);
+    const { expires } = JSON.parse(drafts[0].value);
+    assert.ok(Number.isSafeInteger(expires));
+    await ctx.clock.setFixedTime(new Date(expires + 1));
+    // The first email link expires before the Pix draft. Request a new one from the account panel.
+    const login = await open(ctx);
+    assert.ok(await login.evaluate(deadline => Date.now() > deadline, expires));
+    await login.getByRole("button", { name: "Entrar ou criar conta" }).click();
+    const freshLink = await requestSignInLink(login);
+    assert.notEqual(freshLink, firstLink);
+    assert.deepEqual(await savedDrafts(ctx), drafts);
+    await expectFreshSelection(ctx, state, freshLink);
+    assert.deepEqual(await savedDrafts(ctx), []);
   });
 } finally { await browser.close(); }
