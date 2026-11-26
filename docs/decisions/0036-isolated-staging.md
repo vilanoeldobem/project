@@ -28,7 +28,7 @@ limites: não havia um ambiente executável para a jornada completa.
 2. **Banco próprio.** A API de homologação usa o D1 `vilanoeldobem-staging`
    (`cda0275f-6ffc-4813-8dee-efd5ae98baf4`), separado do banco de produção
    (`7c65d21d-0431-4ec5-bdd0-691dacb81f92`), apontando para o mesmo diretório de migrations. A atualização do
-   banco remoto até a `0015` é uma etapa manual do operador.
+   banco remoto até a última migration da versão em homologação é uma etapa manual do operador.
 3. **Build de teste.** Jogo, painel e site usam `vite build --mode staging` e um diretório de assets próprio,
    `.wrangler/staging-assets`. Os endereços saem de `endpoints("staging")`; o jogo e o site reescrevem os hosts
    de produção para os hosts irmãos e removem o bloco de analytics do HTML; a CSP de teste não permite GTM/GA e

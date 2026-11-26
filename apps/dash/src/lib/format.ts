@@ -1,5 +1,5 @@
 /** Small pure helpers for what the dashboard prints (pt-BR). */
-import { type ApplicationSummary, ROLE_LABEL } from "@vila/shared/accounts/contract";
+import { ROLE_LABEL } from "@vila/shared/accounts/contract";
 
 /** Audit actions the API writes today (docs/reference/storage.md); unknown ones are shown by their code. */
 export const ACTION_LABEL: Record<string, string> = {
@@ -119,9 +119,4 @@ export function applicationIdOf(subject: string): string | null {
 /** How a `/config` value reads: booleans are flags; anything else is printed as JSON. */
 export function flagText(value: unknown): string {
   return value === true ? "Ligado" : value === false ? "Desligado" : JSON.stringify(value);
-}
-
-/** Rejection and withdrawal release the lot; requested lot ids remain historical. */
-export function occupantOf(lot: { id: string }, applications: ApplicationSummary[]): ApplicationSummary | undefined {
-  return applications.find((a) => a.lotId === lot.id && a.status !== "rejected" && a.status !== "withdrawn");
 }

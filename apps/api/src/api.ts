@@ -30,7 +30,7 @@
 import { localSnapshot } from "@vila/shared/environment/config";
 
 import { blockAccount, changeRole, unblockAccount } from "./account-moderation";
-import { decide, getApplicationAdmin, listApplications } from "./admin";
+import { decide, getApplicationAdmin, listAdminLots, listApplications } from "./admin";
 import { deleteMe, logout, me, register, requestLink, updateMe, verify } from "./auth";
 import { listAudit, listUsers } from "./backoffice";
 import {
@@ -438,6 +438,7 @@ async function accountRoute(request: Request, env: Env, url: URL): Promise<Respo
   const adminFile = ADMIN_FILE.exec(pathname);
   if (adminFile && method === "GET") return downloadFileAdmin(request, env, adminFile[1], adminFile[2]);
   if (is("GET", "/admin/applications")) return listApplications(request, env);
+  if (is("GET", "/admin/lots")) return listAdminLots(request, env);
   if (is("GET", "/admin/audit")) return listAudit(request, env);
   if (is("GET", "/admin/users")) return listUsers(request, env);
   if (is("GET", "/admin/donations/overview")) return adminDonationOverview(request, env);
