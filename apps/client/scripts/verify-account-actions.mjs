@@ -56,6 +56,7 @@ try {
     const page = await context.newPage();
     page.setDefaultTimeout(25_000);
     const errors = [], requests = [], visited = [];
+    let configUnavailable = staging;
     page.on("pageerror", e => { errors.push(e.message); console.error("Browser:", e.message); });
     const user = { id: "player-a", nickname: "Alice", name: "Alice Teste", email:"a@example.invalid", city:"Vila", role:"player" };
     const initial = { xp:30, completed:{"explore-gifts":true}, counters:{}, seen:{} };
@@ -85,6 +86,7 @@ try {
       if(req.method()==="OPTIONS") return route.fulfill({status:204,headers});
       const path=url.pathname;
       requests.push({path,body:req.postDataJSON()});
+      if(path==="/config" && configUnavailable) return route.fulfill({status:503,headers,json:{error:"unavailable"}});
       let body={}, status=200;
       if(path==="/config") body={accounts:true,donations:true,[staging?"stagingAccountActions":"localAccountActions"]:enabled};
       if(path==="/me") body={user:active};
@@ -111,6 +113,29 @@ try {
     const outfit = page.locator('[data-item-id="helmet-beanie"]');
     const goto=async hash=>{await page.goto(origin+"/check"+hash);await page.waitForFunction(()=>!!window.review);};
     await goto("");
+    if (staging) {
+      const retry=page.getByRole("button",{name:"Consultar configuração novamente"});
+      const unchanged=await equipment();
+      await open("avatar");
+      await outfit.getByRole("button",{name:"Equipar"}).click();
+      await retry.waitFor();
+      assert.equal(await equipment(),unchanged);
+      await open("games");
+      await page.getByRole("button",{name:"Jogar",exact:true}).first().click();
+      await retry.waitFor();
+      await open("lot");
+      await expectPanel("lot");
+      await retry.waitFor();
+      await open("missions");
+      await page.getByRole("button",{name:/Concluir missão: Visite/}).click();
+      await retry.waitFor();
+      assert.equal(await page.getByRole("tab",{name:"Já tenho conta"}).count(),0);
+      assert.equal(requests.some(r=>r.path==="/donations/redirect" || r.path==="/progress/events"),false);
+      assert.equal(await page.evaluate(()=>window.review.store.getState().progress.xp),initial.xp);
+      configUnavailable=false;
+      await retry.click();
+      await expectPanel("none");
+    }
     await open("avatar");
     const before = await equipment();
     await outfit.getByRole("button",{name:/Provar/}).click();

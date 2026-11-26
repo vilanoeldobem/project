@@ -98,5 +98,8 @@ de `GET /config` na origem `https://play-staging.vilanoeldobem.com.br`. O login 
 caixa de teste que receba o link. Para conferir o link externo da ONG, habilite doações no ambiente do ensaio
 e use uma ONG fictícia publicada com link validado. O clique registra o redirecionamento e não gera pagamento.
 
+Se o jogo de homologação perder a resposta de `/config`, a exploração continua disponível e os quatro gestos
+aguardam a leitura das regras. Use **Consultar configuração novamente** e repita a atividade depois da resposta.
+
 O comando `node apps/client/scripts/verify-account-actions.mjs --staging` verifica os dois modos em Chromium
 local, com as origens de homologação interceptadas, os componentes do jogo e uma API simulada.

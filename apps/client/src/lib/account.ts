@@ -143,6 +143,7 @@ interface AccountState {
   user: Me | null;
   ready: boolean;
   configReady: boolean;
+  actionConfigUnavailable: boolean;
   localImportCount: number;
   /** Server copy of the signed-in progress: "pending" while some events wait for the connection. */
   sync: "saved" | "pending";
@@ -158,6 +159,7 @@ export const useAccount = create<AccountState>((set) => ({
   user: null,
   ready: false,
   configReady: false,
+  actionConfigUnavailable: false,
   localImportCount: 0,
   sync: "saved",
   setUser: (user) => set({ user }),
@@ -500,11 +502,23 @@ export function initAccount(): Promise<void> {
 }
 
 async function readStartup() {
+  const actionFlag = accountActionFlag();
+  let configRead = false;
   try {
     const config = await api.config();
+    if (actionFlag === "stagingAccountActions" && (typeof config?.accounts !== "boolean" ||
+        (config.stagingAccountActions !== undefined && typeof config.stagingAccountActions !== "boolean"))) {
+      throw new ApiError(503, "unknown");
+    }
+    configRead = true;
     const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = config;
-    const actionFlag = accountActionFlag();
     const requireAccount = actionFlag && config[actionFlag] === true && (actionFlag !== "stagingAccountActions" || accounts === true);
+    if (useAccount.getState().actionConfigUnavailable) {
+      const vila = useVila.getState();
+      if (vila.panel.kind === "account" && vila.panel.reason) vila.close();
+      // Guest completion can be tried again in the normal flow after an explicit opt-out.
+      if (!requireAccount) useVila.setState({ missionClaims: {} });
+    }
     useVila.setState({ localActor: requireAccount ? () => {
       const user = useAccount.getState().user;
       return user && !user.blocked && !user.deletionPending ? user.id : null;
@@ -512,6 +526,7 @@ async function readStartup() {
     setServerQuests(quests === true);
     setServerQuestsV2(questsV2 === true);
     useAccount.setState({
+      actionConfigUnavailable: false,
       configReady: true,
       enabled: accounts,
       files: accounts && files === true,
@@ -551,7 +566,11 @@ async function readStartup() {
       else if (donations) await openPixReview(user.id, false);
     }
   } catch {
-    /* not signed in or API unavailable */
+    if (actionFlag === "stagingAccountActions" && !configRead) {
+      // Reuse all four gesture guards. The panel offers a config retry while the policy is unknown.
+      useVila.setState({ localActor: () => null });
+      useAccount.setState({ actionConfigUnavailable: true });
+    }
   } finally {
     useAccount.setState({ ready: true, configReady: true });
   }
