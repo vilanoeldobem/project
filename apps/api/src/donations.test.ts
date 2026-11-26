@@ -1158,23 +1158,36 @@ describe("durable creation intent (IMPL-0028)", () => {
   });
 
   it("calls the provider once when retries with the same key arrive at the same time", async () => {
+    let entered!: () => void;
     let release!: () => void;
+    const providerEntered = new Promise<void>((resolve) => (entered = resolve));
     const gate = new Promise<void>((resolve) => (release = resolve));
+    let providerCalls = 0;
     onCreate(async (forward) => {
-      await gate;
+      if (++providerCalls === 1) {
+        entered();
+        await gate;
+      }
       return forward();
     });
-    const key = crypto.randomUUID();
-    const pending = [1, 2, 3].map(() => pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor"));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    release();
-    const answers = await Promise.all(pending.map(async (p) => errorOf(await p).catch(() => null)));
-    const statuses = (await Promise.all(pending)).map((r) => r.status).sort();
-    expect(statuses).toEqual([201, 409, 409]);
-    expect(answers.filter((a) => a?.[1] === "donation_in_progress")).toHaveLength(2);
-    expect([creates().length, count("donations"), count("donation_intents")]).toEqual([1, 1, 1]);
-    expect((await pix({ idempotencyKey: key, targetKind: "ngo", ngoId: NGO, amountCents: 1000 }, "donor")).status).toBe(200);
-    expect(creates()).toHaveLength(1);
+    const body = { idempotencyKey: crypto.randomUUID(), targetKind: "ngo", ngoId: NGO, amountCents: 1000 };
+    const first = pix(body, "donor");
+    let created: Response;
+    try {
+      await providerEntered;
+      const retries = await Promise.all([pix(body, "donor"), pix(body, "donor")]);
+      expect(await Promise.all(retries.map(errorOf))).toEqual([[409, "donation_in_progress"], [409, "donation_in_progress"]]);
+    } finally {
+      release();
+      created = await first;
+    }
+    expect(created.status).toBe(201);
+    const replay = await pix(body, "donor");
+    expect(replay.status).toBe(200);
+    const saved = { donation: { id: intents()[0].id } };
+    expect(await created.json()).toMatchObject(saved);
+    expect(await replay.json()).toMatchObject(saved);
+    expect([providerCalls, creates().length, count("donations"), count("donation_intents")]).toEqual([1, 1, 1, 1]);
   });
 
   it("keeps the provider's answer when D1 fails after it, and finishes the same donation on retry without a second charge", async () => {
