@@ -35,12 +35,16 @@ jobs:
       - name: Local media, progress and withdrawal lifecycle (workerd, D1, R2)
         run: node scripts/verify-media-local.mjs --progress --withdrawal
         timeout-minutes: 3
-      - name: Install pinned Chromium for the existing account flow
+      - name: Install pinned Chromium for the browser flows
         run: pnpm --filter @vila/client exec playwright-core install --with-deps chromium
       - name: Build loopback game and dashboard assets
         run: |
           pnpm --filter @vila/client run build:local
           pnpm --filter @vila/dash run build:local
+      - name: Verify Pix confirmation after sign-in (simulated mailbox and provider)
+        run: |
+          CHROMIUM_PATH="$(pnpm --filter @vila/client exec node -p 'require("playwright-core").chromium.executablePath()')" node apps/client/scripts/verify-pix-return.mjs
+        timeout-minutes: 6
       - name: Browser account and file flow (analytics stubbed)
         run: |
           CHROMIUM_PATH="$(pnpm --filter @vila/client exec node -p 'require("playwright-core").chromium.executablePath()')" node scripts/verify-media-local.mjs --browser
