@@ -33,7 +33,7 @@ import { AccountsOff, Confirmation, DataTable, Field, Live, Notice, PageHead, St
 export function Users({ locked, accountId }: { locked: boolean; accountId?: string }) {
   return (
     <>
-      <PageHead title="Usuários" lead="Contas da Vila pelo nickname (mais recentes primeiro). Mudanças de papel e bloqueios ficam registrados na auditoria." />
+      <PageHead title="Usuários e permissões" lead="Encontre a conta pelo nickname para conceder ou retirar o papel de administrador. As mudanças de papel e os bloqueios ficam registrados na auditoria." />
       {locked ? (
         <>
           <AccountsOff what="a lista de contas não pode ser lida" />

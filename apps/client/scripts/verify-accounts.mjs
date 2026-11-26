@@ -606,7 +606,7 @@ await menu.getByRole("link", { name: "Auditoria" }).click();
 if (!(await visible(b.getByRole("row").filter({ hasText: "ngo.approve" }).filter({ hasText: `@${admin}` }).first()))) errors.push("dashboard: the approval is not in the audit trail");
 // Reading a document is on record, with the admin who read it.
 if (filesOn && !(await visible(b.getByRole("row").filter({ hasText: "ngo.file_read" }).filter({ hasText: `@${admin}` }).first()))) errors.push("dashboard: the document download is not in the audit trail");
-await menu.getByRole("link", { name: "Usuários" }).click();
+await menu.getByRole("link", { name: "Usuários e permissões", exact: true }).click();
 if (!(await visible(b.getByRole("row").filter({ hasText: `@${admin}` }).filter({ hasText: "Administrador" })))) errors.push("dashboard: the admin is not in the users list");
 if (/@example\.com|Pessoa (ong|out|adm)_/.test(await b.getByRole("main").innerText())) errors.push("dashboard: the users list shows an e-mail or a name");
 await b.screenshot({ path: `${out}accounts-4b-dash-users.png`, fullPage: true });

@@ -128,7 +128,7 @@ pnpm --filter @vila/site exec wrangler deploy --env staging --x-provision=false
 
 4. Configure a chave de envio no Worker de teste com `pnpm --filter @vila/api exec wrangler secret put RESEND_API_KEY --env staging` e informe o valor no prompt do Wrangler. Confira `environment: "staging"` e `mail: true` em `https://api-staging.vilanoeldobem.com.br/health`. A presença da chave, sozinha, não comprova a entrega.
 5. Quando o responsável liberar o teste com a caixa e o remetente definidos, publique a API com `pnpm --filter @vila/api exec wrangler deploy --env staging --x-provision=false --var ACCOUNTS_ENABLED:true`. Confira `accounts: true` e `donations: false` em `/config` e `checks.db: "ok"` em `/ready` no host da API de teste. Para encerrar novas entradas, republique a API de staging com a configuração versionada, sem o override, e confira `accounts: false`.
-6. Cadastre e verifique a conta do operador no jogo de teste. Se for a primeira conta administrativa deste ambiente, o responsável autorizado pode conceder o papel no D1 **vilanoeldobem-staging**, usando `--env staging --remote` e o identificador conferido da conta de teste. Registre a concessão inicial. Depois, o administrador pode gerenciar os papéis em **Painel → Usuários**. A candidatura deve usar outra conta.
+6. Cadastre e verifique a conta do operador no jogo de teste. Se for a primeira conta administrativa deste ambiente, o responsável autorizado pode conceder o papel no D1 **vilanoeldobem-staging**, usando `--env staging --remote` e o identificador conferido da conta de teste. Registre a concessão inicial. Depois, o administrador pode gerenciar os papéis em **Painel → Usuários e permissões**. A candidatura deve usar outra conta.
 
 ## Ordem da homologação de cidadão e ONG
 
