@@ -30,7 +30,7 @@ Cada versão indica o schema D1 que entrega.
 
 - A seção **Usuários e permissões** do painel indica onde conceder ou retirar o papel de administrador.
 - Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
-- A CI verifica a retomada do Pix global e por ONG em Chromium, incluindo duas abas e nova tentativa após a perda da resposta.
+- A CI verifica a retomada do Pix global e por ONG em Chromium, incluindo duas abas, nova tentativa após a perda da resposta e escolha de um novo valor quando o rascunho expira ou o link abre em outro perfil.
 
 ### Added — epílogo e pós-jogo (sessão 11)
 
