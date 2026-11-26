@@ -11,6 +11,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
+
 - Painel administrativo de doações com contagem e bruto dos Pix pagos por destino, comprovantes manuais em colunas próprias e total acumulado da base.
 
 - Ensaio local do cadastro com a mensagem produzida para o provedor de e-mail e retorno do administrador ao painel de homologação.
