@@ -420,7 +420,22 @@ await click(a.getByRole("button", { name: "Continuar" }));
 const lotValue = await a.getByLabel("Terreno desejado *").locator("option").nth(1).getAttribute("value", { timeout: API_WAIT });
 await a.getByLabel("Terreno desejado *").selectOption(lotValue);
 await a.screenshot({ path: `${out}accounts-2-review-step.png` });
+// Lose just the response, after the API persisted the form. The applicant confirms it by reading the saved application.
+await a.evaluate((apiOrigin) => {
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    if (args[0] === apiOrigin + "/ngo/application" && args[1]?.method === "POST") {
+      window.fetch = originalFetch;
+      const response = await originalFetch(...args);
+      if (!response.ok) return response;
+      await response.arrayBuffer();
+      throw new TypeError("Connection lost after submission");
+    }
+    return originalFetch(...args);
+  };
+}, BUILD_API);
 await click(a.getByRole("button", { name: "Enviar candidatura" }));
+await click(a.getByRole("button", { name: "Conferir candidatura salva" }));
 await a.getByRole("dialog").getByText("Candidatura enviada", { exact: true }).first().waitFor({ timeout: API_WAIT });
 await a.screenshot({ path: `${out}accounts-3-submitted.png` });
 if (await approvedNgoCount() !== approvedBefore) errors.push("public indicators: submitting an application changed approved_ngos");
