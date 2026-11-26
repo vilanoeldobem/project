@@ -164,10 +164,9 @@ async function expectFreshSelection(ctx, state, link) {
   assert.equal(state.user?.id, first.id);
   assert.equal(await page.getByRole("dialog", { name: "Confirmar doação por Pix" }).count(), 0);
   await openDestination(page, "ngo");
-  const generate = page.getByRole("button", { name: "Gerar Pix de doação" });
-  await generate.waitFor();
+  await page.getByRole("button", { name: "Gerar Pix de doação" }).waitFor();
   assert.equal(await page.getByPlaceholder("0,00").inputValue(), "");
-  assert.ok(await generate.isDisabled());
+  await page.getByRole("button", { name: /^R\$\s*2,00$/, pressed: true }).waitFor();
   assert.equal(state.posts.length, 0);
   assert.equal(state.issued.size, 0);
 }
