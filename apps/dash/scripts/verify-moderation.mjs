@@ -339,7 +339,9 @@ try {
     await section(page, "Usuários e permissões");
     await rowOf(page, player).waitFor();
     await assertNoPersonalData(page, "users");
-    assert.equal(await cell(page, admin, "Nickname").innerText(), `@${admin.nickname} (você)`);
+    const nameCell = cell(page, admin, "Nome na Vila");
+    assert.equal(await nameCell.locator("code").innerText(), admin.id);
+    assert.match(await nameCell.innerText(), new RegExp(`^${admin.nickname} \\(você\\)`));
     assert.equal(await cell(page, admin, "Papel").innerText(), "Administrador");
     assert.equal(await cell(page, player, "Papel").innerText(), "Padrão");
     assert.equal(await rowOf(page, admin).getByRole("button").count(), 0, "nothing is offered on one's own row");
