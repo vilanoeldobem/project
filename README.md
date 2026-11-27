@@ -63,6 +63,7 @@ tasks/           registro de trabalho dos agentes (todo.md)
 pnpm install
 pnpm db:migrate:local                       # D1 local com os terrenos
 pnpm dev                                    # http://localhost:5173 (Vite) + API :8787 + servidor :8788
+pnpm dev:story                              # o mesmo, com a história v2 e o epílogo v1 ligados (local)
 # ou o jogo servido pelo Worker, como em produção (três terminais):
 pnpm --filter @vila/api dev                 # API      → http://localhost:8787 (contas ligadas, devLink)
 pnpm --filter @vila/server dev              # servidor → http://localhost:8788

@@ -214,6 +214,8 @@ ficar a menos de 0,9 u dele); e (4) rodar de novo
   obstáculo e o alvo do botão de ação só existem com as quests ligadas. Sem as flags, o ponto de doação global
   (DEC-026) continua sendo a árvore, como antes. Usa o gerador `quest-donation-panel` com a semente `donation-panel`.
 - A árvore e o atril abrem o **mesmo** painel `ui/Donation.tsx`. Nenhum texto é 3D.
+- Um NPC ou uma interação de quest a até 2 u do avatar vence o atril no botão de ação (`nearby.ts`): o `!` de quem
+  fala não abre a doação global. No ponto do próprio atril, ele continua sendo a ação.
 - A missão `donation-promise-reading` avança só pelo botão explícito **Entendi, li a promessa**. Abrir o painel,
   rolar ou permanecer parado **nunca** grava `read-confirm` (sem cronômetro, sem tempo mínimo).
 - O painel mantém o botão "Doar" desabilitado: sem contrato e provedor (PEN-004/PEN-006) nada simula pagamento.

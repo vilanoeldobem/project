@@ -3,11 +3,15 @@ import { type ThreeEvent, useFrame } from "@react-three/fiber";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, PlaneGeometry } from "three";
 
-import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, type NpcPlacement, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
+import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
 import { asNgoLevel } from "@vila/shared/game/ngo-level";
-import type { Progress } from "@vila/shared/game/progress";
-import { QUESTS, questState } from "@vila/shared/game/quests";
+import { questState } from "@vila/shared/game/quests";
+import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { STORY_NPC_IDS } from "@vila/shared/game/quests-v2/world";
 import { openFromScene, visit } from "../game/clicks";
+import { npcMarkers } from "../game/npc-markers";
+import { useQuestsEnabled } from "../game/questsFlag";
+import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
@@ -256,23 +260,23 @@ export function Label({ y, text, x, z, radius = LABEL_RADIUS }: { y: number; tex
   );
 }
 
-/** Symbol + name marker over a quest NPC: never colour alone (PROPOSTA quests-v1). */
-function npcMarker(npc: NpcPlacement, progress: Progress): string {
-  const states = QUESTS.map((q) => ({ q, state: questState(progress, q.id) }));
-  if (states.some(({ q, state }) => q.turnInNpcId === npc.id && state === "ready_to_turn_in")) return `? ${npc.name}`;
-  if (states.some(({ q, state }) => q.giverNpcId === npc.id && state === "available")) return `! ${npc.name}`;
-  if (states.some(({ q, state }) => (q.giverNpcId === npc.id || q.turnInNpcId === npc.id) && state === "active")) return `... ${npc.name}`;
-  return npc.name;
-}
-
 /**
  * The five fictional quest NPCs (PROPOSTA quests-v1): seeded villagers that block the avatar and carry a
  * short symbol + name label. A click opens the dialogue only from talking distance (the same reach as the
  * action button); from farther away it walks the avatar up to the NPC. Mounted only with the quests flag.
+ * While the story is on, a book that re-declares one of them draws it (`StoryProps`): only the v1 characters
+ * no book owns stay here, so nobody is drawn and labelled twice.
  */
 export function QuestNpcs() {
   const progress = useVila((s) => s.progress);
-  const models = useMemo(() => NPCS.map((npc) => ({ npc, m: villager(npc.seed) })), []);
+  const quests = useQuestsEnabled();
+  const quests2 = useQuestsV2Enabled();
+  const catalog = useMemo(() => catalogFor(quests, quests2), [quests, quests2]);
+  const models = useMemo(
+    () => NPCS.filter((npc) => !quests2 || !STORY_NPC_IDS.has(npc.id)).map((npc) => ({ npc, m: villager(npc.seed) })),
+    [quests2]
+  );
+  const labels = useMemo(() => npcMarkers(models.map(({ npc }) => npc), catalog, progress), [models, catalog, progress]);
   return (
     <>
       {models.map(({ npc, m }) => (
@@ -287,7 +291,7 @@ export function QuestNpcs() {
           }}
         >
           <Voxels voxels={m.voxels} size={m.size} emissive={m.emissive} idle={m.idle} castShadow />
-          <Label y={4.2} text={npcMarker(npc, progress)} x={npc.x} z={npc.z} />
+          <Label y={4.2} text={labels.get(npc.id) ?? npc.name} x={npc.x} z={npc.z} />
         </group>
       ))}
     </>
