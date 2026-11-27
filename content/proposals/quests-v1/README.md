@@ -1,9 +1,8 @@
 # quests-v1 — proposta de missões da Vila
 
 > **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo inicial pendente em PEN-025).
-> Conteúdo narrativo para avaliação. O runtime das 18 missões está implementado para
-> avaliação local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` no cliente e
-> `QUESTS_V1_ENABLED` na API), desligado em produção e staging; nada aqui é decisão aprovada.
+> Conteúdo narrativo para avaliação. O runtime das 18 missões está implementado e **sempre ligado** desde a
+> IMPL-0037, sem bandeira no cliente nem na API; nada aqui é decisão aprovada.
 
 ## Contagens
 
@@ -76,7 +75,7 @@ novo é `winter-sprig`; não há bandeira nova, migration ou passo de doação. 
 [`epilogue-bough/README.md`](epilogue-bough/README.md); pesquisa em
 [`../../research/missoes-epilogo-ramo-2026-11-18.md`](../../research/missoes-epilogo-ramo-2026-11-18.md).
 
-## Lacunas de mecânica (implementadas em local/dev atrás de flags)
+## Lacunas de mecânica (implementadas e sempre ligadas desde a IMPL-0037)
 
 - Diálogo com NPC e entrega entre NPCs: `apps/client/src/ui/NpcDialog.tsx`, com aceitar, concluir e a oferta
   seguinte no mesmo painel.
@@ -88,9 +87,9 @@ novo é `winter-sprig`; não há bandeira nova, migration ou passo de doação. 
 - `newest-house-visit` exige ONG publicada no ambiente: sem casa publicada, o Caderno mostra
   "Aguardando uma casa publicada" e o aceite fica desabilitado (`needsPublishedLot`).
 
-O motor de estados é `packages/shared/src/game/quests.ts` (uma missão ativa por vez) e o XP no servidor
-reusa `applyEvent`, sem migration. Tudo continua **PROPOSTA** e pendente de aprovação em PEN-025; as
-flags ficam desligadas em produção.
+O motor de estados é `packages/shared/src/game/quests.ts` (missões em paralelo, cada cadeia na ordem dos seus
+pré-requisitos) e o XP no servidor reusa `applyEvent`, sem migration. Tudo continua **PROPOSTA** e pendente de
+aprovação em PEN-025; o runtime está sempre ligado desde a IMPL-0037.
 
 ## Validação
 

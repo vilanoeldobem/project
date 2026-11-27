@@ -7,9 +7,8 @@
 > [`objects.md`](objects.md), [`story-bible.md`](story-bible.md), [`review.md`](review.md) e o código em
 > `packages/shared/src/game/`, `apps/client/src/` e `apps/api/src/`.
 > **Este documento é o plano do piloto da cadeia 1:** nenhum deploy, migration remota ou publicação acompanha a
-> proposta. O runtime das 18 missões (todas as cadeias, não só `flight-night`) está implementado para avaliação
-> local/dev atrás de flags (`VITE_QUESTS_V1_ENABLED` / `?quests=1` e `QUESTS_V1_ENABLED`), desligado em produção;
-> os passos abaixo registram o desenho original e continuam válidos como contrato técnico.
+> proposta. O runtime das 18 missões (todas as cadeias, não só `flight-night`) está implementado e **sempre ligado**
+> desde a IMPL-0037; os passos abaixo registram o desenho original e continuam válidos como contrato técnico.
 > **Arte 3D:** os cinco objetos `new` da proposta já têm gerador (`status_build: done`), incluindo
 > `quest-lucky-charm` (máximo 50/108 voxels e faces); a integração na cena e nas missões está no runtime
 > descrito em [`docs/reference/quests.md`](../../docs/reference/quests.md), atrás das flags.
@@ -205,6 +204,9 @@ Cada passo abaixo é independente dos seguintes e deixa `pnpm typecheck`, `pnpm 
 
 ### Passo 5 — Feature flag (`quests-v1`), cliente e API
 
+> **Nota (2026-11-26):** este passo registra o desenho original do piloto. A IMPL-0037 removeu as bandeiras; o
+> runtime atual está descrito em [quests.md](../../../docs/reference/quests.md) e [IMPL-0037](../../../docs/decisions/0037-parallel-quests-and-mission-journal.md).
+
 - **Alvo:** `apps/client/src/game/questsFlag.ts` (novo), `apps/api/src/api.ts`, `apps/api/wrangler.jsonc`,
   `apps/api/package.json`.
 - **Cliente (`questsEnabled(): boolean`)** — verdadeiro apenas quando:
@@ -387,8 +389,7 @@ pnpm --filter @vila/client dev:worker                     # :8799
 
 1. **Aprovação do catálogo e da curva de XP (PEN-025, DEC-039..042):** os três moradores fictícios (Baltazar, Seu Nivaldo,
    Dona Guida), as falas de [`dialogues.csv`](dialogues.csv) e `20 + 30 + 50 = 100 XP` da cadeia saem de `PROPOSTA`?
-   Enquanto não saírem, tudo fica rotulado `PROPOSTA` e desligado em produção (`VITE_QUESTS_V1_ENABLED` ausente,
-   `QUESTS_V1_ENABLED = "false"`).
+   Enquanto não saírem, tudo fica rotulado `PROPOSTA`; o runtime está sempre ligado desde a IMPL-0037.
 2. **Coexistência com as 4 missões (P14):** as cadeias narrativas convivem com as 4 missões rápidas no Caderno ou as
    substituem quando as 5 cadeias estiverem prontas? O piloto adota coexistência, em seção separada, sem tocar no contador
    principal.

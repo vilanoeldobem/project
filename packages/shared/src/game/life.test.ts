@@ -26,6 +26,7 @@ import {
 } from "./life";
 import { createNavField, lineClear } from "./navigation";
 import { QUESTS } from "./quests";
+import { STORY_SEATS } from "./quests-v2/seats";
 import { groundAt, HOUSE_ENVELOPE, INTERACT_DISTANCE, lotColliders, LOTS, NPCS, OBSTACLES, PATH_GRAPH, plotColliders, QUEST_INTERACTIONS, QUEST_OBSTACLES, QUEST_SPAWNS, RESIDENTIAL_PLOTS, SHOPS, WOOD_YARD, WORLD_RADIUS } from "./world";
 
 const HOMES = RESIDENTIAL_PLOTS.flatMap((p) => plotColliders(p));
@@ -655,6 +656,16 @@ describe("village life and the quests (quests-v1)", () => {
     for (const npc of NPCS)
       for (const c of LIFE_CAST) if (isPerson(c.kind)) for (const s of c.spots) if (!s.inside) expect(Math.hypot(s.x - npc.x, s.z - npc.z), `${c.id} by ${npc.id}`).toBeGreaterThan(2.5);
     expect(INTERACT_DISTANCE).toBeGreaterThan(2.5);
+  });
+
+  it("keeps every story seat clear of the village cast", { timeout: 30_000 }, () => {
+    const prints = life.chars.map((c) => ({ c, print: footprint(life, c.index) }));
+    for (const [id, seat] of Object.entries(STORY_SEATS)) {
+      for (const { c, print } of prints) {
+        for (const [x, z] of print) expect(Math.hypot(x - seat.x, z - seat.z), `${id} near ${c.def.id}`).toBeGreaterThan(1);
+      }
+      for (const c of LIFE_CAST) if (isPerson(c.kind)) for (const s of c.spots) if (!s.inside) expect(Math.hypot(s.x - seat.x, s.z - seat.z), `${id} by ${c.id}`).toBeGreaterThan(2.5);
+    }
   });
 });
 

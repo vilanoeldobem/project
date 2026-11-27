@@ -33,7 +33,10 @@ function services(mode: string): Plugin {
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), services(mode)],
-  define: { __VILA_VERSION__: JSON.stringify(pkg.version), __VILA_SERVICES__: JSON.stringify(endpoints(mode)) },
+  define: {
+    __VILA_VERSION__: JSON.stringify(pkg.version),
+    __VILA_SERVICES__: JSON.stringify(endpoints(mode)),
+  },
   build: {
     outDir: mode === "staging" ? ".wrangler/staging-assets" : "dist",
     target: "es2022",

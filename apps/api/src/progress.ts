@@ -8,9 +8,8 @@
  *
  * Quests (v1 epilogue and v2 books) are an order-dependent state machine, so a quest event is stored only when
  * it is a valid transition against the progress already stored (the batch is applied in order). An event that
- * is not applicable is omitted and the response returns the account's authoritative progress. With
- * `QUESTS_V1_ENABLED` off, v1 quest events are skipped; with `QUESTS_V2_ENABLED` off, v2 events are skipped.
- * The four quick missions are order-independent and always stored.
+ * is not applicable is omitted and the response returns the account's authoritative progress. Quests are always
+ * on (IMPL-0037); the four quick missions are order-independent and always stored.
  *
  * Trust (PROPOSTA): the server checks mission ids, that each event id exists for its mission, idempotency and,
  * for quests, the order of the transitions; it cannot prove that a gift was found or an NPC was visited in the
@@ -57,35 +56,26 @@ type StoredEvent = { mission_id: string; event_id: string };
 type Event = { missionId: string; eventId: string };
 type SnapshotRow = { revision: number | null; blocked: number; mission_id: string | null; event_id: string | null; created_at: string | null };
 
-export interface ProgressFlags {
-  v1: boolean;
-  v2: boolean;
-}
-
 const keyOf = (e: Event) => `${e.missionId}:${e.eventId}`;
 const isQuestId = (missionId: string) => QUEST_IDS.has(missionId);
 
 /**
  * Replays the stored log and plans the valid part of one incoming batch. Pure and testable with a synthetic
- * catalog; the route calls it with `STORY_CATALOG`. Saved events replay through `catalog`, so a v1-only
- * account keeps its epilogue progress; new events may use `applyCatalog` (the v2-gated catalog).
+ * catalog; the route calls it with `STORY_CATALOG`. Saved events replay through `catalog`, so an account that
+ * collected epilogue progress before the gate keeps it; new events use `applyCatalog` (the full catalog).
  */
 export function planProgress(
   catalog: StoryCatalog,
   saved: StoredEvent[],
   valid: Event[],
-  flags: ProgressFlags,
   applyCatalog: StoryCatalog = catalog
 ): { progress: Progress; planned: Map<string, Event> } {
   const existing = new Set(saved.map((e) => `${e.mission_id}:${e.event_id}`));
   let progress = saved.reduce((p, e) => applyEventIn(catalog, p, e.mission_id, e.event_id).progress, EMPTY_PROGRESS);
   const planned = new Map<string, Event>();
-  const v2Ids = new Set(catalog.quests.filter((quest) => "book" in quest).map((quest) => quest.id));
-  const questIds = new Set([...V1_QUEST_IDS, ...v2Ids]);
+  const questIds = new Set(catalog.quests.map((quest) => quest.id));
   for (const e of valid) {
     const isQuest = questIds.has(e.missionId);
-    if (V1_QUEST_IDS.has(e.missionId) && !flags.v1) continue;
-    if (v2Ids.has(e.missionId) && !flags.v2) continue;
     const next = applyEventIn(applyCatalog, progress, e.missionId, e.eventId).progress;
     if (isQuest && next === progress) continue;
     progress = next;
@@ -145,15 +135,13 @@ export async function postEvents(request: Request, env: Env): Promise<Response> 
   const valid = events.filter(isKnownEvent);
   if (valid.length !== events.length) throw new HttpError(400, "bad_events");
   const db = env.DB!;
-  const flags = { v1: env.QUESTS_V1_ENABLED === "true", v2: env.QUESTS_V2_ENABLED === "true" };
   await db.prepare("INSERT OR IGNORE INTO progress_writes(user_id) SELECT id FROM users WHERE id = ? AND blocked = 0").bind(user.id).run();
   for (let attempt = 0; attempt < MAX_WRITE_ATTEMPTS; attempt++) {
     // Let a competing writer finish before reading a fresh snapshot; never spin on one stale claim.
     if (attempt) await new Promise((resolve) => setTimeout(resolve, 20 * attempt + Math.floor(Math.random() * 20)));
     const saved = await snapshot(db, user.id);
     const existing = new Set(saved.events.map((e) => `${e.mission_id}:${e.event_id}`));
-    const applyCatalog = flags.v1 && flags.v2 ? catalogFor(true, true) : STORY_CATALOG;
-    const { progress, planned } = planProgress(STORY_CATALOG, saved.events, valid, flags, applyCatalog);
+    const { progress, planned } = planProgress(STORY_CATALOG, saved.events, valid, catalogFor(true, true));
     const additions = [...planned.keys()].filter((key) => !existing.has(key)).length;
     if (saved.events.length + additions > MAX_EVENTS_PER_USER) throw new HttpError(429, "too_many_events");
     if (!planned.size) return response(progress);

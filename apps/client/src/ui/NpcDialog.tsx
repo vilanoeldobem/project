@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 
 import { TRACK_LABEL, type Progress } from "@vila/shared/game/progress";
 import {
-  activeQuestIn,
   questProgressIn,
   questStateIn,
   V1_CATALOG,
 } from "@vila/shared/game/quests-v2/catalog";
-import type { StoryCatalog, StoryWorld } from "@vila/shared/game/quests-v2/types";
+import type { CatalogQuest, StoryCatalog, StoryWorld } from "@vila/shared/game/quests-v2/types";
 import { V1_WORLD } from "@vila/shared/game/quests-v2/world";
 
 import { useVila } from "../game/store";
@@ -96,12 +95,19 @@ export function NpcDialog({
   }, [talked, v1TalkAtOpen, talkInteraction, record, notify, npc?.name]);
   if (!npc) return null;
 
-  const turnIn = catalog.quests.find((q) => q.turnInNpcId === npcId && questStateIn(catalog, p, q.id) === "ready_to_turn_in");
-  const offer = catalog.quests.find((q) => q.giverNpcId === npcId && questStateIn(catalog, p, q.id) === "available");
+  // The v1 epilogue opens the conversation before a book the player also carries: both are named, one block each.
+  const v1First = (a: CatalogQuest, b: CatalogQuest) => Number("book" in a) - Number("book" in b);
+  const turnIns = catalog.quests
+    .filter((q) => q.turnInNpcId === npcId && questStateIn(catalog, p, q.id) === "ready_to_turn_in")
+    .sort(v1First);
+  const offers = catalog.quests
+    .filter((q) => q.giverNpcId === npcId && questStateIn(catalog, p, q.id) === "available")
+    .sort(v1First);
+  const turnIn = turnIns[0];
+  const offer = offers[0];
   const running = catalog.quests.find(
     (q) => (q.giverNpcId === npcId || q.turnInNpcId === npcId) && questStateIn(catalog, p, q.id) === "active"
   );
-  const busy = activeQuestIn(catalog, p) !== undefined;
   const talkQuest = talkInteraction ? catalog.quests.find((q) => q.id === talkInteraction.questId) : undefined;
 
   const body = talked ? (
@@ -131,17 +137,15 @@ export function NpcDialog({
       )}
       <button
         className="btn btn--primary"
-        onClick={() => {
-          record(turnIn.id, "turn-in");
-          if (useVila.getState().localActor && !useVila.getState().progress.completed[turnIn.id]) return;
-          const next = catalog.quests.some(
-            (q) => q.giverNpcId === npcId && questStateIn(catalog, useVila.getState().progress, q.id) === "available"
-          );
-          if (!next) close();
-        }}
+        onClick={() => record(turnIn.id, "turn-in")}
       >
         Concluir missão (+{turnIn.xp} XP)
       </button>
+      {turnIns.length > 1 && (
+        <p className="note" role="status">
+          Também pronta: {turnIns.slice(1).map((q) => q.title).join(" · ")}.
+        </p>
+      )}
     </>
   ) : offer ? (
     <>
@@ -156,7 +160,7 @@ export function NpcDialog({
       </p>
       <button
         className="btn btn--primary"
-        disabled={busy || (Boolean(offer.needsPublishedLot) && !hasPublishedLot(lots))}
+        disabled={Boolean(offer.needsPublishedLot) && !hasPublishedLot(lots)}
         onClick={() => {
           record(offer.id, "accept");
           notify(`Missão aceita: ${offer.title}`);
@@ -165,12 +169,12 @@ export function NpcDialog({
       >
         Aceitar missão
       </button>
-      {busy && (
+      {offers.length > 1 && (
         <p className="note" role="status">
-          Conclua a missão atual primeiro
+          Também disponível: {offers.slice(1).map((q) => q.title).join(" · ")}.
         </p>
       )}
-      {!busy && Boolean(offer.needsPublishedLot) && !hasPublishedLot(lots) && (
+      {Boolean(offer.needsPublishedLot) && !hasPublishedLot(lots) && (
         <p className="note" role="status">
           Nenhuma casa publicada ainda
         </p>
@@ -201,7 +205,7 @@ export function NpcDialog({
 
   return (
     // After a turn-in the next offer replaces the button that had focus: the key sends focus back to the dialog.
-    <Panel kicker={npc.role} title={npc.name} contentKey={talked ? "talked" : (turnIn ?? offer ?? running)?.id ?? "greeting"}>
+    <Panel subtitle={npc.role} title={npc.name} contentKey={talked ? "talked" : (turnIn ?? offer ?? running)?.id ?? "greeting"}>
       {body}
     </Panel>
   );

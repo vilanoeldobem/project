@@ -2,10 +2,8 @@
 import type { Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
 import type { Progress } from "../../progress";
+import { seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
-
-/** The last main quest of Book V opens the v1 epilogue; with v1 and v2 on, the epilogue waits for it. */
-export const EPILOGUE_GATE = "b05-c3-04";
 
 /** The last quest of each of the six epilogue chains; the final scene waits for all of them. */
 export const EPILOGUE_FINAL_QUESTS = [
@@ -319,7 +317,7 @@ export const QUESTS: StoryQuest[] = [
     track: "explore",
     title: "A carta para a próxima geração",
     description:
-      "Tomás escreveu uma carta para quem vai guardar a próxima Longa Noite. Leve a carta a Nina, na praça.",
+      "Tomás escreveu uma carta para quem vai guardar a próxima Longa Noite. Leve a carta a Nina, no teatro.",
     objectiveType: "deliver",
     objectKind: "quest_item",
     objectId: "next-generation-letter",
@@ -387,7 +385,7 @@ export const QUESTS: StoryQuest[] = [
     order: 5,
     track: "explore",
     title: "A estrela de duas luzes",
-    description: "A Estrela-Guia ganhou uma segunda luz. Veja as duas com Nina, no alto da praça.",
+    description: "A Estrela-Guia ganhou uma segunda luz. Veja as duas com Nina, do teatro.",
     objectiveType: "visit",
     objectKind: "none",
     target: 1,
@@ -396,7 +394,7 @@ export const QUESTS: StoryQuest[] = [
     giverNpcId: "nina",
     turnInNpcId: "storyteller",
     dialogue: {
-      offer: "A estrela tem duas luzes. Quero ver com você antes que o dia fique alto. Nina já está na praça.",
+      offer: "A estrela tem duas luzes. Quero ver com você antes que o dia fique alto. Nina já está no teatro.",
       turnIn: "Vi as duas. A primeira lembra de onde viemos; a segunda mostra para onde vamos. Dona Guida vai gostar de saber.",
     },
     objectiveEventIds: ["pg2-05-estrela"],
@@ -651,8 +649,7 @@ export const INTERACTIONS: StoryInteraction[] = [
     id: "pg2-05-estrela",
     questId: "pg2-05",
     objectId: "none",
-    x: -5.4,
-    z: 8.8,
+    ...seatPoint("nina"),
     radius: 4.5,
     book: 0,
     kind: "talk",

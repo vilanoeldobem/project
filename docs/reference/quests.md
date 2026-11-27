@@ -1,38 +1,29 @@
 # Missões da Vila (quests-v1)
 
-> **Status:** Implementado no cliente, na API e no código compartilhado, atrás de flags; conteúdo **PROPOSTA**
-> (DEC-039 a DEC-042; catálogo pendente em PEN-025) · **Versão do software:** 0.4.0 · **Schema D1:** v12 ·
-> **Atualizado em:** 2026-11-18
+> **Status:** Implementado no cliente, na API e no código compartilhado, sem bandeira (sempre ligado desde a
+> IMPL-0037); conteúdo **PROPOSTA** (DEC-039 a DEC-042; catálogo pendente em PEN-025) · **Versão do software:** 0.9.0 ·
+> **Schema D1:** v15 · **Atualizado em:** 2026-11-26
 > **Fonte de verdade:** `packages/shared/src/game/quests.ts`, `packages/shared/src/game/progress.ts`,
 > `packages/shared/src/game/world.ts`, `apps/client/src/{game,scene,ui}`, `apps/api/src/progress.ts`;
-> conteúdo em `content/proposals/quests-v1/` (PROPOSTA). Decisão técnica:
-> [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
+> conteúdo em `content/proposals/quests-v1/` (PROPOSTA). Decisões técnicas:
+> [IMPL-0013](../decisions/0013-quests-v1-runtime.md), [IMPL-0037](../decisions/0037-parallel-quests-and-mission-journal.md).
 
 O runtime de `quests-v1` leva ao jogo as 18 missões narrativas da [proposta](../../content/proposals/quests-v1/README.md)
 (seis cadeias de três missões; o epílogo "O ramo da chegada" é a sexta). Nada aqui é decisão de produto: o catálogo,
-os XP, os cinco moradores fictícios e os visuais continuam pendentes em **PEN-025**. Em produção tudo fica desligado;
-nada muda para quem joga sem as flags: sem NPCs, sem itens, sem atril de doação, sem os obstáculos deles e sem nenhum
-evento de quest enviado ou gravado.
+os XP, os cinco moradores fictícios e os visuais continuam pendentes em **PEN-025**. As quests são **sempre
+ligadas** desde a [IMPL-0037](../decisions/0037-parallel-quests-and-mission-journal.md): os NPCs, os itens, o atril de
+doação e os obstáculos deles fazem parte da Vila em qualquer build, e a API grava eventos de quest sem bandeira.
 
-## 1. Flags
+## 1. Sem bandeira
 
-| Lado | Chave | Efeito |
-|---|---|---|
-| Cliente | `VITE_QUESTS_V1_ENABLED=true` (build) | Lado do cliente da bandeira: monta NPCs, itens de quest, atril e o Caderno de cadeias **se a API também estiver ligada** |
-| Cliente | `?quests=1` (só `localhost`/`127.0.0.1` ou build de desenvolvimento) | O mesmo, para verificação local |
-| API | `QUESTS_V1_ENABLED=false` em `apps/api/wrangler.jsonc` (produção e staging) | Eventos de quest são ignorados (resposta `200`, nada gravado); o resto do lote é gravado normalmente |
-| API | `--var QUESTS_V1_ENABLED:true` no script `dev` | `:8787` local aceita e grava eventos de quest |
-| API | `GET /config` → `{accounts, quests}` | O cliente lê a bandeira do servidor ao abrir o jogo (`initAccount`) |
-
-**As duas bandeiras precisam estar ligadas.** O cliente só mostra as quests quando a bandeira dele (build ou
-`?quests=1`) **e** o `quests` de `GET /config` são verdadeiros (`apps/client/src/game/questsFlag.ts`). Enquanto
-`/config` não responde, ou se a API estiver fora do ar, as quests ficam desligadas. Com as quests desligadas o cliente
-não põe eventos de quest na fila nem os envia; um evento de quest que já estivesse na fila de envio é descartado em vez
-de reenviado. Se só um dos lados estiver ligado, nada de quest aparece.
+Não há chave para ligar nem desligar as missões: o cliente usa o catálogo completo (`catalogFor(true, true)`) e a API
+aceita os eventos conhecidos sem consultar `wrangler.jsonc`. A única condição é a sessão: um visitante sem conta
+grava o progresso neste navegador; com conta, a API valida e grava a transição (seção 9). O parâmetro `?quests=1` que
+aparece em scripts antigos é inofensivo e já não muda nada.
 
 As quatro missões rápidas (`explore-gifts`, `play-memory`, `causes-visit-lot`, `causes-global-donation`) continuam
-iguais e **sempre** aceitas pela API, com ou sem a flag. O epílogo "O ramo da chegada" não tem bandeira própria:
-roda atrás destas duas mesmas flags e fica desligado junto com o resto do catálogo.
+iguais e **sempre** aceitas pela API. O epílogo "O ramo da chegada" não depende de bandeira nem de livro: a primeira
+missão dele (`bough-ribbon`) espera apenas `story-page-delivery`, como antes.
 
 ## 2. Catálogo
 
@@ -76,8 +67,9 @@ v1 ligada, o comportamento acima permanece.
 | `ready_to_turn_in` | missão `deliver` logo após o `accept`, ou todos os ids de objetivo vistos |
 | `active` | aceita, com objetivos pendentes |
 
-`activeQuest(progress)` devolve a primeira missão em `active` ou `ready_to_turn_in`; `canAccept` exige `available`
-e nenhuma outra em andamento. As funções são puras e usadas pelo cliente e pela API.
+`activeQuests(progress)` devolve todas as missões em `active` ou `ready_to_turn_in`; `canAccept` exige apenas
+`available` (pré-requisitos concluídos), sem olhar as outras missões. As funções são puras e usadas pelo cliente e
+pela API.
 
 **Entregas (`deliver`)** ficam prontas ao aceitar: o item existe por derivação (`activeInventory`), sem campo novo
 no progresso. `objectiveEventIds` é vazio nas quatro entregas.
@@ -109,15 +101,17 @@ Toda missão aceita `accept` e `turn-in`; os objetivos usam ids estáveis:
 **O replay depende da ordem.** O que é garantido: a mesma lista de eventos, na mesma ordem, dá sempre o mesmo
 progresso; repetir um evento não muda nada; nenhuma ordem concede mais XP do que o catálogo tem (os contadores são
 recalculados a partir de `seen`). O que **não** é garantido: ordens diferentes darem o mesmo resultado. Um `accept`
-enviado com outra missão em andamento, ou um objetivo que chega antes do `accept`, é ignorado naquela posição. Por
-isso a API só grava um evento de quest quando ele é uma transição válida (seção 9).
+de uma missão cujo pré-requisito ainda não foi concluído, ou um objetivo que chega antes do `accept` da própria
+missão, é ignorado naquela posição. Aceitar quantas missões estiverem disponíveis é válido (IMPL-0037). Por isso a
+API só grava um evento de quest quando ele é uma transição válida (seção 9).
 
-## 5. Um minijogo, uma missão ativa
+## 5. Minijogos e missões em paralelo
 
-Uma vitória no Jogo da Memória grava `play-memory:win` (comportamento antigo, inalterado) e, com as quests ligadas,
-`memory-win` **apenas** na missão ativa cujo `objectiveType` é `minigame` (no máximo uma pela regra de uma missão
-ativa). Sem missão de minijogo ativa, nada novo é gravado. O mesmo vale para o restante: aceitar uma segunda missão é
-recusado no motor e a interface explica **Conclua a missão atual primeiro**.
+Uma vitória no Jogo da Memória grava `play-memory:win` (comportamento antigo, inalterado) e, para **cada** missão
+aberta cujo `objectiveType` é `minigame` e cujo objetivo é `memory-win`, grava `memory-win` naquela missão. Sem missão
+de minijogo aberta, nada novo é gravado. Quantas missões estiverem disponíveis podem ser aceitas ao mesmo tempo; a
+interface não pede mais **Conclua a missão atual primeiro**. Cada cadeia continua na ordem dos seus pré-requisitos, e
+o XP de cada `turn-in` é pago uma vez.
 
 ## 6. Mundo (`packages/shared/src/game/world.ts`)
 
@@ -172,9 +166,10 @@ deliberada no teste, não pode ser um deslize.
 | `sprig-market-1` | `bough-sprigs` | `winter-sprig` | `-14.5` | `8.6` |
 | `sprig-market-2` | `bough-sprigs` | `winter-sprig` | `-16.8` | `-3.6` |
 
-Os dois ramos do epílogo reusam de propósito os pontos de `crate-street` e `crate-market`: só uma missão fica ativa
-por vez, então as duas entradas nunca desenham ou oferecem juntas. O chão já estava livre e continua conferido pelo
-teste de coordenadas e pelo de navegação; o objeto novo é `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u).
+Os dois ramos do epílogo reusam de propósito os pontos de `crate-street` e `crate-market`: com as missões em
+paralelo, cada coleta pertence à sua missão e o evento só conta para a que o nomeia; as duas entradas podem estar
+abertas ao mesmo tempo. O chão já estava livre e continua conferido pelo teste de coordenadas e pelo de navegação; o
+objeto novo é `winter-sprig` (gerador `quest-winter-sprig`, 0,18 u).
 
 Os dois sinos e a primeira lanterna foram afastados dos pinheiros (antes `(-10, -12.4)`, `(12.2, 9.5)` e
 `(23.5, 17)`): com o colisor do pinheiro do tamanho das ramas desenhadas
@@ -192,7 +187,9 @@ pequeno foram para a faixa festiva da praça, e com eles Baltazar (antes `(-2.5,
 | `sled-ride` | `kids-sled-run` | `13.44` | `-19.8` | `3.5` |
 | `bough-ribbon` | `bough-ribbon` | `2.4` | `12.6` | `3.5` |
 
-`bough-ribbon` reusa o ponto da caixa de correio pelo mesmo motivo: uma missão ativa por vez.
+`bough-ribbon` reusa o ponto da caixa de correio: com as missões em paralelo, as duas interações podem ficar abertas
+ao mesmo tempo. A varredura oferece primeiro a que vem antes no catálogo (`mailbox-open`) e, depois que o evento dela
+entra em `seen`, passa a oferecer `bough-ribbon`; o botão de ação mostra o rótulo da interação escolhida.
 
 | Peça | `x` | `z` | `rot` | `r` |
 |---|---:|---:|---|---:|
@@ -239,12 +236,12 @@ entrega em Dona Guida. Nenhum nome de ONG é inventado nem mostrado fora do pain
   idempotência.
 - **Só transições válidas são gravadas** ([IMPL-0013](../decisions/0013-quests-v1-runtime.md)). A API refaz o
   progresso gravado, aplica o lote na ordem recebida e grava um evento de quest apenas se ele muda o estado naquele
-  momento. Um evento ainda inválido (segundo `accept` com outra missão em andamento, objetivo antes do `accept`)
-  recebe `200`, não é gravado e pode ser reenviado depois, quando passar a valer. Uma transição válida vai para o fim
-  do log (`INSERT OR REPLACE`), o que também corrige uma linha gravada antes da hora por duas requisições
+  momento. Um evento ainda inválido (objetivo antes do `accept` da própria missão, missão cujo pré-requisito ainda não
+  foi concluído) recebe `200`, não é gravado e pode ser reenviado depois, quando passar a valer. Uma transição válida
+  vai para o fim do log (`INSERT OR REPLACE`), o que também corrige uma linha gravada antes da hora por duas requisições
   simultâneas. As quatro missões rápidas não dependem de ordem e continuam com `INSERT OR IGNORE`.
-- Com `QUESTS_V1_ENABLED` desligada, os eventos de quest do lote são ignorados e os demais são gravados; id de missão
-  ou de evento que o jogo não produz continua dando `400 bad_events` para o lote inteiro.
+- Não há bandeira: os eventos de quest do lote são aplicados sempre (IMPL-0037); id de missão ou de evento que o jogo
+  não produz continua dando `400 bad_events` para o lote inteiro.
 - **Confiança (risco aceito, PROPOSTA):** o servidor confere ids e a ordem das transições, mas confia que a ação
   aconteceu na cena. Uma conta consegue forjar no máximo o XP do catálogo: **660 XP** (550 de quests + 110 das
   missões rápidas). XP não dá nada que dinheiro compre e doação não dá XP.

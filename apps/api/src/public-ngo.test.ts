@@ -182,7 +182,7 @@ it.each([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])("answers every always-on 
     // `/config` is computed from the flags alone, on every schema.
     const accounts = Boolean(flags & 1);
     expect(await (await get("/config")).json()).toEqual({
-      accounts, quests: false, questsV2: false, files: accounts && Boolean(flags & 2) && Boolean(flags & 8), withdrawal: accounts && Boolean(flags & 16),
+      accounts, files: accounts && Boolean(flags & 2) && Boolean(flags & 8), withdrawal: accounts && Boolean(flags & 16),
       moderation: { block: accounts && Boolean(flags & 32), presence: accounts && Boolean(flags & 64) },
       residentialPlots: accounts && Boolean(flags & 128),
       donations: Boolean(flags & 256),

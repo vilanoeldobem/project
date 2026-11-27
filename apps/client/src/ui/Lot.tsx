@@ -4,7 +4,6 @@ import { lotNumber } from "@vila/shared/accounts/contract";
 import { errorText } from "@vila/shared/accounts/errors";
 import { formatBrl } from "@vila/shared/donations/contract";
 import { questState } from "@vila/shared/game/quests";
-import { questsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { api, useAccount } from "../lib/account";
 import { fetchGallery, fetchLogo, fetchNgoDonationInfo, recordDonationRedirect, type GalleryPhoto, type LotInfo, type NgoDonationInfo } from "../lib/api";
@@ -39,7 +38,7 @@ export function Lot({ lotId, info, unlisted = false, onChanged = () => {} }: { l
   }, [record, lotId, unlisted]);
   // newest-house-visit (PROPOSTA quests-v1): only a published house with a real NGO counts.
   useEffect(() => {
-    if (!questsEnabled() || info?.state !== "published" || !info.ngo_name) return;
+    if (info?.state !== "published" || !info.ngo_name) return;
     if (questState(useVila.getState().progress, "newest-house-visit") !== "active") return;
     useVila.getState().record("newest-house-visit", lotId);
     useVila.getState().notify("Visita registrada! Leve a notícia a Dona Guida.");

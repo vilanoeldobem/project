@@ -1,23 +1,17 @@
-/** The marker over a quest NPC reads the same gated catalog the dialogue reads. */
+/** The marker over a quest NPC reads the same catalog the dialogue reads. */
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
+import { EMPTY_PROGRESS } from "@vila/shared/game/progress";
 import { applyEventIn, catalogFor, questStateIn } from "@vila/shared/game/quests-v2/catalog";
 
 import { npcMarkers } from "./npc-markers";
 
 const NPC = [{ id: "sleigh-keeper", name: "Baltazar" }, { id: "storyteller", name: "Dona Guida" }];
 const only = (id: string) => NPC.filter((npc) => npc.id === id);
-const GATE_COMPLETE: Progress = { ...EMPTY_PROGRESS, completed: { "b05-c3-04": true } };
 
 describe("npc markers", () => {
-  it("does not announce a v1 epilogue quest the v2 gate still locks", () => {
+  it("announces the v1 epilogue at once", () => {
     const labels = npcMarkers(only("sleigh-keeper"), catalogFor(true, true), EMPTY_PROGRESS);
-    expect(labels.get("sleigh-keeper")).toBe("Baltazar");
-  });
-
-  it("announces the v1 epilogue once its v2 gate is complete", () => {
-    const labels = npcMarkers(only("sleigh-keeper"), catalogFor(true, true), GATE_COMPLETE);
     expect(labels.get("sleigh-keeper")).toBe("! Baltazar");
   });
 

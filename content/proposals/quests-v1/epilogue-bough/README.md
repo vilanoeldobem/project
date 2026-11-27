@@ -1,8 +1,7 @@
 # Epílogo "O ramo da chegada" — decisão de conteúdo
 
-> **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo pendente em PEN-025). Roda atrás das bandeiras
-> existentes de `quests-v1` (`VITE_QUESTS_V1_ENABLED`/`?quests=1` e `QUESTS_V1_ENABLED`), desligadas em
-> produção e homologação. Pesquisa: [`content/research/missoes-epilogo-ramo-2026-11-18.md`](../../research/missoes-epilogo-ramo-2026-11-18.md).
+> **Status: PROPOSTA** (DEC-039 a DEC-042; catálogo pendente em PEN-025). Roda no mesmo runtime sempre ligado de
+> `quests-v1` desde a IMPL-0037, sem bandeira. Pesquisa: [`content/research/missoes-epilogo-ramo-2026-11-18.md`](../../research/missoes-epilogo-ramo-2026-11-18.md).
 
 ## 1. Opções consideradas
 
@@ -54,10 +53,9 @@ modelo adicional; o ícone da bolsa continua sendo texto, como nos outros itens.
 ## 4. Riscos de produto e como são contornados
 
 - **OQ-09 (abandonar missão):** o epílogo é opcional e linear; o runtime atual não tem rota de abandono e
-  mantém uma missão ativa por vez. Quem aceita pode concluir depois; nada é perdido. A pergunta continua
-  aberta para o dono do produto, sem decisão nova no código.
-- **PEN-025 (catálogo não aprovado):** tudo continua **PROPOSTA** e atrás das duas bandeiras; nada é ligado
-  em produção ou homologação por esta mudança.
+  mantém quantas missões estiverem aceitas (IMPL-0037). Quem aceita pode concluir depois; nada é perdido. A pergunta
+  continua aberta para o dono do produto, sem decisão nova no código.
+- **PEN-025 (catálogo não aprovado):** tudo continua **PROPOSTA**; o runtime está sempre ligado desde a IMPL-0037.
 - **Casa publicada:** o epílogo não visita terreno nem lê ONG; não usa `needsPublishedLot` e não mostra nome
   de ONG.
 - **Doação:** não há passo de doação, botão, valor, meta ou recompensa por doar. O ramo é um gesto de tempo;
@@ -81,4 +79,4 @@ modelo adicional; o ícone da bolsa continua sendo texto, como nos outros itens.
    console/página, e o avatar chega à caixa de correio e aos dois pontos do mercado.
 7. Galeria: o ramo é legível a 0,18 u sobre a neve, fica dentro de 80/200 e tem pelo menos 6 variantes em
    12 sementes; o snapshot é revisado.
-8. Nenhuma bandeira, configuração de produção, migration ou dependência é alterada.
+8. Nenhuma configuração de produção, migration ou dependência é alterada.

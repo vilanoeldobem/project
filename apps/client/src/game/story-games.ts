@@ -6,7 +6,9 @@
  * tenth game.
  */
 import type { MinigameId } from "@vila/shared/game/quests-v2/minigames";
-import type { StoryInteraction } from "@vila/shared/game/quests-v2/types";
+import { questStateIn } from "@vila/shared/game/quests-v2/catalog";
+import type { Progress } from "@vila/shared/game/progress";
+import type { StoryCatalog, StoryInteraction } from "@vila/shared/game/quests-v2/types";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { Rng } from "../scene/gen/rng";
 
@@ -425,13 +427,24 @@ export const STORY_GAMES: readonly StoryGameDefinition[] = GAME_IDS.map((id) => 
 export const storyGame = (id: StoryGameId): StoryGameDefinition | undefined =>
   STORY_GAMES.find((game) => game.id === id);
 
-/** The interaction of the active quest when duplicate ids exist (`coro-dos-nomes` appears four times). */
-export function storyInteractionFor(id: string, activeQuestId?: string): StoryInteraction | undefined {
-  if (activeQuestId) {
-    const exact = STORY_WORLD.interactions.find((interaction) => interaction.id === id && interaction.questId === activeQuestId);
-    if (exact) return exact;
-  }
-  return STORY_WORLD.interactions.find((interaction) => interaction.id === id);
+/**
+ * The interaction of an open quest when duplicate ids exist (`coro-dos-nomes` appears four times). With quests
+ * in parallel, the first candidate whose quest is active and whose event is unseen wins; a candidate of a quest
+ * that is not open is the fallback, so a panel can still open for it.
+ */
+export function storyInteractionFor(
+  id: string,
+  catalog: StoryCatalog,
+  progress: Progress
+): StoryInteraction | undefined {
+  const candidates = STORY_WORLD.interactions.filter((interaction) => interaction.id === id);
+  return (
+    candidates.find(
+      (interaction) =>
+        questStateIn(catalog, progress, interaction.questId) === "active" &&
+        !progress.seen[`${interaction.questId}:${interaction.id}`]
+    ) ?? candidates[0]
+  );
 }
 
 export const canSkip = (attempts: number): boolean => attempts >= 3;

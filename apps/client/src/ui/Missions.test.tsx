@@ -71,6 +71,32 @@ describe("Missions", () => {
     expect(page).toContain("0/150");
   });
 
+  it("lists every open quest, its progress and the ready hand-in", () => {
+    const progress: Progress = {
+      ...EMPTY_PROGRESS,
+      seen: {
+        "harness-bells:accept": true,
+        "harness-bells:bell-pine-north": true,
+        "harness-bells:bell-pine-east": true,
+        "lake-lanterns:accept": true,
+        "lake-lanterns:lantern-lake-1": true,
+      },
+      counters: { "harness-bells": 2, "lake-lanterns": 1 },
+    };
+    const page = renderToStaticMarkup(<Missions catalog={V1_CATALOG} world={V1_WORLD} progress={progress} />);
+    expect(page).toContain("Em andamento");
+    expect(page).toContain("Sinos do arreio");
+    expect(page).toContain("Lanternas sob a neve");
+    expect(page).toContain("Pronta para entregar a");
+    expect(page).toContain("Na bolsa: 1/2 Lanterna do lago.");
+  });
+
+  it("shows a first-use empty state with a way back to the village", () => {
+    const page = renderToStaticMarkup(<Missions catalog={V1_CATALOG} world={V1_WORLD} progress={EMPTY_PROGRESS} />);
+    expect(page).toContain("Nenhuma missão em andamento");
+    expect(page).toContain("Voltar à Vila");
+  });
+
   it("keeps the v1 chains and the Epílogo heading", () => {
     const page = renderToStaticMarkup(<Missions catalog={V1_CATALOG} world={V1_WORLD} progress={EMPTY_PROGRESS} stories />);
     expect(page).toContain("Epílogo");
@@ -89,9 +115,10 @@ describe("Missions", () => {
     expect(locked).not.toContain("Ver a cena final");
   });
 
-  it("hides the quest book when no story flag is on, as v1 did", () => {
-    const page = renderToStaticMarkup(<Missions />);
+  it("can hide the quest groups for a quick-missions-only embed", () => {
+    const page = renderToStaticMarkup(<Missions stories={false} />);
     expect(page).toContain("Missões da Vila");
+    expect(page).toContain("Caderno de Missões");
     expect(page).not.toContain("Epílogo");
     expect(page).not.toContain("História principal");
   });

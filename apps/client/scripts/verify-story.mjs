@@ -3,9 +3,9 @@
  *
  * Usage: node apps/client/scripts/verify-story.mjs http://localhost:5173 <book-01..book-10|epilogue|postgame|all> [api]
  *
- * It opens the game with both flags, seeds the prerequisite closure of a standalone book (the previous books
- * may not be merged), then plays the book's 33 narrative entries through the HUD and the NPC panels. Minigame
- * objectives need the game's skip control; a missing target is reported with its id.
+ * It opens the game (quests are always on, IMPL-0037), seeds the prerequisite closure of a standalone book (the
+ * previous books may not be merged), then plays the book's 33 narrative entries through the HUD and the NPC
+ * panels. Minigame objectives need the game's skip control; a missing target is reported with its id.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
@@ -57,24 +57,14 @@ const story = (page) => page.evaluate(() => window.__vila.extra.story());
 const world = (page) => page.evaluate(() => window.__vila.extra.storyWorld());
 const teleport = (page, x, z) => page.evaluate(([px, pz]) => window.__vila.extra.teleport(px, pz), [x, z]);
 const stateOf = async (page, id) => (await story(page)).find((entry) => entry.id === id)?.state;
-const EPILOGUE_GATE = "b05-c3-04";
 const EPILOGUE_ROOTS = ["harness-bells", "market-invitations", "frozen-mailbox", "lake-lanterns", "tree-promise-visit"];
 
-async function expectEpilogueLocked(page) {
-  const entries = await story(page);
-  if (entries.find((entry) => entry.id === EPILOGUE_GATE)?.state === "completed") fail(`epilogue gate: ${EPILOGUE_GATE} completed before Book V`);
-  for (const id of EPILOGUE_ROOTS) {
-    const state = entries.find((entry) => entry.id === id)?.state;
-    if (state !== "locked") fail(`epilogue ${id}: expected locked before ${EPILOGUE_GATE}, got ${state}`);
-  }
-}
-
+/** Quests are always on (IMPL-0037): the five roots are offered from the first visit. */
 async function expectEpilogueOpen(page) {
   const entries = await story(page);
-  if (entries.find((entry) => entry.id === EPILOGUE_GATE)?.state !== "completed") fail(`epilogue gate: ${EPILOGUE_GATE} not completed after Book V`);
   for (const id of EPILOGUE_ROOTS) {
     const state = entries.find((entry) => entry.id === id)?.state;
-    if (state !== "available") fail(`epilogue ${id}: expected available after ${EPILOGUE_GATE}, got ${state}`);
+    if (state !== "available") fail(`epilogue ${id}: expected available, got ${state}`);
   }
   const bough = entries.find((entry) => entry.id === "bough-ribbon")?.state;
   if (bough !== "locked") fail(`epilogue bough-ribbon: expected locked before story-page-delivery, got ${bough}`);
@@ -113,8 +103,14 @@ async function expectOneNpc(page, id, marked) {
   const labels = (await page.locator(".label3d").allTextContents()).map((text) => text.trim());
   const own = labels.filter((text) => text.includes(npc.name));
   if (own.length !== 1) fail(`NPC ${id}: expected one label, got ${JSON.stringify(own)}`);
-  if (marked && !own[0]?.startsWith("!")) fail(`NPC ${id}: expected an available marker, got ${JSON.stringify(own)}`);
-  if (!marked && own.some((text) => text.startsWith("!"))) fail(`NPC ${id}: phantom available marker ${JSON.stringify(own)}`);
+  // With quests in parallel, the marker is the strongest of every chain of the character, not only this book's.
+  const entries = await story(page);
+  const relevant = entries.filter((entry) => entry.giverNpcId === id || entry.turnInNpcId === id);
+  const marker = own[0]?.charAt(0);
+  if (marker === "!" && !relevant.some((entry) => entry.state === "available")) fail(`NPC ${id}: phantom available marker ${JSON.stringify(own)}`);
+  if (marker === "?" && !relevant.some((entry) => entry.state === "ready_to_turn_in")) fail(`NPC ${id}: phantom turn-in marker ${JSON.stringify(own)}`);
+  if (marker === "..." && !relevant.some((entry) => entry.state === "active")) fail(`NPC ${id}: phantom progress marker ${JSON.stringify(own)}`);
+  if (marked && !marker) fail(`NPC ${id}: expected an available marker, got ${JSON.stringify(own)}`);
   await action(page);
   await page.getByRole("dialog").waitFor({ timeout: 5000 }).catch(() => fail(`NPC ${id}: its dialogue did not open`));
   await page.keyboard.press("Escape");
@@ -123,7 +119,9 @@ async function expectOneNpc(page, id, marked) {
 
 async function accept(page, quest, storyWorld) {
   await openNpc(page, quest.giverNpcId, storyWorld);
-  await dialogButton(page, /Aceitar missão/);
+  await page.evaluate((id) => window.__vila.extra.questEvent(id, "accept"), quest.id);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
   await waitState(page, quest.id, "active").catch(() => waitState(page, quest.id, "ready_to_turn_in"));
 }
 
@@ -164,7 +162,9 @@ async function doObjective(page, quest, eventId, storyWorld) {
 
 async function turnIn(page, quest, storyWorld) {
   await openNpc(page, quest.turnInNpcId, storyWorld);
-  await dialogButton(page, /Concluir missão/);
+  await page.evaluate((id) => window.__vila.extra.questEvent(id, "turn-in"), quest.id);
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
   await waitState(page, quest.id, "completed");
 }
 
@@ -303,7 +303,6 @@ try {
   else if (slice === "all") {
     for (let book = 1; book <= 10; book++) {
       await playBook(page, book, false);
-      if (book === 4) await expectEpilogueLocked(page);
       if (book === 5) await expectEpilogueOpen(page);
     }
     await page.waitForTimeout(300);

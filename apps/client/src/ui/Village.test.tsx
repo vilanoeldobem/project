@@ -69,33 +69,30 @@ describe("residential plot panel", () => {
 
   it("is the same neutral panel when the API cannot be read or answers every plot unavailable", () => {
     const plot = RESIDENTIAL_PLOTS.find((p) => p.id === "economy-05")!;
-    const off = renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="unavailable" level={1} quests={false} />);
+    const off = renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="unavailable" level={1} />);
     expect(off).toBe(renderToStaticMarkup(<PlotPanel plotId="economy-05" />));
     // A state alone opens nothing: the requirement and the state appear only with the flag on.
-    expect(renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="available" level={4} quests />)).toBe(off);
+    expect(renderToStaticMarkup(<PlotPanelView plot={plot} enabled={false} state="available" level={4} />)).toBe(off);
   });
 
   it.each(PLOT_TIERS)("shows the requirement only with the flag on, and says when no open mission reaches it (%s)", (tier) => {
     const plot = RESIDENTIAL_PLOTS.find((p) => p.tier === tier)!;
     const level = VILLAGE_PLAN.tiers[tier].requirement.level;
-    for (const quests of [false, true]) {
-      const read = text(renderToStaticMarkup(<PlotPanelView plot={plot} enabled state="available" level={1} quests={quests} />));
-      expect(read).toContain(`Chegar ao nível ${level} jogando.`);
-      expect(read).toContain("proposta em estudo");
-      const reachable = level <= attainableLevel(quests);
-      expect(read.includes("Com as missões abertas hoje ainda não dá para chegar a esse nível."), `${tier}, quests ${quests}`).toBe(!reachable);
-      // Still nothing to claim, nothing promised and nothing sold.
-      expect(read).toContain("Ainda não é possível pedir um terreno.");
-      expect(PROMISE.test(read)).toBe(false);
-      expect(MONEY.test(read)).toBe(false);
-      expect(RAW.test(read)).toBe(false);
-    }
+    const read = text(renderToStaticMarkup(<PlotPanelView plot={plot} enabled state="available" level={1} />));
+    expect(read).toContain(`Chegar ao nível ${level} jogando.`);
+    expect(read).toContain("proposta em estudo");
+    const reachable = level <= attainableLevel(true);
+    expect(read.includes("Com as missões abertas hoje ainda não dá para chegar a esse nível."), tier).toBe(!reachable);
+    // Still nothing to claim, nothing promised and nothing sold.
+    expect(read).toContain("Ainda não é possível pedir um terreno.");
+    expect(PROMISE.test(read)).toBe(false);
+    expect(MONEY.test(read)).toBe(false);
+    expect(RAW.test(read)).toBe(false);
   });
 
-  it("asks of every tier a level the missions can reach: with the quests on, all three; with them off, the outer one", () => {
+  it("asks of every tier a level the missions can reach", () => {
     const levels = PLOT_TIERS.map((tier) => VILLAGE_PLAN.tiers[tier].requirement.level);
     for (const level of levels) expect(level).toBeLessThanOrEqual(attainableLevel(true));
-    expect(levels.map((level) => level <= attainableLevel(false))).toEqual([false, false, true]);
   });
 
   it("draws nothing for an id that is not a plot", () => {
@@ -207,9 +204,9 @@ describe("civic buildings, parks and squares (IMPL-0031)", () => {
 
   it("names each kind on the action button", () => {
     const label = (id: string) => actionLabel({ kind: "site", siteId: id }, false);
-    expect(label(SITES.find((x) => x.use === "civic")!.id)).toBe("🏛️ Ver prédio");
-    expect(label(SITES.find((x) => x.use === "park")!.id)).toBe("🌲 Ver parque");
-    expect(label(SITES.find((x) => x.use === "square")!.id)).toBe("⛲ Ver praça");
+    expect(label(SITES.find((x) => x.use === "civic")!.id)).toBe("Ver prédio");
+    expect(label(SITES.find((x) => x.use === "park")!.id)).toBe("Ver parque");
+    expect(label(SITES.find((x) => x.use === "square")!.id)).toBe("Ver praça");
   });
 });
 

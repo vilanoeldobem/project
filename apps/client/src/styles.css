@@ -15,6 +15,18 @@
   --shadow: 0 4px 0 rgba(12, 53, 42, 0.35), 0 12px 30px rgba(12, 53, 42, 0.25);
   --radius: 16px;
   --font: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Semantic aliases for the HUD and the mission surfaces (IMPL-0037): the palette above stays the source. */
+  --text-strong: var(--pine);
+  --text-subtle: var(--ink-2);
+  --surface-raised: var(--cream);
+  --surface-track: #e8dcc4;
+  --action-primary: var(--red);
+  --border-strong: var(--pine);
+  --focus-ring: var(--cream);
+  --focus-halo: var(--pine);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-tap: 120ms;
+  --dur-state: 200ms;
   color-scheme: light;
 }
 
@@ -25,10 +37,12 @@ body {
   color: var(--ink);
   background: #f3d7b6;
   overflow: hidden;
+  caret-color: var(--pine);
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
 button { font: inherit; color: inherit; }
+::selection { background: var(--gold); color: var(--pine); }
 :focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 
 /* Read by assistive technology, not drawn (the page heading: the brand is not on the gameplay screen). */
@@ -52,10 +66,10 @@ button { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45em;
   min-height: 44px; padding: 0.55em 1.1em; border-radius: 12px; cursor: pointer;
   border: 2px solid var(--pine); background: var(--cream); color: var(--pine);
-  font-weight: 800; box-shadow: 0 3px 0 var(--pine); transition: transform 0.08s, box-shadow 0.08s;
+  font-weight: 800; box-shadow: 0 3px 0 var(--pine); transition: transform var(--dur-tap) var(--ease-out), box-shadow var(--dur-tap) var(--ease-out), background-color var(--dur-tap) var(--ease-out);
 }
 /* One set of states for every control, HUD and panels alike: hover warms the fill, pressed sinks, on is pine. */
-.btn:hover:not(:disabled), .icon-btn:hover, .hud__missions:hover { background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
+.btn:hover:not(:disabled), .icon-btn:hover { background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
 .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--pine); }
 .btn:disabled { cursor: not-allowed; opacity: 0.55; }
 a.btn { text-decoration: none; }
@@ -67,7 +81,7 @@ a.btn { text-decoration: none; }
 .icon-btn {
   flex: none; width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--pine);
   background: transparent; font-size: 1.5rem; font-weight: 800; line-height: 1; cursor: pointer; color: var(--pine);
-  transition: transform 0.08s;
+  transition: transform var(--dur-tap) var(--ease-out);
 }
 .icon-btn:active { transform: translateY(2px); }
 kbd {
@@ -92,14 +106,16 @@ kbd {
 .hud__top {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   padding: 6px 10px; border-radius: 18px;
-  background: color-mix(in srgb, var(--pine) 94%, transparent);
-  border: 2px solid var(--gold); box-shadow: var(--shadow);
+  background: var(--pine);
+  border: 2px solid var(--gold);
+  box-shadow: var(--shadow), inset 0 1px 0 color-mix(in srgb, var(--gold) 35%, transparent);
 }
 .hud__brand { flex: none; }
 .hud__nav { flex: 1 1 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 6px; }
 .hud__group { position: relative; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
 .hud__system { justify-content: flex-end; }
 .hud__paths .btn--chip { font-weight: 900; }
+.hud .btn--chip:hover:not(:disabled) { border-color: var(--gold); }
 /* Chips of the HUD: one height (a 44 px touch target), icon first, label when there is room. */
 .hud .btn--chip { min-width: 44px; min-height: 44px; padding: 0.3em 0.68em; font-size: 0.9rem; white-space: nowrap; }
 .chip__icon { flex: none; }
@@ -147,28 +163,54 @@ kbd {
 
 .hud__bottom { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
 .hud__bottom > * { pointer-events: auto; }
-.hud__missions {
-  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center; text-align: left;
-  background: var(--cream); border: 2px solid var(--pine); border-radius: var(--radius);
-  padding: 8px 12px; font-weight: 800; color: var(--pine); cursor: pointer; box-shadow: var(--shadow); min-width: 200px;
-  transition: transform 0.08s;
+/* Open-quest tracker (IMPL-0037): two rows at most, one press from the journal, never a wall. */
+.hud__quests { display: grid; gap: 8px; width: min(360px, 100%); }
+.hud__quest {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; align-items: center;
+  min-height: 44px; padding: 8px 12px; text-align: left; cursor: pointer;
+  background: var(--surface-raised); color: var(--text-strong); border: 2px solid var(--border-strong);
+  border-radius: 14px; box-shadow: 0 3px 0 var(--border-strong); font-weight: 800;
+  transition: transform var(--dur-tap) var(--ease-out), box-shadow var(--dur-tap) var(--ease-out), background-color var(--dur-tap) var(--ease-out);
 }
+.hud__quest:hover { background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
+.hud__quest:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--border-strong); }
+.hud__quest[data-state="ready_to_turn_in"] { border-color: var(--action-primary); }
+.hud__quest[data-state="ready_to_turn_in"] .hud__quest-count { color: var(--action-primary); }
+.hud__quest > svg { color: var(--text-strong); }
+.hud__quest-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; min-width: 0; }
+.hud__quest-count { flex: none; font-size: 0.875rem; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
+.hud__quest-bar { grid-column: 2 / -1; height: 8px; border-radius: 999px; background: var(--surface-track); overflow: hidden; }
+.hud__quest-bar > span { display: block; height: 100%; background: var(--gold); transition: width var(--dur-state) var(--ease-out); }
+.hud__quest-more { justify-self: start; padding: 1px 10px; border-radius: 999px; background: var(--pine); color: var(--cream); font-size: 0.875rem; font-weight: 900; }
+
+.hud__missions {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; align-items: center; text-align: left;
+  min-height: 44px; min-width: 200px; padding: 8px 12px; cursor: pointer;
+  background: var(--surface-raised); border: 2px solid var(--border-strong); border-radius: var(--radius); color: var(--text-strong);
+  font-weight: 800; box-shadow: var(--shadow);
+  transition: transform var(--dur-tap) var(--ease-out), background-color var(--dur-tap) var(--ease-out);
+}
+.hud__missions:hover { background: color-mix(in srgb, var(--cream) 82%, var(--gold)); }
 .hud__missions:active { transform: translateY(2px); }
-.hud__missions .star { color: var(--gold); font-size: 1.4rem; -webkit-text-stroke: 1px var(--pine); grid-row: span 2; }
+.hud__missions > svg { color: var(--pine); background: var(--gold); border-radius: 8px; padding: 3px; width: 1.6rem; height: 1.6rem; box-sizing: border-box; }
+.hud__missions-label { font-size: 0.95rem; }
+.hud__missions-count { flex: none; padding: 0 8px; border-radius: 999px; background: var(--pine); color: var(--gold); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.hud__missions .xp { grid-column: 1 / -1; }
 .hud__action { align-self: center; font-size: 1.05rem; white-space: nowrap; }
+.hud__action svg { flex: none; }
 /* How to walk, until the first walk: a line, never a dialog. It takes no clicks (nor does the region that announces it). */
 .hud__bottom > .hud__hint {
   align-self: center; margin: 0; pointer-events: none; padding: 8px 16px; border-radius: 22px; text-align: center;
-  background: rgba(12, 53, 42, 0.88); color: var(--cream); border: 2px solid var(--gold); font-weight: 800; font-size: 0.95rem;
+  background: var(--pine); color: var(--cream); border: 2px solid var(--gold); font-weight: 800; font-size: 0.95rem;
 }
 .hud__bottom > .sr-only { pointer-events: none; }
 
 .xp { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-weight: 800; }
-.xp--compact { font-size: 0.75rem; gap: 6px; }
+.xp--compact { font-size: 0.875rem; gap: 6px; }
 .xp__level { background: var(--pine); color: var(--gold); border-radius: 6px; padding: 1px 6px; }
-.xp__bar { height: 10px; background: #e8dcc4; border: 2px solid var(--pine); border-radius: 6px; overflow: hidden; min-width: 70px; }
-.xp__bar span { display: block; height: 100%; background: var(--gold); transition: width 0.4s; }
-.xp__num { color: var(--ink-2); }
+.xp__bar { height: 10px; background: var(--surface-track); border: 2px solid var(--pine); border-radius: 6px; overflow: hidden; min-width: 70px; }
+.xp__bar span { display: block; height: 100%; background: var(--gold); transition: width var(--dur-state) var(--ease-out); }
+.xp__num { color: var(--text-subtle); }
 
 /*
  * In the flow under the top groups (beside the notices when there is room): it never covers a control. The HUD
@@ -209,13 +251,18 @@ kbd {
 .panel__head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 18px 8px; border-bottom: 2px dashed rgba(12, 53, 42, 0.2); }
 .panel__head h2 { margin: 0; color: var(--pine); font-size: 1.45rem; font-weight: 900; }
 .panel__head > div { flex: 1 1 auto; min-width: 0; }
-.panel__body { flex: 1 1 auto; min-height: 0; padding: 12px 18px 18px; overflow-y: auto; }
+.panel__body { flex: 1 1 auto; min-height: 0; padding: 12px 18px 18px; overflow-y: auto; scrollbar-color: var(--pine-2) var(--cream-2); }
+.panel__body::-webkit-scrollbar { width: 10px; }
+.panel__body::-webkit-scrollbar-track { background: var(--cream-2); border-radius: 999px; }
+.panel__body::-webkit-scrollbar-thumb { background: var(--pine-2); border: 2px solid var(--cream-2); border-radius: 999px; }
 .panel__body h3 { margin: 18px 0 6px; color: var(--pine); font-size: 1.05rem; }
 .panel__body p { margin: 8px 0; line-height: 1.45; }
 .panel__icon {
   flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
   background: color-mix(in srgb, var(--gold) 22%, var(--cream)); border: 2px solid var(--pine); font-size: 1.35rem;
 }
+.panel__icon svg, .sheet-ico svg, .sheet-notice__ico svg { width: 1.1em; height: 1.1em; }
+.chip__icon svg { display: block; }
 .panel__sub { margin: 2px 0 0; font-size: 0.95rem; font-weight: 700; color: var(--ink-2); }
 .panel__foot { flex: none; padding: 12px 18px; border-top: 2px dashed rgba(12, 53, 42, 0.2); }
 /* Board sheet (P01–P15): the wide cream page of the design, with a tan rim. */
@@ -223,6 +270,8 @@ kbd {
 .panel--sheet .panel__head { border-bottom: 2px dashed var(--pine); background: var(--cream); }
 .panel--sheet .panel__head h2 { font-size: clamp(1.3rem, 3.4vw, 1.9rem); }
 .panel--sheet .panel__body { padding: 14px 20px 20px; }
+/* Board sheets are reading surfaces: prose keeps a 72-character measure even on a wide sheet (IMPL-0037). */
+.panel--sheet .panel__body p { max-width: 72ch; }
 
 /* The pieces of a sheet (ui/sheet.tsx). */
 .sheet-section { margin: 0 0 16px; }
@@ -259,7 +308,7 @@ kbd {
 .sheet-notice--pending { background: #fbf0d2; border-color: var(--sheet-line); color: #6b4a12; }
 .sheet-notice--done { background: #e4ecd9; border-color: #a9c08c; color: #2c4a24; }
 .sheet-progress { display: block; height: 14px; border: 2px solid var(--pine); border-radius: 999px; background: var(--cream-2); overflow: hidden; }
-.sheet-progress > span { display: block; height: 100%; background: var(--gold); border-radius: 999px; transition: width 0.4s; }
+.sheet-progress > span { display: block; height: 100%; background: var(--gold); border-radius: 999px; transition: width var(--dur-state) var(--ease-out); }
 .sheet-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 0; margin: 0; list-style: none; font-size: 0.85rem; font-weight: 800; color: var(--ink-2); }
 .sheet-flow li { display: flex; align-items: center; gap: 6px; }
 .sheet-flow li + li::before { content: "→"; color: var(--red); }
@@ -308,6 +357,32 @@ kbd {
 .mission-level { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 10px; }
 .mission-level > span:not(.sheet-progress) { justify-self: end; color: var(--ink-2); font-weight: 800; }
 .mission-level .sheet-progress { grid-column: 1 / -1; }
+/* Mission journal (IMPL-0037): open quests as cards, chains as folded groups. 4 px scale only. */
+.quest-active-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.quest-card {
+  display: grid; gap: 8px; padding: 12px; background: var(--surface-raised);
+  border: 2px solid var(--sheet-line); border-radius: 16px;
+}
+.quest-card[data-state="ready_to_turn_in"] { border-color: var(--action-primary); }
+.quest-card__head { display: flex; align-items: baseline; gap: 8px; }
+.quest-card__head svg { flex: none; color: var(--pine); }
+.quest-card__title { flex: 1 1 auto; min-width: 0; color: var(--text-strong); font-size: 1rem; font-weight: 900; }
+.quest-card__xp { flex: none; padding: 0 8px; border-radius: 999px; background: var(--gold); color: #4a2f06; font-size: 0.875rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+.quest-card__chain { margin: 0; color: var(--text-subtle); font-size: 0.875rem; font-weight: 800; }
+.quest-card p { margin: 0; }
+.quest-card .note { font-size: 1rem; text-wrap: pretty; }
+.quest-empty { display: grid; justify-items: start; gap: 8px; }
+.quest-chain {
+  margin: 8px 0; padding: 4px 12px; background: var(--surface-raised);
+  border: 2px solid var(--sheet-line); border-radius: 14px;
+}
+.quest-chain > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; color: var(--text-strong); font-weight: 900; }
+.quest-chain[open] > summary { border-bottom: 2px dashed var(--sheet-line); }
+.quest-chain__count { flex: none; color: var(--text-subtle); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+.mission-list li > .mission-icon { flex: none; width: 1rem; height: 1rem; margin-top: 2px; color: var(--pine); }
+@media (prefers-contrast: more) {
+  .hud__quest, .hud__missions { border-width: 3px; background: var(--cream); }
+}
 .account-grid { display: grid; gap: 14px; }
 @media (min-width: 820px) { .account-grid { grid-template-columns: 1.15fr 0.85fr; align-items: start; } }
 .preview { display: grid; justify-items: center; gap: 6px; text-align: center; }
@@ -346,7 +421,6 @@ kbd {
 .lot-street > summary small { opacity: 0.8; }
 small { color: var(--ink-2); font-size: 0.82rem; }
 .mission-list li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--cream-2); }
-.mission-list li > span:first-child { color: var(--gold); font-size: 1.2rem; -webkit-text-stroke: 0.5px var(--pine); }
 .mission-list li.done { background: #e4ecd9; }
 /* Quest chains (PROPOSTA quests-v1): states are symbol + words, never colour alone. */
 .quest-chain h3, .quest-bag h3 { display: flex; align-items: center; gap: 6px; }
@@ -392,7 +466,7 @@ small { color: var(--ink-2); font-size: 0.82rem; }
   .hud__system .btn--chip[data-tip]:focus-visible::after { display: block; }
   /* Four paths in two rows, each with its name written: visible without covering the scene (P01). */
   .hud__paths { order: 2; flex: 1 0 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .hud__paths .btn--chip { min-width: 0; min-height: 44px; padding: 0.3em 8px; gap: 6px; font-size: 0.82rem; line-height: 1.15; white-space: normal; text-align: left; }
+  .hud__paths .btn--chip { min-width: 0; min-height: 44px; padding: 0.3em 8px; gap: 6px; font-size: 0.875rem; line-height: 1.15; white-space: normal; text-align: left; }
   .ngo-hud { grid-template-columns: 1fr; }
   .hud__missions { align-self: stretch; }
   .panel__head { padding: 12px 14px 8px; }
@@ -410,22 +484,43 @@ small { color: var(--ink-2); font-size: 0.82rem; }
 }
 @media (max-width: 640px) and (hover: hover) { .hud__system .btn--chip[data-tip]:hover::after { display: block; } }
 /*
- * The narrowest phones (up to 360 px wide): smaller gutters, chips at least 40 px wide instead of 44 (their
- * height stays 44 px) and no clock symbol, so the first row stays one row.
+ * The narrowest phones (up to 360 px wide): smaller gutters and no clock symbol, so the first row stays one row;
+ * the chips keep the 44 px target.
  */
 @media (max-width: 360px) {
   .hud { --hud-left: max(12px, env(safe-area-inset-left)); --hud-right: max(12px, env(safe-area-inset-right)); }
   .hud__top { gap: 6px; }
   .hud__group { gap: 4px; }
   .env-chip__clock { display: none; }
-  .hud .btn--chip { min-width: 40px; padding-inline: 0.6em; }
+  .hud .btn--chip { min-width: 44px; padding-inline: 0.6em; }
   .hud__system .btn--chip, .chip--icon { padding-inline: 0; }
 }
 
+/*
+ * A short screen (a phone lying down, or 200 % zoom): the second open quest and the XP bar give way, so the
+ * top bar, the tracker, the action and the journal button never overlap.
+ */
+@media (max-height: 720px) {
+  .hud__top { max-height: 45dvh; overflow-y: auto; overscroll-behavior: contain; }
+  .hud__quest:nth-child(n+2) { display: none; }
+  .hud__missions .xp { display: none; }
+}
+@media (max-width: 640px) {
+  .hud__quests { width: 100%; }
+}
+@media (forced-colors: active) {
+  .hud__quest, .hud__missions { border-color: ButtonText; }
+  .hud__quest[data-state="ready_to_turn_in"], .quest-card[data-state="ready_to_turn_in"] { border-color: Highlight; }
+}
+
+/*
+ * Reduced motion is scoped to the pieces that move: never a wildcard that kills every state transition on the
+ * page (the toast keeps its place until the HUD removes it).
+ */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  /* The fade would end at once on its last frame (invisible): the toast is drawn as it is until the HUD removes it. */
   .toast { animation: none; }
+  .btn, .icon-btn, .hud__missions, .hud__quest, .hud__quest-bar > span,
+  .sheet-progress > span, .xp__bar span, .sheet-tab { transition: none; }
 }
 
 /* A touch screen has no key to press: the action button and the line of the arrival leave the keys out. */
@@ -594,3 +689,10 @@ body:has(.modflag) .hud { padding-top: calc(env(safe-area-inset-top, 0px) + 30px
   }
   .item-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/*
+ * The one keyboard ring of the HUD and the panels (IMPL-0037): a cream ring over a pine halo, so one of the two
+ * always clears 3:1 on the cream surfaces and on the pine bar. Last in the file so it wins over older rules.
+ */
+.hud :focus-visible,
+.panel :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; box-shadow: 0 0 0 6px var(--focus-halo); }

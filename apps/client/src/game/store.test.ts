@@ -177,9 +177,10 @@ describe("a passing notice (toast)", () => {
 
   it("is drawn without the animation under reduced motion, instead of ending at once on its invisible last frame", () => {
     const reduced = /@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}/s.exec(css)?.[1] ?? "";
-    // The rule that shortens every animation would take the toast straight to `opacity: 0`.
-    expect(reduced).toMatch(/animation-duration: 0\.01ms !important/);
-    expect(reduced).toMatch(/\.toast \{ animation: none; \}/);
+    // Reduced motion is scoped: no wildcard that would take the toast straight to `opacity: 0`.
+    expect(reduced).toContain(".toast { animation: none; }");
+    expect(reduced).toContain("transition: none");
+    expect(reduced).not.toContain("!important");
     expect(css).toMatch(/@keyframes toast \{[^@]*100% \{ opacity: 0; \}/);
   });
 });

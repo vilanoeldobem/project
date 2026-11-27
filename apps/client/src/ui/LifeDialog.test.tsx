@@ -33,15 +33,15 @@ afterEach(() => {
 describe("the action offered next to a character", () => {
   it("says who the avatar would talk to, by what the character is: never a person's name", () => {
     const label = (charId: string) => actionLabel({ kind: "life", charId }, false);
-    expect(label("santa")).toBe("💬 Conversar com Papai Noel");
-    expect(label("elf-2")).toBe("💬 Conversar com o duende");
-    expect(label("lumberjack")).toBe("💬 Conversar com o lenhador");
-    expect(label("shopkeeper-3")).toBe("💬 Conversar com lojista");
-    expect(label("villager-5")).toBe("💬 Conversar com morador");
-    expect(label("visitor-1")).toBe("💬 Conversar com visitante");
-    for (const c of LIFE_CAST) if (isPerson(c.kind)) expect(label(c.id), c.id).toBe(`💬 ${LIFE_NAMES[c.kind]!.action}`);
+    expect(label("santa")).toBe("Conversar com Papai Noel");
+    expect(label("elf-2")).toBe("Conversar com o duende");
+    expect(label("lumberjack")).toBe("Conversar com o lenhador");
+    expect(label("shopkeeper-3")).toBe("Conversar com lojista");
+    expect(label("villager-5")).toBe("Conversar com morador");
+    expect(label("visitor-1")).toBe("Conversar com visitante");
+    for (const c of LIFE_CAST) if (isPerson(c.kind)) expect(label(c.id), c.id).toBe(LIFE_NAMES[c.kind]!.action);
     // The quest NPCs keep their own label.
-    expect(actionLabel({ kind: "npc", npcId: "postmaster" }, false)).toBe("💬 Falar com Seu Nivaldo");
+    expect(actionLabel({ kind: "npc", npcId: "postmaster" }, false)).toBe("Falar com Seu Nivaldo");
   });
 
   it("opens the character's lines, chosen at that moment, and nothing for an id it does not know", () => {

@@ -6,12 +6,10 @@ import { Color, type Group, type InstancedMesh, MeshStandardMaterial, Object3D, 
 import { BENCHES, GIFTS, DONATION_PANEL, INTERACT_DISTANCE, LAMPS, type LotDef, LOTS, NPCS, PALETTE as P, QUEST_SPAWNS, STREET_LAMPS } from "@vila/shared/game/world";
 import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import { questState } from "@vila/shared/game/quests";
-import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
-import { STORY_NPC_IDS } from "@vila/shared/game/quests-v2/world";
+import { catalogFor, npcOpenIn, openBooksIn } from "@vila/shared/game/quests-v2/catalog";
+import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { openFromScene, visit } from "../game/clicks";
 import { npcMarkers } from "../game/npc-markers";
-import { useQuestsEnabled } from "../game/questsFlag";
-import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import { useVila } from "../game/store";
 import { sim } from "../game/sim";
 import type { LotInfo } from "../lib/api";
@@ -263,19 +261,18 @@ export function Label({ y, text, x, z, radius = LABEL_RADIUS }: { y: number; tex
 /**
  * The five fictional quest NPCs (PROPOSTA quests-v1): seeded villagers that block the avatar and carry a
  * short symbol + name label. A click opens the dialogue only from talking distance (the same reach as the
- * action button); from farther away it walks the avatar up to the NPC. Mounted only with the quests flag.
- * While the story is on, a book that re-declares one of them draws it (`StoryProps`): only the v1 characters
- * no book owns stay here, so nobody is drawn and labelled twice.
+ * action button); from farther away it walks the avatar up to the NPC. Quests are always on (IMPL-0037).
+ * A book that re-declares one of them draws it (`StoryProps`): only the v1 characters no book owns stay here,
+ * so nobody is drawn and labelled twice.
  */
 export function QuestNpcs() {
   const progress = useVila((s) => s.progress);
-  const quests = useQuestsEnabled();
-  const quests2 = useQuestsV2Enabled();
-  const catalog = useMemo(() => catalogFor(quests, quests2), [quests, quests2]);
-  const models = useMemo(
-    () => NPCS.filter((npc) => !quests2 || !STORY_NPC_IDS.has(npc.id)).map((npc) => ({ npc, m: villager(npc.seed) })),
-    [quests2]
-  );
+  const catalog = useMemo(() => catalogFor(true, true), []);
+  const models = useMemo(() => {
+    const books = openBooksIn(catalog, progress);
+    const open = new Set(STORY_WORLD.npcs.filter((npc) => npcOpenIn(npc, books)).map((npc) => npc.id));
+    return NPCS.filter((npc) => !open.has(npc.id)).map((npc) => ({ npc, m: villager(npc.seed) }));
+  }, [catalog, progress]);
   const labels = useMemo(() => npcMarkers(models.map(({ npc }) => npc), catalog, progress), [models, catalog, progress]);
   return (
     <>

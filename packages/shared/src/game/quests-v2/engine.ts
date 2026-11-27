@@ -4,7 +4,7 @@
  * one implementation for v1 epilogue quests and v2 book quests.
  *
  * Rules copied from v1:
- * - one active quest at a time (`activeQuestIn` returns the first active/ready entry);
+ * - any number of quests in progress (`activeQuestsIn` lists every active/ready entry);
  * - a quest needs every prerequisite completed, then `accept`, then its objectives, then `turn-in`;
  * - a `deliver` quest is ready as soon as it is accepted (the item exists by derivation);
  * - only a valid transition writes `seen`; XP is granted once, at `turn-in`;
@@ -37,17 +37,17 @@ export function questStateIn(catalog: StoryCatalog, p: Progress, questId: string
   return seen >= quest.target ? "ready_to_turn_in" : "active";
 }
 
-/** The single quest that is `active` or `ready_to_turn_in`, if any. */
-export function activeQuestIn(catalog: StoryCatalog, p: Progress): CatalogQuest | undefined {
-  return catalog.quests.find((q) => {
+/** Every quest that is `active` or `ready_to_turn_in`, in catalog order (any number may run at once). */
+export function activeQuestsIn(catalog: StoryCatalog, p: Progress): CatalogQuest[] {
+  return catalog.quests.filter((q) => {
     const state = questStateIn(catalog, p, q.id);
     return state === "active" || state === "ready_to_turn_in";
   });
 }
 
-/** `available` and no other quest in progress. */
+/** `available`: prerequisites completed and not accepted yet. Any number of quests may be accepted. */
 export function canAcceptIn(catalog: StoryCatalog, p: Progress, questId: string): boolean {
-  return questStateIn(catalog, p, questId) === "available" && activeQuestIn(catalog, p) === undefined;
+  return questStateIn(catalog, p, questId) === "available";
 }
 
 export function questProgressIn(catalog: StoryCatalog, p: Progress, questId: string): { count: number; target: number } {
@@ -91,7 +91,7 @@ function applyQuickEvent(p: Progress, mission: Mission, eventId: string): ApplyR
 
 function applyQuestEvent(catalog: StoryCatalog, p: Progress, quest: CatalogQuest, eventId: string): ApplyResult {
   if (eventId === "accept") {
-    if (questStateIn(catalog, p, quest.id) !== "available" || !canAcceptIn(catalog, p, quest.id)) return { progress: p };
+    if (questStateIn(catalog, p, quest.id) !== "available") return { progress: p };
     return {
       progress: {
         ...p,

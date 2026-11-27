@@ -49,8 +49,8 @@ Camadas marcadas com `shared/` ficam em `packages/shared/src/` e são usadas tam
 | Lógica | `shared/game/world.ts`, `shared/game/collision.ts`, `shared/game/progress.ts`, `shared/game/quests.ts` | Layout do mundo, colisores (um por peça sólida, medidos pelo desenho), superfícies, paleta, missões/XP e o catálogo/estado das quests (puro, testado) |
 | Simulação | `shared/game/motion.ts`, `shared/game/navigation.ts`, `game/sim.ts` | Movimento do avatar em passo fixo de 60 Hz, colisão, passos; rota do clique em volta dos obstáculos, planejada uma vez por clique (puro, testado; [IMPL-0016](../decisions/0016-click-navigation-and-colliders.md)); estado vivo mutável fora do zustand: corpo, pose, campo de navegação e rota ([IMPL-0007](../decisions/0007-voxel-mesher-fixed-step-simulation.md)) |
 | Eventos | `game/events.ts` | Barramento `step` / `gift` / `mission`: pegadas, partículas e som reagem à jogabilidade |
-| Estado | `game/store.ts`, `game/questsFlag.ts` | zustand: painel aberto (nenhum na chegada), tela do menu do jogo (`menu`, à parte dos painéis), alvo próximo, destino resolvido do clique, progresso, avisos, dica de como andar (nada por quadro); bandeira de `quests-v1` (`VITE_QUESTS_V1_ENABLED` ou `?quests=1` local, **e** `quests` de `GET /config`) |
-| Missões narrativas | `shared/game/quests.ts`, `scene/Props.tsx` (NPCs, itens, atril), `ui/NpcDialog.tsx`, `ui/Missions.tsx`, `ui/Donation.tsx`, `ui/Lot.tsx` | Quests `quests-v1` (PROPOSTA, DEC-039..042, PEN-025): uma missão ativa, diálogo, entrega, bolsa derivada e Caderno de cadeias ([quests.md](quests.md)) |
+| Estado | `game/store.ts` | zustand: painel aberto (nenhum na chegada), tela do menu do jogo (`menu`, à parte dos painéis), alvo próximo, destino resolvido do clique, progresso, avisos, dica de como andar (nada por quadro); quests sempre ligadas, sem bandeira (IMPL-0037) |
+| Missões narrativas | `shared/game/quests.ts`, `shared/game/quests-v2/seats.ts`, `scene/Props.tsx` (NPCs, itens, atril), `ui/NpcDialog.tsx`, `ui/Missions.tsx`, `ui/Donation.tsx`, `ui/Lot.tsx` | Quests `quests-v1` e a saga v2 (PROPOSTA, DEC-039..042, PEN-025): missões em paralelo, diálogo, entrega, bolsa derivada, Caderno de cadeias em blocos recolhíveis e elenco com assento fixo ([quests.md](quests.md), [quests-v2.md](quests-v2.md), [IMPL-0037](../decisions/0037-parallel-quests-and-mission-journal.md)) |
 | Ambiente | `shared/environment/*`, `environment/runtime.ts`, `settings.ts`, `audio.ts`, `labels.ts` | Hora real de SP, relógio de rede, clima procedural, eventos, keyframes (puros, em `shared`); sincronização, presets, som e rótulos (navegador) ([environment.md](environment.md)) |
 | Cena 3D | `scene/*` | react-three-fiber; `World` (canvas, presets), `Ground` (chão nevado + clique), `Props` (árvore, postes, terrenos, presentes), `Scenery` (pinheiros, montanhas, lago, bonecos de neve, trenó, cordões de luz), `Player` (movimento, câmera, vista do céu, proximidade) |
 | Efeitos | `scene/environment/*` | Driver de uniforms, luz, céu, neve GPU, brilhos, fumaça, pegadas, bloom |
@@ -176,11 +176,11 @@ na OQ-16).
   | Onde | O quê | Abre |
   |---|---|---|
   | Topo, esquerda (`hud__brand`) | Marca provisória (`Wordmark`; DEC-024/PEN-016), como imagem para leitores de tela | — |
-  | Topo, esquerda (`EnvironmentChip`) | Hora de São Paulo e clima; "👥 N" (presença); 🌌 olhar o céu | Painel "Ambiente"; alterna a vista |
-  | Topo, direita: caminhos (`PATHS`) | "🏡 Explorar ONGs", "🎲 Jogar", "🎄 Doação global" e "👥 Indicar uma ONG" (vermelho), sempre com o nome (no celular, em duas colunas) | Painéis `explore`, `games`, `donation`, `invite` |
-  | Topo, direita: sistema | 📊 Indicadores; 👤 conta (só com contas ligadas); 🛡️ Moderação (só administradores); ☰ Menu | Painéis `indicators`, `account`; modo moderação; menu do jogo |
-  | Abaixo do topo | Bolsa de missão, aviso de remoção da sala, bloco de moderação, aviso passageiro (`toast`) | — |
-  | Pé | Dica de como andar ou botão de ação contextual (tecla **E**); "★ Missões" | Painel do que está perto; Missões |
+  | Topo, esquerda (`EnvironmentChip`) | Hora de São Paulo e clima; "N" conexões (presença); olhar o céu | Painel "Ambiente"; alterna a vista |
+  | Topo, direita: caminhos (`PATHS`) | "Explorar ONGs", "Jogar", "Doação global" e "Indicar uma ONG" (vermelho), com ícone vetorial e nome sempre visível (no celular, em duas colunas) | Painéis `explore`, `games`, `donation`, `invite` |
+  | Topo, direita: sistema | Indicadores; conta (só com contas ligadas); Moderação (só administradores); Menu | Painéis `indicators`, `account`; modo moderação; menu do jogo |
+  | Abaixo do topo | Bolsa de missão (duas fichas + contagem), aviso de remoção da sala, bloco de moderação, aviso passageiro (`toast`) | — |
+  | Pé | Dica de como andar ou botão de ação contextual (tecla **E**); rastreador das missões abertas (duas linhas + "+N"); "Missões" com o número de ativas e a barra de XP | Painel do que está perto; Missões |
 
   A barra do topo é a das pranchas P01–P15 ([IMPL-0026](../decisions/0026-boards-ui-and-character-appearance.md)):
   fundo verde-pinho, marca à esquerda e os quatro caminhos; a folha de tela (`.panel--sheet`) e as peças de
@@ -192,8 +192,8 @@ na OQ-16).
   largura com o texto completo);
   "(bloqueada)" fica num `span` próprio, sempre inteiro. A dica é posicionada pelo grupo do controle, a partir da
   borda externa do grupo, e nunca é mais larga que o HUD: fica dentro da tela e quebra de linha se for longa. Os
-  chips têm 44 px de altura; em telas de até 360 px de largura (`@media (max-width: 360px)`) a largura mínima cai
-  de 44 para 40 px. Com a faixa "Modo moderação" na tela, o HUD começa abaixo dela. O topo e o pé não encolhem; o
+  chips têm 44 px de altura e de largura mínima, também nas telas de até 360 px (`@media (max-width: 360px)`). Com a
+  faixa "Modo moderação" na tela, o HUD começa abaixo dela. O topo e o pé não encolhem; o
   bloco do meio fica com a altura que sobra e, em tela baixa (celular deitado), o bloco de moderação e o aviso de
   remoção rolam por dentro em vez de cobrir o pé. O aviso passageiro (`toast`) sai da página `TOAST_MS` (3,6 s)
   depois de desenhado; com `prefers-reduced-motion` ele aparece sem animação.
@@ -356,7 +356,7 @@ está a partir do relógio sincronizado e da semente do mundo, que já tinha.
 | `auth.ts` | Cadastro (P13), link mágico (OQ-03), verificação, logout, `GET`/`DELETE /me`. O link abre o jogo, ou o painel quando o pedido vem exatamente de `DASH_ORIGIN` (IMPL-0015) |
 | `session.ts` | Cookie `__Host-vila_session`, usuário atual, `requireUser` / `requireAdmin`. `requireUser` recusa a sessão de conta bloqueada (`403 session_blocked`); `requireSession` é só para o que a pessoa bloqueada mantém: `GET /me`, sair e excluir a conta (IMPL-0021) |
 | `mail.ts` | Mensagem do link (pt-BR, texto e HTML) e envio pela API do Resend (segredo `RESEND_API_KEY`, IMPL-0012); `devLink` só em desenvolvimento e teste |
-| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests (`QUESTS_V1_ENABLED`); evento de quest gravado só quando é transição válida (IMPL-0013) |
+| `progress.ts` | XP no servidor (P14, DEC-042): eventos idempotentes e repetição com `applyEvent` compartilhado; whitelist das quatro missões e das quests, sempre ligada (IMPL-0037); evento de quest gravado só quando é transição válida (IMPL-0013) |
 | `ngo.ts` | Candidatura de ONG (P12, DEC-015): validação, reserva do terreno, reenvio |
 | `files.ts` | Arquivos da candidatura no R2 ([IMPL-0017](../decisions/0017-ngo-files-r2.md), PROPOSTA, bandeira `NGO_FILES_ENABLED`): envio com conferência do conteúdo, leitura por quem enviou e por admins (auditada), logo público da ONG publicada; `media_upload_intents` rastreia envio/limpeza, recuperável por responsável/admin em `files/recover`, inclusive com envio desligado; exclusão de conta inclui intenções |
 | `media-storage.ts` | Primitiva comum de logo/documentos e galeria: reserva vazia, releitura de autorização, PUT condicionado ao ETag e uma repetição limitada em throttling; impede escrita tardia de bytes pessoais após remoção da reserva |

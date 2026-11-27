@@ -16,8 +16,6 @@ import type { ApplicationFile, FileKind, FileType } from "@vila/shared/accounts/
 import type { NgoApplication } from "@vila/shared/accounts/validate";
 import type { Progress } from "@vila/shared/game/progress";
 
-import { sendableEvents, setServerQuests } from "../game/questsFlag";
-import { setServerQuestsV2 } from "../game/questsV2Flag";
 import { nextEvent, reserveLocalGuest, useVila } from "../game/store";
 import { discardUnsentDrafts, resumeDraft } from "./pix-draft";
 import { SERVICES } from "./services";
@@ -73,8 +71,6 @@ export const api = {
   config: () =>
     call<{
       accounts: boolean;
-      quests?: boolean;
-      questsV2?: boolean;
       files?: boolean;
       withdrawal?: boolean;
       moderation?: Partial<ModerationConfig>;
@@ -207,11 +203,10 @@ function savePending(owner: string, events: Event[]) {
 }
 
 /**
- * Sends events in chunks (idempotent on the server) and returns the server's progress. With quests off
- * (IMPL-0013) quest events are left out: the API would skip them, so they are not retried either.
+ * Sends every event in chunks (idempotent on the server) and returns the server's progress. Quests are always
+ * on, so no event is held back by a client flag.
  */
-async function send(owner: string, all: Event[]): Promise<Progress> {
-  const events = sendableEvents(all);
+async function send(owner: string, events: Event[]): Promise<Progress> {
   let server = (await api.progress(useVila.getState().localActor ? owner : undefined)).progress;
   for (let i = 0; i < events.length; i += 50) server = (await api.postEvents(owner, events.slice(i, i + 50))).progress;
   return server;
@@ -247,7 +242,7 @@ async function readLocalAccount(owner: string) {
       const unique = holdLocalEvents(owner, loadPending(owner));
       savePending(owner, []);
       vila.adoptProgress(progress, owner);
-      useAccount.setState({ localImportCount: sendableEvents(unique).length, sync: "saved" });
+      useAccount.setState({ localImportCount: unique.length, sync: "saved" });
     };
     if (globalThis.navigator?.locks) await navigator.locks.request("vila.local-guest-import", () => reserve(true));
     else reserve(false);
@@ -259,8 +254,7 @@ async function readLocalAccount(owner: string) {
 export async function confirmLocalImport(owner: string) {
   const vila = useVila.getState();
   if (vila.localActor?.() !== owner || vila.progressOwner !== owner) return;
-  const held = localImport(owner);
-  const accepted = sendableEvents(held);
+  const accepted = localImport(owner);
   if (!accepted.length) return;
   const server = await send(owner, accepted);
   const finish = () => {
@@ -275,7 +269,7 @@ export async function confirmLocalImport(owner: string) {
     // A gesture made while this request was in flight may still be waiting for the server.
     const progress = seenEvents(current.progress).reduce((p, e) => nextEvent(p, e.missionId, e.eventId).progress, server);
     current.adoptProgress(progress, owner);
-    useAccount.setState({ localImportCount: sendableEvents(remaining).length });
+    useAccount.setState({ localImportCount: remaining.length });
   };
   if (globalThis.navigator?.locks) await navigator.locks.request("vila.local-guest-import", finish);
   else finish();
@@ -331,7 +325,7 @@ function followProgress() {
   const onUpdate = useVila.subscribe((s, prev) => {
     const owner = s.progressOwner;
     if (s.progress === prev.progress || !owner || owner !== prev.progressOwner) return;
-    const fresh = sendableEvents(seenEvents(s.progress).filter((e) => !prev.progress.seen[`${e.missionId}:${e.eventId}`]));
+    const fresh = seenEvents(s.progress).filter((e) => !prev.progress.seen[`${e.missionId}:${e.eventId}`]);
     if (!fresh.length) return;
     savePending(owner, [...loadPending(owner), ...fresh]);
     void flushPending();
@@ -481,10 +475,10 @@ function takeLoginToken(): string | null {
 }
 
 /**
- * Startup: reads the flags (accounts, quests, files, withdrawal, moderation), consumes a `#login=` link (then removes it from the address
- * bar) or restores the session. The token travels in the fragment, which the browser never sends to any
- * server (so it is in no access log). Never throws; without the API the game stays fully playable (quests,
- * which need the API's flag, stay off).
+ * Startup: reads the flags (accounts, files, withdrawal, moderation), consumes a `#login=` link (then removes
+ * it from the address bar) or restores the session. The token travels in the fragment, which the browser never
+ * sends to any server (so it is in no access log). Never throws; without the API the game stays fully playable
+ * and quests keep working in this browser.
  */
 export function accountActionFlag() {
   if (typeof location === "undefined" || import.meta.env.MODE === "production") return null;
@@ -512,7 +506,7 @@ async function readStartup() {
       throw new ApiError(503, "unknown");
     }
     configRead = true;
-    const { accounts, quests, questsV2, files, withdrawal, moderation, donations } = config;
+    const { accounts, files, withdrawal, moderation, donations } = config;
     const requireAccount = actionFlag && config[actionFlag] === true && (actionFlag !== "stagingAccountActions" || accounts === true);
     if (useAccount.getState().actionConfigUnavailable) {
       const vila = useVila.getState();
@@ -524,8 +518,6 @@ async function readStartup() {
       const user = useAccount.getState().user;
       return user && !user.blocked && !user.deletionPending ? user.id : null;
     } : null });
-    setServerQuests(quests === true);
-    setServerQuestsV2(questsV2 === true);
     useAccount.setState({
       actionConfigUnavailable: false,
       configReady: true,

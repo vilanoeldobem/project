@@ -44,11 +44,14 @@ export const HOME_COLLIDERS: Collider[] = RESIDENTIAL_PLOTS.flatMap((plot) => pl
  * (PROPOSTA quests-v1), each lot (the walls and porch of a published chalet, from the footprint of the very
  * model `Lots` draws; otherwise the corner posts and the sign of its marker) and the residential chalets.
  */
-export function sceneColliders(published: Houses, quests: boolean, story = false): Collider[] {
+export function sceneColliders(published: Houses, quests: boolean, story = false, storyNpcs?: ReadonlySet<string>): Collider[] {
+  const storyObstacles = story
+    ? STORY_WORLD.obstacles.filter((_, i) => !storyNpcs || storyNpcs.has(STORY_WORLD.npcs[i].id))
+    : [];
   return [
     ...OBSTACLES,
     ...(quests ? QUEST_OBSTACLES : []),
-    ...(story ? STORY_WORLD.obstacles : []),
+    ...storyObstacles,
     ...LOTS.flatMap((lot) => lotColliders(lot, published.has(lot.id) ? (ngoBuilding(lot.id, levelIn(published, lot.id)).solid ?? HOUSE_ENVELOPE) : null)),
     ...HOME_COLLIDERS,
   ];

@@ -5,7 +5,7 @@
  *   printed), and the same function gives the same answer for the same time in both;
  * - morning, afternoon, night and heavy snow: who is out, with a screenshot of each;
  * - talking to the lumberjack, a shopkeeper, Santa, a villager (action button, E, and a click on the
- *   character) and, with `?quests=1`, to a quest NPC, whose dialogue is the quest's;
+ *   character) and to a quest NPC, whose dialogue is the quest's;
  * - a walk across the busy square, through the places where characters stand: every leg arrives, and the
  *   character whose spot the avatar takes steps aside;
  * - the setting that hides the characters, "less motion", the phone width;
@@ -267,7 +267,7 @@ await finder.close();
 {
   const page = await open("quest NPC", { time: "15:00", quests: true });
   // The flag the game itself reads (page flag and the API's /config): local quest data alone says nothing about it.
-  await page.waitForFunction(() => window.__vila.extra.questsOn() && window.__vila.extra.quests().some((q) => q.state === "available"), null, { timeout: 10000 }).catch(() => fail("quest NPC: quests are off (is the local API up on :8787, started with `pnpm --filter @vila/api dev`, which sets QUESTS_V1_ENABLED=true?)"));
+  await page.waitForFunction(() => window.__vila.extra.questsOn() && window.__vila.extra.quests().some((q) => q.state === "available"), null, { timeout: 10000 }).catch(() => fail("quest NPC: no quest is available (is the local API up on :8787, started with `pnpm --filter @vila/api dev`?)"));
   await page.evaluate(() => window.__vila.extra.teleport(3.3, 10.2));
   const button = page.locator(".hud__action");
   await button.waitFor({ timeout: 8000 }).catch(() => fail("quest NPC: no action button next to Seu Nivaldo"));

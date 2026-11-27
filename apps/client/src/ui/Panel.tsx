@@ -39,7 +39,7 @@ export function Panel({
   /** What the close button and a press on the veil do; by default they close the open panel. */
   onClose?: () => void;
   /** Symbol shown on a gold tile at the head (never with a `mark`). */
-  icon?: string;
+  icon?: ReactNode;
   /** One line under the title. */
   subtitle?: string;
   /** The board sheet: wider, tan rim, bottom-anchored on a phone. */

@@ -136,7 +136,8 @@ function strict(
   quests: boolean,
   progress: Progress,
   life: LifeNearby | null,
-  story: StoryNearby | null
+  story: StoryNearby | null,
+  storyNpcs?: ReadonlySet<string>
 ): Nearby {
   let best: Nearby = null;
   let bestDist = 0, bestPrio = 0;
@@ -156,6 +157,7 @@ function strict(
   if (story) {
     for (let i = 0; i < story.world.npcs.length; i++) {
       const npc = story.world.npcs[i];
+      if (storyNpcs && !storyNpcs.has(npc.id)) continue;
       const dist = Math.hypot(npc.x - x, npc.z - z);
       if (dist < INTERACT_DISTANCE) noteQuest(story.npcTargets[i], dist, 1);
       if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) (best = story.npcTargets[i]), (bestDist = dist), (bestPrio = 1);
@@ -213,6 +215,16 @@ function strict(
     // A character of the village: with no place in reach, or clearly closer than the place.
     if (life?.near && life.dist < LIFE_REACH && (!best || life.dist + LIFE_OVER_PLACE < placeDist)) (best = life.near), (bestDist = life.dist), (bestPrio = 8);
   }
+  // Standing on a place's own point reads that place: a character a step away must not hide the panel. Quest targets
+  // (2) still win, since their event is the interaction.
+  if (best && bestPrio !== 2 && bestPrio !== 6 && bestDist > 0.9) {
+    let at = -1, atDist = 0.9;
+    for (let i = 0; i < FIRST_PLOT; i++) {
+      const dist = Math.hypot(PLACES[i].x - x, PLACES[i].z - z);
+      if (dist < atDist) (at = i), (atDist = dist);
+    }
+    if (at >= 0) (best = PLACES[at].near), (bestDist = atDist), (bestPrio = 6);
+  }
   found.dist = bestDist;
   found.prio = bestPrio;
   return best;
@@ -227,7 +239,8 @@ function kept(
   quests: boolean,
   progress: Progress,
   life: LifeNearby | null,
-  story: StoryNearby | null
+  story: StoryNearby | null,
+  storyNpcs?: ReadonlySet<string>
 ): number {
   switch (previous.kind) {
     case "life":
@@ -241,6 +254,7 @@ function kept(
       }
       const index = story?.npcOf.get(previous);
       const npc = index === undefined ? undefined : story?.world.npcs[index];
+      if (npc && storyNpcs && !storyNpcs.has(npc.id)) return Infinity;
       const dist = npc ? Math.hypot(npc.x - x, npc.z - z) : Infinity;
       return dist < INTERACT_DISTANCE + NEARBY_KEEP ? ((found.prio = 1), dist) : Infinity;
     }
@@ -301,12 +315,15 @@ export function pickNearby(
   progress: Progress,
   previous: Nearby,
   life: LifeNearby | null = null,
-  story: StoryNearby | null = null
+  story: StoryNearby | null = null,
+  storyNpcs?: ReadonlySet<string>
 ): Nearby {
-  const best = strict(x, z, speed, quests, progress, life, story);
+  const best = strict(x, z, speed, quests, progress, life, story, storyNpcs);
   if (!previous || best === previous) return best;
   const bestDist = found.dist, bestPrio = found.prio;
-  const dist = kept(previous, x, z, speed, quests, progress, life, story);
+  // Standing on a place point reads it at once: the NPC behind it does not hold the offer.
+  if (bestPrio === 6 && bestDist < 0.9) return best;
+  const dist = kept(previous, x, z, speed, quests, progress, life, story, storyNpcs);
   if (dist === Infinity) return best;
   if (!best) return previous;
   const prio = found.prio;

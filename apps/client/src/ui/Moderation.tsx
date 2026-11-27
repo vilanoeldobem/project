@@ -13,6 +13,7 @@ import { useAccount } from "../lib/account";
 import { canModerate, moderating, type RemovalNotice, useModeration } from "../lib/moderation";
 import { type NetStatus, useNet } from "../net/multiplayer";
 import { Confirm, useFocusReturn } from "./Confirm";
+import { Icon } from "./icons";
 
 /** HUD chip, administrators only: turns moderation mode on and off. */
 export function ModerationChip() {
@@ -35,7 +36,7 @@ export function ModerationChipView({ user, on, onToggle }: { user: Me | null; on
       onClick={onToggle}
     >
       <span className="chip__icon" aria-hidden="true">
-        🛡️
+        <Icon name="shield" />
       </span>
       <span className="chip__label">Moderação</span>
     </button>

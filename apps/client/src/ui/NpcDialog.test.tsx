@@ -56,6 +56,27 @@ describe("NpcDialog", () => {
     expect(page).toContain("A praça acordou.");
   });
 
+  it("shows one turn-in button and names the other ready quest", () => {
+    const second: StoryQuest = { ...quest, id: "b01-c1-02", title: "O segundo sino", objectiveEventIds: ["talk-anselmo-2"] };
+    const parallel: StoryCatalog = { ...catalog, quests: [quest, second] };
+    const done: Progress = {
+      ...EMPTY_PROGRESS,
+      seen: { "b01-c1-01:accept": true, "b01-c1-01:talk-anselmo": true, "b01-c1-02:accept": true, "b01-c1-02:talk-anselmo-2": true },
+      counters: { "b01-c1-01": 1, "b01-c1-02": 1 },
+    };
+    const page = renderToStaticMarkup(<NpcDialog npcId="mestre-anselmo" lots={{}} catalog={parallel} world={world} progress={done} />);
+    expect(page.match(/Concluir missão/g)).toHaveLength(1);
+    expect(page).toContain("Também pronta: O segundo sino.");
+  });
+
+  it("offers one quest at a time and names the other available one", () => {
+    const second: StoryQuest = { ...quest, id: "b01-c1-02", title: "O segundo sino" };
+    const parallel: StoryCatalog = { ...catalog, quests: [quest, second] };
+    const page = renderToStaticMarkup(<NpcDialog npcId="mestre-anselmo" lots={{}} catalog={parallel} world={world} progress={EMPTY_PROGRESS} />);
+    expect(page.match(/Aceitar missão/g)).toHaveLength(1);
+    expect(page).toContain("Também disponível: O segundo sino.");
+  });
+
   it("keeps the v1 postmaster talk copy", () => {
     const v1Catalog: StoryCatalog = { quests: [], milestones: [], minigames: [], quickMissions: MISSIONS };
     v1Catalog.quests = [

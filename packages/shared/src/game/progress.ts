@@ -16,7 +16,7 @@
  * For that reason the API stores a quest event only when it is a valid transition (IMPL-0013).
  */
 import type { Quest } from "./quests";
-import { canAccept, QUESTS, questState } from "./quests";
+import { QUESTS, questState } from "./quests";
 
 export type Track = "explore" | "play" | "causes";
 
@@ -75,7 +75,7 @@ const questById = new Map(QUESTS.map((q) => [q.id, q]));
 /** Quest path: only a valid transition stores its event; anything else leaves progress untouched. */
 function applyQuestEvent(p: Progress, quest: Quest, eventId: string): ApplyResult {
   if (eventId === "accept") {
-    if (questState(p, quest.id) !== "available" || !canAccept(p, quest.id)) return { progress: p };
+    if (questState(p, quest.id) !== "available") return { progress: p };
     return {
       progress: {
         ...p,

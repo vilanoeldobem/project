@@ -1,7 +1,7 @@
 # Revisão jurídica e de conteúdo da saga v2
 
-> **Status:** PROPOSTA, atrás de `VITE_QUESTS_V2_ENABLED` / `?quests2=1` e `QUESTS_V2_ENABLED`, desligada em
-> produção e homologação. Checklist, não parecer jurídico.
+> **Status:** PROPOSTA, sempre ligada no runtime desde a IMPL-0037; a revisão jurídica e de conteúdo continua
+> **PENDENTE**. Checklist, não parecer jurídico.
 > **Atualizado em:** 2026-11-26.
 > **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `content/proposals/quests-v2/`,
 > `apps/client/src/scene/gen/quest-v2/`, `apps/client/src/scene/gen/cosmetics-v2.ts` e
@@ -48,7 +48,7 @@ build). A prova de navegador da fatia 14 fica no PR que acompanha este relatóri
 | Acessibilidade: objetivo claro, sem cor como único sinal, sem cronômetro, pausa, resumo e pular após três tentativas | **Conforme** | Os minijogos declaram `timed: false`, três dificuldades e `skipAfterAttempts: 3` em `minigames.ts`; `StoryGamePanel.tsx` mostra regra, dica, pausa, status textual e “Pular minijogo”. Os marcadores de NPC usam `?`, `!` e `...`, nunca só cor. Os objetivos dizem verbo e lugar. |
 | Nomes, ids, números e siglas preservados | **Conforme** | O manifesto mantém 484 ids e 11.400 XP. `validate-slice.mjs --all` confere ids, contagens, pré-requisitos, regiões, XP, props e cosméticos. |
 | Cosméticos premium sem preço, compra ou checkout | **Conforme, com nota ao dono** | Os 60 cosméticos dos livros usam `unlock.kind: "paid"` em 30 itens; não há preço, checkout, botão de compra ou equipar. O rótulo “Visual pago” e a palavra `paid` são catálogo e prévia. O dono deve confirmar o rótulo antes de ligar a v2. |
-| Bandeiras desligadas em produção e homologação | **Conforme** | `apps/api/wrangler.jsonc` tem `"QUESTS_V2_ENABLED": "false"` em produção e homologação; o script `dev` da API usa `true` só localmente. |
+| Missões sempre ligadas, decisão registrada | **Conforme, com nota ao dono** | Desde a IMPL-0037 não há bandeira: o runtime está ligado em produção e homologação. A revisão jurídica e de conteúdo continua **PENDENTE** e o dono deve aprová-la antes de tratar a saga como conteúdo aprovado. |
 
 ## 3. Correções aplicadas
 
@@ -78,6 +78,6 @@ conteúdo da saga.
 ## 5. O que este documento não é
 
 Este documento é um checklist técnico de conteúdo e de produto. Não é parecer jurídico, não interpreta LGPD, ECA
-Digital, direito do consumidor ou direito autoral e não autoriza publicação. Antes de ligar
-`VITE_QUESTS_V2_ENABLED` / `QUESTS_V2_ENABLED` em produção ou homologação, o dono do produto e o jurídico devem
-aprovar o catálogo, os XP, os cosméticos premium de catálogo e os textos desta revisão.
+Digital, direito do consumidor ou direito autoral e não autoriza publicação. O runtime está sempre ligado desde a
+IMPL-0037, mas o dono do produto e o jurídico devem aprovar o catálogo, os XP, os cosméticos premium de catálogo e os
+textos desta revisão antes de tratar a saga como conteúdo aprovado.

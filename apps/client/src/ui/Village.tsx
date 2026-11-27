@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { attainableLevel, levelOf } from "@vila/shared/game/progress";
 import { BILLBOARDS, type BoardFormat, boardNotices, plotLabel, RESIDENTIAL_PLOTS, type ResidentialPlot, shopCopy, SHOPS, siteCopy, SITES, streetLabel, VILLAGE_PLAN } from "@vila/shared/game/world";
-import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { fetchResidentialPlots, type PlotState } from "../lib/api";
 import { Panel } from "./Panel";
@@ -35,7 +34,6 @@ const STATE_LABEL: Record<PlotState, string> = { unavailable: "Indisponível", a
 export function PlotPanel({ plotId }: { plotId: string }) {
   const plot = RESIDENTIAL_PLOTS.find((p) => p.id === plotId);
   const level = useVila((s) => levelOf(s.progress.xp));
-  const quests = useQuestsEnabled();
   // Off until the API says otherwise: ownership is off, and an API that cannot be read opens nothing.
   const [answer, setAnswer] = useState<PlotsAnswer>(OFF);
   useEffect(() => {
@@ -44,7 +42,7 @@ export function PlotPanel({ plotId }: { plotId: string }) {
     return () => void (alive = false);
   }, []);
   if (!plot) return null;
-  return <PlotPanelView plot={plot} enabled={answer.enabled} state={answer.states.get(plotId) ?? "unavailable"} level={level} quests={quests} />;
+  return <PlotPanelView plot={plot} enabled={answer.enabled} state={answer.states.get(plotId) ?? "unavailable"} level={level} />;
 }
 
 /**
@@ -52,7 +50,7 @@ export function PlotPanel({ plotId }: { plotId: string }) {
  * one neutral statement. The proposed requirement of the tier appears only with the flag on, and then it says
  * whether the missions that are open can reach it at all.
  */
-export function PlotPanelView({ plot, enabled, state, level, quests }: { plot: ResidentialPlot; enabled: boolean; state: PlotState; level: number; quests: boolean }) {
+export function PlotPanelView({ plot, enabled, state, level }: { plot: ResidentialPlot; enabled: boolean; state: PlotState; level: number }) {
   const tier = VILLAGE_PLAN.tiers[plot.tier];
   const required = tier.requirement.level;
   return (
@@ -73,7 +71,7 @@ export function PlotPanelView({ plot, enabled, state, level, quests }: { plot: R
               <dt>Requisito em estudo</dt>
               <dd>
                 Chegar ao nível {required} jogando.{" "}
-                {required > attainableLevel(quests) ? "Com as missões abertas hoje ainda não dá para chegar a esse nível." : `Você está no nível ${level}.`}
+                {required > attainableLevel(true) ? "Com as missões abertas hoje ainda não dá para chegar a esse nível." : `Você está no nível ${level}.`}
               </dd>
               <dt>Situação</dt>
               <dd>{STATE_LABEL[state]}</dd>
