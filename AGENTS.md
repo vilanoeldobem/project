@@ -30,12 +30,13 @@ before changing product behaviour. Deadline: 30/11/2026 (DEC-043).
 | Migrations | `migrations/NNNN_name.sql` | production is on v15 (0015) |
 | Product docs | `docs/reference/` (behaviour), `docs/decisions/` (ADRs, open questions) | code wins; fix the doc in the same change |
 
-### Feature flags (API `wrangler.jsonc`; all `"false"` in production and staging)
+### Feature flags (API `wrangler.jsonc`; the remaining ones are `"false"` in production and staging)
 
-`ACCOUNTS_ENABLED`, `QUESTS_V1_ENABLED`, `QUESTS_V2_ENABLED`, `NGO_FILES_ENABLED`, `NGO_PHOTOS_ENABLED`,
+`ACCOUNTS_ENABLED`, `NGO_FILES_ENABLED`, `NGO_PHOTOS_ENABLED`,
 `NGO_WITHDRAWAL_ENABLED`, `ACCOUNT_BLOCK_ENABLED`, `PRESENCE_MODERATION_ENABLED` (also on the realtime server),
 `RESIDENTIAL_PLOTS_ENABLED`, `DONATIONS_ENABLED`, `NGO_LEVELS_ENABLED`. `GET /config` reports what the apps may show.
-Local `pnpm --filter @vila/api dev` turns most of them on. Never flip one remotely without explicit approval.
+Quests have no flag: the v1 epilogue and the v2 books are always on (IMPL-0037). Local
+`pnpm --filter @vila/api dev` turns most of them on. Never flip one remotely without explicit approval.
 
 ## Build, test, lint (all must pass before claiming done)
 
@@ -92,8 +93,8 @@ node apps/site/scripts/verify.mjs http://localhost:4173
   alone grants no XP; levels must be reachable without donating. Logic lives in
   `packages/shared/src/game/progress.ts` and is covered by tests.
 - Story v2, "saga das Longas Noites" ([docs/reference/quests-v2.md](docs/reference/quests-v2.md)), is
-  **PROPOSTA** (PEN-025): ten books (`quests-v2/books/book-01.ts` … `book-10.ts`, 45 entries each) behind
-  `QUESTS_V2_ENABLED` / `VITE_QUESTS_V2_ENABLED` (`?quests2=1` locally), off in production. Ids come from the
+  **PROPOSTA** (PEN-025): ten books (`quests-v2/books/book-01.ts` … `book-10.ts`, 45 entries each), always on with
+  the v1 epilogue since IMPL-0037. Ids come from the
   manifest (`quests-v2/manifest.ts`, 484 ids) and are progress event ids stored in D1: never rename one. A book edits
   only its own module, content folder, props, cosmetics and tests; shared changes go through the integration slice.
   Dialogue follows the same copy rules as village life (fixed pt-BR text, no AI, no pressure to stay, return,

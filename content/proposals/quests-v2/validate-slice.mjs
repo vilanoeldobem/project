@@ -134,9 +134,9 @@ function validateSpine() {
       if (!text.includes(`export const ${symbol}`)) fail(`${file}: missing export ${symbol}`);
   }
   const wrangler = read("apps/api/wrangler.jsonc");
-  if ((wrangler.match(/"QUESTS_V2_ENABLED": "false"/g) ?? []).length < 2) fail("wrangler: QUESTS_V2_ENABLED is not false in production and staging");
+  if (/QUESTS_V2_ENABLED/.test(wrangler)) fail("wrangler: quests have no flag since IMPL-0037");
   const apiPackage = read("apps/api/package.json");
-  if (!apiPackage.includes("QUESTS_V2_ENABLED:true")) fail("api dev script: QUESTS_V2_ENABLED:true missing");
+  if (/QUESTS_V2_ENABLED/.test(apiPackage)) fail("api dev script: quests have no flag since IMPL-0037");
 }
 
 function validateBook(path) {

@@ -1,10 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { useVila } from "./game/store";
-import { useQuestsEnabled } from "./game/questsFlag";
-import { useQuestsV2Enabled } from "./game/questsV2Flag";
 import { catalogFor } from "@vila/shared/game/quests-v2/catalog";
-import { ALL_WORLD, V1_WORLD } from "@vila/shared/game/quests-v2/world";
+import { ALL_WORLD } from "@vila/shared/game/quests-v2/world";
 import { PixReview } from "./ui/PixReview";
 import { accountActionFlag, initAccount, useAccount } from "./lib/account";
 import { type ContextState, watchContext } from "./lib/context-watch";
@@ -39,10 +37,8 @@ const World = lazy(() => import("./scene/World").then((m) => ({ default: m.World
 export function App() {
   const panel = useVila((s) => s.panel);
   const configReady = useAccount((s) => s.configReady);
-  const quests = useQuestsEnabled();
-  const quests2 = useQuestsV2Enabled();
-  const catalog = catalogFor(quests, quests2);
-  const world = quests2 ? ALL_WORLD : V1_WORLD;
+  const catalog = catalogFor(true, true);
+  const world = ALL_WORLD;
   const [lots, setLots] = useState<Record<string, LotInfo>>({});
 
   /** Reads the lots (again after a moderation action changed what the village shows, IMPL-0021). */

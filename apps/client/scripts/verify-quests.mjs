@@ -1,11 +1,11 @@
 /**
  * verify-quests.mjs — real-browser check of the quests-v1 runtime (PROPOSTA; DEC-039..042, PEN-025)
- * against LOCAL Workers only. Opens `?quests=1`, publishes one NGO in the local D1 through the same
- * applicant + admin API flow as verify-accounts.mjs, then completes the 18 quests in chain order with
+ * against LOCAL Workers only. Quests are always on (IMPL-0037). Publishes one NGO in the local D1 through the
+ * same applicant + admin API flow as verify-accounts.mjs, then completes the 18 quests in chain order with
  * `window.__vila.walkTo`, the HUD action buttons, the NPC dialogs, the donation panel and a memory
  * solver that reads the card labels. Fails on any console or page error.
  *
- * Needs: `pnpm --filter @vila/api dev` (:8787, QUESTS_V1_ENABLED=true, ENVIRONMENT=development),
+ * Needs: `pnpm --filter @vila/api dev` (:8787, ENVIRONMENT=development),
  * `pnpm --filter @vila/server dev` (:8788) and `pnpm --filter @vila/client dev` (:5173).
  * Usage: node apps/client/scripts/verify-quests.mjs [client=http://localhost:5173] [api=http://localhost:8787]
  *        VILA_API_PERSIST_TO=/path/to/state when that API was started with `wrangler dev --persist-to`.

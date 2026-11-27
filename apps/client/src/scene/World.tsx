@@ -5,8 +5,6 @@ import { usePreset } from "../environment/settings";
 import { asNgoLevel } from "@vila/shared/game/ngo-level";
 import { LOTS } from "@vila/shared/game/world";
 import type { LotInfo } from "../lib/api";
-import { useQuestsEnabled } from "../game/questsFlag";
-import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import { EnvironmentDriver } from "./environment/EnvironmentDriver";
 import { Lighting } from "./environment/Lighting";
 import { Footprints, GameplayBursts, Sparkles } from "./environment/Particles";
@@ -35,9 +33,7 @@ const PostFx = lazy(() => import("./environment/PostFx").then((m) => ({ default:
  */
 export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCanvas?: (canvas: HTMLCanvasElement) => void }) {
   const preset = usePreset();
-  // PROPOSTA quests-v1: NPCs, quest items and the donation lectern exist only while quests are on.
-  const quests = useQuestsEnabled();
-  const quests2 = useQuestsV2Enabled();
+  // Quests are always on (IMPL-0037): their NPCs, items and lectern are part of the world.
   // What blocks the avatar on each lot depends on whether its chalet is published (`scene/sceneColliders.ts`,
   // IMPL-0016). Keyed by the published ids, so a refetch that changes nothing keeps the same navigation field.
   // The level of each building is part of the key (IMPL-0032): a taller house hides more and may block more.
@@ -64,9 +60,9 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
         <Pines />
         <Pond />
         <ChristmasTree />
-        {quests && <DonationLectern />}
-        {quests && <QuestNpcs />}
-        {quests && <QuestItems />}
+        <DonationLectern />
+        <QuestNpcs />
+        <QuestItems />
         <Lamps />
         <LightStrings />
         <Snowmen />
@@ -77,7 +73,7 @@ export function World({ lots, onCanvas }: { lots: Record<string, LotInfo>; onCan
         <Lots info={lots} />
         <Shops />
         <Billboards />
-        <Rings story={quests2} />
+        <Rings story />
         <Gifts />
         <Footprints />
         <ClickMarker />

@@ -108,10 +108,6 @@ export interface Env {
   DASH_ORIGIN?: string;
   /** "true" turns on accounts, server XP, NGO applications and admin (IMPL-0011). */
   ACCOUNTS_ENABLED?: string;
-  /** "true" accepts quests-v1 events (PROPOSTA; DEC-039..042, PEN-025). Off in production. */
-  QUESTS_V1_ENABLED?: string;
-  /** "true" accepts story-v2 events; independent of the v1 epilogue flag. Off in production and staging. */
-  QUESTS_V2_ENABLED?: string;
   /** Resend API key (Worker secret, never a `var`), see mail.ts. Without it sign-in e-mails fail closed. */
   RESEND_API_KEY?: string;
   /** Sender address of the sign-in e-mail; its domain must be verified in Resend. */
@@ -335,7 +331,7 @@ async function route(request: Request, env: Env): Promise<Response> {
       case "/config": {
         const accounts = env.ACCOUNTS_ENABLED === "true";
         return json({
-          accounts, quests: env.QUESTS_V1_ENABLED === "true", questsV2: env.QUESTS_V2_ENABLED === "true", files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true",
+          accounts, files: accounts && Boolean(filesBucket(env)), withdrawal: accounts && env.NGO_WITHDRAWAL_ENABLED === "true",
           // What works right now (IMPL-0021, PROPOSTA), so the apps show only that.
           moderation: { presence: accounts && env.PRESENCE_MODERATION_ENABLED === "true", block: accounts && env.ACCOUNT_BLOCK_ENABLED === "true" },
           // Ownership of residential plots (IMPL-0024, PROPOSTA): computed from the flags alone, like the others.

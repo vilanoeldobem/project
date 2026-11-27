@@ -9,11 +9,9 @@ import { HEIGHT_SCALE } from "@vila/shared/game/appearance";
 import { MOTION, STEP } from "@vila/shared/game/motion";
 import { createNavField, planRoute, stepWalk } from "@vila/shared/game/navigation";
 import { QUESTS, questProgress, questState } from "@vila/shared/game/quests";
-import { questProgressIn, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { npcOpenIn, openBooksIn, questProgressIn, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { sim, walkRoute } from "../game/sim";
-import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
-import { questsV2Enabled, useQuestsV2Enabled } from "../game/questsV2Flag";
 import { pickNearby, STORY_NEARBY } from "../game/nearby";
 import { lifeNear } from "../game/village-life";
 import { type Nearby, useVila } from "../game/store";
@@ -100,13 +98,17 @@ export function Player({ published }: { published: string }) {
   const fit = useThree((s) => Math.min(1.8, Math.max(1, 1.3 / (s.size.width / s.size.height))));
   const avatarLook = useVila((s) => s.look);
   const appearance = useVila((s) => s.appearance);
+  const progress = useVila((s) => s.progress);
+  // Only the cast of a book the story has reached is drawn (IMPL-0037); the v1 anchors are always there.
+  const storyNpcs = useMemo(() => {
+    const books = openBooksIn(STORY_CATALOG, progress);
+    return new Set(STORY_WORLD.npcs.filter((npc) => npcOpenIn(npc, books)).map((npc) => npc.id));
+  }, [progress]);
   const parts = useMemo(() => avatarParts(avatarLook, appearance), [avatarLook, appearance]);
   const { shadows } = usePreset();
-  // Quest NPCs and the lectern block the avatar only while they are drawn (PROPOSTA quests-v1).
-  const questsOn = useQuestsEnabled();
-  const storyOn = useQuestsV2Enabled();
+  // Quest NPCs and the lectern block the avatar: quests are always on (IMPL-0037).
   const houses = useMemo(() => housesOf(published), [published]);
-  const colliders = useMemo(() => sceneColliders(houses, questsOn, storyOn), [houses, questsOn, storyOn]);
+  const colliders = useMemo(() => sceneColliders(houses, true, true, storyNpcs), [houses, storyNpcs]);
   // What can hide the avatar from the camera. A new set is looked at afresh (`x: Infinity`).
   const occluders = useMemo(() => sceneOccluders(houses), [houses]);
   // The sky camera minds the buildings only: the tree and the pines belong in its picture.
@@ -168,8 +170,6 @@ export function Player({ published }: { published: string }) {
     const s = useVila.getState();
     const c = clock.current;
     const b = sim.body;
-    const quests = questsEnabled();
-    const quests2 = questsV2Enabled();
 
     // ---- simulation: fixed steps, independent of the display refresh rate. An open panel pauses the walk;
     // the game menu does not (`walkRoute`).
@@ -196,7 +196,7 @@ export function Player({ published }: { published: string }) {
         }
       }
       // Quest pickups and the tree visit (PROPOSTA quests-v1): only while their quest is active.
-      if (quests) {
+      {
         for (const spawn of QUEST_SPAWNS) {
           if (progress.seen[`${spawn.questId}:${spawn.id}`] || questState(progress, spawn.questId) !== "active") continue;
           if (Math.hypot(spawn.x - b.x, spawn.z - b.z) >= GIFT_RADIUS) continue;
@@ -214,7 +214,7 @@ export function Player({ published }: { published: string }) {
           s.notify("Você visitou a grande árvore · Volte a Dona Guida.");
         }
       }
-      if (quests2) {
+      {
         for (const spawn of STORY_WORLD.spawns) {
           if (progress.seen[`${spawn.questId}:${spawn.id}`] || questStateIn(STORY_CATALOG, progress, spawn.questId) !== "active") continue;
           if (Math.hypot(spawn.x - b.x, spawn.z - b.z) >= GIFT_RADIUS) continue;
@@ -273,11 +273,12 @@ export function Player({ published }: { published: string }) {
       pose.x,
       pose.z,
       pose.speed,
-      quests,
+      true,
       useVila.getState().progress,
       near.current,
       lifeNear(pose.x, pose.z, near.current),
-      quests2 ? STORY_NEARBY : null
+      STORY_NEARBY,
+      storyNpcs
     );
     s.setNearby(near.current);
 

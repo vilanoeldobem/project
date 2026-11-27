@@ -3,10 +3,10 @@ import { useState } from "react";
 import { levelOf, TRACK_LABEL, XP_PER_LEVEL, type Progress, type Track } from "@vila/shared/game/progress";
 import {
   activeInventoryIn,
-  canAcceptIn,
+  activeQuestsIn,
+  finalSceneReady,
   isStoryQuest,
   prerequisitesOf,
-  finalSceneReady,
   questProgressIn,
   questStateIn,
   V1_CATALOG,
@@ -16,9 +16,8 @@ import type { CatalogQuest, StoryCatalog, StoryWorld } from "@vila/shared/game/q
 import { V1_WORLD } from "@vila/shared/game/quests-v2/world";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
-import { useQuestsEnabled } from "../game/questsFlag";
-import { useQuestsV2Enabled } from "../game/questsV2Flag";
 import type { LotInfo } from "../lib/api";
+import { Icon, type IconName } from "./icons";
 import { Panel } from "./Panel";
 import { SheetNotice, SheetProgress, SheetSection, SheetTabs } from "./sheet";
 
@@ -33,7 +32,11 @@ const KIND_LABEL: Record<string, string> = {
   postgame: "Pós-jogo",
 };
 
-/** Mission log (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
+/** One glyph per quest state: shape plus the words beside it, never colour alone. */
+const stateIcon = (state: string): IconName =>
+  state === "completed" ? "check" : state === "ready_to_turn_in" ? "arrow" : state === "active" ? "in-progress" : state === "locked" ? "lock" : "star";
+
+/** Mission journal (P14, DEC-039/040). Progress is saved in this browser only (accounts are D06). */
 export function Missions({
   lots = {},
   catalog = V1_CATALOG,
@@ -47,27 +50,23 @@ export function Missions({
   world?: StoryWorld;
   progress?: Progress;
   counters?: Counters;
-  /** Defaults to either story flag; false hides the quest book exactly as v1 did with quests off. */
+  /** Quest groups are always shown; an embed that only wants the quick missions passes false. */
   stories?: boolean;
 }) {
   const stored = useVila((s) => s.progress);
   const claims = useVila((s) => s.missionClaims);
   const p = progress ?? stored;
   const open = useVila((s) => s.open);
-  const v1 = useQuestsEnabled();
-  const v2 = useQuestsV2Enabled();
-  const showStories = stories ?? (v1 || v2);
+  const close = useVila((s) => s.close);
+  const showStories = stories ?? true;
   const [track, setTrack] = useState<Track>("explore");
   const level = levelOf(p.xp);
   const into = p.xp % XP_PER_LEVEL;
-  // The active mission: the first unfinished one of the selected tab, else any unfinished one, else none.
-  const active =
-    catalog.quickMissions.find((m) => m.track === track && !p.completed[m.id]) ??
-    catalog.quickMissions.find((m) => !p.completed[m.id]) ??
-    null;
-  const next = catalog.quests.find((q) => canAcceptIn(catalog, p, q.id));
+  const active = activeQuestsIn(catalog, p);
+  const available = catalog.quests.filter((q) => questStateIn(catalog, p, q.id) === "available");
+  const bag = activeInventoryIn(catalog, p);
   return (
-    <Panel board="P14" sheet icon="🎯" title="Missões da Vila" subtitle="Brincar e conhecer">
+    <Panel board="P14" sheet icon={<Icon name="target" />} title="Missões da Vila" subtitle="Brincar e conhecer">
       <div className="sheet-card mission-level">
         <strong>Nível {level}</strong>
         <span>
@@ -80,38 +79,86 @@ export function Missions({
           Concluir missão: {claim.title}
         </button>
       ))}
-      {showStories && next && (
-        <p className="note" role="status">
-          Próximo passo: {next.title} com {npcName(world, next.giverNpcId)}.
-        </p>
+
+      {showStories && (
+        <SheetSection icon={<Icon name="hourglass" />} title="Em andamento" aside={active.length > 0 ? `${active.length}` : undefined}>
+          {active.length > 0 ? (
+            <ul className="quest-active-list">
+              {active.map((quest) => {
+                const state = questStateIn(catalog, p, quest.id);
+                const ready = state === "ready_to_turn_in";
+                const { count, target } = questProgressIn(catalog, p, quest.id);
+                const carried = bag.find((item) => item.questId === quest.id);
+                return (
+                  <li key={quest.id} className="quest-card" data-state={state}>
+                    <div className="quest-card__head">
+                      <Icon name={stateIcon(state)} />
+                      <span className="quest-card__title">{quest.title}</span>
+                      <span className="quest-card__xp">+{quest.xp} XP</span>
+                    </div>
+                    <p className="quest-card__chain">{quest.chainTitle}</p>
+                    {ready ? (
+                      <p className="note">
+                        Pronta para entregar a <strong>{npcName(world, quest.turnInNpcId)}</strong>.
+                      </p>
+                    ) : (
+                      <>
+                        <SheetProgress value={count} max={quest.target} label={`${count} de ${quest.target} ${quest.unit}`} />
+                        <p className="note">
+                          {count}/{target} {quest.unit} · {quest.description}
+                        </p>
+                      </>
+                    )}
+                    {carried && (
+                      <p className="note">
+                        Na bolsa: {carried.count}/{carried.target} {carried.name}.
+                      </p>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="quest-empty">
+              <SheetNotice tone="done" icon={<Icon name="star" />}>
+                Nenhuma missão em andamento. O Caderno guarda cada passo da Vila; quem oferece um caminho tem “!” sobre a cabeça.
+              </SheetNotice>
+              <button className="btn" onClick={close}>
+                Voltar à Vila
+              </button>
+            </div>
+          )}
+        </SheetSection>
       )}
 
-      <SheetSection n={1} icon="🎯" title="Missão ativa">
-        {active ? (
-          <div className="sheet-card">
-            <strong>{active.title}</strong>
-            <SheetProgress
-              value={p.counters[active.id] ?? 0}
-              max={active.target}
-              label={`${p.counters[active.id] ?? 0} de ${active.target} ${active.unit}`}
-            />
-            <p className="note">
-              {p.counters[active.id] ?? 0}/{active.target} {active.unit} · Recompensa: <strong>+{active.xp} XP</strong>
-            </p>
-            {ON_THE_MAP[active.id] && (
-              <button className="btn btn--primary" onClick={() => open({ kind: "map" })}>
-                Ver no mapa
-              </button>
-            )}
-          </div>
-        ) : (
-          <SheetNotice tone="done" icon="★">
-            Todas as missões desta categoria estão concluídas.
-          </SheetNotice>
-        )}
-      </SheetSection>
+      {showStories && (
+        <SheetSection icon={<Icon name="compass" />} title="Próximos passos">
+          {available.length > 0 ? (
+            <>
+              <p className="note" role="status">
+                Próximo passo: <strong>{available[0].title}</strong> com {npcName(world, available[0].giverNpcId)}.
+              </p>
+              {available.length > 1 && (
+                <p className="note">
+                  Também disponíveis: {available.slice(1, 4).map((q) => q.title).join(" · ")}
+                  {available.length > 4 ? ` e mais ${available.length - 4}` : ""}.
+                </p>
+              )}
+              {available.some((q) => q.needsPublishedLot) && !Object.values(lots).some((lot) => lot.state === "published" && Boolean(lot.ngo_name)) && (
+                <p className="note" role="status">
+                  Aguardando uma casa publicada: {available.filter((q) => q.needsPublishedLot).map((q) => q.title).join(" · ")}.
+                </p>
+              )}
+            </>
+          ) : (
+            <SheetNotice tone="done" icon={<Icon name="check" />}>
+              Todos os passos abertos já foram aceitos. As cadeias concluídas ficam no Caderno.
+            </SheetNotice>
+          )}
+        </SheetSection>
+      )}
 
-      <SheetSection n={2} icon="📖" title="Caderno de Missões">
+      <SheetSection icon={<Icon name="book" />} title="Caderno de Missões">
         <SheetTabs
           label="Categorias de missão"
           tabs={Object.values(TRACK_LABEL)}
@@ -124,13 +171,18 @@ export function Missions({
             const done = Boolean(p.completed[m.id]);
             return (
               <li key={m.id} className={done ? "done" : ""}>
-                <span aria-hidden>{done ? "★" : "☆"}</span>
+                <Icon name={done ? "check" : "star"} className="mission-icon" />
                 <span>
                   {m.title}
                   <SheetProgress value={n} max={m.target} label={`${n} de ${m.target} ${m.unit}`} />
                   <small>
                     {n}/{m.target} {m.unit} · {m.xp} XP {done ? "· Concluída" : ""}
                   </small>
+                  {ON_THE_MAP[m.id] && (
+                    <button className="btn btn--small" onClick={() => open({ kind: "map" })}>
+                      Ver no mapa
+                    </button>
+                  )}
                 </span>
               </li>
             );
@@ -158,8 +210,9 @@ export function Missions({
 const npcName = (world: StoryWorld, id: string) => world.npcs.find((n) => n.id === id)?.name ?? id;
 
 /**
- * Quest chains and carried items (PROPOSTA quests-v1 / quests-v2). States are text plus a symbol, never
- * colour alone. The blocked visit quest says so honestly when no house is published.
+ * Quest chains and carried items (PROPOSTA quests-v1 / quests-v2). States are a glyph plus words, never colour
+ * alone. The blocked visit quest says so honestly when no house is published. A chain opens when it has a step
+ * to take now; completed and future chains stay folded, so the journal is a list and not a wall.
  */
 function QuestBook({
   progress,
@@ -175,22 +228,21 @@ function QuestBook({
   counters: Counters;
 }) {
   const open = useVila((s) => s.open);
-  const hasPublishedLot = Object.values(lots).some((l) => l.state === "published" && Boolean(l.ngo_name));
-  const bag = activeInventoryIn(catalog, progress);
+  const hasPublishedLot = Object.values(lots).some((lot) => lot.state === "published" && Boolean(lot.ngo_name));
   const stateLine = (quest: CatalogQuest) => {
     const state = questStateIn(catalog, progress, quest.id);
-    if (state === "completed") return "★ Concluída";
-    if (state === "ready_to_turn_in") return `➜ Entregar a ${npcName(world, quest.turnInNpcId)}`;
+    if (state === "completed") return "Concluída";
+    if (state === "ready_to_turn_in") return `Pronta para entregar a ${npcName(world, quest.turnInNpcId)}`;
     if (state === "active") {
       const { count, target } = questProgressIn(catalog, progress, quest.id);
-      return `◐ Em andamento ${count}/${target} ${quest.unit}`;
+      return `Em andamento ${count}/${target} ${quest.unit}`;
     }
-    if (state === "available" && quest.needsPublishedLot && !hasPublishedLot) return "⏳ Aguardando uma casa publicada";
-    if (state === "available") return `☆ Disponível com ${npcName(world, quest.giverNpcId)}`;
+    if (state === "available" && quest.needsPublishedLot && !hasPublishedLot) return "Aguardando uma casa publicada";
+    if (state === "available") return `Disponível com ${npcName(world, quest.giverNpcId)}`;
     const required = prerequisitesOf(quest)
       .map((id) => catalog.quests.find((q) => q.id === id)?.title ?? id)
       .join(" e ");
-    return `🔒 Bloqueada · Requer: ${required || "a missão anterior"}`;
+    return `Bloqueada · Requer: ${required || "a missão anterior"}`;
   };
   // One group per chain, in catalog order; the kind comes from the first quest of the chain.
   const chains = new Map<string, { id: string; title: string; kind: string; quests: CatalogQuest[] }>();
@@ -203,60 +255,56 @@ function QuestBook({
     chain.quests.push(quest);
   }
   const kinds = [...new Set([...chains.values()].map((chain) => chain.kind))];
+  const current = (quest: CatalogQuest) => {
+    const state = questStateIn(catalog, progress, quest.id);
+    return state === "active" || state === "ready_to_turn_in" || state === "available";
+  };
   return (
     <>
-      {bag.length > 0 && (
-        <section className="track quest-bag">
-          <h3>Bolsa de Missão</h3>
-          <ul className="mission-list" aria-label="Bolsa de missão">
-            {bag.map((item) => (
-              <li key={item.questId}>
-                <span aria-hidden>🎒</span>
-                <span>
-                  {item.name}
-                  <small>
-                    {item.count}/{item.target}
-                  </small>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
       {kinds.map((kind) => (
         <section key={kind} className="track quest-kind">
           <h2>{KIND_LABEL[kind] ?? kind}</h2>
           {[...chains.values()]
             .filter((chain) => chain.kind === kind)
-            .map((chain) => (
-              <div key={chain.id} className="quest-chain">
-                <h3>{chain.title}</h3>
-                <ul className="mission-list">
-                  {chain.quests
-                    .slice()
-                    .sort((a, b) => a.order - b.order)
-                    .map((quest) => {
-                      const { count, target } = questProgressIn(catalog, progress, quest.id);
-                      const state = questStateIn(catalog, progress, quest.id);
-                      const done = state === "completed";
-                      return (
-                        <li key={quest.id} className={done ? "done" : ""}>
-                          <span aria-hidden>{done ? "★" : state === "ready_to_turn_in" ? "➜" : "☆"}</span>
-                          <span>
-                            {quest.title}
-                            <small>{stateLine(quest)}</small>
-                            <small>{quest.description}</small>
-                            <small>
-                              {npcName(world, quest.giverNpcId)} → {npcName(world, quest.turnInNpcId)} · {count}/{target}{" "}
-                              {quest.unit} · {quest.xp} XP
-                            </small>
-                          </span>
-                        </li>
-                      );
-                    })}
-                </ul>
-              </div>
-            ))}
+            .map((chain) => {
+              const done = chain.quests.filter((quest) => questStateIn(catalog, progress, quest.id) === "completed").length;
+              const started = chain.quests.some((quest) => {
+                const state = questStateIn(catalog, progress, quest.id);
+                return state === "active" || state === "ready_to_turn_in";
+              });
+              return (
+                <details key={chain.id} className="quest-chain" open={started}>
+                  <summary>
+                    <span>{chain.title}</span>
+                    <span className="quest-chain__count">
+                      {done}/{chain.quests.length}
+                    </span>
+                  </summary>
+                  <ul className="mission-list">
+                    {chain.quests
+                      .slice()
+                      .sort((a, b) => a.order - b.order)
+                      .map((quest) => {
+                        const state = questStateIn(catalog, progress, quest.id);
+                        const { count, target } = questProgressIn(catalog, progress, quest.id);
+                        return (
+                          <li key={quest.id} className={state === "completed" ? "done" : ""} data-state={state}>
+                            <Icon name={stateIcon(state)} className="mission-icon" />
+                            <span>
+                              {quest.title}
+                              <small>{stateLine(quest)}</small>
+                              {current(quest) && <small>{quest.description}</small>}
+                              <small>
+                                {npcName(world, quest.giverNpcId)} → {npcName(world, quest.turnInNpcId)} · {count}/{target} {quest.unit} · {quest.xp} XP
+                              </small>
+                            </span>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </details>
+              );
+            })}
         </section>
       ))}
       {catalog.milestones.length > 0 && (
@@ -268,7 +316,7 @@ function QuestBook({
               const { value, threshold } = milestoneProgressIn(catalog, counters, milestone.id);
               return (
                 <li key={milestone.id} className={state === "completed" ? "done" : ""}>
-                  <span aria-hidden>{state === "completed" ? "★" : state === "ready" ? "➜" : "☆"}</span>
+                  <Icon name={state === "completed" ? "check" : state === "ready" ? "arrow" : "star"} className="mission-icon" />
                   <span>
                     {milestone.title}
                     <SheetProgress value={Math.min(value, threshold)} max={threshold} label={`${value} de ${threshold}`} />

@@ -1,6 +1,7 @@
 /** Book IV, O Bosque e o Lago (session 04): 33 narrative entries, 12 milestones, world and six cosmetics. */
 import { footprint, type Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
+import { seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
 import { NPCS as NPCS_B01 } from "./book-01";
 import { NPCS as NPCS_B02 } from "./book-02";
@@ -1228,7 +1229,7 @@ export const INTERACTIONS: StoryInteraction[] = [
   { id: "light-west-shore", questId: "b04-r2-02", objectId: "lake-lantern", x: 11, z: -16.6, radius: 3, book: 4, kind: "prop", label: "Acender a primeira luz", done: "A primeira luz acendeu na margem oeste." },
   { id: "visit-ice-duck", questId: "b04-r2-03", objectId: "ice-duck", x: 17.8, z: -13.2, radius: 3, book: 4, kind: "prop", label: "Visitar o pato de gelo", done: "O pato de gelo guarda a segunda luz sob as asas." },
   { id: "sing-lake-echo", questId: "b04-r2-05", objectId: "none", x: 14.6, z: -12.6, radius: 4, book: 4, kind: "minigame", npcId: "pond-keeper", label: "Corrigir o eco do lago", done: "O eco repetiu a canção certa depois do Coro dos Nomes." },
-  { id: "talk-nina-fifth-light", questId: "b04-r2-06", objectId: "none", x: -5.4, z: 8.8, radius: 4.5, book: 4, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse a palavra que faltava para a quinta luz." },
+  { id: "talk-nina-fifth-light", questId: "b04-r2-06", objectId: "none", ...seatPoint("nina"), radius: 4.5, book: 4, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse a palavra que faltava para a quinta luz." },
   { id: "try-fifth-light", questId: "b04-r2-06", objectId: "lake-lantern", x: 18.4, z: -16.4, radius: 3, book: 4, kind: "prop", label: "Tentar a quinta luz", done: "A quinta luz acendeu com a palavra de Nina." },
   { id: "visit-full-reflection", questId: "b04-r2-07", objectId: "lake-lantern", x: 15, z: -15, radius: 3, book: 4, kind: "prop", label: "Ver o reflexo inteiro", done: "O reflexo inteiro mostra a Estrela-Guia e a primeira aula." },
   { id: "talk-guida-full-reflection", questId: "b04-r2-07", objectId: "none", x: 5, z: 4, radius: 4.5, book: 4, kind: "talk", npcId: "storyteller", label: "Falar com Dona Guida", done: "Dona Guida disse que a sétima luz é de Dona Alba." },

@@ -5,8 +5,6 @@
 import { debugAllowed } from "../environment/runtime";
 import { events, type GameEvent } from "./events";
 import { remotes } from "../net/multiplayer";
-import { questsEnabled } from "./questsFlag";
-import { questsV2Enabled } from "./questsV2Flag";
 import { sim } from "./sim";
 import { newlyCompletedXp } from "./story-xp";
 import { lifeAt, lifeClock, lifeReport } from "./village-life";
@@ -16,7 +14,7 @@ import { NPCS } from "@vila/shared/game/world";
 import { catalogFor, questStateIn, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import { MANIFEST } from "@vila/shared/game/quests-v2/manifest";
 import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
-import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
+import { ALL_WORLD } from "@vila/shared/game/quests-v2/world";
 
 /** The panels the board screenshots open by name (`extra.panel`); the ones that need an id are built at call time. */
 const BOARD_PANELS: Record<string, Panel> = {
@@ -95,14 +93,16 @@ export function installDevtools() {
       lifeClock: () => lifeClock(),
       quest: (id) => questState(useVila.getState().progress, String(id)),
       quests: () => QUESTS.map((q) => ({ id: q.id, state: questState(useVila.getState().progress, q.id) })),
-      /** Whether quests are on for this page: `?quests=1` and the API's `/config` both say so. */
-      questsOn: () => questsEnabled(),
-      /** Whether story v2 is on for this page: `?quests2=1` and the API's `/config` both say so. */
-      questsV2On: () => questsV2Enabled(),
+      /** Quests are always on (IMPL-0037); kept for the browser verifiers. */
+      questsOn: () => true,
+      /** Story v2 is always on (IMPL-0037); kept for the browser verifiers. */
+      questsV2On: () => true,
+      /** Dev-only: records one quest event by id, for verifiers that cannot rely on the first dialogue block. */
+      questEvent: (id, eventId) => useVila.getState().record(String(id), String(eventId)),
       /** Every implemented story quest and milestone, with its state; the browser verifier reads this. */
       story: () => {
         const progress = useVila.getState().progress;
-        const catalog = catalogFor(questsEnabled(), true);
+        const catalog = catalogFor(true, true);
         return [
           ...catalog.quests.map((quest) => ({
             id: quest.id,
@@ -139,9 +139,9 @@ export function installDevtools() {
       newlyCompletedXp: (before, after) =>
         newlyCompletedXp(before as Record<string, true>, after as Record<string, true>, MANIFEST),
       storyWorld: () => ({
-        npcs: STORY_WORLD.npcs.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z, book: npc.book })),
-        spawns: STORY_WORLD.spawns.map((spawn) => ({ id: spawn.id, questId: spawn.questId, x: spawn.x, z: spawn.z, book: spawn.book })),
-        interactions: STORY_WORLD.interactions.map((interaction) => ({
+        npcs: ALL_WORLD.npcs.map((npc) => ({ id: npc.id, name: npc.name, x: npc.x, z: npc.z, book: npc.book })),
+        spawns: ALL_WORLD.spawns.map((spawn) => ({ id: spawn.id, questId: spawn.questId, x: spawn.x, z: spawn.z, book: spawn.book })),
+        interactions: ALL_WORLD.interactions.map((interaction) => ({
           id: interaction.id,
           questId: interaction.questId,
           kind: interaction.kind,

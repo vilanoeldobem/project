@@ -1,5 +1,5 @@
 /**
- * Story v2 props and NPCs (PROPOSTA). Mounted once while `quests2` is on. All NPCs share one merged mesh per
+ * Story v2 props and NPCs (PROPOSTA). Mounted once, always (IMPL-0037). All NPCs share one merged mesh per
  * material role, so a book's cast does not add a mesh per character; labels and pickups stay DOM/individual
  * because they are few and must be readable.
  */
@@ -8,14 +8,13 @@ import { useMemo, useRef } from "react";
 import type { Group } from "three";
 
 import { INTERACT_DISTANCE } from "@vila/shared/game/world";
-import { questStateIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { questStateIn, catalogFor, npcOpenIn, openBooksIn } from "@vila/shared/game/quests-v2/catalog";
 import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
 import type { StoryInteraction, StorySpawn, WorldStateId } from "@vila/shared/game/quests-v2/types";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 
 import { visit } from "../game/clicks";
 import { npcMarkers } from "../game/npc-markers";
-import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { Label } from "./Props";
 import { villager } from "./gen/characters";
@@ -52,10 +51,13 @@ function StoryProp({ interaction, model }: { interaction: StoryInteraction; mode
 
 export function StoryProps() {
   const progress = useVila((s) => s.progress);
-  const quests = useQuestsEnabled();
-  const catalog = useMemo(() => catalogFor(quests, true), [quests]);
+  const catalog = useMemo(() => catalogFor(true, true), []);
   const states = useMemo(() => worldStatesIn(catalog, progress), [catalog, progress]);
-  const npcs = useMemo(() => STORY_WORLD.npcs.filter((npc) => visible(npc.requires, states)), [states]);
+  const books = useMemo(() => openBooksIn(catalog, progress), [catalog, progress]);
+  const npcs = useMemo(
+    () => STORY_WORLD.npcs.filter((npc) => npcOpenIn(npc, books) && visible(npc.requires, states)),
+    [books, states]
+  );
   const markers = useMemo(() => npcMarkers(npcs, catalog, progress), [npcs, catalog, progress]);
   const models = useMemo(() => npcs.map((npc) => ({ npc, model: villager(npc.seed) })), [npcs]);
   const geometries = useMemo(

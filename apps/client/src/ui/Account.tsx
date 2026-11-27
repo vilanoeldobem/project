@@ -16,6 +16,7 @@ import { LOCAL_ACCOUNT_ACTIONS, useVila, type LocalAction, type Panel as PanelSt
 import { api, ApiError, confirmLocalImport, deleteAccount, initAccount, signOut, useAccount } from "../lib/account";
 import { SERVICES } from "../lib/services";
 import { Confirm } from "./Confirm";
+import { Icon } from "./icons";
 import { Panel } from "./Panel";
 import { AvatarPortrait } from "./AvatarPortrait";
 import { SheetSection, SheetTabs } from "./sheet";
@@ -57,7 +58,7 @@ export function AccountChip() {
   return (
     <button className={`btn btn--chip${name?.cut ? " chip--cut" : ""}`} onClick={() => open({ kind: "account" })} aria-label={full} data-tip={full}>
       <span className="chip__icon" aria-hidden="true">
-        👤
+        <Icon name="user" />
       </span>
       <span className="chip__label">
         {name ? <span className="chip__name">@{name.shown}</span> : "Entrar"}

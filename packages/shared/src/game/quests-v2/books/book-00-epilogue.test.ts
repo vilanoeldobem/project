@@ -1,9 +1,9 @@
-/** Postgame and epilogue bridge: counts, manifest parity, world targets, the b05 gate and the final scene. */
+/** Postgame and epilogue bridge: counts, manifest parity, world targets and the final scene. */
 import { describe, expect, it } from "vitest";
 
 import { EMPTY_PROGRESS, type Progress } from "../../progress";
 import { QUESTS as V1_QUESTS } from "../../quests";
-import { applyEventIn, canAcceptIn, catalogFor, questStateIn, STORY_CATALOG } from "../catalog";
+import { applyEventIn, catalogFor, questStateIn, STORY_CATALOG } from "../catalog";
 import { MANIFEST_BY_ID } from "../manifest";
 import type { CatalogQuest, StoryCatalog } from "../types";
 import { STORY_WORLD } from "../world";
@@ -77,19 +77,12 @@ describe("postgame catalogue", () => {
 });
 
 describe("epilogue bridge", () => {
-  it("locks the five roots before b05-c3-04", () => {
+  it("opens the five roots at once and grants the 550 XP once", () => {
     const catalog = catalogFor(true, true);
     for (const id of ["harness-bells", "market-invitations", "frozen-mailbox", "lake-lanterns", "tree-promise-visit"]) {
-      expect(questStateIn(catalog, EMPTY_PROGRESS, id)).toBe("locked");
-      expect(canAcceptIn(catalog, EMPTY_PROGRESS, id)).toBe(false);
-      expect(applyEventIn(catalog, EMPTY_PROGRESS, id, "accept").progress).toEqual(EMPTY_PROGRESS);
+      expect(questStateIn(catalog, EMPTY_PROGRESS, id)).toBe("available");
     }
-  });
-
-  it("opens after b05-c3-04 and grants the 550 XP once", () => {
-    const catalog = catalogFor(true, true);
-    let progress = withCompleted(["b05-c3-04"]);
-    expect(questStateIn(catalog, progress, "harness-bells")).toBe("available");
+    let progress = EMPTY_PROGRESS;
     for (const quest of V1_QUESTS) progress = playQuest(catalog, progress, quest.id);
     expect(progress.xp).toBe(550);
     expect(V1_QUESTS.every((quest) => progress.completed[quest.id])).toBe(true);
@@ -100,8 +93,7 @@ describe("epilogue bridge", () => {
 
   it("keeps a repeated turn-in idempotent", () => {
     const catalog = catalogFor(true, true);
-    let progress = withCompleted(["b05-c3-04"]);
-    progress = playQuest(catalog, progress, "harness-bells");
+    let progress = playQuest(catalog, EMPTY_PROGRESS, "harness-bells");
     expect(progress.xp).toBe(20);
     const again = applyEventIn(catalog, progress, "harness-bells", "turn-in").progress;
     expect(again.xp).toBe(20);

@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { applyEvent, EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "./progress";
-import { activeInventory, activeQuest, canAccept, NPC_IDS, QUESTS, questProgress, questState } from "./quests";
+import { activeInventory, activeQuests, canAccept, NPC_IDS, QUESTS, questProgress, questState } from "./quests";
 import { LOTS, NPCS, QUEST_INTERACTIONS, QUEST_SPAWNS } from "./world";
 
 /** Minimal CSV parser: quoted fields, "" escapes, CRLF tolerated, BOM stripped. */
@@ -191,7 +191,7 @@ describe("quest state machine", () => {
       const first = QUESTS.filter((q) => q.chainId === chainId).sort((a, b) => a.order - b.order)[0];
       expect(questState(EMPTY_PROGRESS, first.id), chainId).toBe(chainId === "welcome-bough" ? "locked" : "available");
     }
-    expect(activeQuest(EMPTY_PROGRESS)).toBeUndefined();
+    expect(activeQuests(EMPTY_PROGRESS)).toEqual([]);
     expect(activeInventory(EMPTY_PROGRESS)).toEqual([]);
     expect(questState(EMPTY_PROGRESS, "unknown-quest")).toBe("locked");
   });
@@ -219,12 +219,12 @@ describe("quest state machine", () => {
     expect(questState(p, "harness-bells")).toBe("completed");
     expect(p.xp).toBe(20);
     expect(activeInventory(p)).toEqual([]);
-    expect(activeQuest(p)).toBeUndefined();
+    expect(activeQuests(p)).toEqual([]);
     expect(questState(p, "route-memory-game")).toBe("available");
     expect(apply(p, "harness-bells", "turn-in").xp).toBe(20);
   });
 
-  it("routes a minigame win only to the active minigame quest", () => {
+  it("routes a minigame win only to an accepted minigame quest", () => {
     let p = apply(EMPTY_PROGRESS, "route-memory-game", "memory-win");
     expect(p).toBe(EMPTY_PROGRESS);
 
@@ -241,13 +241,29 @@ describe("quest state machine", () => {
     expect(p.counters["market-lucky-game"]).toBeUndefined();
   });
 
-  it("refuses a second active quest", () => {
-    const p = apply(EMPTY_PROGRESS, "harness-bells", "accept");
-    expect(canAccept(p, "market-invitations")).toBe(false);
-    const ignored = apply(p, "market-invitations", "accept");
-    expect(ignored.seen["market-invitations:accept"]).toBeUndefined();
-    expect(activeQuest(ignored)?.id).toBe("harness-bells");
-    expect(canAccept(ignored, "market-invitations")).toBe(false);
+  it("accepts quests in parallel and advances each only by its own events", () => {
+    let p = apply(EMPTY_PROGRESS, "harness-bells", "accept");
+    p = apply(p, "lake-lanterns", "accept");
+    expect(activeQuests(p).map((q) => q.id)).toEqual(["harness-bells", "lake-lanterns"]);
+    expect(canAccept(p, "market-invitations")).toBe(true);
+
+    // One quest's objective never advances the other, and both items share the bag.
+    p = apply(p, "harness-bells", "bell-pine-north");
+    p = apply(p, "lake-lanterns", "lantern-lake-1");
+    expect(p.counters["harness-bells"]).toBe(1);
+    expect(p.counters["lake-lanterns"]).toBe(1);
+    expect(activeInventory(p)).toEqual([
+      { objectId: "reindeer-bell", name: "Sino do arreio", count: 1, target: 2, questId: "harness-bells" },
+      { objectId: "lake-lantern", name: "Lanterna do lago", count: 1, target: 2, questId: "lake-lanterns" },
+    ]);
+
+    // Each turn-in pays only its own XP and leaves the other quest open.
+    p = apply(p, "harness-bells", "bell-pine-east", "turn-in");
+    expect(p.xp).toBe(20);
+    expect(activeQuests(p).map((q) => q.id)).toEqual(["lake-lanterns"]);
+    p = apply(p, "lake-lanterns", "lantern-lake-2", "turn-in");
+    expect(p.xp).toBe(40);
+    expect(activeQuests(p)).toEqual([]);
   });
 
   it("makes deliver quests ready on accept and carries the item", () => {
@@ -264,7 +280,7 @@ describe("quest state machine", () => {
     expect(p.xp).toBe(100);
     expect(levelOf(p.xp)).toBe(2);
     expect(activeInventory(p)).toEqual([]);
-    expect(activeQuest(p)).toBeUndefined();
+    expect(activeQuests(p)).toEqual([]);
   });
 
   it("grants no quest XP for a donation or a read while locked", () => {
@@ -273,7 +289,7 @@ describe("quest state machine", () => {
     expect(donated.xp).toBe(20);
     expect(Object.keys(donated.completed)).toEqual(["causes-global-donation"]);
     expect(QUESTS.some((q) => donated.completed[q.id])).toBe(false);
-    expect(activeQuest(donated)).toBeUndefined();
+    expect(activeQuests(donated)).toEqual([]);
     const read = apply(EMPTY_PROGRESS, "donation-promise-reading", "read-confirm");
     expect(read.xp).toBe(0);
     expect(read.seen["donation-promise-reading:read-confirm"]).toBeUndefined();

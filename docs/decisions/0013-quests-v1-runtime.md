@@ -1,7 +1,9 @@
 # IMPL-0013: Runtime das quests `quests-v1`: duas bandeiras, máquina de estados e gravação só de transições válidas
 
-**Status:** Proposta — implementada e testada; **desligada em produção** (`QUESTS_V1_ENABLED = "false"` na API e build
-do jogo sem `VITE_QUESTS_V1_ENABLED`). Concorrência e confirmação de eventos do item 4 são revistas por
+**Status:** Proposta — implementada e testada; **substituída em parte pela
+[IMPL-0037](0037-parallel-quests-and-mission-journal.md)**, que removeu as bandeiras (as missões estão sempre ligadas)
+e permite várias missões abertas ao mesmo tempo. A ordem, as transições e o XP deste ADR continuam valendo.
+Concorrência e confirmação de eventos do item 4 são revistas por
 [IMPL-0019](0019-progress-concurrency-and-acknowledgment.md) (Proposta). O catálogo, os XP, os moradores e as regras de jogo das quests são **PROPOSTA**
 (PEN-025) e **não foram aprovados pelo dono do produto**; este ADR registra só as escolhas técnicas do runtime
 **Data:** 2026-11-11

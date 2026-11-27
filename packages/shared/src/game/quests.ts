@@ -5,7 +5,7 @@
  * this file imports only types from `./progress`, so neither module has a runtime cycle.
  *
  * Rules:
- * - one active quest at a time (`activeQuest`);
+ * - any number of quests may be in progress; a chain still runs in order (`activeQuests`);
  * - a quest needs its prerequisite completed, then `accept`, then its objectives (`deliver` quests are
  *   ready as soon as they are accepted: the item exists by derivation), then `turn-in` for the XP;
  * - every objective id is a stable event id; nothing is stored besides `Progress`.
@@ -515,17 +515,17 @@ export function questState(p: Progress, questId: string): QuestState {
   return seen >= quest.target ? "ready_to_turn_in" : "active";
 }
 
-/** The single quest that is `active` or `ready_to_turn_in`, if any (one active quest at a time). */
-export function activeQuest(p: Progress): Quest | undefined {
-  return QUESTS.find((q) => {
+/** Every quest that is `active` or `ready_to_turn_in`, in catalog order (any number may run at once). */
+export function activeQuests(p: Progress): Quest[] {
+  return QUESTS.filter((q) => {
     const state = questState(p, q.id);
     return state === "active" || state === "ready_to_turn_in";
   });
 }
 
-/** `available` and no other quest in progress. */
+/** `available`: prerequisites completed and not accepted yet. Any number of quests may be accepted. */
 export function canAccept(p: Progress, questId: string): boolean {
-  return questState(p, questId) === "available" && activeQuest(p) === undefined;
+  return questState(p, questId) === "available";
 }
 
 export function questProgress(p: Progress, questId: string): { count: number; target: number } {

@@ -1,6 +1,7 @@
 /** Book III, O Tempo e as Cartas (session 03): 33 narrative entries, 12 milestones, world and six cosmetics. */
 import { footprint, type Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
+import { seat, seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
 import { NPCS as NPCS_B01 } from "./book-01";
 import { NPCS as NPCS_B02 } from "./book-02";
@@ -285,7 +286,7 @@ export const QUESTS: StoryQuest[] = [
     order: 1,
     track: "explore",
     title: "A sacola esquecida",
-    description: "Uma sacola de cartas antigas apareceu no correio. Visite Tomás com Seu Nivaldo.",
+    description: "Uma sacola de cartas antigas apareceu no correio. Visite Tomás, na estação do trenó, com Seu Nivaldo.",
     objectiveType: "visit",
     objectKind: "none",
     target: 1,
@@ -295,7 +296,7 @@ export const QUESTS: StoryQuest[] = [
     turnInNpcId: "tomas",
     dialogue: {
       offer:
-        "Uma sacola de cartas antigas apareceu no correio. Visite Tomás comigo. Ele reconhece a sacola, mesmo quando não reconhece o próprio nome.",
+        "Uma sacola de cartas antigas apareceu no correio. Visite Tomás, na estação do trenó, comigo. Ele reconhece a sacola, mesmo quando não reconhece o próprio nome.",
       turnIn: "Fiquei parado diante da sacola. Aquelas cartas nunca chegaram. Agora podemos descobrir por quê.",
     },
     objectiveEventIds: ["visit-tomas-mailbag"],
@@ -1140,7 +1141,7 @@ const SHARED_NPCS: StoryNpc[] = [
 ];
 
 const OWN_NPCS: StoryNpc[] = [
-  { id: "tomas", name: "Tomás", role: "Carteiro Sem Nome", seed: "tomas", x: 6.8, z: 18.2, rot: Math.atan2(-6.8, -18.2), book: 3, greeting: "Eu entrego. Só não lembro para quem." },
+  { id: "tomas", name: "Tomás", role: "Carteiro Sem Nome", seed: "tomas", ...seat("tomas"), book: 3, greeting: "Eu entrego. Só não lembro para quem." },
 ];
 
 const EARLIER_IDS = new Set([...NPCS_B01, ...NPCS_B02].map((npc) => npc.id));
@@ -1164,40 +1165,40 @@ export const SPAWNS: StorySpawn[] = [
 ];
 
 export const INTERACTIONS: StoryInteraction[] = [
-  { id: "talk-cida-letter", questId: "b03-c1-01", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 3, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida encontrou a carta na casa de Alba e pediu que você a levasse ao correio." },
+  { id: "talk-cida-letter", questId: "b03-c1-01", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 3, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida encontrou a carta na casa de Alba e pediu que você a levasse ao correio." },
   { id: "talk-guida-handwriting", questId: "b03-c1-02", objectId: "none", x: 5, z: 4, radius: 4.5, book: 3, kind: "talk", npcId: "storyteller", label: "Mostrar a carta a Dona Guida", done: "Dona Guida reconheceu a letra de Alba no envelope." },
-  { id: "talk-anselmo-handwriting", questId: "b03-c1-02", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Mostrar a carta a Mestre Anselmo", done: "Mestre Anselmo reconheceu o traço firme da professora." },
+  { id: "talk-anselmo-handwriting", questId: "b03-c1-02", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Mostrar a carta a Mestre Anselmo", done: "Mestre Anselmo reconheceu o traço firme da professora." },
   { id: "talk-filo-handwriting", questId: "b03-c1-02", objectId: "none", x: -18.6, z: 0, radius: 4.5, book: 3, kind: "talk", npcId: "market-keeper", label: "Mostrar a carta a Dona Filó", done: "Dona Filó reconheceu a letra e o selo antigo." },
   { id: "read-mailbox-reply", questId: "b03-c1-04", objectId: "letter-bundle", x: 3.5, z: 15, radius: 3, book: 3, kind: "prop", label: "Ler a resposta na caixa", done: "A resposta de Tomás mudou o destinatário da carta." },
-  { id: "talk-anselmo-stuck-clock", questId: "b03-c2-01", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo mostrou o relógio parado em 23:59." },
-  { id: "talk-nina-stuck-clock", questId: "b03-c2-01", objectId: "none", x: -5.4, z: 8.8, radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse qual sino deveria tocar naquela hora." },
+  { id: "talk-anselmo-stuck-clock", questId: "b03-c2-01", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo mostrou o relógio parado em 23:59." },
+  { id: "talk-nina-stuck-clock", questId: "b03-c2-01", objectId: "none", ...seatPoint("nina"), radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse qual sino deveria tocar naquela hora." },
   { id: "read-first-night", questId: "b03-c2-03", objectId: "story-page", x: 7.2, z: 2, radius: 3, book: 3, kind: "prop", label: "Ler a primeira Longa Noite", done: "A história da primeira Longa Noite ficou clara." },
   { id: "set-clock-midnight", questId: "b03-c2-04", objectId: "clock-face", x: -10.2, z: 4.6, radius: 3, book: 3, kind: "prop", label: "Ajustar o relógio", done: "O relógio voltou a andar e a meia-noite tocou." },
-  { id: "visit-tomas-mailbag", questId: "b03-c3-01", objectId: "none", x: 6.8, z: 18.2, radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Visitar Tomás", done: "Tomás reconheceu a sacola de cartas antigas." },
+  { id: "visit-tomas-mailbag", questId: "b03-c3-01", objectId: "none", ...seatPoint("tomas"), radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Visitar Tomás", done: "Tomás reconheceu a sacola de cartas antigas." },
   { id: "read-returned-letter", questId: "b03-c3-03", objectId: "letter-bundle", x: 3.5, z: 15, radius: 3, book: 3, kind: "prop", label: "Ler a carta que voltou", done: "A última linha da carta diz que quem entrega também precisa ser lembrado." },
   { id: "talk-nivaldo-archive", questId: "b03-r1-01", objectId: "none", x: 4.5, z: 11.8, radius: 4.5, book: 3, kind: "talk", npcId: "postmaster", label: "Falar com Seu Nivaldo", done: "Seu Nivaldo mostrou a porta fechada do arquivo." },
-  { id: "talk-tomas-archive", questId: "b03-r1-01", objectId: "none", x: 6.8, z: 18.2, radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Falar com Tomás", done: "Tomás lembrou onde estava a chave do arquivo." },
-  { id: "talk-tomas-destinies", questId: "b03-r1-02", objectId: "none", x: 6.8, z: 18.2, radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Ouvir Tomás", done: "Tomás lembrou de uma estrada sem nome." },
+  { id: "talk-tomas-archive", questId: "b03-r1-01", objectId: "none", ...seatPoint("tomas"), radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Falar com Tomás", done: "Tomás lembrou onde estava a chave do arquivo." },
+  { id: "talk-tomas-destinies", questId: "b03-r1-02", objectId: "none", ...seatPoint("tomas"), radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Ouvir Tomás", done: "Tomás lembrou de uma estrada sem nome." },
   { id: "talk-guida-destinies", questId: "b03-r1-02", objectId: "none", x: 5, z: 4, radius: 4.5, book: 3, kind: "talk", npcId: "storyteller", label: "Ouvir Dona Guida", done: "Dona Guida lembrou de uma carta para a escola." },
   { id: "talk-elias-destinies", questId: "b03-r1-02", objectId: "none", x: 11.4, z: -3.6, radius: 4.5, book: 3, kind: "talk", npcId: "seu-elias", label: "Ouvir Seu Elias", done: "Seu Elias lembrou de uma entrega na ponte." },
   { id: "open-self-letter", questId: "b03-r1-04", objectId: "letter-bundle", x: 5.5, z: 15.5, radius: 3, book: 3, kind: "prop", label: "Abrir a carta para si mesmo", done: "A carta para si mesmo dizia para não parar de entregar." },
   { id: "visit-elias-retired", questId: "b03-r1-05", objectId: "none", x: 11.4, z: -3.6, radius: 4.5, book: 3, kind: "talk", npcId: "seu-elias", label: "Ouvir Seu Elias", done: "Seu Elias contou sobre a última carta de Alba." },
   { id: "open-false-bottom", questId: "b03-r1-06", objectId: "ornament-crate", x: 7.5, z: 13.5, radius: 3, book: 3, kind: "prop", label: "Abrir o fundo falso", done: "O fundo falso guardava uma carta endereçada a Tomás." },
   { id: "play-memory-delivery", questId: "b03-r1-07", objectId: "none", x: 5.5, z: 15.5, radius: 4, book: 3, kind: "minigame", npcId: "tomas", label: "Jogar Jogo da Memória", done: "As cartas foram organizadas por destino." },
-  { id: "talk-anselmo-bells", questId: "b03-r2-01", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo mostrou os oito sinos sem nome." },
-  { id: "talk-nina-bells", questId: "b03-r2-01", objectId: "none", x: -5.4, z: 8.8, radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse que cada sino lembra uma pessoa." },
+  { id: "talk-anselmo-bells", questId: "b03-r2-01", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo mostrou os oito sinos sem nome." },
+  { id: "talk-nina-bells", questId: "b03-r2-01", objectId: "none", ...seatPoint("nina"), radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina disse que cada sino lembra uma pessoa." },
   { id: "tune-small-bell", questId: "b03-r2-03", objectId: "reindeer-bell", x: -7, z: 10, radius: 3, book: 3, kind: "prop", label: "Ajustar o sino pequeno", done: "O sino pequeno voltou a tocar." },
-  { id: "talk-nina-memories", questId: "b03-r2-04", objectId: "none", x: -5.4, z: 8.8, radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Ouvir Nina", done: "Nina lembrou do coro da escola." },
+  { id: "talk-nina-memories", questId: "b03-r2-04", objectId: "none", ...seatPoint("nina"), radius: 4.5, book: 3, kind: "talk", npcId: "nina", label: "Ouvir Nina", done: "Nina lembrou do coro da escola." },
   { id: "talk-guida-memories", questId: "b03-r2-04", objectId: "none", x: 5, z: 4, radius: 4.5, book: 3, kind: "talk", npcId: "storyteller", label: "Ouvir Dona Guida", done: "Dona Guida lembrou da professora." },
   { id: "talk-filo-memories", questId: "b03-r2-04", objectId: "none", x: -18.6, z: 0, radius: 4.5, book: 3, kind: "talk", npcId: "market-keeper", label: "Ouvir Dona Filó", done: "Dona Filó lembrou do sino do jantar." },
-  { id: "visit-anselmo-watch", questId: "b03-r2-05", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Visitar Mestre Anselmo", done: "Mestre Anselmo mostrou o relógio de bolso." },
+  { id: "visit-anselmo-watch", questId: "b03-r2-05", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Visitar Mestre Anselmo", done: "Mestre Anselmo mostrou o relógio de bolso." },
   { id: "ring-dinner-bell", questId: "b03-r2-06", objectId: "reindeer-bell", x: -16.8, z: -3.6, radius: 3, book: 3, kind: "prop", label: "Tocar o sino do jantar", done: "O sino do jantar chamou a Vila." },
   { id: "play-chorus-bells", questId: "b03-r2-07", objectId: "none", x: -4, z: 12, radius: 4, book: 3, kind: "minigame", npcId: "nina", label: "Jogar Coro dos Nomes", done: "O coro repetiu a sequência dos nomes." },
   { id: "ring-midnight-bells", questId: "b03-r2-08", objectId: "clock-face", x: -10.2, z: 4.6, radius: 3, book: 3, kind: "prop", label: "Tocar a meia-noite", done: "A meia-noite tocou com os oito nomes." },
   { id: "fix-wrong-stamp", questId: "b03-s2", objectId: "old-stamp", x: 3.5, z: 15, radius: 3, book: 3, kind: "prop", label: "Corrigir o selo", done: "O selo voltou para o lado certo do envelope." },
-  { id: "visit-tomas-heavy-bag", questId: "b03-s3", objectId: "none", x: 6.8, z: 18.2, radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Visitar Tomás", done: "Tomás dividiu o peso da sacola com Seu Nivaldo." },
+  { id: "visit-tomas-heavy-bag", questId: "b03-s3", objectId: "none", ...seatPoint("tomas"), radius: 4.5, book: 3, kind: "talk", npcId: "tomas", label: "Visitar Tomás", done: "Tomás dividiu o peso da sacola com Seu Nivaldo." },
   { id: "rehearse-small-bell", questId: "b03-s4", objectId: "reindeer-bell", x: -7, z: 10, radius: 3, book: 3, kind: "prop", label: "Ensaiar o sino pequeno", done: "O sino pequeno tocou sem medo." },
-  { id: "talk-anselmo-grandfather-clock", questId: "b03-s5", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Ouvir Mestre Anselmo", done: "Mestre Anselmo contou a história do relógio do avô." },
+  { id: "talk-anselmo-grandfather-clock", questId: "b03-s5", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 3, kind: "talk", npcId: "mestre-anselmo", label: "Ouvir Mestre Anselmo", done: "Mestre Anselmo contou a história do relógio do avô." },
 ];
 
 export const OBSTACLES: Collider[] = NPCS.map((npc) => footprint({ x: npc.x, z: npc.z, rot: npc.rot }, -0.75, 0.75, -0.45, 0.45, 0.45));

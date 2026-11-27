@@ -2,6 +2,9 @@
 import { describe, expect, it } from "vitest";
 
 import { MINIGAMES } from "@vila/shared/game/quests-v2/minigames";
+import { STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import type { StoryCatalog } from "@vila/shared/game/quests-v2/types";
+import { EMPTY_PROGRESS, type Progress } from "@vila/shared/game/progress";
 
 import {
   STORY_GAMES,
@@ -110,11 +113,24 @@ describe("story games", () => {
     expect(canSkip(10)).toBe(true);
   });
 
-  it("resolves the duplicate coro interaction by the active quest", () => {
-    expect(storyInteractionFor("coro-dos-nomes", "b06-r1-07")?.questId).toBe("b06-r1-07");
-    expect(storyInteractionFor("coro-dos-nomes", "b07-c2-03")?.questId).toBe("b07-c2-03");
-    expect(storyInteractionFor("coro-dos-nomes", "b07-c2-03")?.done).toBe("O coro terminou e cada voz encontrou seu lugar.");
-    expect(storyInteractionFor("coro-dos-nomes", "b06-r1-07")?.done).toBe("O coro encheu a manhã e o sino guardou cada nome.");
-    expect(storyInteractionFor("missing")).toBeUndefined();
+  it("resolves a duplicate coro interaction by the open quest", () => {
+    const catalog: StoryCatalog = {
+      ...STORY_CATALOG,
+      quests: STORY_CATALOG.quests
+        .filter((quest) => quest.id === "b06-r1-07" || quest.id === "b07-c2-03")
+        .map((quest) => ("prerequisiteIds" in quest ? { ...quest, prerequisiteIds: [] } : quest)),
+    };
+    const b06: Progress = { ...EMPTY_PROGRESS, seen: { "b06-r1-07:accept": true } };
+    const b07: Progress = { ...EMPTY_PROGRESS, seen: { "b07-c2-03:accept": true } };
+    expect(storyInteractionFor("coro-dos-nomes", catalog, b06)?.questId).toBe("b06-r1-07");
+    expect(storyInteractionFor("coro-dos-nomes", catalog, b07)?.questId).toBe("b07-c2-03");
+    expect(storyInteractionFor("coro-dos-nomes", catalog, b07)?.done).toBe("O coro terminou e cada voz encontrou seu lugar.");
+    expect(storyInteractionFor("coro-dos-nomes", catalog, b06)?.done).toBe("O coro encheu a manhã e o sino guardou cada nome.");
+    // Both open: the first candidate of the catalog wins, and a seen event moves on to the next.
+    const both: Progress = { ...EMPTY_PROGRESS, seen: { "b06-r1-07:accept": true, "b07-c2-03:accept": true } };
+    expect(storyInteractionFor("coro-dos-nomes", catalog, both)?.questId).toBe("b06-r1-07");
+    const firstSeen: Progress = { ...both, seen: { ...both.seen, "b06-r1-07:coro-dos-nomes": true } };
+    expect(storyInteractionFor("coro-dos-nomes", catalog, firstSeen)?.questId).toBe("b07-c2-03");
+    expect(storyInteractionFor("missing", catalog, both)).toBeUndefined();
   });
 });

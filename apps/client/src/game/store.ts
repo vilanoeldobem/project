@@ -3,11 +3,9 @@ import { create } from "zustand";
 import { DEFAULT_LOOK, type Look } from "@vila/shared/game/cosmetics";
 import { COSMETICS_V2, sanitizeLookIn, unlockedIdsIn } from "@vila/shared/game/cosmetics-v2";
 import { DEFAULT_APPEARANCE, sanitizeAppearance, type Appearance } from "@vila/shared/game/appearance";
-import { applyEvent, EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
+import { EMPTY_PROGRESS, type Mission, type Progress } from "@vila/shared/game/progress";
 import { applyEventIn, catalogFor, questStateIn } from "@vila/shared/game/quests-v2/catalog";
 import { events } from "./events";
-import { questsEnabled } from "./questsFlag";
-import { questsV2Enabled } from "./questsV2Flag";
 import { planWalk, sim } from "./sim";
 import { cancelDraft } from "../lib/pix-draft";
 import type { StoryGameId } from "./story-games";
@@ -413,7 +411,7 @@ export const useVila = create<VilaState>((set, get) => ({
   open: (panel) => {
     if (get().localActor && (panel.kind === "memory" || panel.kind === "story-game")) {
       if (!get().requireLocalAccount("game")) return;
-      if (panel.questId && questStateIn(catalogFor(questsEnabled(), questsV2Enabled()), get().progress, panel.questId) !== "active") {
+      if (panel.questId && questStateIn(catalogFor(true, true), get().progress, panel.questId) !== "active") {
         get().notify("Esta missão já não está ativa na sua conta. Consulte o diário.");
         return;
       }
@@ -476,6 +474,17 @@ export const useVila = create<VilaState>((set, get) => ({
       }
     }
     finishEvent(previous, progress, completed);
+    if (eventId !== "accept" && eventId !== "turn-in") {
+      const catalog = catalogFor(true, true);
+      const quest = catalog.quests.find((q) => q.id === missionId);
+      if (
+        quest &&
+        questStateIn(catalog, progress, missionId) === "ready_to_turn_in" &&
+        questStateIn(catalog, previous, missionId) !== "ready_to_turn_in"
+      ) {
+        get().notify(`Missão pronta para entregar: ${quest.title}`);
+      }
+    }
   },
   adoptProgress: (progress, owner) => set({
     progress, progressOwner: owner, look: sanitizeLookIn(COSMETICS_V2, preferredLook, progress),
@@ -493,9 +502,7 @@ export const useVila = create<VilaState>((set, get) => ({
 }));
 
 export function nextEvent(progress: Progress, missionId: string, eventId: string) {
-  return questsV2Enabled()
-    ? applyEventIn(catalogFor(questsEnabled(), true), progress, missionId, eventId)
-    : applyEvent(progress, missionId, eventId);
+  return applyEventIn(catalogFor(true, true), progress, missionId, eventId);
 }
 
 function finishEvent(previous: Progress, progress: Progress, completed?: Mission | null) {

@@ -1,6 +1,7 @@
 /** Book I, A Chegada (session 01): 33 narrative entries, 12 milestones, world and six cosmetics. */
 import { footprint, type Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
+import { seat, seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
 
 export const QUESTS: StoryQuest[] = [
@@ -21,7 +22,7 @@ export const QUESTS: StoryQuest[] = [
     turnInNpcId: "mestre-anselmo",
     dialogue: {
       offer:
-        "A Vila parece dormir. O sino da praça não toca desde a ventania, e ninguém sabe dizer por quê. Comece pelo Mestre Anselmo, ali perto do sino. Ele escuta o que a neve cala.",
+        "A Vila parece dormir. O sino da praça não toca desde a ventania, e ninguém sabe dizer por quê. Comece pelo Mestre Anselmo, na pracinha do primeiro anel. Ele escuta o que a neve cala.",
       turnIn:
         "Você chegou na hora certa. O sino está mudo, e a neve guardou as peças. Se me ajudar a encontrá-las, a praça volta a respirar.",
     },
@@ -156,7 +157,7 @@ export const QUESTS: StoryQuest[] = [
     giverNpcId: "market-keeper",
     turnInNpcId: "tia-bete",
     dialogue: {
-      offer: "A banca mais antiga do mercado está vazia. Tia Bete sabe a receita que costumava encher esta mesa. Fale com ela, do outro lado da feira.",
+      offer: "A banca mais antiga do mercado está vazia. Tia Bete sabe a receita que costumava encher esta mesa. Fale com ela, no mercado do terceiro anel.",
       turnIn: "Dona Filó mandou você? Então a banca ainda tem memória. A receita existe, mas as páginas voaram com a ventania.",
     },
     objectiveEventIds: ["talk-bete-empty-stall"],
@@ -245,7 +246,7 @@ export const QUESTS: StoryQuest[] = [
     order: 4,
     track: "explore",
     title: "A primeira fatia",
-    description: "O cheiro trouxe Seu Nazário até a praça. Leve a primeira fatia a ele.",
+    description: "O cheiro trouxe Seu Nazário até a porta do restaurante. Leve a primeira fatia a ele.",
     objectiveType: "deliver",
     objectKind: "quest_item",
     objectId: "panettone",
@@ -256,7 +257,7 @@ export const QUESTS: StoryQuest[] = [
     giverNpcId: "market-keeper",
     turnInNpcId: "seu-nazario",
     dialogue: {
-      offer: "Leve a primeira fatia ao Seu Nazário. Ele está na praça, do lado da árvore. Diga que é da receita antiga, ele vai entender.",
+      offer: "Leve a primeira fatia ao Seu Nazário. Ele está no restaurante, logo depois da praça. Diga que é da receita antiga, ele vai entender.",
       turnIn: "A receita da professora. Eu esperei por este cheiro muitos invernos. A banca pode abrir. A feira está viva outra vez.",
     },
     objectiveEventIds: [],
@@ -1117,14 +1118,14 @@ export const NPCS: StoryNpc[] = [
   { id: "storyteller", name: "Dona Guida", role: "Contadora de histórias", seed: "storyteller", x: 5, z: 4, rot: Math.atan2(-5, -4), book: 1, greeting: "Toda história começa com alguém que para para ouvir." },
   { id: "market-keeper", name: "Dona Filó", role: "Mercadora do mercado oeste", seed: "market-keeper", x: -18.6, z: 0, rot: Math.atan2(18.6, 0), book: 1, greeting: "Chegue perto, que o cheiro é de festa." },
   { id: "postmaster", name: "Seu Nivaldo", role: "Carteiro da Vila", seed: "postmaster", x: 4.5, z: 11.8, rot: Math.atan2(-4.5, -11.8), book: 1, greeting: "Toda carta é uma promessa que viaja." },
-  { id: "mestre-anselmo", name: "Mestre Anselmo", role: "Relojoeiro", seed: "mestre-anselmo", x: -8.6, z: 5.4, rot: Math.atan2(8.6, -5.4), book: 1, greeting: "O tempo escuta quem para." },
-  { id: "nina", name: "Nina", role: "Sineira", seed: "nina", x: -5.4, z: 8.8, rot: Math.atan2(5.4, -8.8), book: 1, greeting: "O coro espera uma voz." },
-  { id: "tia-bete", name: "Tia Bete", role: "Padeira", seed: "tia-bete", x: -18, z: 3.6, rot: Math.atan2(18, -3.6), book: 1, greeting: "O forno guarda o cheiro de ontem." },
-  { id: "seu-nazario", name: "Seu Nazário", role: "Cozinheiro da feira", seed: "seu-nazario", x: -17.4, z: -3.4, rot: Math.atan2(17.4, 3.4), book: 1, greeting: "Pão quente é memória." },
-  { id: "lia", name: "Lia", role: "Criança do coro", seed: "lia", x: 2.6, z: -5.2, rot: Math.atan2(-2.6, 5.2), book: 1, greeting: "Eu canto baixinho para acertar." },
-  { id: "dona-iris", name: "Dona Íris", role: "Tecelã", seed: "dona-iris", x: 0.5, z: 13.8, rot: Math.atan2(-0.5, -13.8), book: 1, greeting: "O fio passa por quem lembra." },
-  { id: "dona-cida", name: "Dona Cida", role: "Jardineira", seed: "dona-cida", x: 8.4, z: -1.2, rot: Math.atan2(-8.4, 1.2), book: 1, greeting: "Toda voz tem um lugar." },
-  { id: "mestre-teo", name: "Mestre Téo", role: "Brinquedeiro", seed: "mestre-teo", x: 18, z: 1.8, rot: Math.atan2(-18, -1.8), book: 1, greeting: "Madeira e memória fazem brinquedo." },
+  { id: "mestre-anselmo", name: "Mestre Anselmo", role: "Relojoeiro", seed: "mestre-anselmo", ...seat("mestre-anselmo"), book: 1, greeting: "O tempo escuta quem para." },
+  { id: "nina", name: "Nina", role: "Sineira", seed: "nina", ...seat("nina"), book: 1, greeting: "O coro espera uma voz." },
+  { id: "tia-bete", name: "Tia Bete", role: "Padeira", seed: "tia-bete", ...seat("tia-bete"), book: 1, greeting: "O forno guarda o cheiro de ontem." },
+  { id: "seu-nazario", name: "Seu Nazário", role: "Cozinheiro da feira", seed: "seu-nazario", ...seat("seu-nazario"), book: 1, greeting: "Pão quente é memória." },
+  { id: "lia", name: "Lia", role: "Criança do coro", seed: "lia", ...seat("lia"), book: 1, greeting: "Eu canto baixinho para acertar." },
+  { id: "dona-iris", name: "Dona Íris", role: "Tecelã", seed: "dona-iris", ...seat("dona-iris"), book: 1, greeting: "O fio passa por quem lembra." },
+  { id: "dona-cida", name: "Dona Cida", role: "Jardineira", seed: "dona-cida", ...seat("dona-cida"), book: 1, greeting: "Toda voz tem um lugar." },
+  { id: "mestre-teo", name: "Mestre Téo", role: "Brinquedeiro", seed: "mestre-teo", ...seat("mestre-teo"), book: 1, greeting: "Madeira e memória fazem brinquedo." },
 ];
 
 export const SPAWNS: StorySpawn[] = [
@@ -1149,22 +1150,22 @@ export const SPAWNS: StorySpawn[] = [
 ];
 
 export const INTERACTIONS: StoryInteraction[] = [
-  { id: "talk-anselmo-arrival", questId: "b01-c1-01", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 1, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo ouviu você e apontou para a neve." },
+  { id: "talk-anselmo-arrival", questId: "b01-c1-01", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 1, kind: "talk", npcId: "mestre-anselmo", label: "Falar com Mestre Anselmo", done: "Mestre Anselmo ouviu você e apontou para a neve." },
   { id: "talk-guida-name", questId: "b01-c1-03", objectId: "none", x: 5, z: 4, radius: 4.5, book: 1, kind: "talk", npcId: "storyteller", label: "Ouvir Dona Guida", done: "Dona Guida disse: Alba. O nome era Alba." },
   { id: "talk-nivaldo-name", questId: "b01-c1-03", objectId: "none", x: 4.5, z: 11.8, radius: 4.5, book: 1, kind: "talk", npcId: "postmaster", label: "Ouvir Seu Nivaldo", done: "Seu Nivaldo lembrou do sino e do nome Alba." },
   { id: "talk-filo-name", questId: "b01-c1-03", objectId: "none", x: -18.6, z: 0, radius: 4.5, book: 1, kind: "talk", npcId: "market-keeper", label: "Ouvir Dona Filó", done: "Dona Filó completou o nome: Alba." },
-  { id: "talk-bete-empty-stall", questId: "b01-c2-01", objectId: "none", x: -18, z: 3.6, radius: 4.5, book: 1, kind: "talk", npcId: "tia-bete", label: "Falar com Tia Bete", done: "Tia Bete sabe a receita e pediu ajuda." },
-  { id: "talk-anselmo-frost", questId: "b01-c3-03", objectId: "none", x: -8.6, z: 5.4, radius: 4.5, book: 1, kind: "talk", npcId: "mestre-anselmo", label: "Mostrar a flor a Mestre Anselmo", done: "Mestre Anselmo reconheceu o corte no fio." },
-  { id: "talk-iris-frost", questId: "b01-c3-03", objectId: "none", x: 0.5, z: 13.8, radius: 4.5, book: 1, kind: "talk", npcId: "dona-iris", label: "Mostrar a flor a Dona Íris", done: "Dona Íris disse que o corte tem nome." },
-  { id: "talk-nina-list", questId: "b01-r1-01", objectId: "none", x: -5.4, z: 8.8, radius: 4.5, book: 1, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina mostrou a lista de vozes." },
+  { id: "talk-bete-empty-stall", questId: "b01-c2-01", objectId: "none", ...seatPoint("tia-bete"), radius: 4.5, book: 1, kind: "talk", npcId: "tia-bete", label: "Falar com Tia Bete", done: "Tia Bete sabe a receita e pediu ajuda." },
+  { id: "talk-anselmo-frost", questId: "b01-c3-03", objectId: "none", ...seatPoint("mestre-anselmo"), radius: 4.5, book: 1, kind: "talk", npcId: "mestre-anselmo", label: "Mostrar a flor a Mestre Anselmo", done: "Mestre Anselmo reconheceu o corte no fio." },
+  { id: "talk-iris-frost", questId: "b01-c3-03", objectId: "none", ...seatPoint("dona-iris"), radius: 4.5, book: 1, kind: "talk", npcId: "dona-iris", label: "Mostrar a flor a Dona Íris", done: "Dona Íris disse que o corte tem nome." },
+  { id: "talk-nina-list", questId: "b01-r1-01", objectId: "none", ...seatPoint("nina"), radius: 4.5, book: 1, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina mostrou a lista de vozes." },
   { id: "talk-filo-choir", questId: "b01-r1-02", objectId: "none", x: -18.6, z: 0, radius: 4.5, book: 1, kind: "talk", npcId: "market-keeper", label: "Ouvir Dona Filó cantar", done: "Dona Filó cantou a parte dela." },
   { id: "talk-nivaldo-choir", questId: "b01-r1-02", objectId: "none", x: 4.5, z: 11.8, radius: 4.5, book: 1, kind: "talk", npcId: "postmaster", label: "Ouvir Seu Nivaldo cantar", done: "Seu Nivaldo cantou a parte dele." },
-  { id: "talk-cida-choir", questId: "b01-r1-02", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 1, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida cantar", done: "Dona Cida cantou baixinho, mas cantou." },
-  { id: "listen-lia", questId: "b01-r1-06", objectId: "none", x: 2.6, z: -5.2, radius: 4.5, book: 1, kind: "talk", npcId: "lia", label: "Ouvir Lia cantar", done: "Lia cantou para você sem errar." },
-  { id: "talk-bete-empty-fair", questId: "b01-r2-01", objectId: "none", x: -18, z: 3.6, radius: 4.5, book: 1, kind: "talk", npcId: "tia-bete", label: "Falar com Tia Bete", done: "Tia Bete quer reabrir a feira das trocas." },
-  { id: "talk-nazario-crafts", questId: "b01-r2-02", objectId: "none", x: -17.4, z: -3.4, radius: 4.5, book: 1, kind: "talk", npcId: "seu-nazario", label: "Ouvir Seu Nazário", done: "Seu Nazário ofereceu o ofício de padeiro." },
-  { id: "talk-teo-crafts", questId: "b01-r2-02", objectId: "none", x: 18, z: 1.8, radius: 4.5, book: 1, kind: "talk", npcId: "mestre-teo", label: "Ouvir Mestre Téo", done: "Mestre Téo ofereceu o ofício de brinquedeiro." },
-  { id: "talk-cida-crafts", questId: "b01-r2-02", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 1, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida ofereceu o ofício de jardineira." },
+  { id: "talk-cida-choir", questId: "b01-r1-02", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 1, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida cantar", done: "Dona Cida cantou baixinho, mas cantou." },
+  { id: "listen-lia", questId: "b01-r1-06", objectId: "none", ...seatPoint("lia"), radius: 4.5, book: 1, kind: "talk", npcId: "lia", label: "Ouvir Lia cantar", done: "Lia cantou para você sem errar." },
+  { id: "talk-bete-empty-fair", questId: "b01-r2-01", objectId: "none", ...seatPoint("tia-bete"), radius: 4.5, book: 1, kind: "talk", npcId: "tia-bete", label: "Falar com Tia Bete", done: "Tia Bete quer reabrir a feira das trocas." },
+  { id: "talk-nazario-crafts", questId: "b01-r2-02", objectId: "none", ...seatPoint("seu-nazario"), radius: 4.5, book: 1, kind: "talk", npcId: "seu-nazario", label: "Ouvir Seu Nazário", done: "Seu Nazário ofereceu o ofício de padeiro." },
+  { id: "talk-teo-crafts", questId: "b01-r2-02", objectId: "none", ...seatPoint("mestre-teo"), radius: 4.5, book: 1, kind: "talk", npcId: "mestre-teo", label: "Ouvir Mestre Téo", done: "Mestre Téo ofereceu o ofício de brinquedeiro." },
+  { id: "talk-cida-crafts", questId: "b01-r2-02", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 1, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida ofereceu o ofício de jardineira." },
   { id: "talk-filo-cat", questId: "b01-s4", objectId: "none", x: -18.6, z: 0, radius: 4.5, book: 1, kind: "talk", npcId: "market-keeper", label: "Falar com Dona Filó", done: "Dona Filó contou que o gato perdeu a voz com a ventania." },
   { id: "ring-bell", questId: "b01-c1-04", objectId: "silent-bell", x: -6, z: 6.6, radius: 3, book: 1, kind: "prop", label: "Tocar o sino", done: "O sino tocou. A praça acordou." },
   { id: "light-oven", questId: "b01-c2-03", objectId: "none", x: -19.4, z: 5.2, radius: 3, book: 1, kind: "prop", label: "Acender o forno", done: "O forno esquentou. O cheiro de panetone encheu a feira." },

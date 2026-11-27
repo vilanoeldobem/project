@@ -1,6 +1,7 @@
 /** Book II, As Casas e os Nomes (session 02): 33 narrative entries, 12 milestones, world and six cosmetics. */
 import { footprint, type Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
+import { seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
 import { NPCS as NPCS_B01 } from "./book-01";
 
@@ -44,7 +45,7 @@ export const QUESTS: StoryQuest[] = [
     giverNpcId: "storyteller",
     turnInNpcId: "dona-cida",
     dialogue: {
-      offer: "Uma casa do jardim está vazia e sem nome. Dona Cida cuida das flores em frente e sabe quem morou ali. Fale com ela, no jardim das casas, a leste da praça.",
+      offer: "Uma casa do jardim está vazia e sem nome. Dona Cida cuida das flores em frente e sabe quem morou ali. Fale com ela, no parque ao sul da praça.",
       turnIn: "A casa está vazia desde que a professora partiu. Eu guardei três objetos dela, mas não sei mais de quem eram. Me ajude a lembrar?",
     },
     objectiveEventIds: ["talk-cida-empty-house"],
@@ -276,7 +277,7 @@ export const QUESTS: StoryQuest[] = [
     giverNpcId: "pip",
     turnInNpcId: "lia",
     dialogue: {
-      offer: "Lia espera a rena de madeira para entregar a uma criança menor. Leve o presente até ela, perto da praça. Diga que foi Alba quem começou.",
+      offer: "Lia espera a rena de madeira para entregar a uma criança menor. Leve o presente até ela, na escola. Diga que foi Alba quem começou.",
       turnIn: "A rena é linda. Vou entregar com cuidado. A criança vai saber que alguém começou este brinquedo faz tempo, para ela.",
     },
     objectiveEventIds: [],
@@ -1145,25 +1146,25 @@ export const SPAWNS: StorySpawn[] = [
 ];
 
 export const INTERACTIONS: StoryInteraction[] = [
-  { id: "talk-cida-empty-house", questId: "b02-c1-01", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida guardou três objetos da professora e pediu ajuda." },
-  { id: "hear-cida-alba", questId: "b02-c1-03", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida lembrou da professora que plantava rosas." },
-  { id: "hear-teo-alba", questId: "b02-c1-03", objectId: "none", x: 18, z: 1.8, radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Ouvir Mestre Téo", done: "Mestre Téo lembrou de Alba ensinando à tarde." },
+  { id: "talk-cida-empty-house", questId: "b02-c1-01", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida guardou três objetos da professora e pediu ajuda." },
+  { id: "hear-cida-alba", questId: "b02-c1-03", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida lembrou da professora que plantava rosas." },
+  { id: "hear-teo-alba", questId: "b02-c1-03", objectId: "none", ...seatPoint("mestre-teo"), radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Ouvir Mestre Téo", done: "Mestre Téo lembrou de Alba ensinando à tarde." },
   { id: "hear-nivaldo-alba", questId: "b02-c1-03", objectId: "none", x: 4.5, z: 11.8, radius: 4.5, book: 2, kind: "talk", npcId: "postmaster", label: "Ouvir Seu Nivaldo", done: "Seu Nivaldo lembrou do nome Alba na soleira." },
   { id: "hang-nameplate", questId: "b02-c1-04", objectId: "nameplate", x: 8.5, z: -3, radius: 3, book: 2, kind: "prop", label: "Pendurar a placa", done: "A placa de Alba ficou na porta e o jardim floresceu." },
-  { id: "talk-teo-unfinished-toy", questId: "b02-c2-01", objectId: "none", x: 18, z: 1.8, radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Falar com Mestre Téo", done: "Mestre Téo mostrou a rena de madeira que Alba começou." },
+  { id: "talk-teo-unfinished-toy", questId: "b02-c2-01", objectId: "none", ...seatPoint("mestre-teo"), radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Falar com Mestre Téo", done: "Mestre Téo mostrou a rena de madeira que Alba começou." },
   { id: "talk-pip-unfinished-toy", questId: "b02-c2-01", objectId: "none", x: 14.8, z: 4.2, radius: 4.5, book: 2, kind: "talk", npcId: "pip", label: "Falar com Pip", done: "Pip separou as três peças que faltam na rena." },
   { id: "play-memory-toy-test", questId: "b02-c2-03", objectId: "none", x: 13.4, z: 4.8, radius: 4, book: 2, kind: "minigame", npcId: "pip", label: "Jogar Jogo da Memória", done: "A rena passou no teste das crianças." },
   { id: "visit-alba-window", questId: "b02-c3-01", objectId: "lake-lantern", x: 7.2, z: 2, radius: 3, book: 2, kind: "prop", label: "Visitar a janela", done: "A janela de Alba estava acesa e o vidro, quente." },
   { id: "plant-alba-rose", questId: "b02-c3-02", objectId: "rose", x: 8.5, z: -3, radius: 3, book: 2, kind: "prop", label: "Plantar a roseira", done: "A roseira de Alba pegou no jardim." },
   { id: "read-alba-letter", questId: "b02-c3-03", objectId: "story-page", x: 7.2, z: 2, radius: 3, book: 2, kind: "prop", label: "Ler a carta", done: "A carta de Alba falava da criança que nunca chegou." },
   { id: "tell-alba-story", questId: "b02-c3-04", objectId: "none", x: 5, z: 4, radius: 4.5, book: 2, kind: "talk", npcId: "storyteller", label: "Contar a história a Dona Guida", done: "Dona Guida registrou a história de Alba no Caderno." },
-  { id: "talk-cida-seven-seeds", questId: "b02-r1-01", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida mostrou as sete sementes sem ordem." },
+  { id: "talk-cida-seven-seeds", questId: "b02-r1-01", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Falar com Dona Cida", done: "Dona Cida mostrou as sete sementes sem ordem." },
   { id: "loosen-garden-soil", questId: "b02-r1-02", objectId: "none", x: 8.5, z: -3, radius: 3, book: 2, kind: "prop", label: "Afofar a terra", done: "A terra do canteiro cedeu." },
   { id: "visit-stubborn-seed", questId: "b02-r1-04", objectId: "none", x: 9.5, z: -9.5, radius: 3, book: 2, kind: "prop", label: "Visitar a semente", done: "A semente teimosa abriu quando alguém ficou ao lado." },
   { id: "talk-elias-neighbor", questId: "b02-r1-05", objectId: "none", x: 11.4, z: -3.6, radius: 4.5, book: 2, kind: "talk", npcId: "seu-elias", label: "Falar com Seu Elias", done: "Seu Elias disse que a semente ficou sem nome." },
   { id: "paint-garden-fence", questId: "b02-r1-06", objectId: "none", x: 7.2, z: 2, radius: 3, book: 2, kind: "prop", label: "Pintar a cerca", done: "A cerca do jardim ficou pintada." },
   { id: "play-jardim-das-estacoes", questId: "b02-r1-07", objectId: "none", x: 9.8, z: -1.2, radius: 4, book: 2, kind: "minigame", npcId: "dona-cida", label: "Jogar Jardim das Estações", done: "As flores foram agrupadas por estação." },
-  { id: "talk-teo-repair-queue", questId: "b02-r2-01", objectId: "none", x: 18, z: 1.8, radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Falar com Mestre Téo", done: "Mestre Téo mostrou a fila de consertos." },
+  { id: "talk-teo-repair-queue", questId: "b02-r2-01", objectId: "none", ...seatPoint("mestre-teo"), radius: 4.5, book: 2, kind: "talk", npcId: "mestre-teo", label: "Falar com Mestre Téo", done: "Mestre Téo mostrou a fila de consertos." },
   { id: "talk-pip-repair-queue", questId: "b02-r2-01", objectId: "none", x: 14.8, z: 4.2, radius: 4.5, book: 2, kind: "talk", npcId: "pip", label: "Falar com Pip", done: "Pip organizou a fila por brinquedo." },
   { id: "play-memory-pip-lesson", questId: "b02-r2-04", objectId: "none", x: 13.4, z: 4.8, radius: 4, book: 2, kind: "minigame", npcId: "pip", label: "Jogar Jogo da Memória", done: "Pip errou e continuou a partida." },
   { id: "fit-doll-arm", questId: "b02-r2-05", objectId: "none", x: 16.6, z: 2.8, radius: 3, book: 2, kind: "prop", label: "Encaixar o braço", done: "A boneca recebeu o braço novo." },
@@ -1171,8 +1172,8 @@ export const INTERACTIONS: StoryInteraction[] = [
   { id: "fit-watch-gear", questId: "b02-r2-07", objectId: "none", x: -10.2, z: 4.6, radius: 3, book: 2, kind: "prop", label: "Encaixar a engrenagem", done: "A engrenagem que ninguém viu encaixou." },
   { id: "warm-seed", questId: "b02-s1", objectId: "none", x: 9.8, z: -1.2, radius: 3, book: 2, kind: "prop", label: "Aquecer a semente", done: "A semente esquentou no canteiro." },
   { id: "visit-dark-window", questId: "b02-s2", objectId: "none", x: 7.2, z: 2, radius: 3, book: 2, kind: "prop", label: "Visitar a janela", done: "A janela estava escura porque a cortina estava fechada." },
-  { id: "hear-cida-scrap", questId: "b02-s4", objectId: "none", x: 8.4, z: -1.2, radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida escolheu o retalho cor da terra." },
-  { id: "hear-lia-scrap", questId: "b02-s4", objectId: "none", x: 2.6, z: -5.2, radius: 4.5, book: 2, kind: "talk", npcId: "lia", label: "Ouvir Lia", done: "Lia escolheu o retalho cor de flor." },
+  { id: "hear-cida-scrap", questId: "b02-s4", objectId: "none", ...seatPoint("dona-cida"), radius: 4.5, book: 2, kind: "talk", npcId: "dona-cida", label: "Ouvir Dona Cida", done: "Dona Cida escolheu o retalho cor da terra." },
+  { id: "hear-lia-scrap", questId: "b02-s4", objectId: "none", ...seatPoint("lia"), radius: 4.5, book: 2, kind: "talk", npcId: "lia", label: "Ouvir Lia", done: "Lia escolheu o retalho cor de flor." },
   { id: "hear-elias-scrap", questId: "b02-s4", objectId: "none", x: 11.4, z: -3.6, radius: 4.5, book: 2, kind: "talk", npcId: "seu-elias", label: "Ouvir Seu Elias", done: "Seu Elias escolheu o retalho cor de folha." },
   { id: "turn-cut-into-ornament", questId: "b02-s5", objectId: "none", x: 13.4, z: 4.8, radius: 3, book: 2, kind: "prop", label: "Transformar o corte", done: "O corte torto virou bandeirinha." },
 ];

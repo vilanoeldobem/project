@@ -1,8 +1,7 @@
 /**
- * quests-v1 flag on the client (PROPOSTA; IMPL-0013): quest features need this build's flag AND the API's
- * `/config.quests`, and quest events are neither queued nor sent while either side is off.
+ * Accounts and progress sync on the client (IMPL-0011): quest events are always queued and sent (IMPL-0037).
  * Runs in Node with a stubbed `fetch`, `localStorage` and `window`; modules are re-imported per test because
- * the build flag and the guest progress are read once per page load.
+ * the guest progress is read once per page load.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -35,14 +34,12 @@ function stubPage(config: object) {
   );
 }
 
-/** A fresh page load: the build flag, then the modules that read it. */
-async function load(buildFlag: boolean) {
-  vi.stubEnv("VITE_QUESTS_V1_ENABLED", buildFlag ? "true" : "false");
+/** A fresh page load: the modules read the guest storage once per page. */
+async function load() {
   vi.resetModules();
-  const flag = await import("../game/questsFlag");
   const account = await import("./account");
   const { useVila } = await import("../game/store");
-  return { ...flag, ...account, useVila };
+  return { ...account, useVila };
 }
 
 /** Guest progress left in this browser: one mission event and one accepted quest. */
@@ -53,40 +50,6 @@ beforeEach(() => stubPage({ accounts: false, quests: false }));
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
-});
-
-describe("quests flag (build AND server)", () => {
-  it("stays off until the API says quests are on, even with the build flag", async () => {
-    stubPage({ accounts: false, quests: true });
-    const { initAccount, questsEnabled } = await load(true);
-    expect(questsEnabled()).toBe(false);
-    await initAccount();
-    expect(questsEnabled()).toBe(true);
-  });
-
-  it("stays off when only one side is on, or when /config has no quests field", async () => {
-    stubPage({ accounts: false, quests: false });
-    let page = await load(true);
-    await page.initAccount();
-    expect(page.questsEnabled()).toBe(false);
-
-    stubPage({ accounts: false, quests: true });
-    page = await load(false);
-    await page.initAccount();
-    expect(page.questsEnabled()).toBe(false);
-
-    stubPage({ accounts: false });
-    page = await load(true);
-    await page.initAccount();
-    expect(page.questsEnabled()).toBe(false);
-  });
-
-  it("stays off when the API cannot be reached", async () => {
-    const { initAccount, questsEnabled } = await load(true);
-    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("offline"))));
-    await initAccount();
-    expect(questsEnabled()).toBe(false);
-  });
 });
 
 describe("progress sync and quest events", () => {
@@ -105,13 +68,13 @@ describe("progress sync and quest events", () => {
       return Response.json(path === "/config" ? { accounts: true, quests: true } :
         path === "/me" ? { user: USER } : { progress: ready ? saved : EMPTY });
     }));
-    let page = await load(true);
+    let page = await load();
     await page.initAccount();
     expect(page.useAccount.getState().sync).toBe("pending");
     expect(JSON.parse(storage.get("vila.pending.v1:u1")!)).toEqual(queued);
 
     ready = true;
-    page = await load(true);
+    page = await load();
     await page.initAccount();
     expect(posted).toEqual([queued, queued]);
     expect(storage.get("vila.pending.v1:u1")).toBeUndefined();
@@ -119,33 +82,32 @@ describe("progress sync and quest events", () => {
     expect(page.useVila.getState().progress).toEqual(saved);
   });
 
-  it("does not send or queue quest events while quests are off", async () => {
-    stubPage({ accounts: true, quests: false });
+  it("sends guest quest events on sign-in", async () => {
+    stubPage({ accounts: true });
     guestProgress();
-    const { initAccount, useVila } = await load(true);
-    await initAccount();
-    expect(posted).toEqual([[{ missionId: "play-memory", eventId: "win" }]]);
-
-    // Signed in: a new quest event is not queued, a new mission event is sent as usual.
-    useVila.setState({ progress: { ...EMPTY, seen: { "lake-lanterns:accept": true, "causes-global-donation:panel": true } } });
-    await vi.waitFor(() => expect(posted).toHaveLength(2));
-    expect(posted[1]).toEqual([{ missionId: "causes-global-donation", eventId: "panel" }]);
-    expect(storage.get("vila.pending.v1:u1")).toBeUndefined();
-  });
-
-  it("sends quest events when the build and the API both have quests on", async () => {
-    stubPage({ accounts: true, quests: true });
-    guestProgress();
-    const { initAccount } = await load(true);
+    const { initAccount } = await load();
     await initAccount();
     expect(posted).toEqual([[{ missionId: "play-memory", eventId: "win" }, { missionId: "harness-bells", eventId: "accept" }]]);
+  });
+
+  it("queues and sends a new quest event while signed in", async () => {
+    stubPage({ accounts: true });
+    const { initAccount, useVila } = await load();
+    await initAccount();
+    useVila.setState({ progress: { ...EMPTY, seen: { "lake-lanterns:accept": true, "causes-global-donation:panel": true } } });
+    await vi.waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]).toHaveLength(2);
+    expect(posted[0]).toEqual(expect.arrayContaining([
+      { missionId: "causes-global-donation", eventId: "panel" },
+      { missionId: "lake-lanterns", eventId: "accept" },
+    ]));
   });
 });
 
 describe("pending account erasure", () => {
   it("refreshes again when a pre-deletion account read was already in flight", async () => {
     stubPage({accounts:true,quests:false});
-    const page=await load(false); await page.initAccount();
+    const page=await load(); await page.initAccount();
     let release!:()=>void, reads=0;
     const paused=new Promise<void>((resolve)=>{release=resolve;});
     vi.stubGlobal("fetch",vi.fn(async (_url:string,init?:RequestInit)=>{
@@ -164,7 +126,7 @@ describe("pending account erasure", () => {
 
   it("refreshes the visible deletion state after storage failure and allows a later retry", async () => {
     stubPage({ accounts:true,quests:false });
-    const page=await load(false);
+    const page=await load();
     await page.initAccount();
     let pending=false, deleted=false;
     vi.stubGlobal("fetch",vi.fn(async (_url:string,init?:RequestInit)=>{
@@ -210,7 +172,7 @@ describe("local account actions (#65)", () => {
 
   it("never applies the comparison on a public hostname, even with a misconfigured API", async () => {
     stubPage({ accounts: true, localAccountActions: true });
-    const page = await load(false);
+    const page = await load();
     await page.initAccount();
     expect(page.useVila.getState().localActor).toBeNull();
     page.useVila.getState().open({ kind: "memory" });
@@ -229,7 +191,7 @@ describe("local account actions (#65)", () => {
     vi.stubEnv("MODE", String(mode));
     stubPage({ accounts: true, stagingAccountActions: flag, localAccountActions: true });
     vi.stubGlobal("location", new URL(String(origin)));
-    const page = await load(false);
+    const page = await load();
     await page.initAccount();
     expect(Boolean(page.useVila.getState().localActor)).toBe(enabled);
   });
@@ -238,7 +200,7 @@ describe("local account actions (#65)", () => {
     vi.stubEnv("MODE", "staging");
     stubPage({ accounts: false, stagingAccountActions: true });
     vi.stubGlobal("location", new URL("https://play-staging.vilanoeldobem.com.br"));
-    const page = await load(false);
+    const page = await load();
     await page.initAccount();
     expect(page.useVila.getState().localActor).toBeNull();
     page.useVila.getState().open({ kind: "memory" });
@@ -248,7 +210,7 @@ describe("local account actions (#65)", () => {
   it.each([true, false])("keeps exploration open while staging config is unreadable, then honors opt-in %s", async (enabled) => {
     vi.stubEnv("MODE", "staging");
     vi.stubGlobal("location", new URL("https://play-staging.vilanoeldobem.com.br"));
-    const page = await load(false);
+    const page = await load();
     const config = vi.spyOn(page.api, "config").mockRejectedValueOnce(new TypeError("Offline"))
       .mockResolvedValueOnce({} as Awaited<ReturnType<typeof page.api.config>>)
       .mockResolvedValue({ accounts: true, stagingAccountActions: enabled });
@@ -279,7 +241,7 @@ describe("local account actions (#65)", () => {
     localPage();
     let finish!: () => void;
     const slow = new Promise<void>(resolve => { finish = resolve; });
-    const page = await load(false);
+    const page = await load();
     vi.spyOn(page.api, "config").mockResolvedValue({ accounts:true, localAccountActions:false });
     vi.spyOn(page.api, "me").mockImplementation(async () => { await slow; return { user:null }; });
     const startup = page.initAccount();
@@ -292,7 +254,7 @@ describe("local account actions (#65)", () => {
 
   it("leaves exploration available and captures only mission completion, including the last narrative turn-in", async () => {
     localPage(true);
-    const page = await load(true);
+    const page = await load();
     await page.initAccount();
     const state = page.useVila.getState;
     state().open({ kind: "lot", lotId: "lot-01" });
@@ -311,7 +273,7 @@ describe("local account actions (#65)", () => {
 
   it("validates the current account, recalculates a ready mission and credits it once", async () => {
     localPage();
-    const page = await load(true);
+    const page = await load();
     await page.initAccount();
     const state = page.useVila.getState;
     state().record("causes-visit-lot", "lot-01");
@@ -329,8 +291,8 @@ describe("local account actions (#65)", () => {
   it("reserves persisted guest progress once across two already open tabs signing in as different accounts", async () => {
     localPage();
     guestProgress();
-    const a = await load(true);
-    const b = await load(true);
+    const a = await load();
+    const b = await load();
     expect(a.useVila.getState().progress.seen).toEqual(b.useVila.getState().progress.seen);
     let waiting = 0;
     let release!: () => void;
@@ -354,8 +316,8 @@ describe("local account actions (#65)", () => {
   it("a stale visitor tab records only its new gesture after another tab reserved the old events", async () => {
     localPage(true);
     guestProgress();
-    const a = await load(true);
-    const b = await load(true);
+    const a = await load();
+    const b = await load();
     await Promise.all([a.initAccount(), b.initAccount()]);
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ progress: EMPTY })));
     await a.signedIn(USER);
@@ -368,8 +330,8 @@ describe("local account actions (#65)", () => {
   it("recovers an interrupted reservation for its original owner, even when the next login belongs to someone else", async () => {
     localPage(true);
     guestProgress();
-    const a = await load(true);
-    const b = await load(true);
+    const a = await load();
+    const b = await load();
     await Promise.all([a.initAccount(), b.initAccount()]);
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ progress: EMPTY })));
     const write = vi.spyOn(localStorage, "setItem").mockImplementationOnce((key, value) => {
@@ -399,7 +361,7 @@ describe("local account actions (#65)", () => {
       return Response.json({ progress: path === "/progress/events" ? done : first });
     }));
     window.__vilaLoginToken = "local-test-link";
-    const page = await load(false);
+    const page = await load();
     await page.initAccount();
     expect(requests).toEqual(["/config", "/auth/verify", "/progress"]);
     expect(page.useVila.getState().progress.xp).toBe(0);

@@ -103,7 +103,7 @@ Em desenvolvimento e teste, o ensaio existente usa `LOCAL_ACCOUNT_ACTIONS=true` 
 `localAccountActions: true`. Em produção os dois campos ficam ausentes.
 
 ```json
-{ "accounts": false, "quests": false, "questsV2": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
+{ "accounts": false, "files": false, "withdrawal": false, "moderation": { "presence": false, "block": false },
   "residentialPlots": false, "donations": false, "ngoLevels": false }
 ```
 
@@ -111,15 +111,9 @@ Em desenvolvimento e teste, o ensaio existente usa `LOCAL_ACCOUNT_ACTIONS=true` 
 (chip "Entrar", candidatura de ONG) e a Vila segue jogável sem conta (OQ-02); o painel administrativo mostra o
 aviso "Contas desligadas" e só dados públicos. O painel lista todas as chaves que esta rota devolver.
 
-`quests` é `true` só quando `QUESTS_V1_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
-staging). A missão narrativa `quests-v1` é PROPOSTA (DEC-039..042, PEN-025). O cliente só mostra as quests quando
-`quests` é `true` **e** a bandeira dele também está ligada (`VITE_QUESTS_V1_ENABLED=true` no build ou `?quests=1` em
-localhost/desenvolvimento). Ver [quests.md](quests.md) e [IMPL-0013](../decisions/0013-quests-v1-runtime.md).
-
-`questsV2` é `true` só quando `QUESTS_V2_ENABLED = "true"` (ligada no script local `dev`, desligada em produção e
-staging) e é independente de `quests`. O cliente só mostra a saga v2 quando `questsV2` é `true` **e** a bandeira dele
-também está ligada (`VITE_QUESTS_V2_ENABLED=true` no build ou `?quests2=1` em localhost/desenvolvimento). Ver
-[quests-v2.md](quests-v2.md).
+As missões não têm bandeira desde a [IMPL-0037](../decisions/0037-parallel-quests-and-mission-journal.md): o
+epílogo `quests-v1` e a saga v2 estão sempre ligados no cliente e a API grava os eventos conhecidos sem consultar
+`wrangler.jsonc`. Ver [quests.md](quests.md) e [quests-v2.md](quests-v2.md).
 
 `files` é `true` só quando as contas estão ligadas, `NGO_FILES_ENABLED = "true"` **e** o bucket R2 está ligado ao
 Worker. Com `false`, o jogo e o painel não mostram nada de arquivo e as rotas de arquivo respondem
@@ -444,9 +438,10 @@ cadastro, o jogo abre a entrada por e-mail com o endereço preenchido para pedir
   o jogo produz para aquela missão: id de presente (`GIFTS`), `win`, id de terreno (`LOTS`), `panel`, ou, nas quests,
   `accept`, `turn-in` e os ids de objetivo de `objectiveEventIds` (`KNOWN_EVENTS` em `apps/api/src/progress.ts`).
   Qualquer item inválido → `400 bad_events` (nada é gravado).
-- Eventos de quest só são gravados com `QUESTS_V1_ENABLED = "true"`. Com a flag desligada eles são ignorados (o lote
-  responde `200` e os demais eventos são gravados); as quatro missões rápidas valem sempre. A flag é exposta em
-  `GET /config` (`quests`). O conteúdo e os valores de XP são PROPOSTA (PEN-025); ver [quests.md](quests.md).
+- Eventos de quest são gravados sempre (sem bandeira, IMPL-0037), mas só quando são uma transição válida na ordem
+  recebida: um objetivo antes do `accept`, um `accept` com pré-requisito pendente ou um `turn-in` fora de hora recebem
+  `200` e não são gravados. As quatro missões rápidas valem sempre. O conteúdo e os valores de XP são PROPOSTA
+  (PEN-025); ver [quests.md](quests.md).
 - Idempotente: a chave primária `(user_id, mission_id, event_id)` torna um evento repetido inócuo. O progresso é
   refeito repetindo os eventos gravados, na ordem em que foram gravados, pelo mesmo `applyEvent` do cliente: cada
   missão dá XP uma vez (e o XP de uma quest entra só no `turn-in`).
@@ -493,7 +488,7 @@ Na raiz do checkout, com Node 24 e pnpm 10, usar somente o simulador local:
 pnpm db:migrate:local
 node apps/api/scripts/verify-progress.mjs --seed > .progress-smoke-seed.sql
 pnpm --filter @vila/api exec wrangler d1 execute DB --local --file ../../.progress-smoke-seed.sql
-pnpm --filter @vila/api exec wrangler dev --local --port 8795 --inspector-port 9245 --var ACCOUNTS_ENABLED:true --var QUESTS_V1_ENABLED:true --var ALLOWED_ORIGINS:http://localhost:8799 --var ACCOUNT_ORIGINS:http://localhost:8799 --var ENVIRONMENT:development
+pnpm --filter @vila/api exec wrangler dev --local --port 8795 --inspector-port 9245 --var ACCOUNTS_ENABLED:true --var ALLOWED_ORIGINS:http://localhost:8799 --var ACCOUNT_ORIGINS:http://localhost:8799 --var ENVIRONMENT:development
 # Em outro terminal, depois de o Worker ficar pronto:
 node apps/api/scripts/verify-progress.mjs http://127.0.0.1:8795
 ```

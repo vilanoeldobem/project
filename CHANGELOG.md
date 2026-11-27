@@ -11,6 +11,9 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- Missões em paralelo: quantas missões estiverem disponíveis podem ser aceitas ao mesmo tempo, cada cadeia continua na ordem dos seus pré-requisitos e o Jogo da Memória avança todas as missões abertas com aquele objetivo. O Caderno de Missões lista as missões em andamento em cartões, mostra os próximos passos e agrupa as cadeias em blocos recolhíveis; o HUD ganhou um rastreador de duas missões com contagem de ativas e a bolsa deixou de empilhar fichas. [IMPL-0037](docs/decisions/0037-parallel-quests-and-mission-journal.md)
+- O elenco de histórias que morava na praça ganhou assento em lugares com nome nos anéis 1 a 4 (`quests-v2/seats.ts`), com um teste que mantém cada interação de conversa no seu NPC e cada personagem a 2 u dos outros.
+- `verify-hud.mjs` verifica o HUD e o Caderno em oito larguras, com foco de teclado, cores forçadas, movimento reduzido e zoom de 200 %.
 - `pnpm dev:story` sobe o jogo local com a saga v2 e o epílogo v1 ligados, sem parâmetro na URL.
 - Homologação admite o teste das quatro ações com conta da #65 mediante configuração explícita da API.
 
@@ -28,7 +31,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
-- NPCs de missão: o marcador `!` lê o mesmo catálogo com o portão da saga v2 que o diálogo, então não anuncia uma missão bloqueada; cada personagem repetido por um livro é desenhado e rotulado uma vez; o atril da doação não toma o botão de ação de um NPC ao alcance.
+- NPCs de missão: o marcador `!` lê o mesmo catálogo do diálogo e já não anuncia uma missão bloqueada por um portão que não existe (IMPL-0037); cada personagem repetido por um livro é desenhado e rotulado uma vez; o atril da doação não toma o botão de ação de um NPC ao alcance.
 - O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
 - O teste de Pix concorrente verifica as duas repetições enquanto o provedor de teste ainda processa a primeira cobrança, sem depender de um temporizador.
 - Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.
@@ -43,6 +46,8 @@ Cada versão indica o schema D1 que entrega.
 
 ### Changed
 
+- As missões deixaram de ter bandeira: o epílogo v1 e os dez livros da saga v2 ficam sempre ligados no cliente e na API (`GET /config` já não devolve `quests`/`questsV2`, e `wrangler.jsonc` não tem `QUESTS_*`). O epílogo v1 deixou de esperar o livro V.
+- O HUD passou a usar um conjunto único de ícones vetoriais (sem emoji), com anel de foco de duas cores, seleção e barra de rolagem próprias e movimento reduzido restrito aos controles; o botão “Missões” mostra o número de missões ativas e a bolsa mostra duas fichas com contagem.
 - A seção **Usuários e permissões** do painel indica onde conceder ou retirar o papel de administrador.
 - Recuperada a proteção da nova emissão de Pix por conta e preparada a retomada da doação após o login no jogo, com confirmação de destino e valor.
 - A CI verifica a retomada do Pix global e por ONG em Chromium, incluindo duas abas, nova tentativa após a perda da resposta e escolha de um novo valor quando o rascunho expira ou o link abre em outro perfil.

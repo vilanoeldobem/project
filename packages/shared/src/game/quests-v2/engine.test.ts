@@ -5,12 +5,12 @@
 import { describe, expect, it } from "vitest";
 
 import { EMPTY_PROGRESS, MISSIONS, type Progress } from "../progress";
-import { activeInventory, activeQuest, canAccept, QUESTS, questProgress, questState } from "../quests";
+import { activeInventory, activeQuests, canAccept, QUESTS, questProgress, questState } from "../quests";
 import { applyEvent } from "../progress";
 import { V1_CATALOG } from "./catalog";
 import {
   activeInventoryIn,
-  activeQuestIn,
+  activeQuestsIn,
   applyEventIn,
   canAcceptIn,
   questProgressIn,
@@ -65,7 +65,7 @@ const compare = (a: Progress, b: Progress) => {
     expect(questProgressIn(V1_CATALOG, b, quest.id)).toEqual(questProgress(a, quest.id));
     expect(canAcceptIn(V1_CATALOG, b, quest.id)).toBe(canAccept(a, quest.id));
   }
-  expect(activeQuestIn(V1_CATALOG, b)?.id).toBe(activeQuest(a)?.id);
+  expect(activeQuestsIn(V1_CATALOG, b).map((q) => q.id)).toEqual(activeQuests(a).map((q) => q.id));
   expect(activeInventoryIn(V1_CATALOG, b)).toEqual(activeInventory(a));
 };
 
@@ -117,16 +117,19 @@ describe("v2 rules", () => {
     expect(questStateIn(catalog, done, "target")).toBe("locked");
   });
 
-  it("keeps one active quest across books and accepts a dependent quest after its prerequisite", () => {
+  it("keeps quests of different chains in parallel and accepts a dependent quest after its prerequisite", () => {
     let p = applyEventIn(v2Catalog, EMPTY_PROGRESS, "v2-a", "accept").progress;
+    // Another chain starts while v2-a runs.
+    p = applyEventIn(v2Catalog, p, "v2-c", "accept").progress;
+    expect(activeQuestsIn(v2Catalog, p).map((q) => q.id)).toEqual(["v2-a", "v2-c"]);
+    // v2-b still waits for its prerequisite.
+    expect(questStateIn(v2Catalog, p, "v2-b")).toBe("locked");
+    expect(applyEventIn(v2Catalog, p, "v2-b", "accept").progress).toBe(p);
     p = applyEventIn(v2Catalog, p, "v2-a", "a-event").progress;
     p = applyEventIn(v2Catalog, p, "v2-a", "turn-in").progress;
-    expect(p.completed["v2-a"]).toBe(true);
     expect(questStateIn(v2Catalog, p, "v2-b")).toBe("available");
     p = applyEventIn(v2Catalog, p, "v2-b", "accept").progress;
-    expect(activeQuestIn(v2Catalog, p)?.id).toBe("v2-b");
-    const blocked = applyEventIn(v2Catalog, p, "v2-c", "accept");
-    expect(blocked.progress).toBe(p);
+    expect(activeQuestsIn(v2Catalog, p).map((q) => q.id)).toEqual(["v2-b", "v2-c"]);
   });
 
   it("ignores an unknown id and a repeated event", () => {

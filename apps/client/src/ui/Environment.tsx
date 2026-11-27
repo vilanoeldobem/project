@@ -10,6 +10,7 @@ import { events } from "../game/events";
 import { MOTION } from "@vila/shared/game/motion";
 import { connectPresence, type NetStatus, useNet } from "../net/multiplayer";
 import { useVila } from "../game/store";
+import { Icon } from "./icons";
 import { Panel } from "./Panel";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -67,28 +68,28 @@ export function EnvironmentChip() {
         aria-label={`Ambiente: ${pad(c.hour)}:${pad(c.minute)} em São Paulo, ${w.label}`}
       >
         <span className="chip__icon env-chip__clock" aria-hidden="true">
-          🕰️
+          <Icon name="clock" />
         </span>
         {pad(c.hour)}:{pad(c.minute)}
         <span className="chip__icon" aria-hidden="true">
-          {w.icon}
+          <Icon name={w.icon} />
         </span>
         <span className="env-chip__label">{event ? EVENT_LABEL[event.kind] : w.label}</span>
       </button>
       {net.status === "online" && (
         <span className="btn btn--chip env-chip__people" role="status" aria-label={presenceLabel} title={presenceLabel}>
-          👥 {net.others + 1}
+          <Icon name="users" /> {net.others + 1}
         </span>
       )}
       {/* Paused for inactivity (IMPL-0014): a plain statement, no call to action; any input reconnects. */}
       {net.status === "idle" && (
         <span className="btn btn--chip env-chip__people" role="status" aria-label={IDLE_NOTICE} title={IDLE_NOTICE}>
-          👥 em pausa
+          <Icon name="users" /> em pausa
         </span>
       )}
       {net.status === "removed" && (
         <span className="btn btn--chip env-chip__people" aria-hidden="true">
-          👥 em pausa
+          <Icon name="users" /> em pausa
         </span>
       )}
       <button
@@ -99,7 +100,7 @@ export function EnvironmentChip() {
         data-tip={skyView ? "Voltar à vista da Vila" : "Olhar o céu"}
       >
         <span className="chip__icon" aria-hidden="true">
-          {skyView ? "🏘️" : "🌌"}
+          <Icon name={skyView ? "village" : "sky"} />
         </span>
       </button>
     </div>
@@ -138,7 +139,7 @@ export function EnvironmentPanel() {
         <strong>
           {pad(c.hour)}:{pad(c.minute)}
         </strong>{" "}
-        · {PHASE_LABEL[f.phase]} · {w.icon} {w.label}
+        · {PHASE_LABEL[f.phase]} · <Icon name={w.icon} /> {w.label}
         {f.events.map((e) => (
           <span key={e.eventId} className="status">
             {EVENT_LABEL[e.kind]}

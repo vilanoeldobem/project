@@ -1,10 +1,10 @@
 /**
  * What the HUD draws at arrival and around the game menu (IMPL-0022), server-side, no browser: no dialog in
- * front of the village, the three paths one press away with their names, one "Menu" button, no zoom buttons
+ * front of the village, the four paths one press away with their names, one "Menu" button, no zoom buttons
  * and no brand, the line that says how to walk only until the first walk (announced once, with the keys of the
- * key map), the account chip with a long nickname or a blocked account, and tooltips only on controls that can
- * be icon-only or whose name is cut. What only a browser can measure (sizes, overlap, what a tooltip covers) is
- * in the rules of `styles.css` that the last tests read.
+ * key map), the account chip with a long nickname or a blocked account, the open-quest tracker, and tooltips
+ * only on controls that can be icon-only or whose name is cut. What only a browser can measure (sizes,
+ * overlap, what a tooltip covers) is in the rules of `styles.css` that the last tests read.
  */
 
 import type { ReactElement } from "react";
@@ -68,7 +68,7 @@ describe("arrival", () => {
   it("keeps the four paths one press away, with their names, inside the navigation", async () => {
     const { hud, PATHS, useVila } = await load();
     const paths = buttons(nav(hud())).filter((b) => b.attributes.includes("data-path="));
-    expect(paths.map((b) => b.text)).toEqual(["🏡Explorar ONGs", "🎲Jogar", "🎄Doação global", "👥Indicar uma ONG"]);
+    expect(paths.map((b) => b.text)).toEqual(["Explorar ONGs", "Jogar", "Doação global", "Indicar uma ONG"]);
     expect(nav(hud())).toMatch(/role="group" aria-label="Caminhos da Vila"/);
     // Each opens the panel it always opened, straight from the village.
     expect(PATHS.map((p) => [p.label, p.panel.kind])).toEqual([
@@ -92,21 +92,21 @@ describe("arrival", () => {
   it("has one coherent navigation: paths, then indicators and the menu", async () => {
     const { hud } = await load();
     expect(buttons(nav(hud())).slice(-6).map((b) => b.text)).toEqual([
-      "🏡Explorar ONGs",
-      "🎲Jogar",
-      "🎄Doação global",
-      "👥Indicar uma ONG",
-      "📊Indicadores",
-      "☰Menu",
+      "Explorar ONGs",
+      "Jogar",
+      "Doação global",
+      "Indicar uma ONG",
+      "Indicadores",
+      "Menu",
     ]);
   });
 
   it("adds the account and, for an administrator, the moderation switch to the same group", async () => {
     const { hud, useAccount } = await load();
     useAccount.setState({ enabled: true, user: null });
-    expect(buttons(nav(hud())).slice(-3).map((b) => b.text)).toEqual(["📊Indicadores", "👤Entrar", "☰Menu"]);
+    expect(buttons(nav(hud())).slice(-3).map((b) => b.text)).toEqual(["Indicadores", "Entrar", "Menu"]);
     useAccount.setState({ enabled: true, user: ADMIN });
-    expect(buttons(nav(hud())).slice(-4).map((b) => b.text)).toEqual(["📊Indicadores", "👤@ana_admin", "🛡️Moderação", "☰Menu"]);
+    expect(buttons(nav(hud())).slice(-4).map((b) => b.text)).toEqual(["Indicadores", "@ana_admin", "Moderação", "Menu"]);
   });
 });
 
@@ -138,7 +138,7 @@ describe("menu button", () => {
     const { hud, useVila } = await load();
     const menu = buttons(hud()).filter((b) => /aria-label="Menu"/.test(b.attributes));
     expect(menu).toHaveLength(1);
-    expect(menu[0].text).toBe("☰Menu");
+    expect(menu[0].text).toBe("Menu");
     expect(menu[0].attributes).toMatch(/aria-haspopup="dialog"/);
     expect(menu[0].attributes).toMatch(/aria-expanded="false"/);
     useVila.getState().openMenu();
@@ -235,7 +235,7 @@ describe("with the menu open", () => {
   it("hides the action button, as with a panel", async () => {
     const { hud, useVila } = await load();
     useVila.setState({ nearby: { kind: "tree" } });
-    expect(hud()).toMatch(/hud__action[^>]*>🎄 Doação global <kbd>E<\/kbd>/);
+    expect(hud()).toMatch(/hud__action[^>]*><svg[^>]*>[\s\S]*?Doação global <kbd>E<\/kbd>/);
     useVila.getState().openMenu();
     expect(hud()).not.toContain("hud__action");
   });
@@ -253,9 +253,9 @@ describe("with the menu open", () => {
 
 describe("the one contextual action, for the places of the expanded village too (IMPL-0024)", () => {
   const PLACES = [
-    { near: { kind: "plot", plotId: "economy-07" }, label: "🏠 Ver terreno residencial", panel: { kind: "plot", plotId: "economy-07" } },
-    { near: { kind: "shop", shopId: "shop-02" }, label: "🎁 Ver loja", panel: { kind: "shop", shopId: "shop-02" } },
-    { near: { kind: "billboard", billboardId: "billboard-02" }, label: "📜 Ler placa", panel: { kind: "billboard", billboardId: "billboard-02" } },
+    { near: { kind: "plot", plotId: "economy-07" }, label: "Ver terreno residencial", panel: { kind: "plot", plotId: "economy-07" } },
+    { near: { kind: "shop", shopId: "shop-02" }, label: "Ver loja", panel: { kind: "shop", shopId: "shop-02" } },
+    { near: { kind: "billboard", billboardId: "billboard-02" }, label: "Ler placa", panel: { kind: "billboard", billboardId: "billboard-02" } },
   ] as const;
   /** Every contextual action button on the page. */
   const actions = (page: string) => buttons(page).filter((b) => b.attributes.includes("hud__action"));
@@ -265,7 +265,9 @@ describe("the one contextual action, for the places of the expanded village too 
     useVila.setState({ nearby: near });
     const page = hud();
     expect(actions(page)).toHaveLength(1);
-    expect(page).toContain(`<button class="btn btn--primary hud__action">${label} <kbd>E</kbd></button>`);
+    expect(page).toMatch(/<button class="btn btn--primary hud__action"><svg /);
+    expect(actions(page)[0].text).toContain(label);
+    expect(actions(page)[0].text).toContain("E");
     // One HUD layer: the temporary button drew a second one beside it.
     expect(page.match(/class="hud"/g)).toHaveLength(1);
     expect(page.indexOf("hud__action")).toBeGreaterThan(page.indexOf('class="hud__bottom"'));
@@ -411,5 +413,58 @@ describe("a short screen (a phone lying down) with the moderation block", () => 
     expect(rule(".modbar, .hud__notice")).toMatch(/min-height: 0;.*overflow-y: auto/);
     // No floor under the block: the old `max(120px, …)` was taller than the room a 320 px high screen leaves.
     expect(rule(".modbar")).not.toMatch(/max-height|120px/);
+  });
+});
+
+describe("open quests", () => {
+  const seen = (...ids: string[]) => Object.fromEntries(ids.map((id) => [`${id}:accept`, true as const]));
+
+  it("tracks two open quests, collapses the rest into +N and counts them on the journal button", async () => {
+    const { hud, useVila } = await load();
+    useVila.setState({
+      progress: { xp: 0, counters: {}, completed: {}, seen: seen("harness-bells", "lake-lanterns", "market-invitations") },
+    });
+    const page = hud();
+    expect(page.match(/class="hud__quest"/g)).toHaveLength(2);
+    expect(page).toContain('aria-label="Missões em andamento"');
+    expect(page).toContain("+1");
+    expect(page).toContain("3 ativas");
+  });
+
+  it("shows a ready quest as Entregar and never stacks more than two bag chips", async () => {
+    const { hud, useVila } = await load();
+    useVila.setState({
+      progress: {
+        xp: 0,
+        counters: {},
+        completed: {},
+        seen: {
+          "harness-bells:accept": true,
+          "harness-bells:bell-pine-north": true,
+          "harness-bells:bell-pine-east": true,
+          ...seen("lake-lanterns", "market-invitations"),
+        },
+      },
+    });
+    const page = hud();
+    expect(page).toContain("Entregar");
+    expect(page.match(/class="hud__quest"/g)).toHaveLength(2);
+  });
+
+  it("guards the tracker title with an ellipsis and a zero width floor", () => {
+    expect(rule(".hud__quest-title")).toContain("text-overflow: ellipsis");
+    expect(rule(".hud__quest-title")).toContain("min-width: 0");
+    expect(rule(".hud__quest")).toContain("min-height: 44px");
+  });
+});
+
+describe("browser surfaces", () => {
+  it("scopes reduced motion, styles selection and caret, and keeps a two-tone focus ring", () => {
+    expect(css).not.toContain("*, *::before, *::after { animation-duration");
+    expect(css).toContain("::selection");
+    expect(css).toContain("caret-color");
+    expect(css).toContain(".hud :focus-visible");
+    expect(css).toContain(".panel :focus-visible");
+    expect(css).toContain("box-shadow: 0 0 0 6px var(--focus-halo)");
   });
 });

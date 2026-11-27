@@ -35,10 +35,7 @@
     "ENVIRONMENT": "production",
     // Accounts, server XP, NGO applications and admin (IMPL-0011). Off until the LGPD / ECA Digital review.
     "ACCOUNTS_ENABLED": "false",
-    // Quests-v1 events (PROPOSTA, DEC-039..042, PEN-025). Off until the owner approves the catalog.
-    "QUESTS_V1_ENABLED": "false",
-    // Story-v2 events (PROPOSTA). Independent of v1; off in production.
-    "QUESTS_V2_ENABLED": "false",
+    // Quests have no flag: they are always on (IMPL-0037).
     // NGO logo and document uploads to R2 (PROPOSTA, IMPL-0017, PEN-019). Off until the owner approves the
     // list of documents and the LGPD review covers them. Needs ACCOUNTS_ENABLED and migration 0006.
     "NGO_FILES_ENABLED": "false",
@@ -91,8 +88,6 @@
         "ENVIRONMENT": "staging",
         "STAGING_ACCOUNT_ACTIONS": "false",
         "ACCOUNTS_ENABLED": "false",
-        "QUESTS_V1_ENABLED": "false",
-        "QUESTS_V2_ENABLED": "false",
         "NGO_FILES_ENABLED": "false",
         "NGO_PHOTOS_ENABLED": "false",
         "NGO_WITHDRAWAL_ENABLED": "false",

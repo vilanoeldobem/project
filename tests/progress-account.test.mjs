@@ -11,10 +11,10 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it("loads the account's 40 XP and active quest when guest progress conflicts, including after reload", async () => {
+it("loads the account's 40 XP and merges a guest accept from another chain, including after reload", async () => {
   const db = createD1();
   const origin = "https://play.example";
-  const env = { DB: db, ALLOWED_ORIGINS: origin, ACCOUNTS_ENABLED: "true", QUESTS_V1_ENABLED: "true" };
+  const env = { DB: db, ALLOWED_ORIGINS: origin, ACCOUNTS_ENABLED: "true" };
   await db.prepare("INSERT INTO users(id,name,nickname,nickname_key,city,email,verified_at) VALUES(?,?,?,?,?,?,?)")
     .bind("owner", "Synthetic player", "player", "player", "Recife", "player@example.invalid", "2026-01-01").run();
   await db.prepare("INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)")
@@ -48,7 +48,6 @@ it("loads the account's 40 XP and active quest when guest progress conflicts, in
   vi.stubGlobal("window", { addEventListener: () => {}, removeEventListener: () => {} });
   vi.stubGlobal("location", { hash: "", search: "", hostname: "play.example", pathname: "/" });
   vi.stubGlobal("fetch", transport);
-  vi.stubEnv("VITE_QUESTS_V1_ENABLED", "true");
 
   for (let load = 0; load < 2; load++) {
     vi.resetModules();
@@ -60,9 +59,9 @@ it("loads the account's 40 XP and active quest when guest progress conflicts, in
     expect(useVila.getState().progressOwner).toBe("owner");
     expect(useVila.getState().progress.xp).toBe(40);
     expect(useVila.getState().progress.seen["harness-bells:accept"]).toBe(true);
-    expect(useVila.getState().progress.seen["lake-lanterns:accept"]).toBeUndefined();
+    expect(useVila.getState().progress.seen["lake-lanterns:accept"]).toBe(true);
     expect(storage.has("vila.pending.v1:owner")).toBe(false);
   }
   expect(requests.filter((r) => r.path === "/progress/events").map((r) => r.status)).toEqual([200, 200]);
-  expect(db.sql("SELECT mission_id FROM progress_events ORDER BY rowid").map((r) => r.mission_id)).toEqual(["play-memory", "harness-bells"]);
+  expect(db.sql("SELECT mission_id FROM progress_events ORDER BY rowid").map((r) => r.mission_id)).toEqual(["play-memory", "harness-bells", "lake-lanterns"]);
 });

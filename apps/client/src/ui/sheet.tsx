@@ -17,7 +17,7 @@ export function SheetSection({
   children,
 }: {
   n?: number;
-  icon?: string;
+  icon?: ReactNode;
   title: string;
   aside?: ReactNode;
   children: ReactNode;
@@ -97,7 +97,7 @@ export function SheetNotice({
   children,
 }: {
   tone?: "info" | "pending" | "done";
-  icon?: string;
+  icon?: ReactNode;
   children: ReactNode;
 }) {
   return (

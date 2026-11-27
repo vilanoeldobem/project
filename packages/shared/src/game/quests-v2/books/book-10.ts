@@ -1,6 +1,7 @@
 /** Book X, A Próxima Noite (session 10): 33 narrative entries, 12 milestones, world and six cosmetics. */
 import { footprint, type Collider } from "../../collision";
 import type { Cosmetic } from "../../cosmetics";
+import { seatPoint } from "../seats";
 import type { Milestone, StoryInteraction, StoryNpc, StoryQuest, StorySpawn, WorldStateId } from "../types";
 import { NPCS as NPCS_B01 } from "./book-01";
 import { NPCS as NPCS_B02 } from "./book-02";
@@ -1204,7 +1205,7 @@ export const INTERACTIONS: StoryInteraction[] = [
   { id: "b10-c1-01-talk-vigia", questId: "b10-c1-01", objectId: "none", ...pt(AT.vigia), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "vigia", label: "Falar com a Vigia", done: "A Vigia contou as horas perdidas e abriu a Torre." },
   { id: "b10-c1-03-right-hour", questId: "b10-c1-03", objectId: "lost-hour", ...pt(SPOT.a), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Escolher a hora certa com Horácio", done: "A hora certa está no relógio. Não é a hora de partir, é a hora de esperar juntos. O futuro começa a se abrir." },
   { id: "b10-c1-04-tower", questId: "b10-c1-04", objectId: "time-gear", ...pt(SPOT.b), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Visitar a Torre com a Vigia e Dona Guida", done: "A Torre mostrou a próxima hora e a Vigia sorriu. O futuro não está escrito, mas está aberto para quem lembra." },
-  { id: "b10-c2-01-talk-nina", questId: "b10-c2-01", objectId: "none", ...pt(AT.nina), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina separou as vozes do coro e chamou as crianças." },
+  { id: "b10-c2-01-talk-nina", questId: "b10-c2-01", objectId: "none", ...seatPoint("nina"), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina separou as vozes do coro e chamou as crianças." },
   { id: "b10-c2-02-talk-criancas", questId: "b10-c2-02", objectId: "none", ...pt(AT.criancas), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "criancas", label: "Falar com as crianças", done: "As crianças contaram o plano da vigília." },
   { id: "b10-c2-04-coro", questId: "b10-c2-04", objectId: "none", ...pt(SPOT.v2), radius: GAME_RADIUS, book: 10, kind: "minigame", npcId: "nina", label: "Jogar Coro dos Nomes", done: "A canção da vigília está pronta. As crianças cantaram baixinho e a praça ouviu." },
   { id: "b10-c3-01-read", questId: "b10-c3-01", objectId: "small-notebook", ...pt(SPOT.a), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Ler a primeira promessa com Tomás", done: "A primeira promessa continua de pé. Dona Guida leu em voz alta e a Vila inteira pareceu escutar." },
@@ -1218,9 +1219,9 @@ export const INTERACTIONS: StoryInteraction[] = [
   { id: "b10-r1-05-talk-guida", questId: "b10-r1-05", objectId: "none", ...pt(AT.storyteller), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "storyteller", label: "Falar com Dona Guida", done: "Dona Guida contou a história das primeiras horas." },
   { id: "b10-r1-05-talk-horacio", questId: "b10-r1-05", objectId: "none", ...pt(AT.horacio), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "horacio", label: "Falar com Horácio", done: "Horácio apontou o relógio de areia mais antigo que a Torre." },
   { id: "b10-r1-07-fio", questId: "b10-r1-07", objectId: "none", ...pt(SPOT.b), radius: GAME_RADIUS, book: 10, kind: "minigame", npcId: "horacio", label: "Jogar Fio do Tempo", done: "O fio passou pela última hora e o relógio voltou a respirar. O tempo novo pode começar." },
-  { id: "b10-r2-01-talk-nina", questId: "b10-r2-01", objectId: "none", ...pt(AT.nina), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina mostrou o que a nova geração quer acender." },
+  { id: "b10-r2-01-talk-nina", questId: "b10-r2-01", objectId: "none", ...seatPoint("nina"), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "nina", label: "Falar com Nina", done: "Nina mostrou o que a nova geração quer acender." },
   { id: "b10-r2-03-lesson", questId: "b10-r2-03", objectId: "small-notebook", ...pt(SPOT.v2), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Ouvir a primeira lição com Dona Guida", done: "As crianças ouviram a praça e a primeira lição ficou clara. Ninguém precisa falar o tempo todo." },
-  { id: "b10-r2-04-talk-lia", questId: "b10-r2-04", objectId: "none", ...pt(AT.lia), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "lia", label: "Falar com Lia", done: "Lia mostrou como a criança canta com as mãos." },
+  { id: "b10-r2-04-talk-lia", questId: "b10-r2-04", objectId: "none", ...seatPoint("lia"), radius: TALK_RADIUS, book: 10, kind: "talk", npcId: "lia", label: "Falar com Lia", done: "Lia mostrou como a criança canta com as mãos." },
   { id: "b10-r2-05-vigil", questId: "b10-r2-05", objectId: "short-candle", ...pt(SPOT.v1), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Começar a vigília com Dona Guida", done: "A vigília começou e a praça está acesa. As crianças olharam a noite sem medo." },
   { id: "b10-r2-06-song", questId: "b10-r2-06", objectId: "small-notebook", ...pt(SPOT.v3), radius: PROP_RADIUS, book: 10, kind: "prop", label: "Criar a canção nova com Nina", done: "A letra está pronta e a canção tem a voz das crianças. A noite já sabe o que vai ouvir." },
   { id: "b10-r2-07-coro", questId: "b10-r2-07", objectId: "none", ...pt(SPOT.v2), radius: GAME_RADIUS, book: 10, kind: "minigame", npcId: "criancas", label: "Jogar Coro dos Nomes", done: "Nós cantamos a canção nova e a praça respondeu. A noite das crianças começou." },

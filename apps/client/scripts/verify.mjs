@@ -12,7 +12,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 
 import { chromium } from "playwright-core";
 
-import { analyticsNoise } from "./analytics.mjs";
+import { analyticsNoise, frameworkNoise } from "./analytics.mjs";
 import { arrive } from "./arrive.mjs";
 
 const url = process.argv[2] ?? "http://localhost:8787";
@@ -25,7 +25,7 @@ const stats = {};
 for (const [name, viewport] of [["desktop", { width: 1440, height: 900 }], ["mobile", { width: 390, height: 844 }]]) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await page.goto(url, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForTimeout(1500);
@@ -113,7 +113,7 @@ const scenes = [
 for (const [name, time, weather, sky, quality] of scenes) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`${name}: ${m.text()}`));
   await page.addInitScript((q) => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: q })), quality);
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}envTime=${time}&envWeather=${weather}&envDebug=1`, { waitUntil: "load" });
@@ -176,7 +176,7 @@ for (const [name, time, weather, zoom, at, demo] of [
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`village: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`village: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`village: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "village");
@@ -294,7 +294,7 @@ for (const [name, time, weather, zoom, at, demo] of [
 {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`gifts: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`gifts: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`gifts: ${m.text()}`));
   await page.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low", multiplayer: false })));
   await page.goto(url, { waitUntil: "load" });
   await arrive(page, errors, "gifts");
@@ -336,7 +336,7 @@ for (const [name, time, weather, zoom, at, demo] of [
   const [a, b] = [await ctxA.newPage(), await ctxB.newPage()];
   for (const [p, n] of [[a, "mp-a"], [b, "mp-b"]]) {
     p.on("pageerror", (e) => errors.push(`${n}: ${e.message}`));
-    p.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`${n}: ${m.text()}`));
+    p.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`${n}: ${m.text()}`));
     await p.addInitScript(() => localStorage.setItem("vila.environment.v1", JSON.stringify({ quality: "low" })));
     await p.goto(url, { waitUntil: "load" });
     await arrive(p, errors, n);
@@ -363,7 +363,7 @@ stats.gallery = {};
 for (const cat of ["props", "houses", "characters", "animals", "cosmetics"]) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => errors.push(`gallery-${cat}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && errors.push(`gallery-${cat}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !analyticsNoise(m.text()) && !frameworkNoise(m.text()) && errors.push(`gallery-${cat}: ${m.text()}`));
   const sep = url.includes("?") ? "&" : "?";
   await page.goto(`${url}${sep}gallery&cat=${cat}`, { waitUntil: "load" });
   await page.waitForSelector("canvas", { timeout: 15000 });

@@ -1,13 +1,10 @@
 import { useEffect } from "react";
 
-import { activeInventory, questState } from "@vila/shared/game/quests";
-import { activeInventoryIn, activeQuestIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
+import { activeInventoryIn, activeQuestsIn, catalogFor, questProgressIn, questStateIn } from "@vila/shared/game/quests-v2/catalog";
 import { minigameForInteraction } from "@vila/shared/game/quests-v2/minigames";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 import { NPCS, QUEST_INTERACTIONS, SITES } from "@vila/shared/game/world";
 import { lifeAction, lifePanel } from "../game/village-life";
-import { questsEnabled, useQuestsEnabled } from "../game/questsFlag";
-import { questsV2Enabled, useQuestsV2Enabled } from "../game/questsV2Flag";
 import { storyInteractionFor } from "../game/story-games";
 import { type Nearby, type Panel, TOAST_MS, useVila } from "../game/store";
 import { useAccount } from "../lib/account";
@@ -16,44 +13,66 @@ import { boundAction, heldOnControl, hudKeyAction, isTextField, KEY_BINDINGS } f
 import { moderating, useModeration } from "../lib/moderation";
 import { AccountChip } from "./Account";
 import { EnvironmentChip, RemovedNotice } from "./Environment";
+import { Icon, type IconName } from "./icons";
 import { XpBar } from "./Missions";
 import { ModerationBar, ModerationChip } from "./Moderation";
 import { BrandMark } from "./BrandMark";
 
 /** Copy of each quest interaction, by `QUEST_INTERACTIONS` id (PROPOSTA quests-v1). */
 const INTERACTION_COPY: Record<string, { label: string; done: string }> = {
-  "mailbox-open": { label: "📬 Abrir a caixa", done: "Caixa de correio destrancada! Volte a Seu Nivaldo." },
-  "sled-ride": { label: "🛷 Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
-  "bough-ribbon": { label: "📬 Soltar o laço", done: "Laço solto! Volte a Dona Guida." },
+  "mailbox-open": { label: "Abrir a caixa", done: "Caixa de correio destrancada! Volte a Seu Nivaldo." },
+  "sled-ride": { label: "Dar uma volta", done: "Você deu uma volta no trenó pequeno! Volte a Aurora." },
+  "bough-ribbon": { label: "Soltar o laço", done: "Laço solto! Volte a Dona Guida." },
 };
 
-/** Contextual action label: symbol + words, never colour alone (PROPOSTA quests-v1; places of IMPL-0024). */
+/** Contextual action label: words only, with the icon drawn beside them (PROPOSTA quests-v1; IMPL-0024). */
 export function actionLabel(nearby: NonNullable<Nearby>, readActive: boolean): string {
   switch (nearby.kind) {
     case "npc":
-      return `💬 Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? STORY_WORLD.npcs.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
+      return `Falar com ${NPCS.find((n) => n.id === nearby.npcId)?.name ?? STORY_WORLD.npcs.find((n) => n.id === nearby.npcId)?.name ?? "morador"}`;
     case "quest": {
       const story = STORY_WORLD.interactions.find((i) => i.id === nearby.interactionId);
       return INTERACTION_COPY[nearby.interactionId]?.label ?? story?.label ?? "Interagir";
     }
     case "donation-panel":
-      return readActive ? "📖 Ler a promessa" : "🎄 Doação global";
+      return readActive ? "Ler a promessa" : "Doação global";
     case "tree":
-      return "🎄 Doação global";
+      return "Doação global";
     case "lot":
-      return "🏡 Ver terreno";
+      return "Ver terreno";
     case "plot":
-      return "🏠 Ver terreno residencial";
+      return "Ver terreno residencial";
     case "shop":
-      return "🎁 Ver loja";
+      return "Ver loja";
     case "billboard":
-      return "📜 Ler placa";
+      return "Ler placa";
     case "site": {
       const site = SITES.find((x) => x.id === nearby.siteId);
-      return site?.use === "park" ? "🌲 Ver parque" : site?.use === "square" ? "⛲ Ver praça" : "🏛️ Ver prédio";
+      return site?.use === "park" ? "Ver parque" : site?.use === "square" ? "Ver praça" : "Ver prédio";
     }
     case "life":
-      return `💬 ${lifeAction(nearby.charId) ?? "Conversar"}`;
+      return lifeAction(nearby.charId) ?? "Conversar";
+  }
+}
+
+/** The glyph of the contextual action: one shape per kind, so the button reads without colour or emoji. */
+export function actionIcon(nearby: NonNullable<Nearby>, readActive: boolean): IconName {
+  switch (nearby.kind) {
+    case "npc":
+    case "life":
+      return "speech";
+    case "quest":
+    case "billboard":
+      return "book";
+    case "donation-panel":
+      return readActive ? "book" : "gift";
+    case "tree":
+    case "shop":
+      return "gift";
+    case "lot":
+    case "plot":
+    case "site":
+      return "village";
   }
 }
 
@@ -79,8 +98,7 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
         return;
       }
       const progress = useVila.getState().progress;
-      const active = activeQuestIn(catalogFor(questsEnabled(), questsV2Enabled()), progress);
-      const story = storyInteractionFor(n.interactionId, active?.id);
+      const story = storyInteractionFor(n.interactionId, catalogFor(true, true), progress);
       if (!story) return;
       if (story.kind === "talk") {
         if (story.npcId) vila.open({ kind: "npc", npcId: story.npcId });
@@ -131,11 +149,11 @@ export function activate(n: NonNullable<Nearby>, vila: Pick<ReturnType<typeof us
  * The three paths of the arrival (P01, DEC-008): on the HUD from the first second, with their names, one press
  * away and with no modal in front of them (PROPOSTA, IMPL-0022). Each opens the panel it always opened.
  */
-export const PATHS: ReadonlyArray<{ id: string; icon: string; label: string; panel: Panel; primary?: boolean }> = [
-  { id: "explore", icon: "🏡", label: "Explorar ONGs", panel: { kind: "explore" } },
-  { id: "play", icon: "🎲", label: "Jogar", panel: { kind: "games" } },
-  { id: "donation", icon: "🎄", label: "Doação global", panel: { kind: "donation" } },
-  { id: "invite", icon: "👥", label: "Indicar uma ONG", panel: { kind: "invite" }, primary: true },
+export const PATHS: ReadonlyArray<{ id: string; icon: IconName; label: string; panel: Panel; primary?: boolean }> = [
+  { id: "explore", icon: "village", label: "Explorar ONGs", panel: { kind: "explore" } },
+  { id: "play", icon: "play", label: "Jogar", panel: { kind: "games" } },
+  { id: "donation", icon: "gift", label: "Doação global", panel: { kind: "donation" } },
+  { id: "invite", icon: "users", label: "Indicar uma ONG", panel: { kind: "invite" }, primary: true },
 ];
 
 /** One zoom key press: 15% closer or farther. */
@@ -143,9 +161,10 @@ const ZOOM_STEP = 1.15;
 
 /**
  * Fixed HUD (IMPL-0022). Top: what is happening now (time, weather, visitors, sky view) and one navigation
- * group (the three paths, then indicators, account, moderation and the menu). Below it: mission bag and
- * notices. Bottom: the contextual action and the mission tracker. The centre of the screen stays clear. There
- * is no brand and there are no zoom buttons here: zoom is the wheel, the pinch and the + / - keys.
+ * group (the four paths, then indicators, account, moderation and the menu). Below it: mission bag and
+ * notices. Bottom: the open-quest tracker, the contextual action and the journal button. The centre of the
+ * screen stays clear. There is no brand and there are no zoom buttons here: zoom is the wheel, the pinch and
+ * the + / - keys.
  */
 export function Hud() {
   const open = useVila((s) => s.open);
@@ -154,13 +173,12 @@ export function Hud() {
   const idle = useVila((s) => s.panel.kind === "none" && s.menu === null);
   const menuOpen = useVila((s) => s.menu !== null);
   const progress = useVila((s) => s.progress);
-  const quests = useQuestsEnabled();
-  const quests2 = useQuestsV2Enabled();
-  const catalog = catalogFor(quests, quests2);
+  const catalog = catalogFor(true, true);
+  const active = activeQuestsIn(catalog, progress);
   const done = catalog.quickMissions.filter((m) => progress.completed[m.id]).length;
   const toast = useVila((s) => s.toast);
-  const readActive = quests && questState(progress, "donation-promise-reading") === "active";
-  const bag = quests2 ? activeInventoryIn(catalog, progress) : quests ? activeInventory(progress) : [];
+  const readActive = questStateIn(catalog, progress, "donation-promise-reading") === "active";
+  const bag = activeInventoryIn(catalog, progress);
   const zoomBy = useVila((s) => s.zoomBy);
   const user = useAccount((s) => s.user);
   const moderationOn = useModeration((s) => s.on);
@@ -203,7 +221,7 @@ export function Hud() {
             {PATHS.map((path) => (
               <button key={path.id} className={`btn btn--chip${path.primary ? " btn--primary" : ""}`} data-path={path.id} onClick={() => open(path.panel)}>
                 <span className="chip__icon" aria-hidden="true">
-                  {path.icon}
+                  <Icon name={path.icon} />
                 </span>
                 <span className="chip__label">{path.label}</span>
               </button>
@@ -212,7 +230,7 @@ export function Hud() {
           <div className="hud__group hud__system" role="group" aria-label="Indicadores, conta e menu">
             <button className="btn btn--chip chip--wide" onClick={() => open({ kind: "indicators" })} aria-label="Indicadores" data-tip="Indicadores">
               <span className="chip__icon" aria-hidden="true">
-                📊
+                <Icon name="chart" />
               </span>
               <span className="chip__label">Indicadores</span>
             </button>
@@ -220,7 +238,7 @@ export function Hud() {
             <ModerationChip />
             <button className="btn btn--chip" onClick={openMenu} aria-label="Menu" aria-haspopup="dialog" aria-expanded={menuOpen} data-tip="Menu" data-menu="open">
               <span className="chip__icon" aria-hidden="true">
-                ☰
+                <Icon name="menu" />
               </span>
               <span className="chip__label">Menu</span>
             </button>
@@ -232,11 +250,12 @@ export function Hud() {
         <div className="hud__info">
           {bag.length > 0 && (
             <div className="hud__bag" role="status" aria-label="Bolsa de missão">
-              {bag.map((item) => (
+              {bag.slice(0, 2).map((item) => (
                 <span key={item.questId}>
                   {item.name} {item.count}/{item.target}
                 </span>
               ))}
+              {bag.length > 2 && <span>+{bag.length - 2}</span>}
             </div>
           )}
           <RemovedNotice />
@@ -249,16 +268,41 @@ export function Hud() {
         <MoveHint visible={idle && !nearby && !moderation} />
         {idle && nearby && (
           <button className="btn btn--primary hud__action" onClick={() => activate(nearby)}>
-            {actionLabel(nearby, readActive)} <kbd>E</kbd>
+            <Icon name={actionIcon(nearby, readActive)} /> {actionLabel(nearby, readActive)} <kbd>E</kbd>
           </button>
         )}
+        {active.length > 0 && (
+          <div className="hud__quests" role="group" aria-label="Missões em andamento">
+            {active.slice(0, 2).map((quest) => {
+              const state = questStateIn(catalog, progress, quest.id);
+              const ready = state === "ready_to_turn_in";
+              const { count, target } = questProgressIn(catalog, progress, quest.id);
+              return (
+                <button
+                  key={quest.id}
+                  className="hud__quest"
+                  data-state={state}
+                  onClick={() => open({ kind: "missions" })}
+                  aria-label={`Abrir missão: ${quest.title}`}
+                >
+                  <Icon name={ready ? "arrow" : "in-progress"} />
+                  <span className="hud__quest-title">{quest.title}</span>
+                  <span className="hud__quest-count">{ready ? "Entregar" : `${count}/${target}`}</span>
+                  {!ready && (
+                    <span className="hud__quest-bar">
+                      <span style={{ width: `${Math.min(100, (count / target) * 100)}%` }} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {active.length > 2 && <span className="hud__quest-more">+{active.length - 2}</span>}
+          </div>
+        )}
         <button className="hud__missions" onClick={() => open({ kind: "missions" })} aria-label="Abrir Caderno de Missões">
-          <span className="star" aria-hidden="true">
-            ★
-          </span>
-          <span>
-            Missões {done}/{catalog.quickMissions.length}
-          </span>
+          <Icon name="star" />
+          <span className="hud__missions-label">Missões</span>
+          <span className="hud__missions-count">{active.length > 0 ? `${active.length} ativas` : `${done}/${catalog.quickMissions.length}`}</span>
           <XpBar compact />
         </button>
       </div>

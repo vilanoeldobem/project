@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EMPTY_PROGRESS, levelOf, MISSIONS, type Progress } from "@vila/shared/game/progress";
-import { catalogFor, STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
+import { levelOf, MISSIONS, type Progress } from "@vila/shared/game/progress";
+import { STORY_CATALOG } from "@vila/shared/game/quests-v2/catalog";
 import type { StoryCatalog, StoryQuest } from "@vila/shared/game/quests-v2/types";
 import { createD1 } from "../test/d1.mjs";
 import { handleApi, type Env } from "./api";
@@ -39,7 +39,7 @@ function pauseNextBatch() {
 
 beforeEach(async () => {
   db = createD1();
-  env = { DB: db, ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true", QUESTS_V1_ENABLED: "true" };
+  env = { DB: db, ALLOWED_ORIGINS: ORIGIN, ACCOUNTS_ENABLED: "true" };
   for (const id of ["owner", "other"]) {
     await db.prepare("INSERT INTO users(id,name,nickname,nickname_key,city,email,verified_at) VALUES(?,?,?,?,?,?,?)")
       .bind(id, id, id, id, "Recife", `${id}@example.invalid`, "2026-01-01").run();
@@ -124,15 +124,18 @@ describe("saved progress across sessions", () => {
     expect(db.sql("SELECT event_id FROM progress_events ORDER BY created_at,rowid").map((r) => r.event_id)).toEqual(["accept", "bell-pine-north"]);
   });
 
-  it("does not persist two competing active quests from the same stale snapshot", async () => {
+  it("persists two accepts of different chains written concurrently", async () => {
     const gate = pauseNextBatch();
     const delayed = post([quest("accept")]);
     await gate.entered;
     try { expect((await post([quest("accept", "lake-lanterns")], "owner-two")).status).toBe(200); }
     finally { gate.release(); }
     expect((await delayed).status).toBe(200);
-    expect(db.sql("SELECT mission_id FROM progress_events")).toEqual([{ mission_id: "lake-lanterns" }]);
-    expect((await progress()).seen).toEqual({ "lake-lanterns:accept": true });
+    expect(db.sql("SELECT mission_id FROM progress_events ORDER BY mission_id")).toEqual([
+      { mission_id: "harness-bells" },
+      { mission_id: "lake-lanterns" },
+    ]);
+    expect((await progress()).seen).toEqual({ "harness-bells:accept": true, "lake-lanterns:accept": true });
   });
 
   it("revalidates simultaneous distinct objectives and awards completion XP only once", async () => {
@@ -253,38 +256,21 @@ describe("quests-v2 planner", () => {
     expect(known["v2-test"]).toEqual(new Set(["accept", "turn-in", "v2-event"]));
   });
 
-  it("skips a valid v2 event while the v2 flag is off", () => {
-    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "v2-test", eventId: "accept" }], { v1: true, v2: false });
-    expect(progress).toEqual(EMPTY_PROGRESS);
-    expect(planned.size).toBe(0);
-  });
-
-  it("applies the same v2 event while the v2 flag is on", () => {
-    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "v2-test", eventId: "accept" }], { v1: true, v2: true });
+  it("applies a valid v2 accept", () => {
+    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "v2-test", eventId: "accept" }]);
     expect(progress.seen["v2-test:accept"]).toBe(true);
     expect(planned.size).toBe(1);
   });
 
-  it("skips a v1 quest while the v1 flag is off and still stores a quick mission", () => {
-    const { progress, planned } = planProgress(
-      v2Catalog,
-      [],
-      [{ missionId: "play-memory", eventId: "win" }],
-      { v1: false, v2: true }
-    );
+  it("stores a quick mission next to the quest events", () => {
+    const { progress, planned } = planProgress(v2Catalog, [], [{ missionId: "play-memory", eventId: "win" }]);
     expect(progress.completed["play-memory"]).toBe(true);
     expect(planned.size).toBe(1);
   });
 
-  it("keeps the v2 epilogue behind b05-c3-04 for new events", () => {
-    const { progress, planned } = planProgress(
-      STORY_CATALOG,
-      [],
-      [{ missionId: "harness-bells", eventId: "accept" }],
-      { v1: true, v2: true },
-      catalogFor(true, true)
-    );
-    expect(progress.seen["harness-bells:accept"]).toBeUndefined();
+  it("keeps a dependent quest behind its prerequisite for new events", () => {
+    const { progress, planned } = planProgress(STORY_CATALOG, [], [{ missionId: "bough-ribbon", eventId: "accept" }]);
+    expect(progress.seen["bough-ribbon:accept"]).toBeUndefined();
     expect(planned.size).toBe(0);
   });
 

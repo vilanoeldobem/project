@@ -1,29 +1,23 @@
 # Story v2: runtime e catálogo
 
-> **Status:** PROPOSTA, atrás de flags e desligada em produção; runtime, os dez livros (PRs #79 a #88), o epílogo,
+> **Status:** PROPOSTA, sempre ligada desde a IMPL-0037; runtime, os dez livros (PRs #79 a #88), o epílogo,
 > o pós-jogo e os minijogos implementados; fatias 13 e 14 fechadas; lacunas de marcos e props de estado em §7.
 > **Atualizado em:** 2026-11-26. **Fonte de verdade:** `packages/shared/src/game/quests-v2/`, `packages/shared/src/game/cosmetics-v2.ts`,
-> `apps/client/src/game/questsV2Flag.ts`, `apps/api/src/progress.ts`; o epílogo continua em
-> [quests.md](quests.md) e `quests.ts`.
+> `apps/api/src/progress.ts`; o epílogo continua em [quests.md](quests.md) e `quests.ts`.
 
 O runtime v2 permite que dez livros sejam implementados em paralelo e um epílogo/pós-jogo feche a saga. Nenhum livro
 edita arquivos compartilhados: cada um preenche o próprio módulo, a própria pasta de conteúdo, os próprios props e os
 próprios cosméticos. O spine não escreve história.
 
-## 1. Bandeiras
+## 1. Sem bandeira
 
-| Lado | Chave | Efeito |
-|---|---|---|
-| Cliente | `VITE_QUESTS_V2_ENABLED=true` no build | Liga o lado da página da v2 |
-| Cliente | `?quests2=1` em localhost/desenvolvimento | O mesmo, para verificação local |
-| Cliente | `pnpm dev:story` | Sobe cliente, API e servidor locais com a v2 e o epílogo v1 ligados, sem parâmetro na URL |
-| API | `QUESTS_V2_ENABLED=true` | Aceita eventos v2; em produção e homologação é `false` |
-| API | `GET /config` → `questsV2` | O cliente só liga a v2 se a página e a API concordarem |
+Não há chave para ligar nem desligar a v2: o cliente monta os livros, o mundo e o Caderno em qualquer build, e a API
+aceita os eventos conhecidos sem consultar `wrangler.jsonc` (IMPL-0037). O epílogo v1 deixou de esperar o livro V
+(`b05-c3-04`): as cadeias do epílogo e as dos livros ficam disponíveis ao mesmo tempo. Os parâmetros `?quests=1` e
+`?quests2=1` que aparecem em scripts antigos são inofensivos e já não mudam nada.
 
-As duas bandeiras da v2 são independentes de `QUESTS_V1_ENABLED` / `VITE_QUESTS_V1_ENABLED`. O epílogo continua
-exigindo as duas bandeiras v1; a saga principal é jogável até o último quest sem a bandeira v1. Enquanto `/config`
-não responde, ou se a API está fora do ar, a v2 fica desligada. Com a v2 desligada, eventos v2 são ignorados pela API
-e não são enfileirados pelo cliente; ids desconhecidos continuam `400 bad_events`.
+Ids desconhecidos continuam `400 bad_events`. Sem conexão com a API, o progresso de convidado fica neste navegador e
+é enviado quando a sessão entra (seção 9 de [quests.md](quests.md)).
 
 ## 2. Contagens e XP
 
@@ -53,21 +47,24 @@ mantém os 18 ids do epílogo e o teste detecta o estado real do `quests.ts`.
 | `quests-v2/states.ts` | seletores puros de estado de mundo derivados de `Progress` |
 | `cosmetics-v2.ts` | prefixo v1 + 60 cosméticos dos livros; avatar, provador e presença usam o catálogo unido |
 
-As funções `questStateIn`, `activeQuestIn`, `canAcceptIn`, `questProgressIn`, `activeInventoryIn` e `applyEventIn`
-recebem o catálogo. Nenhuma delas importa o catálogo v1 fixo. O motor mantém uma missão ativa por vez, pré-requisitos,
-`accept`, objetivos e `turn-in`, com XP só na entrega.
+As funções `questStateIn`, `activeQuestsIn`, `canAcceptIn`, `questProgressIn`, `activeInventoryIn` e `applyEventIn`
+recebem o catálogo. Nenhuma delas importa o catálogo v1 fixo. O motor mantém **quantas missões estiverem aceitas**
+(`activeQuestsIn`), com pré-requisitos por cadeia, `accept`, objetivos e `turn-in`, e XP só na entrega; aceitar uma
+missão de outra cadeia não exige concluir a anterior. O elenco que morava na praça tem assento em
+`quests-v2/seats.ts`: o `x`/`z` de cada interação `talk` segue o seu NPC.
 
 ## 4. Mundo e UI
 
 O mundo v1 (`world.ts`) não muda. `STORY_WORLD` contém apenas os livros; `ALL_WORLD` é a união usada pela UI e pelo
 verificador. `StoryProps.tsx` desenha os NPCs v2 em uma malha agregada, os itens ativos e os props de interação. Os
-rótulos vêm de `npc-markers.ts` e leem o mesmo catálogo do diálogo (`catalogFor`), inclusive o portão `b05-c3-04`; um
-NPC v1 repetido por um livro é desenhado uma vez. Usam `?` para pronto, `!` para disponível, `...` para em andamento e
-o nome sozinho para conversa neutra; o sinal nunca depende de cor.
+rótulos vêm de `npc-markers.ts` e leem o mesmo catálogo do diálogo (`catalogFor`); um NPC v1 repetido por um livro é
+desenhado uma vez. Usam `?` para pronto, `!` para disponível, `...` para em andamento e o nome sozinho para conversa
+neutra; o sinal nunca depende de cor.
 
-`Missions.tsx` e `NpcDialog.tsx` recebem catálogo, mundo e progresso por prop; sem as flags, continuam exibindo o
-comportamento v1. O diário separa principal, regional, secundária, epílogo, pós-jogo e marcos, e mostra o próximo
-passo. O jogador não vê uma entrada de livro enquanto o módulo daquele livro estiver vazio.
+`Missions.tsx` e `NpcDialog.tsx` recebem catálogo, mundo e progresso por prop. O diário lista **todas** as missões
+abertas em cartões, mostra o próximo passo, agrupa as cadeias em blocos recolhíveis e separa principal, regional,
+secundária, epílogo, pós-jogo e marcos. O jogador não vê uma entrada de livro enquanto o módulo daquele livro estiver
+vazio.
 
 ## 5. API e dados
 

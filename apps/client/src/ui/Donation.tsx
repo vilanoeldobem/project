@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 import { questState } from "@vila/shared/game/quests";
-import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { useAccount } from "../lib/account";
 import { fetchGlobalDonationConfig, type DonationConfig } from "../lib/api";
@@ -32,7 +31,7 @@ export function Donation() {
       live = false;
     };
   }, [donations]);
-  const reading = useQuestsEnabled() ? questState(progress, "donation-promise-reading") : "locked";
+  const reading = questState(progress, "donation-promise-reading");
   const global = config?.global;
   return (
     <Panel kicker="Praça da Vila" title="Doação global">
