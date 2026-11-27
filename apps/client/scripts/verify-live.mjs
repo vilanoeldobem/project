@@ -9,7 +9,7 @@
  *     ("Entrar na Vila") is back: the visitor lands in the village (IMPL-0022);
  *   - one of the three paths (Explorar ONGs, Jogar, Doação global) is not on the HUD at arrival;
  *   - anything is written to the console as an error (CSP violations included) or a request fails;
- *   - the presence chip ("👥 …") does not show, or the realtime server sent nothing over the
+ *   - the presence chip ("… conexões nesta praça agora") does not show, or the realtime server sent nothing over the
  *     WebSocket (opening a socket is not enough: the room must answer);
  *   - the account chip of the HUD is shown although the API says accounts are off, or missing although they are on.
  *
@@ -46,12 +46,12 @@ await arrive(page, errors, "arrival");
 for (const path of ["Explorar ONGs", "Jogar", "Doação global"]) {
   if (!(await page.getByRole("button", { name: path, exact: true }).isVisible())) errors.push(`path "${path}" is not on the HUD at arrival`);
 }
-const chip = page.getByText(/👥/).first();
+const chip = page.locator(".env-chip__people").first();
 await chip.waitFor({ timeout: 20000 }).catch(() => errors.push("no presence chip in the village"));
+const presence = await chip.getAttribute("aria-label").catch(() => null);
 // Late requests (analytics, presence) still count.
 await page.waitForTimeout(5000);
 if (!sockets.length) errors.push("the realtime server sent nothing over the WebSocket");
-const text = await page.locator("body").innerText();
 // The HUD chip of accounts: "Entrar ou criar conta" signed out, "Sua conta: …" signed in (apps/client/src/ui/Account.tsx).
 const accountChip = await page.getByRole("button", { name: /^(Entrar ou criar conta|Sua conta: .+)$/ }).count();
 if (config.accounts !== true && accountChip) errors.push("the account chip is shown although the API has accounts off");
@@ -65,4 +65,4 @@ if (errors.length) {
   for (const e of unique) console.error(`- ${e}`);
   process.exit(1);
 }
-console.log(`ok — ${url}: presence "${text.match(/👥[^\n]*/)?.[0] ?? "?"}", accounts ${config.accounts === true ? "on" : "off"}; screenshot in ${out}live.png`);
+console.log(`ok — ${url}: presence "${presence ?? "?"}", accounts ${config.accounts === true ? "on" : "off"}; screenshot in ${out}live.png`);
