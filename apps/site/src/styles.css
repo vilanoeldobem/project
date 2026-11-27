@@ -263,11 +263,12 @@ button {
 }
 
 /*
- * On the deep-pine masthead the light-theme ring (#8F5F02) is only 2.3:1. Rings drawn over the
- * masthead use the gold accent in both themes (#E4B863: 6.8:1 light, 9.6:1 dark). The skip link
- * lands on top of the masthead, so its ring follows the same rule.
+ * On the deep-pine masthead and footer the light-theme ring (#8F5F02) is only 2.3:1. Rings drawn
+ * over those surfaces use the gold accent in both themes (#E4B863: 6.8:1 light, 9.6:1 dark). The
+ * skip link lands on top of the masthead, so its ring follows the same rule.
  */
 .top :focus-visible,
+.footer :focus-visible,
 .skip-link:focus-visible {
   outline-color: var(--accent-gold);
 }
@@ -388,15 +389,20 @@ button {
 .nav-link {
   display: inline-flex;
   align-items: center;
-  flex: none;
+  justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   min-height: 44px;
   padding-inline: var(--space-3);
   border-radius: var(--radius-sm);
   color: var(--text-on-pine-muted);
   font-weight: 800;
   font-size: 0.95rem;
+  line-height: 1.25;
+  text-align: center;
   text-decoration: none;
-  white-space: nowrap;
+  white-space: normal;
   transition: color 140ms var(--ease), background-color 140ms var(--ease);
 }
 
@@ -407,6 +413,7 @@ button {
 
 .top__cta {
   flex: none;
+  max-width: 100%;
 }
 
 .chip-btn {
@@ -450,6 +457,7 @@ button {
   justify-content: center;
   gap: var(--space-2);
   min-width: 44px;
+  max-width: 100%;
   min-height: 44px;
   padding-block: var(--space-3);
   padding-inline: var(--space-4);
@@ -665,13 +673,13 @@ button {
   margin-block-start: var(--space-2);
 }
 
-.hero__hint {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 0.9rem;
-  font-weight: 700;
+/* Opening statement above the h1: a full sentence, not an eyebrow. */
+.hero__opening {
+  max-width: 46ch;
   color: var(--text-secondary);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.5;
 }
 
 /* ---------------------------------------------------------------- diorama */
@@ -793,77 +801,12 @@ button {
   line-height: 1.55;
 }
 
-/* ---------------------------------------------------------- feature layout */
-.feature-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-6);
-}
-
-.feature-stage {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-  padding: clamp(20px, 4vw, 36px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-elevated);
-  box-shadow: var(--shadow-soft);
-}
-
-.feature-stage__art {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-  color: var(--text-primary);
-}
-
-.feature-stage h3 {
-  font-size: clamp(1.25rem, 2.4vw, 1.6rem);
-}
-
-.feature-stage p {
-  max-width: 52ch;
-  color: var(--text-secondary);
-}
-
-.feature-rail {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  min-width: 0;
-}
-
-.feature-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  min-width: 0;
-  padding-block: var(--space-4);
-  border-block-start: 1px solid var(--border-subtle);
-}
-
-.feature-item:first-child {
-  border-block-start: 0;
-  padding-block-start: 0;
-}
-
-.feature-item h3 {
-  font-size: 1.15rem;
-}
-
-.feature-item p {
-  color: var(--text-secondary);
-  font-size: 0.975rem;
-}
-
 .inline-cta {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  max-width: 100%;
   min-height: 44px;
   font-weight: 900;
   color: var(--accent-gold-strong);
@@ -886,78 +829,163 @@ button {
   }
 }
 
-/* -------------------------------------------------------------- donations */
-.donation-split {
+/* --------------------------------------------------------------- paths */
+.paths {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+}
+
+.path {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-4);
-}
-
-.donation-path {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   min-width: 0;
-  padding: clamp(20px, 3vw, 28px);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-elevated);
+  padding-block-start: var(--space-4);
+  border-block-start: 2px solid var(--border-strong);
 }
 
-.donation-path h3 {
-  font-size: 1.2rem;
+.path h3 {
+  max-width: 22ch;
+  font-size: clamp(1.3rem, 2.6vw, 1.7rem);
 }
 
-.donation-path p {
+.path p {
+  max-width: 55ch;
   color: var(--text-secondary);
-  font-size: 0.975rem;
 }
 
-.donation-path__head {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
+.path .inline-cta {
+  margin-block-start: auto;
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  align-self: flex-start;
-  padding-block: var(--space-1);
-  padding-inline: var(--space-3);
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--surface-tonal);
-  color: var(--text-primary);
-  font-size: 0.85rem;
-  font-weight: 800;
-  line-height: 1.45;
-  max-width: 100%;
-}
-
-.pill svg {
-  flex: none;
-  color: var(--status-warning);
-}
-
-/* -------------------------------------------------------------------- NGO */
-.ngo-layout {
+/* --------------------------------------------------------------- offers */
+.offer-list {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--space-12);
+}
+
+.offer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+  min-width: 0;
+  padding-block: var(--space-6);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.offer:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.offer h3 {
+  font-size: 1.15rem;
+}
+
+.offer p {
+  margin-block-start: var(--space-2);
+  max-width: 55ch;
+  color: var(--text-secondary);
+}
+
+/* ---------------------------------------------------------- application */
+.steps {
+  list-style: none;
+  counter-reset: step;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-6);
 }
 
-.ngo-copy {
+.steps > li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.steps > li::before {
+  content: counter(step);
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-masthead);
+  color: var(--text-on-pine);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.steps h3 {
+  font-size: 1.1rem;
+}
+
+.steps p {
+  margin-block-start: var(--space-2);
+  max-width: 62ch;
+  color: var(--text-secondary);
+}
+
+.apply-check {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  margin-block-start: var(--space-12);
+}
+
+.apply-check h3 {
+  font-size: 1.2rem;
+}
+
+.apply-criteria > p {
+  margin-block: var(--space-2) var(--space-4);
+  color: var(--text-secondary);
+}
+
+.why {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 1px solid var(--border-subtle);
+  border-block-start: 3px solid var(--accent-gold);
+  border-radius: var(--radius-md);
+  background: var(--surface-tonal);
+}
+
+.why h3 {
+  font-size: 1.1rem;
+}
+
+.why p {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+.why strong {
+  color: var(--text-primary);
+}
+
+.apply-footer {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  min-width: 0;
+  margin-block-start: var(--space-8);
 }
 
-.ngo-copy .lead {
-  font-size: 1.0625rem;
+.apply-footer .inline-cta {
+  flex: none;
+}
+
+.apply-note {
+  max-width: 62ch;
 }
 
 .criteria-list {
@@ -988,6 +1016,144 @@ button {
 .criteria-list svg {
   margin-block-start: 1px;
   color: var(--status-success);
+}
+
+/* --------------------------------------------------------------- visit */
+.visit-steps {
+  list-style: none;
+  counter-reset: visit;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0 var(--space-8);
+  margin-block-end: var(--space-8);
+}
+
+.visit-steps > li {
+  counter-increment: visit;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-block: var(--space-6);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.visit-steps > li:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.visit-steps > li::before {
+  content: counter(visit);
+  color: var(--accent-gold-strong);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.visit-steps h3 {
+  font-size: 1.2rem;
+}
+
+.visit-steps p {
+  max-width: 48ch;
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------- donations */
+.donation-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.donation-layout .section__intro {
+  margin-block-end: 0;
+}
+
+.donation-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 55ch;
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-elevated);
+  font-weight: 800;
+}
+
+.donation-status svg {
+  margin-block-start: 2px;
+  color: var(--status-warning);
+}
+
+.donation-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 62ch;
+}
+
+.donation-body p {
+  color: var(--text-secondary);
+  font-size: 1.0625rem;
+}
+
+/* -------------------------------------------------------------------- FAQ */
+.faq {
+  display: flex;
+  flex-direction: column;
+  max-width: 78ch;
+}
+
+.faq__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding-block: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.faq__item:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.faq__item h3 {
+  font-size: 1.05rem;
+}
+
+.faq__item p {
+  max-width: 65ch;
+  color: var(--text-secondary);
+}
+
+/* ------------------------------------------------------------ next steps */
+.next-steps {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  width: 100%;
+  margin-block-start: var(--space-2);
+  text-align: start;
+}
+
+.next-step {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.next-step p {
+  max-width: 44ch;
+  color: var(--text-secondary);
+}
+
+.next-step strong {
+  color: var(--text-primary);
 }
 
 /* ------------------------------------------------------------ closing CTA */
@@ -1048,7 +1214,7 @@ button {
   font-weight: 800;
 }
 
-.footer__note {
+.footer__tagline {
   max-width: 58ch;
   color: var(--text-on-pine-muted);
   font-size: 0.9rem;
@@ -1056,26 +1222,37 @@ button {
   line-height: 1.6;
 }
 
+.footer__tagline strong {
+  color: var(--text-on-pine);
+}
+
+.footer__contact {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--text-on-pine);
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+}
+
+@media (hover: hover) {
+  .footer__contact:hover {
+    color: var(--accent-gold);
+  }
+}
+
+.footer__copy {
+  color: var(--text-on-pine-muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
 /* ------------------------------------------------------------- breakpoints */
 @media (min-width: 640px) {
   .diorama__tab {
     font-size: 0.9rem;
-  }
-
-  .feature-stage__art {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .donation-path__head {
-    flex-direction: row;
-    align-items: center;
-    gap: var(--space-3);
-  }
-
-  .feature-item {
-    padding-block: var(--space-6);
   }
 }
 
@@ -1102,33 +1279,96 @@ button {
     gap: var(--space-2) var(--space-3);
   }
 
-  .donation-split,
-  .ngo-layout {
+  .paths {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-12);
+  }
+
+  .offer-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .offer:nth-child(2) {
+    padding-block-start: 0;
+    border-block-start: 0;
+  }
+
+  .apply-check {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-12);
+    align-items: start;
+  }
+
+  .apply-footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-8);
+  }
+
+  .visit-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .visit-steps > li,
+  .visit-steps > li:first-child {
+    padding-block: var(--space-4);
+    border-block-start: 1px solid var(--border-subtle);
+  }
+
+  .donation-layout {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: var(--space-12);
+    align-items: start;
+  }
+
+  .faq__item {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: var(--space-8);
+    align-items: start;
+    padding-block: var(--space-6);
+  }
+
+  .faq__item:first-child {
+    padding-block-start: 0;
+  }
+
+  .next-steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-8);
   }
 
-  .feature-layout {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    align-items: start;
-    gap: var(--space-8);
-  }
-
-  .feature-rail {
-    gap: 0;
+  .next-step {
+    padding-block-start: 0;
+    border-block-start: 0;
   }
 
   .criteria-list li {
     padding-block: var(--space-6);
   }
-
-  /* Reading order: lead, criteria, note. The note sits under the list it qualifies. */
-  .ngo-note {
-    grid-column: 2;
-  }
 }
 
 @media (min-width: 1024px) {
+  .nav-link {
+    padding-inline: var(--space-2);
+  }
+
+  .hero__inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    align-items: center;
+  }
+
+  .hero h1 {
+    font-size: clamp(2rem, 2.9vw, 3.05rem);
+    max-width: 24ch;
+  }
+}
+
+/*
+ * Four section links plus the CTA only fit one row from 1200px up. Below that the masthead is
+ * the two-row column; keeping it non-sticky avoids a wrapped header hiding anchor headings.
+ */
+@media (min-width: 1200px) {
   .top {
     position: sticky;
     inset-block-start: 0;
@@ -1159,20 +1399,6 @@ button {
   .nav {
     margin-inline-start: auto;
     margin-inline-end: 0;
-  }
-
-  .hero__inner {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    align-items: center;
-  }
-
-  .hero h1 {
-    font-size: clamp(2rem, 2.9vw, 3.05rem);
-    max-width: 24ch;
-  }
-
-  .feature-layout {
-    gap: var(--space-12);
   }
 }
 
@@ -1225,8 +1451,8 @@ button {
   .btn,
   .chip-btn,
   .diorama__frame,
-  .feature-stage,
-  .donation-path,
+  .why,
+  .donation-status,
   .criteria-list {
     border-width: 2px;
   }
@@ -1236,11 +1462,10 @@ button {
   .btn,
   .chip-btn,
   .status-pill,
-  .pill,
+  .donation-status,
   .diorama__frame,
   .diorama__tab,
-  .feature-stage,
-  .donation-path,
+  .why,
   .criteria-list,
   .criteria-list li + li {
     border: 1px solid ButtonBorder;
@@ -1286,8 +1511,9 @@ button {
 
   .hero,
   .diorama__frame,
-  .feature-stage,
-  .donation-path {
+  .donation-status,
+  .why,
+  .criteria-list {
     background: #fff;
     box-shadow: none;
   }

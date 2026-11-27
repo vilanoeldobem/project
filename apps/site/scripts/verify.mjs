@@ -4,7 +4,7 @@
  *
  * Contract: every route (`/`, `/404.html`) is loaded at the eight required widths in both
  * colour themes, with no console error, no failed request, no horizontal overflow, every
- * "Entrar na Vila" pointing at the game, every image loaded with explicit dimensions, every
+ * game link pointing at the game, every image loaded with explicit dimensions, every
  * section link visible without sideways scrolling, and every interactive control at least
  * 44×44 CSS px. Interaction, comfort, zoom, preference and stress checks run once on top of the
  * matrix: keyboard order and focus-ring contrast (>= 3:1 against what is painted behind the ring),
@@ -209,7 +209,7 @@ async function inspectRoute(page, label, mobile, home) {
     return {
       scrollWidth: document.documentElement.scrollWidth,
       innerWidth: window.innerWidth,
-      gameLinks: [...document.querySelectorAll("a")].filter((a) => /Entrar na Vila/.test(a.textContent ?? "")).map((a) => a.getAttribute("href")),
+      gameLinks: [...document.querySelectorAll("a")].filter((a) => /Explorar a Vila|Entrar na Vila/.test(a.textContent ?? "")).map((a) => a.getAttribute("href")),
       anchors: [...document.querySelectorAll('a[href^="#"]')].map((a) => (a.getAttribute("href") ?? "").slice(1)).filter((id) => id.length > 0 && !document.getElementById(id)),
       images: [...document.images].map((image) => ({
         src: image.currentSrc.split("/").pop(),
@@ -242,7 +242,7 @@ async function inspectRoute(page, label, mobile, home) {
   });
 
   check(facts.scrollWidth <= facts.innerWidth, `${label}: horizontal overflow ${facts.scrollWidth} > ${facts.innerWidth}`);
-  check(facts.gameLinks.length > 0, `${label}: no "Entrar na Vila" link`);
+  check(facts.gameLinks.length > 0, `${label}: no game link`);
   check(
     facts.gameLinks.every((href) => href === gameUrl),
     `${label}: bad game links ${JSON.stringify(facts.gameLinks)}`,
@@ -286,6 +286,8 @@ for (const route of ROUTES) {
       const shots = {
         "home:1440:light": "desktop.png",
         "home:1440:dark": "desktop-dark.png",
+        "home:1024:light": "desktop-1024.png",
+        "home:1024:dark": "desktop-1024-dark.png",
         "home:375:light": "mobile.png",
         "home:375:dark": "mobile-dark.png",
         "not-found:1440:light": "404-desktop.png",
@@ -293,7 +295,14 @@ for (const route of ROUTES) {
         "not-found:375:dark": "404-mobile-dark.png",
       };
       const shot = shots[`${route.name}:${width}:${scheme}`];
-      if (shot) await page.screenshot({ path: `${out}${shot}`, fullPage: true });
+      if (shot) {
+        // Full-page shots include below-the-fold images; decode them before capturing so a lazy
+        // paint does not leave an empty frame in the visual proof.
+        await page.evaluate(async () => {
+          await Promise.all([...document.images].map((image) => image.decode().catch(() => {})));
+        });
+        await page.screenshot({ path: `${out}${shot}`, fullPage: true });
+      }
 
       if (facts.theme !== "" && facts.theme !== scheme) {
         failures.push(`${label}: saved theme leaked into a fresh context (${facts.theme})`);
@@ -320,8 +329,8 @@ for (const [width, height, scheme] of [
   const stops = await keyboardStops(page);
   const masthead = stops.filter((stop) => stop.masthead);
 
-  // Skip link, brand, two comfort toggles, three section links and the CTA.
-  check(masthead.length === 8, `${label}: expected 8 masthead stops, got ${JSON.stringify(masthead.map((stop) => stop.label))}`);
+  // Skip link, brand, two comfort toggles, four section links and the CTA.
+  check(masthead.length === 9, `${label}: expected 9 masthead stops, got ${JSON.stringify(masthead.map((stop) => stop.label))}`);
   check(stops.length > masthead.length, `${label}: keyboard never left the masthead`);
   for (const stop of stops) {
     check(stop.outlineStyle !== "none" && stop.outlineWidth >= 2, `${label}: no visible ring on ${stop.label}`);
@@ -426,19 +435,72 @@ for (const [width, height, scheme] of [
   check(!!backOn.first && backOn.first.painted > 0, "snow: switched back on but nothing painted");
   check(!!backOn.second && backOn.first?.hash !== backOn.second.hash, "snow: switched back on but the flakes do not move");
 
-  // Reading order of the NGO section: lead, criteria, note.
-  const ngoOrder = await page.evaluate(() => {
-    const [lead, list, note] = [".ngo-copy .lead", ".criteria-list", ".ngo-note"].map((selector) => document.querySelector(`#ongs ${selector}`));
-    if (!lead || !list || !note) return null;
-    const follows = (a, b) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-    return { dom: follows(lead, list) && follows(list, note), noteBelowList: note.getBoundingClientRect().top >= list.getBoundingClientRect().bottom };
+  // Copy contract: the homepage must render the owner-supplied text and structure.
+  const copy = await page.evaluate(() => {
+    const text = (selector) => document.querySelector(selector)?.textContent?.replace(/\s+/g, " ").trim() ?? null;
+    return {
+      h1: text("h1"),
+      nav: [...document.querySelectorAll(".nav-link")].map((link) => (link.textContent ?? "").trim()),
+      paths: document.querySelectorAll(".path").length,
+      offers: document.querySelectorAll(".offer").length,
+      steps: document.querySelectorAll(".steps > li").length,
+      criteria: document.querySelectorAll(".criteria-list > li").length,
+      visits: document.querySelectorAll(".visit-steps > li").length,
+      faq: [...document.querySelectorAll(".faq__item h3")].map((heading) => (heading.textContent ?? "").trim()),
+      sections: ["como-funciona", "ongs", "como-candidatar", "visitantes", "doacoes", "faq", "proximo-passo"].map((id) => !!document.getElementById(id)),
+      status: text(".donation-status"),
+      note: text(".apply-note"),
+      closing: text(".cta-banner h2"),
+      contact: document.querySelector('a[href="mailto:vilanoeldobem@gmail.com"]')?.getAttribute("href") ?? null,
+    };
   });
-  check(!!ngoOrder && ngoOrder.dom && ngoOrder.noteBelowList, `ngo: criteria must follow the lead and precede the note ${JSON.stringify(ngoOrder)}`);
+  check(copy.h1 === "Um mundo para explorar. Um lugar para sua causa ser descoberta.", `copy: h1 ${copy.h1}`);
+  check(
+    JSON.stringify(copy.nav) === JSON.stringify(["Como funciona", "Para ONGs", "Doações e transparência", "Perguntas frequentes"]),
+    `copy: nav ${JSON.stringify(copy.nav)}`,
+  );
+  check(
+    copy.paths === 2 && copy.offers === 4 && copy.steps === 4 && copy.criteria === 3 && copy.visits === 3 && copy.faq.length === 5,
+    `copy: structure ${JSON.stringify({ paths: copy.paths, offers: copy.offers, steps: copy.steps, criteria: copy.criteria, visits: copy.visits, faq: copy.faq.length })}`,
+  );
+  check(
+    JSON.stringify(copy.faq) ===
+      JSON.stringify([
+        "Preciso doar para entrar ou jogar?",
+        "Preciso criar uma conta de ONG antes da candidatura?",
+        "Basta enviar o formulário para ganhar uma casinha?",
+        "Quais são os requisitos iniciais para a ONG?",
+        "A ONG poderá atualizar sua casinha?",
+      ]),
+    `copy: FAQ ${JSON.stringify(copy.faq)}`,
+  );
+  check(!!copy.status?.includes("As doações pela Vila ainda não estão disponíveis."), `copy: donation status ${copy.status}`);
+  check(
+    !!copy.note?.includes("O cadastro e o formulário de candidatura ainda não estão abertos na versão pública."),
+    `copy: application note ${copy.note}`,
+  );
+  check(copy.closing === "Seu próximo passo", `copy: closing ${copy.closing}`);
+  check(copy.contact === "mailto:vilanoeldobem@gmail.com", `copy: contact ${copy.contact}`);
+  check(copy.sections.every(Boolean), `copy: missing section ${JSON.stringify(copy.sections)}`);
 
-  // In-page navigation.
-  await page.getByRole("link", { name: "Doações" }).first().click();
-  const hash = await page.evaluate(() => window.location.hash);
-  check(hash === "#doacoes", `nav: expected #doacoes, got ${hash}`);
+  // In-page navigation: every section link resolves and leaves its heading clear of the sticky header.
+  for (const [name, id] of [
+    ["Como funciona", "como-funciona"],
+    ["Para ONGs", "ongs"],
+    ["Doações e transparência", "doacoes"],
+    ["Perguntas frequentes", "faq"],
+  ]) {
+    await page.getByRole("link", { name, exact: true }).first().click();
+    await page.evaluate(() => window.__verify.scrollSettled());
+    const hash = await page.evaluate(() => window.location.hash);
+    check(hash === `#${id}`, `nav: expected #${id}, got ${hash}`);
+    const clear = await page.evaluate((target) => {
+      const heading = document.querySelector(`#${target} h2`);
+      const top = document.querySelector(".top");
+      return !!heading && (!top || heading.getBoundingClientRect().top >= top.getBoundingClientRect().bottom - 1);
+    }, id);
+    check(clear, `nav: #${id} heading hidden under the sticky masthead`);
+  }
 
   check(problems.length === 0, problems.join(" | "));
   await page.close();
