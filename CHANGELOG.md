@@ -11,6 +11,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Added
 
+- `pnpm dev:story` sobe o jogo local com a saga v2 e o epílogo v1 ligados, sem parâmetro na URL.
 - Homologação admite o teste das quatro ações com conta da #65 mediante configuração explícita da API.
 
 - Ensaio local opcional das quatro ações da #65 para a revisão das regras de conta no jogo. [Como comparar os modos](docs/implementation/visitor-account-access.md#ensaio-local-das-quatro-ações-da-65).
@@ -27,6 +28,7 @@ Cada versão indica o schema D1 que entrega.
 
 ### Fixed
 
+- NPCs de missão: o marcador `!` lê o mesmo catálogo com o portão da saga v2 que o diálogo, então não anuncia uma missão bloqueada; cada personagem repetido por um livro é desenhado e rotulado uma vez; o atril da doação não toma o botão de ação de um NPC ao alcance.
 - O painel da candidatura distingue o recebimento salvo da ONG, a escolha do formulário e a publicação da casa. O painel exige a conferência do link próprio e valida o split da ONG ou da parceira global antes de salvar.
 - O teste de Pix concorrente verifica as duas repetições enquanto o provedor de teste ainda processa a primeira cobrança, sem depender de um temporizador.
 - Candidatura de ONG permite conferir o envio após queda de conexão e preserva a versão mais recente quando duas abas tentam reenviar alterações.

@@ -104,6 +104,23 @@ async function openNpc(page, npcId, storyWorld) {
   await action(page);
 }
 
+/** A reused v1 NPC is drawn and labelled once, with a marker that matches the dialogue. */
+async function expectOneNpc(page, id, marked) {
+  const npc = (await world(page)).npcs.find((entry) => entry.id === id);
+  if (!npc) return fail(`NPC ${id} is not in storyWorld()`);
+  await teleport(page, npc.x, npc.z + 1.6);
+  await page.waitForTimeout(400);
+  const labels = (await page.locator(".label3d").allTextContents()).map((text) => text.trim());
+  const own = labels.filter((text) => text.includes(npc.name));
+  if (own.length !== 1) fail(`NPC ${id}: expected one label, got ${JSON.stringify(own)}`);
+  if (marked && !own[0]?.startsWith("!")) fail(`NPC ${id}: expected an available marker, got ${JSON.stringify(own)}`);
+  if (!marked && own.some((text) => text.startsWith("!"))) fail(`NPC ${id}: phantom available marker ${JSON.stringify(own)}`);
+  await action(page);
+  await page.getByRole("dialog").waitFor({ timeout: 5000 }).catch(() => fail(`NPC ${id}: its dialogue did not open`));
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+}
+
 async function accept(page, quest, storyWorld) {
   await openNpc(page, quest.giverNpcId, storyWorld);
   await dialogButton(page, /Aceitar missão/);
@@ -277,6 +294,10 @@ function runEpilogue({ stateFile, v2 = false } = {}) {
 const page = await newPage(slice);
 try {
   await enter(page);
+  await expectOneNpc(page, "storyteller", true);
+  await expectOneNpc(page, "market-keeper", false);
+  await expectOneNpc(page, "postmaster", false);
+  await expectOneNpc(page, "pond-keeper", false);
   if (slice === "epilogue") runEpilogue();
   else if (slice === "postgame") await playPostgame(page);
   else if (slice === "all") {

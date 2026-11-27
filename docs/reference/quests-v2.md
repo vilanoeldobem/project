@@ -16,6 +16,7 @@ próprios cosméticos. O spine não escreve história.
 |---|---|---|
 | Cliente | `VITE_QUESTS_V2_ENABLED=true` no build | Liga o lado da página da v2 |
 | Cliente | `?quests2=1` em localhost/desenvolvimento | O mesmo, para verificação local |
+| Cliente | `pnpm dev:story` | Sobe cliente, API e servidor locais com a v2 e o epílogo v1 ligados, sem parâmetro na URL |
 | API | `QUESTS_V2_ENABLED=true` | Aceita eventos v2; em produção e homologação é `false` |
 | API | `GET /config` → `questsV2` | O cliente só liga a v2 se a página e a API concordarem |
 
@@ -60,8 +61,9 @@ recebem o catálogo. Nenhuma delas importa o catálogo v1 fixo. O motor mantém 
 
 O mundo v1 (`world.ts`) não muda. `STORY_WORLD` contém apenas os livros; `ALL_WORLD` é a união usada pela UI e pelo
 verificador. `StoryProps.tsx` desenha os NPCs v2 em uma malha agregada, os itens ativos e os props de interação. Os
-rótulos usam `?` para pronto, `!` para disponível, `...` para em andamento e o nome sozinho para conversa neutra; o
-sinal nunca depende de cor.
+rótulos vêm de `npc-markers.ts` e leem o mesmo catálogo do diálogo (`catalogFor`), inclusive o portão `b05-c3-04`; um
+NPC v1 repetido por um livro é desenhado uma vez. Usam `?` para pronto, `!` para disponível, `...` para em andamento e
+o nome sozinho para conversa neutra; o sinal nunca depende de cor.
 
 `Missions.tsx` e `NpcDialog.tsx` recebem catálogo, mundo e progresso por prop; sem as flags, continuam exibindo o
 comportamento v1. O diário separa principal, regional, secundária, epílogo, pós-jogo e marcos, e mostra o próximo

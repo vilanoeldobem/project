@@ -8,13 +8,13 @@ import { useMemo, useRef } from "react";
 import type { Group } from "three";
 
 import { INTERACT_DISTANCE } from "@vila/shared/game/world";
-import type { Progress } from "@vila/shared/game/progress";
 import { questStateIn, catalogFor } from "@vila/shared/game/quests-v2/catalog";
 import { worldStatesIn } from "@vila/shared/game/quests-v2/states";
-import type { StoryCatalog, StoryInteraction, StorySpawn, WorldStateId } from "@vila/shared/game/quests-v2/types";
+import type { StoryInteraction, StorySpawn, WorldStateId } from "@vila/shared/game/quests-v2/types";
 import { STORY_WORLD } from "@vila/shared/game/quests-v2/world";
 
 import { visit } from "../game/clicks";
+import { npcMarkers } from "../game/npc-markers";
 import { useQuestsEnabled } from "../game/questsFlag";
 import { useVila } from "../game/store";
 import { Label } from "./Props";
@@ -25,28 +25,6 @@ import { MergedVoxels, mergeVoxelModels, type MergeItem, Voxels } from "./Voxels
 
 const visible = (requires: readonly WorldStateId[] | undefined, states: ReadonlySet<WorldStateId>): boolean =>
   !requires || requires.every((state) => states.has(state));
-
-const MARKER_RANK = { "?": 3, "!": 2, "...": 1 } as const;
-type Marker = keyof typeof MARKER_RANK;
-
-/** One pass over the catalog; the marker never depends on colour alone. */
-function storyMarkers(catalog: StoryCatalog, progress: Progress): ReadonlyMap<string, Marker> {
-  const out = new Map<string, Marker>();
-  const rank = (marker: Marker | undefined) => (marker ? MARKER_RANK[marker] : 0);
-  const set = (id: string, marker: Marker) => {
-    if (MARKER_RANK[marker] > rank(out.get(id))) out.set(id, marker);
-  };
-  for (const quest of catalog.quests) {
-    const state = questStateIn(catalog, progress, quest.id);
-    if (state === "ready_to_turn_in") set(quest.turnInNpcId, "?");
-    else if (state === "available") set(quest.giverNpcId, "!");
-    else if (state === "active") {
-      set(quest.giverNpcId, "...");
-      set(quest.turnInNpcId, "...");
-    }
-  }
-  return out;
-}
 
 /** One active pickup: floats and turns like a hidden gift, so it reads as collectable. */
 function StoryItem({ x, z, model }: { x: number; z: number; model: GenModel }) {
@@ -77,8 +55,8 @@ export function StoryProps() {
   const quests = useQuestsEnabled();
   const catalog = useMemo(() => catalogFor(quests, true), [quests]);
   const states = useMemo(() => worldStatesIn(catalog, progress), [catalog, progress]);
-  const markers = useMemo(() => storyMarkers(catalog, progress), [catalog, progress]);
   const npcs = useMemo(() => STORY_WORLD.npcs.filter((npc) => visible(npc.requires, states)), [states]);
+  const markers = useMemo(() => npcMarkers(npcs, catalog, progress), [npcs, catalog, progress]);
   const models = useMemo(() => npcs.map((npc) => ({ npc, model: villager(npc.seed) })), [npcs]);
   const geometries = useMemo(
     () =>
@@ -130,14 +108,11 @@ export function StoryProps() {
           <MergedVoxels geometries={geometries} />
         </group>
       )}
-      {models.map(({ npc }) => {
-        const marker = markers.get(npc.id);
-        return (
-          <group key={npc.id} position={[npc.x, 0, npc.z]}>
-            <Label y={4.2} text={marker ? `${marker} ${npc.name}` : npc.name} x={npc.x} z={npc.z} />
-          </group>
-        );
-      })}
+      {models.map(({ npc }) => (
+        <group key={npc.id} position={[npc.x, 0, npc.z]}>
+          <Label y={4.2} text={markers.get(npc.id) ?? npc.name} x={npc.x} z={npc.z} />
+        </group>
+      ))}
       {spawns.map((spawn: StorySpawn) => {
         const model = storyProp(spawn.objectId);
         return model ? <StoryItem key={spawn.id} x={spawn.x} z={spawn.z} model={model} /> : null;

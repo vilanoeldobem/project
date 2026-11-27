@@ -65,6 +65,8 @@ export interface LifeNearby {
 }
 /** How close the avatar stands to talk to a character (the same number as `LIFE_TALK_REACH`, kept here for the hold). */
 export const LIFE_REACH = 2.4;
+/** A quest NPC or interaction this close keeps the action from the passive donation lectern. */
+const QUEST_OVER_PANEL = 2;
 /** A residential plot is offered below this speed (u/s) and stays on offer below `PLOT_KEEP_SPEED`: standing still. */
 export const PLOT_STILL_SPEED = 0.2;
 export const PLOT_KEEP_SPEED = 0.6;
@@ -138,9 +140,16 @@ function strict(
 ): Nearby {
   let best: Nearby = null;
   let bestDist = 0, bestPrio = 0;
+  // The nearest quest target in reach: it wins over the passive lectern, which stands beside Dona Guida.
+  let questNear: Nearby = null, questNearDist = 0, questNearPrio = 0;
+  const noteQuest = (near: Nearby, dist: number, prio: number) => {
+    if (!near || (questNear && dist >= questNearDist)) return;
+    (questNear = near), (questNearDist = dist), (questNearPrio = prio);
+  };
   if (quests) {
     for (let i = 0; i < NPCS.length; i++) {
       const dist = Math.hypot(NPCS[i].x - x, NPCS[i].z - z);
+      if (dist < INTERACT_DISTANCE) noteQuest(NEAR_NPC[i], dist, 1);
       if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) (best = NEAR_NPC[i]), (bestDist = dist), (bestPrio = 1);
     }
   }
@@ -148,6 +157,7 @@ function strict(
     for (let i = 0; i < story.world.npcs.length; i++) {
       const npc = story.world.npcs[i];
       const dist = Math.hypot(npc.x - x, npc.z - z);
+      if (dist < INTERACT_DISTANCE) noteQuest(story.npcTargets[i], dist, 1);
       if (dist < INTERACT_DISTANCE && beats(dist, 1, best, bestDist, bestPrio)) (best = story.npcTargets[i]), (bestDist = dist), (bestPrio = 1);
     }
   }
@@ -156,6 +166,7 @@ function strict(
       const ia = QUEST_INTERACTIONS[i];
       if (progress.seen[`${ia.questId}:${ia.id}`] || questState(progress, ia.questId) !== "active") continue;
       const dist = Math.hypot(ia.x - x, ia.z - z);
+      if (dist < ia.radius) noteQuest(NEAR_QUEST[i], dist, 2);
       if (dist < ia.radius && beats(dist, 2, best, bestDist, bestPrio)) (best = NEAR_QUEST[i]), (bestDist = dist), (bestPrio = 2);
     }
   }
@@ -168,6 +179,7 @@ function strict(
       )
         continue;
       const dist = Math.hypot(interaction.x - x, interaction.z - z);
+      if (dist < interaction.radius) noteQuest(story.interactionTargets[i], dist, 2);
       if (dist < interaction.radius && beats(dist, 2, best, bestDist, bestPrio)) {
         (best = story.interactionTargets[i]), (bestDist = dist), (bestPrio = 2);
       }
@@ -176,6 +188,9 @@ function strict(
   if (quests) {
     const panelDist = Math.hypot(DONATION_PANEL.x - x, DONATION_PANEL.z - z);
     if (panelDist < INTERACT_DISTANCE && beats(panelDist, 3, best, bestDist, bestPrio)) (best = NEAR_PANEL), (bestDist = panelDist), (bestPrio = 3);
+  }
+  if (best?.kind === "donation-panel" && questNear && questNearDist <= QUEST_OVER_PANEL) {
+    (best = questNear), (bestDist = questNearDist), (bestPrio = questNearPrio);
   }
   const treeDist = Math.hypot(x, z);
   if (treeDist < TREE_RADIUS + INTERACT_DISTANCE && beats(treeDist, 4, best, bestDist, bestPrio)) (best = NEAR_TREE), (bestDist = treeDist), (bestPrio = 4);
@@ -249,6 +264,8 @@ function kept(
       return dist < interaction.radius + NEARBY_KEEP ? ((found.prio = 2), dist) : Infinity;
     }
     case "donation-panel": {
+      // A quest target in arm's reach keeps the action; the lectern never holds it over a character.
+      if (found.prio <= 2 && found.dist <= QUEST_OVER_PANEL) return Infinity;
       const dist = quests ? Math.hypot(DONATION_PANEL.x - x, DONATION_PANEL.z - z) : Infinity;
       return dist < INTERACT_DISTANCE + NEARBY_KEEP ? ((found.prio = 3), dist) : Infinity;
     }

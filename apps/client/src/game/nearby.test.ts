@@ -175,6 +175,14 @@ describe("a walk down a residential street", () => {
   });
 });
 
+describe("the donation lectern beside a quest NPC", () => {
+  it("gives a quest NPC in arm's reach the action, and still opens at the lectern itself", () => {
+    expect(pickNearby(5, 5.6, 0, true, EMPTY_PROGRESS, null)).toEqual({ kind: "npc", npcId: "storyteller" });
+    expect(pickNearby(5, 5.6, 0, true, EMPTY_PROGRESS, { kind: "donation-panel" })).toEqual({ kind: "npc", npcId: "storyteller" });
+    expect(pickNearby(4.6, 6.4, 0, true, EMPTY_PROGRESS, null)).toEqual({ kind: "donation-panel" });
+  });
+});
+
 describe("story v2 targets", () => {
   const quest: StoryQuest = {
     id: "v2-near", chainId: "v2", chainTitle: "V2", order: 1, track: "explore",

@@ -6,6 +6,7 @@
   "description": "Vila Noel do Bem — virtual 3D voxel Christmas village (monorepo: site, client, api, server, dash, shared)",
   "scripts": {
     "dev": "pnpm --parallel --filter @vila/client --filter @vila/api --filter @vila/server run dev",
+    "dev:story": "VITE_QUESTS_V1_ENABLED=true VITE_QUESTS_V2_ENABLED=true pnpm --parallel --filter @vila/client --filter @vila/api --filter @vila/server run dev",
     "dev:site": "pnpm --filter @vila/site dev",
     "dev:dash": "pnpm --filter @vila/dash dev",
     "build": "pnpm -r run build",
