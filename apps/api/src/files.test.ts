@@ -327,7 +327,7 @@ describe("upload", () => {
     const b = await signUp("bia", "bia@example.com");
     expect((await upload(b, "logo", png(), "image/png")).body.error).toBe("no_application");
     db.sql("UPDATE users SET verified_at = NULL WHERE id = ?", a.user.id);
-    expect((await upload(a, "logo", png(), "image/png")).body.error).toBe("not_verified");
+    expect((await upload(a, "logo", png(), "image/png")).body.error).toBe("not_signed_in");
     expect(r2.keys()).toEqual([]);
   });
 

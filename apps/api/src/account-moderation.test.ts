@@ -579,7 +579,7 @@ describe("block racing other writes", () => {
     // Without a block the same correction goes through, and nobody else's account is touched by it.
     const corrected = await call("POST", "/me", { accountId: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" }, "bia", GAME);
     expect([corrected.status, corrected.body.user]).toEqual([200, expect.objectContaining({ id: "bia", name: "Another Name", nickname: "bia_again", city: "Natal" })]);
-    expect(db.sql("SELECT nickname_key FROM users WHERE id = 'bia'")).toEqual([{ nickname_key: "bia_again" }]);
+    expect(db.sql("SELECT nickname, nickname_key FROM users WHERE id = 'bia'")).toEqual([{ nickname: "bia_again", nickname_key: "bia" }]);
   });
 
   it("refuses in SQL the first progress of an account that was blocked before its write counter was created", async () => {

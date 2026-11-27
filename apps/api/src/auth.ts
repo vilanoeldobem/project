@@ -81,27 +81,18 @@ export async function register(request: Request, env: Env, origin: string): Prom
   const { value, errors } = validateRegistration(await readJson(request));
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
-  // A blocked registration is kept: expiring it would free the e-mail and the nickname for a new account.
+  // A blocked registration keeps its e-mail reserved.
   await db.prepare("DELETE FROM users WHERE verified_at IS NULL AND blocked = 0 AND created_at < ?").bind(new Date(Date.now() - UNVERIFIED_TTL_MS).toISOString()).run();
 
-  // Nickname first, for every e-mail: the answer must not depend on whether the e-mail has an account.
-  const taken = await db.prepare("SELECT 1 AS x FROM users WHERE nickname_key = ?").bind(value.nickname.toLowerCase()).first();
-  if (taken) throw new HttpError(409, "nickname_taken", { nickname: "Esse nickname já está em uso. Escolha outro." });
-  const existing = await db.prepare("SELECT id, email, nickname FROM users WHERE email = ?").bind(value.email).first<User>();
-  if (existing) return accepted(await issueLink(env, existing, origin)); // same answer as a new account
-  const user = { id: newId(), ...value };
-  try {
-    await db
-      .prepare("INSERT INTO users (id, name, nickname, nickname_key, city, email) VALUES (?, ?, ?, ?, ?, ?)")
-      .bind(user.id, user.name, user.nickname, user.nickname.toLowerCase(), user.city, user.email)
-      .run();
-  } catch {
-    // Lost a race. Nickname taken → say so (nicknames are public). E-mail taken → the same 202 as always.
-    const nick = await db.prepare("SELECT 1 AS x FROM users WHERE nickname_key = ?").bind(user.nickname.toLowerCase()).first();
-    if (nick) throw new HttpError(409, "nickname_taken", { nickname: "Esse nickname já está em uso. Escolha outro." });
-    return accepted();
-  }
-  return accepted(await issueLink(env, user, origin));
+  // The legacy unique column uses the account ID on new rows. The visible name may repeat.
+  // Retrying with the same e-mail keeps the original account and its verification state.
+  const id = newId();
+  await db.prepare(
+    `INSERT INTO users (id, name, nickname, nickname_key, city, email)
+     VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(email) DO NOTHING`
+  ).bind(id, value.name, value.nickname, id, value.city, value.email).run();
+  const user = await db.prepare("SELECT id, email, nickname FROM users WHERE email = ?").bind(value.email).first<Pick<User, "id" | "email" | "nickname">>();
+  return accepted(user ? await issueLink(env, user, origin) : undefined);
 }
 
 export async function requestLink(request: Request, env: Env, origin: string): Promise<Response> {
@@ -169,12 +160,10 @@ export async function updateMe(request: Request, env: Env): Promise<Response> {
   delete errors.email;
   if (Object.keys(errors).length) throw new HttpError(400, "invalid", errors as Record<string, string>);
   const db = env.DB!;
-  const taken = await db.prepare("SELECT 1 AS x FROM users WHERE nickname_key = ? AND id != ?").bind(value.nickname.toLowerCase(), user.id).first();
-  if (taken) throw new HttpError(409, "nickname_taken", { nickname: "Esse nickname já está em uso. Escolha outro." });
   // Not for an account that was blocked after the session check (IMPL-0021): the correction is refused in SQL.
   const corrected = await db
-    .prepare("UPDATE users SET name = ?, nickname = ?, nickname_key = ?, city = ? WHERE id = ? AND blocked = 0")
-    .bind(value.name, value.nickname, value.nickname.toLowerCase(), value.city, user.id)
+    .prepare("UPDATE users SET name = ?, nickname = ?, city = ? WHERE id = ? AND blocked = 0")
+    .bind(value.name, value.nickname, value.city, user.id)
     .run();
   if (!corrected.meta.changes && (await db.prepare("SELECT 1 AS x FROM users WHERE id = ? AND blocked = 1").bind(user.id).first()))
     throw new HttpError(403, "session_blocked");

@@ -284,7 +284,7 @@ desta tabela só os ids (e só com a bandeira ligada), para dizer quais terrenos
 | `id` | TEXT PK | UUID |
 | `name` | TEXT | Nome (P13) |
 | `nickname` | TEXT | Nickname como digitado; **único dado público** |
-| `nickname_key` | TEXT UNIQUE | nickname em minúsculas (unicidade sem diferenciar maiúsculas) |
+| `nickname_key` | TEXT UNIQUE | Chave legada. Em novos cadastros recebe o ID da conta. Registros antigos preservam o valor histórico. O nome na Vila pode se repetir. |
 | `city` | TEXT | Cidade (P13) |
 | `email` | TEXT UNIQUE | E-mail em minúsculas; nunca público, nunca em log |
 | `role` | TEXT | `player` (a interface mostra "Padrão") ou `admin` ("Administrador"). O primeiro administrador é criado à mão; os demais, pelo painel ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md), DEC-037) |

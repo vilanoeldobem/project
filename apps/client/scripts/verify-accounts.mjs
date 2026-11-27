@@ -329,7 +329,7 @@ async function openLink(page, link, signedIn, who) {
 async function fillRegistration(page, nickname, email) {
   await click(page.getByRole("button", { name: "Entrar ou criar conta" }));
   await page.getByLabel("Nome *").fill(`Pessoa ${nickname}`);
-  await page.getByLabel("Nickname *").fill(nickname);
+  await page.getByLabel("Nome na Vila *").fill(nickname);
   await page.getByLabel("Cidade *").fill("Recife");
   await page.getByLabel("E-mail *").fill(email);
 }

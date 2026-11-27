@@ -230,12 +230,13 @@ describe("accounts: roles and block (IMPL-0021)", () => {
   it("shows nickname, shared role label, city, verification and the block, and never an e-mail or a name", () => {
     const page = table(true);
     expect(page).toContain("<caption>Contas</caption>");
-    for (const column of ["Nickname", "Papel", "Cidade", "Criada em", "Verificada", "Situação", "Ações"]) expect(page).toContain(`<th scope="col" role="columnheader">${column}</th>`);
+    for (const column of ["Nome na Vila", "Papel", "Cidade", "Criada em", "Confirmação por e-mail", "Situação", "Ações"]) expect(page).toContain(`<th scope="col" role="columnheader">${column}</th>`);
     const cells = (user: UserSummary) => [...rowOf(page, user).matchAll(/<td role="cell" data-label="([^"]+)">(.*?)<\/td>/g)].slice(0, 6).map((m) => `${m[1]}: ${m[2]}`);
-    expect(cells(SELF)).toEqual(["Nickname: @ana_lima (você)", 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Recife", `Criada em: ${dateTime(SELF.createdAt)}`, "Verificada: Sim", "Situação: —"]);
-    expect(cells(OTHER_ADMIN)).toEqual(["Nickname: @caio", 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Olinda", `Criada em: ${dateTime(OTHER_ADMIN.createdAt)}`, "Verificada: Sim", "Situação: —"]);
-    expect(cells(PLAYER)).toEqual(["Nickname: @bia", 'Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(PLAYER.createdAt)}`, "Verificada: Não", "Situação: —"]);
-    expect(cells(BLOCKED).slice(1)).toEqual(['Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(BLOCKED.createdAt)}`, "Verificada: Sim", 'Situação: <span class="status" data-status="blocked">Bloqueada</span>']);
+    const nameCell = (user: UserSummary, name = user.nickname) => `Nome na Vila: <div>${name}<br/><code class="muted" title="ID da conta">${user.id}</code></div>`;
+    expect(cells(SELF)).toEqual([nameCell(SELF, "ana_lima (você)"), 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Recife", `Criada em: ${dateTime(SELF.createdAt)}`, "Confirmação por e-mail: Confirmada", "Situação: —"]);
+    expect(cells(OTHER_ADMIN)).toEqual([nameCell(OTHER_ADMIN), 'Papel: <span class="nowrap">Administrador</span>', "Cidade: Olinda", `Criada em: ${dateTime(OTHER_ADMIN.createdAt)}`, "Confirmação por e-mail: Confirmada", "Situação: —"]);
+    expect(cells(PLAYER)).toEqual([nameCell(PLAYER), 'Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(PLAYER.createdAt)}`, "Confirmação por e-mail: Pendente", "Situação: —"]);
+    expect(cells(BLOCKED).slice(1)).toEqual(['Papel: <span class="nowrap">Padrão</span>', "Cidade: Recife", `Criada em: ${dateTime(BLOCKED.createdAt)}`, "Confirmação por e-mail: Confirmada", 'Situação: <span class="status" data-status="blocked">Bloqueada</span>']);
     expect(count(page, "Bloqueada")).toBe(1);
     // The old local label is gone: the role reads as the shared contract says.
     expect(page).not.toContain("Jogador");
@@ -286,7 +287,7 @@ describe("accounts: roles and block (IMPL-0021)", () => {
     expect(page.slice(page.indexOf(`data-row="${PLAYER.id}"`))).toMatch(/^[^]*?<\/tr><tr role="row" class="table__detail"><td role="cell" colSpan="7">\s*<p>detalhe de bia<\/p><\/td><\/tr>/i);
   });
 
-  const confirmation = (action: UserAction, props: Partial<Parameters<typeof UserConfirmation>[0]> = {}) => html(<UserConfirmation action={action} nickname="bia" onConfirm={() => {}} onCancel={() => {}} {...props} />);
+  const confirmation = (action: UserAction, props: Partial<Parameters<typeof UserConfirmation>[0]> = {}) => html(<UserConfirmation action={action} nickname="bia" userId={PLAYER.id} onConfirm={() => {}} onCancel={() => {}} {...props} />);
   const confirmButtons = (page: string) => [...page.matchAll(/<button type="button" class="btn[^"]*"( disabled="")?[^>]*>([^<]+)<\/button>/g)].map((m) => `${m[2]}${m[1] ? " (disabled)" : ""}`);
 
   it("asks to confirm a role change in a second step that names the account and states the consequence", () => {

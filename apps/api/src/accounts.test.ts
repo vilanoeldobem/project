@@ -183,7 +183,7 @@ describe("feature flag and origin", () => {
 
 describe("registration and magic link (P13, OQ-03)", () => {
   it("validates the four fields with pt-BR messages", async () => {
-    const r = await call("POST", "/auth/register", { name: "A", nickname: "a b", city: "", email: "x" });
+    const r = await call("POST", "/auth/register", { name: "A", nickname: "<Ana>", city: "", email: "x" });
     expect(r.status).toBe(400);
     expect(Object.keys(r.body.fields).sort()).toEqual(["city", "email", "name", "nickname"]);
   });
@@ -221,11 +221,13 @@ describe("registration and magic link (P13, OQ-03)", () => {
     expect(db.sql("SELECT COUNT(*) AS n FROM users")[0].n).toBe(1);
   });
 
-  it("keeps nicknames unique (case-insensitive)", async () => {
-    await signUp("Noel");
-    const r = await call("POST", "/auth/register", { name: "Outra", nickname: "noel", city: "Natal", email: "b@example.com" });
-    expect(r.status).toBe(409);
-    expect(r.body.fields.nickname).toMatch(/já está em uso/);
+  it("keeps separate sessions and IDs for identical names in the Vila", async () => {
+    const nickname = "João Noel";
+    const a = await signUp(nickname);
+    const b = await signUp(nickname, "b@example.com");
+    expect(a.user.id).not.toBe(b.user.id);
+    expect((await call("GET", "/me", undefined, a.cookie)).body.user).toMatchObject({ id: a.user.id, nickname });
+    expect((await call("GET", "/me", undefined, b.cookie)).body.user).toMatchObject({ id: b.user.id, nickname });
   });
 
   it("sends at most 3 links per account per 15 minutes", async () => {
@@ -244,6 +246,9 @@ describe("registration and magic link (P13, OQ-03)", () => {
     const r = await call("POST", "/auth/register", { name: "Ana Lima", nickname: "ana_lima", city: "Recife", email: "ana@example.com" });
     expect(r.status).toBe(202);
     expect(r.body.devLink).toBeUndefined();
+    expect(r.headers.get("Set-Cookie")).toBeNull();
+    expect(db.sql("SELECT verified_at FROM users")).toEqual([{ verified_at: null }]);
+    expect(db.sql("SELECT user_id FROM sessions")).toEqual([]);
     expect(sent).toHaveLength(1);
     expect(sent[0].url).toBe("https://api.resend.com/emails");
     expect(sent[0].headers.get("Authorization")).toBe("Bearer re_test_key");
@@ -300,17 +305,23 @@ describe("registration and magic link (P13, OQ-03)", () => {
     const account = { name: "Pessoa Teste", nickname: "teste_qa", city: "Natal", email: "cadastro@example.invalid" };
     const first = await call("POST", "/auth/register", account);
     expect([first.status, first.body.error]).toEqual([503, "mail_unavailable"]);
-    const [{ id }] = db.sql("SELECT id FROM users");
+    expect(first.headers.get("Set-Cookie")).toBeNull();
+    const [{ id, verified_at }] = db.sql("SELECT id, verified_at FROM users");
+    expect(verified_at).toBeNull();
+    expect(db.sql("SELECT user_id FROM sessions")).toEqual([]);
 
     env.RESEND_API_KEY = "test-only";
     const inbox = stubResend();
     const retry = await call("POST", "/auth/link", { email: account.email });
     expect([retry.status, retry.body]).toEqual([202, { ok: true }]);
     expect(inbox).toHaveLength(1);
+    expect(db.sql("SELECT verified_at FROM users")).toEqual([{ verified_at: null }]);
+    expect(db.sql("SELECT user_id FROM sessions")).toEqual([]);
     const link = inbox[0].body.text.split("\n").find(line => line.startsWith("https://"))!;
     const verified = await call("POST", "/auth/verify", { token: tokenOf(link) });
     expect([verified.status, verified.body.user.id, verified.body.user.nickname]).toEqual([200, id, account.nickname]);
-    expect(db.sql("SELECT id FROM users")).toEqual([{ id }]);
+    expect(db.sql("SELECT id, verified_at FROM users")).toEqual([{ id, verified_at: expect.any(String) }]);
+    expect(db.sql("SELECT user_id FROM sessions")).toEqual([{ user_id: id }]);
   });
 
   it("logs out and deletes the account with its sessions and mission events", async () => {
@@ -727,10 +738,9 @@ describe("security review fixes (2026-11-11)", () => {
   it("answers register the same with or without an existing e-mail", async () => {
     await signUp("ana_lima", "ana@example.com");
     await signUp("taken", "taken@example.com");
-    // Taken nickname: 409 whether the e-mail exists or not.
-    expect([(await reg("ana@example.com", "taken")).status, (await reg("new@example.com", "taken")).status]).toEqual([409, 409]);
-    // Free nickname: 202 whether the e-mail exists or not.
+    expect([(await reg("ana@example.com", "taken")).status, (await reg("new@example.com", "taken")).status]).toEqual([202, 202]);
     expect([(await reg("ana@example.com", "free_one")).status, (await reg("other@example.com", "free_two")).status]).toEqual([202, 202]);
+    expect(db.sql("SELECT nickname FROM users WHERE email = ?", "ana@example.com")).toEqual([{ nickname: "ana_lima" }]);
   });
 
   it("caps links per day atomically and always points them at the game", async () => {
@@ -772,12 +782,13 @@ describe("security review fixes (2026-11-11)", () => {
     expect((await call("GET", "/me", undefined, b.cookie)).body.user).toMatchObject({ id: b.user.id, name: "Ana Lima", nickname: "bia" });
   });
 
-  it("lets people correct their data (not the e-mail) and keeps nicknames unique", async () => {
-    await signUp("bia", "bia@example.com");
+  it("lets people change to an existing visible name while keeping the same ID and e-mail", async () => {
+    const other = await signUp("Bia Lima", "bia@example.com");
     const { cookie, user } = await signUp();
-    const r = await call("POST", "/me", { accountId: user.id, name: "Ana Souza", nickname: "ana_souza", city: "Olinda", email: "x@evil.example" }, cookie);
-    expect(r.body.user).toMatchObject({ name: "Ana Souza", nickname: "ana_souza", city: "Olinda", email: "ana@example.com" });
-    expect((await call("POST", "/me", { accountId: user.id, name: "Ana", nickname: "BIA", city: "Olinda" }, cookie)).status).toBe(409);
+    const r = await call("POST", "/me", { accountId: user.id, name: "Ana Souza", nickname: "Bia Lima", city: "Olinda", email: "x@example.com" }, cookie);
+    expect(r.status).toBe(200);
+    expect(r.body.user).toMatchObject({ id: user.id, name: "Ana Souza", nickname: "Bia Lima", city: "Olinda", email: "ana@example.com" });
+    expect((await call("GET", "/me", undefined, other.cookie)).body.user).toMatchObject({ id: other.user.id, nickname: "Bia Lima", email: "bia@example.com" });
   });
 
   it("refuses self-review and unknown actions (no prototype keys)", async () => {

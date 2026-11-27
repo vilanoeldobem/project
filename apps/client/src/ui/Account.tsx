@@ -187,6 +187,7 @@ function SignedOut({ pix, reason }: { pix: boolean; reason?: LocalAction }) {
         <p className="lead">
           Se <strong>{sent.email}</strong> for o e-mail da sua conta, procure a mensagem com o link de acesso. O link vale por 15 minutos e só funciona uma vez.
         </p>
+        {mode === "register" && <p className="note">Seu cadastro só é confirmado ao abrir o link de acesso.</p>}
         <p className="note">Não chegou? Veja a caixa de spam ou peça outro link daqui a pouco.</p>
         {reason && <p className="note">Ao entrar, volte ao jogo e escolha a ação de novo.</p>}
         {sent.devLink && (
@@ -273,8 +274,8 @@ function RegisterForm({ onSent, onMailUnavailable }: {
           <Field label="Nome *" error={errors.name}>
             <input value={form.name} onChange={set("name")} autoComplete="name" maxLength={80} required />
           </Field>
-          <Field label="Nickname *" error={errors.nickname} hint="É o único dado que aparece para as outras pessoas na Vila.">
-            <input value={form.nickname} onChange={set("nickname")} autoComplete="nickname" maxLength={20} required autoCapitalize="none" />
+          <Field label="Nome na Vila *" error={errors.nickname} hint="Este nome aparece na Vila e pode ser igual ao de outras pessoas.">
+            <input value={form.nickname} onChange={set("nickname")} autoComplete="nickname" maxLength={20} required />
           </Field>
           <Field label="Cidade *" error={errors.city}>
             <input value={form.city} onChange={set("city")} autoComplete="address-level2" maxLength={60} required />
@@ -294,8 +295,7 @@ function RegisterForm({ onSent, onMailUnavailable }: {
         <SheetSection n={3} icon="👤" title="Prévia pública">
           <div className="preview" aria-label="Prévia pública">
             <AvatarPortrait look={look} appearance={appearance} size={8} label="Prévia do personagem" />
-            <strong>@{form.nickname || "nickname"}</strong>
-            <span className="note">Seu nickname aparece na Vila.</span>
+            <strong>{form.nickname || "Seu nome na Vila"}</strong>
           </div>
         </SheetSection>
       </div>
@@ -306,7 +306,7 @@ function RegisterForm({ onSent, onMailUnavailable }: {
 function LoginForm({ recoveryEmail, onSent }: { recoveryEmail: string; onSent: (s: { email: string; devLink?: string }) => void }) {
   const [email, setEmail] = useState(recoveryEmail);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(recoveryEmail ? "O envio do e-mail falhou. Confira o endereço e peça um link de acesso." : "");
+  const [error, setError] = useState(recoveryEmail ? "O envio do e-mail falhou. O cadastro está pendente. Confira o endereço e peça outro link para confirmar." : "");
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -465,8 +465,8 @@ function EditProfile() {
         <Field label="Nome" error={errors.name}>
           <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} maxLength={80} />
         </Field>
-        <Field label="Nickname" error={errors.nickname}>
-          <input value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })} maxLength={20} autoCapitalize="none" />
+        <Field label="Nome na Vila" error={errors.nickname}>
+          <input value={form.nickname} onChange={(e) => setForm({ ...form, nickname: e.target.value })} maxLength={20} />
         </Field>
         <Field label="Cidade" error={errors.city}>
           <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} maxLength={60} />

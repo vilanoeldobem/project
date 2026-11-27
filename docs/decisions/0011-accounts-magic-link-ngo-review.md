@@ -96,8 +96,8 @@ Uma revisão independente do código levou a estas mudanças, todas com teste:
 
 - **Link nunca devolvido fora de `development`/`test`** (antes: qualquer ambiente ≠ `production`, o que permitiria
   tomar contas num ambiente mal configurado). Links sempre apontam para `GAME_ORIGIN` (o jogo).
-- **Sem enumeração de e-mail:** nickname conferido antes do e-mail; `/auth/link` responde `202` mesmo se o envio
-  falhar; corrida no cadastro com e-mail existente também responde `202`.
+- **Sem enumeração no pedido de link:** `/auth/link` responde `202` mesmo se o envio falhar. Repetir o cadastro
+  com o mesmo e-mail reutiliza a conta. Pessoas diferentes podem usar o mesmo nome na Vila.
 - **Limites atômicos:** 3 links por 15 minutos e 10 por dia por conta, contados e gravados num único comando.
 - **Cookie `__Host-vila_session`:** subdomínios irmãos não conseguem plantar sessão.
 - **Só o jogo usa a conta:** `ACCOUNT_ORIGINS` (`play.*`) para rotas de conta e CORS com credenciais; o site

@@ -23,7 +23,7 @@ const clean = (v: unknown, max: number) =>
   // eslint-disable-next-line no-control-regex
   typeof v === "string" ? v.replace(/[\u0000-\u001f\u007f]/g, " ").trim().replace(/\s+/g, " ").slice(0, max + 1) : "";
 
-export const NICKNAME_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{1,18}[A-Za-z0-9_]$/;
+const NICKNAME_RE = /^[\p{L}\p{N}_][\p{L}\p{M}\p{N} ._'’-]*$/u;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,189}\.[^\s@]{2,}$/;
 
 export function normaliseEmail(v: unknown): string {
@@ -33,14 +33,14 @@ export function normaliseEmail(v: unknown): string {
 export function validateRegistration(input: Partial<Record<keyof Registration, unknown>>): { value: Registration; errors: Errors<Registration> } {
   const value: Registration = {
     name: clean(input.name, 80),
-    nickname: clean(input.nickname, 20),
+    nickname: clean(typeof input.nickname === "string" ? input.nickname.normalize("NFC") : input.nickname, 20),
     city: clean(input.city, 60),
     email: normaliseEmail(input.email),
   };
   const errors: Errors<Registration> = {};
   if (value.name.length < 2 || value.name.length > 80) errors.name = "Digite seu nome (2 a 80 caracteres).";
-  if (!NICKNAME_RE.test(value.nickname))
-    errors.nickname = "Use de 3 a 20 letras, números, ponto, hífen ou sublinhado (sem espaços).";
+  if (value.nickname.length > 20 || !NICKNAME_RE.test(value.nickname))
+    errors.nickname = "Digite um nome de até 20 caracteres, começando com letra, número ou sublinhado.";
   if (value.city.length < 2 || value.city.length > 60) errors.city = "Digite sua cidade (2 a 60 caracteres).";
   if (!EMAIL_RE.test(value.email) || value.email.length > 254) errors.email = "Digite um e-mail válido.";
   return { value, errors };

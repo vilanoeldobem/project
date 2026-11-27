@@ -46,7 +46,7 @@ export async function currentUser(request: Request, env: Env): Promise<User | nu
     // `blocked` is migration 0010: a database without it answers 503 schema_outdated on every signed-in route.
     `SELECT u.id, u.name, u.nickname, u.city, u.email, u.role, u.verified_at, u.files_deleting, u.blocked
        FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token_hash = ? AND s.expires_at > ?`
+      WHERE s.token_hash = ? AND s.expires_at > ? AND u.verified_at IS NOT NULL`
   )
     .bind(await sha256Hex(token), new Date().toISOString())
     .first<User>();

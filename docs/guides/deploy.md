@@ -329,11 +329,11 @@ Para desligar de novo, volte a bandeira para `"false"` e publique a API: os dado
 ### 7.4 Conceder o papel de administrador
 
 **O primeiro administrador** é criado à mão ([IMPL-0021](../decisions/0021-administrator-role-and-moderation.md),
-DEC-037). A pessoa cria a conta normalmente e confirma o link; depois, alguém com acesso à conta Cloudflare roda,
-em `apps/api`:
+DEC-037). A pessoa cria a conta, confirma o link e informa o ID da própria conta (campo `user.id` na resposta de
+`GET /me` da sessão autenticada). Com esse ID, alguém com acesso à conta Cloudflare roda em `apps/api`:
 
 ```bash
-pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET role='admin' WHERE nickname='...'"
+pnpm exec wrangler d1 execute vilanoeldobem --remote --command "UPDATE users SET role='admin' WHERE id='ID_DA_CONTA' AND verified_at IS NOT NULL"
 ```
 
 É uma escrita remota no D1: **proibida para agentes sem autorização humana explícita** (AGENTS.md). Com o papel, a
