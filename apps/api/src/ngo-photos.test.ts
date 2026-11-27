@@ -89,7 +89,7 @@ describe("private NGO photos and public approval", () => {
     expect((await upload({ accountId: "other" })).status).toBe(409);
     expect((await call("POST", "/ngo/photos", {}, "owner", `${ORIGIN}.evil`)).status).toBe(403);
     await db.prepare("UPDATE users SET verified_at=NULL WHERE id='owner'").run();
-    expect((await upload()).status).toBe(403); expect(bucket.put).not.toHaveBeenCalled();
+    expect((await upload()).status).toBe(401); expect(bucket.put).not.toHaveBeenCalled();
     await db.prepare("UPDATE users SET verified_at='2026-01-01' WHERE id='owner'").run();
     const id = await photo();
     expect((await call("GET", `/ngo/photos/${id}/content`, undefined, "other")).status).toBe(404);

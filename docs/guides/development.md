@@ -136,11 +136,11 @@ desenvolvimento)": não é preciso e-mail de verdade.
 1. `pnpm db:migrate:local` (aplica a 0004) e suba os três Workers
    ([getting-started §4](../getting-started.md#4-rodar-api-servidor-e-jogo)).
 2. No jogo: chip "Entrar" → "Criar conta" → "Abrir link (só em desenvolvimento)". O chip vira `@nickname`.
-3. Para virar admin localmente (nunca `--remote` sem autorização):
+3. Use o ID da conta (`user.id` em `GET /me` depois de confirmar o link) para virar admin localmente (nunca `--remote` sem autorização):
 
    ```bash
    cd apps/api
-   pnpm exec wrangler d1 execute vilanoeldobem --local --command "UPDATE users SET role='admin' WHERE nickname='seu_nick'"
+   pnpm exec wrangler d1 execute vilanoeldobem --local --command "UPDATE users SET role='admin' WHERE id='ID_DA_CONTA' AND verified_at IS NOT NULL"
    ```
 
    Suba o painel administrativo (`pnpm --filter @vila/dash dev:worker`, `http://localhost:8797`) e entre com o

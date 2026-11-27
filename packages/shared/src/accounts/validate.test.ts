@@ -25,9 +25,9 @@ describe("registration (DEC-038: exactly four fields)", () => {
   });
 
   it("rejects bad fields with pt-BR messages", () => {
-    const { errors } = validateRegistration({ name: "A", nickname: "a b", city: "", email: "nope" });
+    const { errors } = validateRegistration({ name: "A", nickname: "<Ana>", city: "", email: "nope" });
     expect(Object.keys(errors).sort()).toEqual(["city", "email", "name", "nickname"]);
-    expect(errors.nickname).toMatch(/letras/);
+    expect(errors.nickname).toMatch(/nome/);
   });
 
   it("turns control characters into spaces (no NUL, ESC or line breaks stored)", () => {
@@ -38,9 +38,10 @@ describe("registration (DEC-038: exactly four fields)", () => {
     expect(validateApplication({ ...VALID_APP, summary: "Apoio\u0007 escolar para crianças do bairro." }, TODAY).value.summary).toBe("Apoio escolar para crianças do bairro.");
   });
 
-  it("limits nickname charset and length", () => {
-    for (const ok of ["abc", "noel.2026", "a-b_c", "X".repeat(20)]) expect(validateRegistration({ nickname: ok }).errors.nickname).toBeUndefined();
-    for (const bad of ["ab", "X".repeat(21), ".abc", "abc.", "ab c", "ação"]) expect(validateRegistration({ nickname: bad }).errors.nickname).toBeDefined();
+  it("accepts short, accented and spaced names while keeping the length limit", () => {
+    for (const ok of ["É", "noel.2026", "a-b_c", "João d’Ávila", "X".repeat(20)]) expect(validateRegistration({ nickname: ok }).errors.nickname).toBeUndefined();
+    for (const bad of ["", "X".repeat(21), ".abc", "abc@", "Ana\u200b"]) expect(validateRegistration({ nickname: bad }).errors.nickname).toBeDefined();
+    expect(validateRegistration({ nickname: "  Joa\u0303o  Noel " }).value.nickname).toBe("João Noel");
   });
 });
 

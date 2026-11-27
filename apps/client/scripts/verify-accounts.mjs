@@ -329,7 +329,7 @@ async function openLink(page, link, signedIn, who) {
 async function fillRegistration(page, nickname, email) {
   await click(page.getByRole("button", { name: "Entrar ou criar conta" }));
   await page.getByLabel("Nome *").fill(`Pessoa ${nickname}`);
-  await page.getByLabel("Nickname *").fill(nickname);
+  await page.getByLabel("Nome na Vila *").fill(nickname);
   await page.getByLabel("Cidade *").fill("Recife");
   await page.getByLabel("E-mail *").fill(email);
 }
@@ -554,7 +554,12 @@ await openLink(b, dashLink, b.getByRole("heading", { name: "Apenas administrador
 if (await b.getByRole("navigation").count()) errors.push("dashboard: menu shown to an account without the admin role");
 if (!(await b.getByRole("button", { name: "Sair" }).count())) errors.push("dashboard: no sign-out button on the admins-only screen");
 await b.screenshot({ path: `${out}accounts-4a-dash-not-admin.png` });
-localSql(`UPDATE users SET role='admin' WHERE nickname='${admin}'`);
+const adminId = await b.evaluate(async (api) => {
+  const { user } = await (await fetch(`${api}/me`, { credentials: "include" })).json();
+  return user?.id;
+}, BUILD_API);
+if (typeof adminId !== "string" || !/^[0-9a-f-]{36}$/i.test(adminId)) await fail("dashboard: missing signed-in account ID");
+localSql(`UPDATE users SET role='admin' WHERE id='${adminId}' AND verified_at IS NOT NULL`);
 await b.reload({ waitUntil: "load" });
 const menu = b.getByRole("navigation", { name: "Seções" });
 await menu.waitFor({ timeout: API_WAIT });
@@ -650,7 +655,9 @@ if (!(await visible(b.getByRole("row").filter({ hasText: "ngo.approve" }).filter
 // Reading a document is on record, with the admin who read it.
 if (filesOn && !(await visible(b.getByRole("row").filter({ hasText: "ngo.file_read" }).filter({ hasText: `@${admin}` }).first()))) errors.push("dashboard: the document download is not in the audit trail");
 await menu.getByRole("link", { name: "Usuários e permissões", exact: true }).click();
-if (!(await visible(b.getByRole("row").filter({ hasText: `@${admin}` }).filter({ hasText: "Administrador" })))) errors.push("dashboard: the admin is not in the users list");
+const adminRow = b.locator(`[data-row="${adminId}"]`);
+if (!(await visible(adminRow.getByText("Administrador", { exact: true })))) errors.push("dashboard: the admin is not in the users list");
+if (!(await visible(adminRow.getByText(adminId, { exact: true })))) errors.push("dashboard: the users list does not show the account ID");
 if (/@example\.com|Pessoa (ong|out|adm)_/.test(await b.getByRole("main").innerText())) errors.push("dashboard: the users list shows an e-mail or a name");
 await b.screenshot({ path: `${out}accounts-4b-dash-users.png`, fullPage: true });
 

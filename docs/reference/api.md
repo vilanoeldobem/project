@@ -347,7 +347,7 @@ são **PROPOSTA** (`packages/shared/src/accounts/validate.ts`, mesmas regras e m
 | Campo | Regra (PROPOSTA) |
 |---|---|
 | `name` | 2 a 80 caracteres (espaços repetidos colapsados) |
-| `nickname` | 3 a 20 de `[A-Za-z0-9_.-]`, começando e terminando com letra, número ou `_`; único sem diferenciar maiúsculas (`409 nickname_taken`) |
+| `nickname` | Nome na Vila, de 1 a 20 caracteres. Aceita letras com acentos, números, espaços, ponto, hífen, apóstrofo e sublinhado. Começa com letra, número ou sublinhado. Pode se repetir entre contas. |
 | `city` | 2 a 60 caracteres |
 | `email` | formato de e-mail, até 254 caracteres, guardado em minúsculas; único |
 
@@ -1376,7 +1376,6 @@ Corpo `{"error":"<código>"}`; erros de formulário trazem também `fields` com 
 | API | 413 | `too_large` | corpo acima de 16 000 bytes (32 000 na candidatura) |
 | API | 400 | `bad_json` | corpo não é um objeto JSON |
 | API | 400 | `invalid` (+ `fields`) | cadastro ou candidatura com campo inválido |
-| API | 409 | `nickname_taken` (+ `fields.nickname`) | nickname já usado |
 | API | 400 | `invalid_token` | link desconhecido, expirado ou já usado |
 | API | 503 | `mail_unavailable` | produção sem `RESEND_API_KEY` ou falha no envio |
 | API | 401 | `not_signed_in` | rota que exige sessão, sem sessão válida |

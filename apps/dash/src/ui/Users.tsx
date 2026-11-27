@@ -33,7 +33,7 @@ import { AccountsOff, Confirmation, DataTable, Field, Live, Notice, PageHead, St
 export function Users({ locked, accountId }: { locked: boolean; accountId?: string }) {
   return (
     <>
-      <PageHead title="Usuários e permissões" lead="Encontre a conta pelo nickname para conceder ou retirar o papel de administrador. As mudanças de papel e os bloqueios ficam registrados na auditoria." />
+      <PageHead title="Usuários e permissões" lead="Use o ID da conta para distinguir pessoas com o mesmo nome na Vila. As mudanças de papel e os bloqueios ficam registrados na auditoria." />
       {locked ? (
         <>
           <AccountsOff what="a lista de contas não pode ser lida" />
@@ -152,7 +152,6 @@ function Accounts({ accountId }: { accountId?: string }) {
   return (
     <div ref={root}>
       <Live loading={page.loading} error={page.error} onRetry={page.retry}>
-        <p className="muted">E-mail e nome não aparecem aqui: só o nickname é público, e o painel guarda o mínimo.</p>
         {page.items && users.length === 0 && (
           <p className="muted" data-state="empty">
             Nenhuma conta criada.
@@ -174,6 +173,7 @@ function Accounts({ accountId }: { accountId?: string }) {
                     key={`${u.id}-${pending.action}`}
                     action={pending.action}
                     nickname={u.nickname}
+                    userId={u.id}
                     message={message}
                     onMessage={(text) => {
                       setMessage(text);
@@ -240,17 +240,20 @@ export function UserTable({
   return (
     <DataTable
       caption="Contas"
-      columns={["Nickname", "Papel", "Cidade", "Criada em", "Verificada", "Situação", "Ações"]}
+      columns={["Nome na Vila", "Papel", "Cidade", "Criada em", "Confirmação por e-mail", "Situação", "Ações"]}
       rows={users.map((u) => {
         const offer = offerFor(u, selfId, blockOn);
         return {
           key: u.id,
           cells: [
-            u.id === selfId ? `@${u.nickname} (você)` : `@${u.nickname}`,
+            <div>
+              {u.nickname}{u.id === selfId ? " (você)" : ""}
+              <br /><code className="muted" title="ID da conta">{u.id}</code>
+            </div>,
             <span className="nowrap">{roleLabel(u.role)}</span>,
             u.city,
             dateTime(u.createdAt),
-            u.verified ? "Sim" : "Não",
+            u.verified ? "Confirmada" : "Pendente",
             u.blocked ? <Status code="blocked">Bloqueada</Status> : "—",
             <div className="row-actions" data-actions={offer.actions.join(" ")}>
               {offer.actions.map((action) => (
@@ -277,6 +280,7 @@ export function UserTable({
 export function UserConfirmation({
   action,
   nickname,
+  userId,
   message = "",
   onMessage = () => {},
   busy = false,
@@ -287,6 +291,7 @@ export function UserConfirmation({
 }: {
   action: UserAction;
   nickname: string;
+  userId: string;
   message?: string;
   onMessage?: (text: string) => void;
   busy?: boolean;
@@ -299,6 +304,7 @@ export function UserConfirmation({
   return (
     <Confirmation kind={action} title={text.title} understood={text.understood} confirm={USER_ACTION_LABEL[action]} busy={busy} error={error} onConfirm={onConfirm} onCancel={onCancel}>
       <p>{text.effect}</p>
+      <p>ID da conta <code>{userId}</code></p>
       {action === "block" && (
         <Field label={BLOCK_MESSAGE_LABEL} hint={BLOCK_MESSAGE_HINT} error={fieldError}>
           <textarea value={message} disabled={busy} onChange={(e) => onMessage(e.target.value)} rows={4} />
