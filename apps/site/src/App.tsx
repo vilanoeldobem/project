@@ -13,18 +13,18 @@ import {
   VoxelMoonIcon,
   VoxelPlazaIcon,
   VoxelSnowflakeIcon,
-  VoxelTreeGlobeIcon,
   VoxelVillageSkyline,
 } from "./VoxelArt";
 import { VoxelSnow } from "./VoxelSnow";
 import { villageNow, type VillageNow } from "./villageClock";
 
 /**
- * Public landing page (www.*). Copy is pt-BR and uses only approved wording: purpose and promise
- * (DEC-021); donation rules (DEC-010..013, DEC-026, DEC-029); NGO criteria (DEC-015); deadline
- * (DEC-043). No slogan is used (PEN-015). The brand is the in-test logo (IMPL-0029): the Modelo B
- * render, applied per the owner's instruction on 2026-11-18. Final approval of the logo is still
- * pending (DEC-024, PEN-016).
+ * Public landing page (www.*). Copy is pt-BR and supplied by the product owner on 2026-11-27:
+ * purpose and promise follow DEC-021, NGO criteria DEC-015, and every donation/candidacy
+ * statement stays conditional (DEC-010..013, DEC-026, DEC-029). The opening line and footer
+ * tagline are the copy's own words; no additional slogan is added. The brand is the in-test
+ * logo (IMPL-0029): the Modelo B render, applied per the owner's instruction on 2026-11-18.
+ * Final approval of the logo is still pending (DEC-024, PEN-016).
  */
 
 const THEME_KEY = "vila.site.theme.v1";
@@ -202,15 +202,18 @@ export function App() {
               <a className="nav-link" href="#como-funciona">
                 Como funciona
               </a>
-              <a className="nav-link" href="#doacoes">
-                Doações
-              </a>
               <a className="nav-link" href="#ongs">
                 Para ONGs
               </a>
+              <a className="nav-link" href="#doacoes">
+                Doações e transparência
+              </a>
+              <a className="nav-link" href="#faq">
+                Perguntas frequentes
+              </a>
             </nav>
             <a className="btn btn--primary btn--header top__cta" href={GAME_URL}>
-              Entrar na Vila
+              Explorar a Vila
             </a>
           </div>
         </div>
@@ -236,25 +239,22 @@ export function App() {
                 </p>
               </div>
 
-              <h1 id="hero-title">Um lugar para viver o Natal, compartilhar alegria e encontrar oportunidades de fazer o bem.</h1>
+              <p className="hero__opening">Para quem quer se divertir. Para quem trabalha para fazer o bem.</p>
+              <h1 id="hero-title">Um mundo para explorar. Um lugar para sua causa ser descoberta.</h1>
               <p className="lead">
-                Explore uma vila natalina nevada em voxel art, jogue minijogos gratuitos e conheça organizações sociais —
-                direto no navegador, no computador ou no celular.
+                Entre em uma vila natalina em 3D, brinque gratuitamente e descubra, ao longo da experiência,
+                organizações que fazem a diferença. ONGs aprovadas poderão ter casinhas virtuais para apresentar seu
+                trabalho, compartilhar projetos e criar novas conexões com o público.
               </p>
 
               <div className="actions">
                 <a className="btn btn--primary btn--lg" href={GAME_URL}>
-                  Entrar na Vila
+                  Explorar a Vila agora
                 </a>
-                <a className="btn btn--secondary" href="#como-funciona">
-                  Explorar como funciona
+                <a className="btn btn--secondary" href="#como-candidatar">
+                  Como candidatar minha ONG
                 </a>
               </div>
-
-              <p className="hero__hint">
-                <VoxelSnowflakeIcon size={16} />
-                No jogo, ande clicando ou tocando no chão. Jogar nunca é uma doação.
-              </p>
             </div>
 
             <div className="hero__diorama">
@@ -308,133 +308,317 @@ export function App() {
         <section id="como-funciona" className="section" aria-labelledby="como-funciona-title">
           <div className="section__inner">
             <div className="section__intro">
-              <h2 id="como-funciona-title">Como funciona</h2>
-              <p className="section__lead">
-                Ande pela praça, jogue minijogos gratuitos e visite os terrenos onde organizações sociais aprovadas abrem
-                suas casas.
-              </p>
+              <h2 id="como-funciona-title">Dois caminhos para viver a Vila</h2>
             </div>
 
-            <div className="feature-layout">
-              <article className="feature-stage">
-                <div className="feature-stage__art">
-                  <VoxelPlazaIcon />
-                  <h3>Explorar a praça e visitar causas</h3>
-                </div>
+            <div className="paths">
+              <article className="path">
+                <VoxelGameIcon size={36} />
+                <h3>Para visitantes: a diversão vem primeiro</h3>
                 <p>
-                  Ande clicando ou tocando no chão, encontre presentes escondidos na neve e visite os terrenos onde
-                  organizações sociais aprovadas abrem suas casas. Dá para entrar sem criar conta.
+                  Passeie pela vila e jogue no seu ritmo. Conforme as ONGs forem aprovadas e suas casinhas publicadas,
+                  você também poderá descobrir histórias e projetos sociais durante a visita.
                 </p>
+                <p>Jogar é gratuito. Conhecer uma causa ou contribuir com ela será sempre uma escolha sua.</p>
                 <a className="inline-cta" href={GAME_URL}>
-                  Passear pela praça agora
+                  Entrar na Vila
                   <VoxelArrowIcon />
                 </a>
               </article>
 
-              <div className="feature-rail">
-                <article className="feature-item">
-                  <VoxelGameIcon />
-                  <h3>Jogar gratuitamente</h3>
-                  <p>
-                    Minijogos simples e gratuitos. O Jogo da Memória já está disponível; outros chegam aos poucos. Jogar
-                    nunca é uma doação.
-                  </p>
-                </article>
-                <article className="feature-item">
-                  <VoxelMissionIcon />
-                  <h3>Subir de nível nas Missões da Vila</h3>
-                  <p>
-                    Complete missões nas trilhas Explorar, Brincar e Conhecer causas para ganhar experiência e desbloquear
-                    visuais — sem precisar doar.
-                  </p>
-                </article>
-              </div>
+              <article className="path">
+                <VoxelChaletHeartIcon size={36} />
+                <h3>Para ONGs: sua história merece um espaço próprio</h3>
+                <p>
+                  Sua organização poderá apresentar seu trabalho em uma casinha virtual dentro da Vila. Para se
+                  candidatar, um responsável deverá criar uma conta de usuário comum e, com essa conta, preencher o
+                  formulário de candidatura da ONG. A candidatura passará por análise documental antes de qualquer
+                  publicação.
+                </p>
+                <a className="inline-cta" href="#como-candidatar">
+                  Ver etapas e critérios da candidatura
+                  <VoxelArrowIcon />
+                </a>
+              </article>
             </div>
           </div>
         </section>
 
-        <section id="doacoes" className="section section--tonal" aria-labelledby="doacoes-title">
+        <section id="ongs" className="section section--tonal" aria-labelledby="ongs-title">
           <div className="section__inner">
             <div className="section__intro">
-              <h2 id="doacoes-title">Doação com transparência</h2>
-              <p className="section__lead">O destinatário aparece sempre antes de qualquer pagamento.</p>
+              <h2 id="ongs-title">O que uma casinha virtual pode oferecer à sua ONG</h2>
             </div>
 
-            <div className="donation-split">
-              <article className="donation-path">
-                <div className="donation-path__head">
-                  <VoxelTreeGlobeIcon />
-                  <h3>Doação global</h3>
+            <div className="offer-list">
+              <article className="offer">
+                <VoxelPlazaIcon size={36} />
+                <div>
+                  <h3>Uma nova forma de ser encontrada</h3>
+                  <p>
+                    A Vila cria mais um ponto de contato entre sua organização e pessoas que talvez ainda não conheçam
+                    seu trabalho. A descoberta acontece dentro de uma experiência que elas escolheram explorar.
+                  </p>
                 </div>
-                <p>
-                  Na praça, você pode doar sem escolher uma ONG específica. O valor vai para{" "}
-                  <strong>uma única instituição parceira</strong>, independente, que decide a destinação conforme seus
-                  programas. A Vila não divide essas doações entre as ONGs.
-                </p>
-                <p className="pill">
-                  <VoxelClockIcon size={18} />
-                  Instituição parceira: em definição
-                </p>
               </article>
 
-              <article className="donation-path">
-                <div className="donation-path__head">
-                  <VoxelChaletHeartIcon />
-                  <h3>Doação direta para uma ONG</h3>
+              <article className="offer">
+                <VoxelChaletHeartIcon size={36} />
+                <div>
+                  <h3>Espaço para apresentar o que vocês fazem</h3>
+                  <p>
+                    A casinha foi pensada para reunir a apresentação da ONG, seus projetos e conteúdos visuais
+                    autorizados. Quem se interessar poderá entender melhor a causa e o trabalho por trás dela.
+                  </p>
                 </div>
-                <p>
-                  Dentro da casa de cada organização aprovada, você doa diretamente para ela. O destinatário aparece
-                  sempre antes de qualquer pagamento.
-                </p>
-                <p className="pill">
-                  <VoxelClockIcon size={18} />
-                  Doações aguardam contrato e meio de pagamento
-                </p>
+              </article>
+
+              <article className="offer">
+                <VoxelMissionIcon size={36} />
+                <div>
+                  <h3>Motivos para o público voltar</h3>
+                  <p>
+                    Uma organização tem novas ações, histórias e necessidades ao longo do tempo. Queremos que a casinha
+                    acompanhe esse movimento e abra oportunidades de interação com os visitantes. A forma de atualizar e
+                    moderar os conteúdos ainda está sendo definida.
+                  </p>
+                </div>
+              </article>
+
+              <article className="offer">
+                <VoxelClockIcon size={36} />
+                <div>
+                  <h3>Um futuro caminho de apoio</h3>
+                  <p>
+                    O projeto prevê a possibilidade de doações destinadas a ONGs identificadas. Essa função depende de
+                    validações e acordos antes de ser disponibilizada. Nenhuma ONG deve contar com doações pela Vila
+                    neste momento.
+                  </p>
+                </div>
               </article>
             </div>
           </div>
         </section>
 
-        <section id="ongs" className="section" aria-labelledby="ongs-title">
+        <section id="como-candidatar" className="section" aria-labelledby="como-candidatar-title">
           <div className="section__inner">
-            <div className="ngo-layout">
-              <div className="ngo-copy">
-                <h2 id="ongs-title">Para organizações sociais</h2>
-                <p className="lead">Os terrenos da Vila estão abertos para organizações que atendem a três critérios:</p>
-              </div>
-
-              <ol className="criteria-list">
-                <li>
-                  <VoxelCheckShieldIcon />
-                  <span>CNPJ ativo.</span>
-                </li>
-                <li>
-                  <VoxelCheckShieldIcon />
-                  <span>Pelo menos 1 ano de existência.</span>
-                </li>
-                <li>
-                  <VoxelCheckShieldIcon />
-                  <span>Um meio confiável de confirmar os valores destinados à organização.</span>
-                </li>
-              </ol>
-
-              <p className="note ngo-note">
-                Toda candidatura passa por análise; só a aprovação publica a casa na Vila.{" "}
-                {import.meta.env.MODE === "staging" ? (
-                  <>Quando o cadastro de teste estiver liberado, <a href={GAME_URL}>entre na Vila de teste</a> e escolha um terreno disponível.</>
-                ) : "O cadastro de ONGs abre em breve."}
+            <div className="section__intro">
+              <h2 id="como-candidatar-title">Como candidatar sua ONG</h2>
+              <p className="section__lead">
+                <strong>A candidatura começa com a conta de uma pessoa responsável pela organização.</strong>
               </p>
             </div>
+
+            <ol className="steps">
+              <li>
+                <div>
+                  <h3>Crie uma conta de usuário comum.</h3>
+                  <p>O responsável cadastra seus dados de usuário para acessar a Vila.</p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <h3>Acesse a candidatura com essa conta.</h3>
+                  <p>
+                    Depois de entrar, o responsável preenche o formulário da ONG com as informações da organização e os
+                    documentos e comprovantes solicitados.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <h3>Envie a candidatura para análise documental.</h3>
+                  <p>
+                    A equipe responsável verifica as informações e os requisitos de seleção. Se necessário, poderá
+                    solicitar ajustes.
+                  </p>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <h3>Aguarde a decisão.</h3>
+                  <p>
+                    O envio não publica uma casinha. Somente uma ONG aprovada poderá ter sua casa apresentada na Vila e,
+                    futuramente, acessar os recursos de doação associados a ela.
+                  </p>
+                </div>
+              </li>
+            </ol>
+
+            <div className="apply-check">
+              <div className="apply-criteria">
+                <h3>Critérios de seleção já definidos</h3>
+                <p>Para se candidatar, a organização deve atender aos três requisitos iniciais:</p>
+                <ol className="criteria-list">
+                  <li>
+                    <VoxelCheckShieldIcon />
+                    <strong>CNPJ ativo.</strong>
+                  </li>
+                  <li>
+                    <VoxelCheckShieldIcon />
+                    <strong>Pelo menos 1 ano de existência.</strong>
+                  </li>
+                  <li>
+                    <VoxelCheckShieldIcon />
+                    <strong>Um meio confiável de confirmar os valores destinados à organização.</strong>
+                  </li>
+                </ol>
+              </div>
+
+              <aside className="why" aria-labelledby="why-title">
+                <h3 id="why-title">Por que essas exigências existem?</h3>
+                <p>
+                  Quem ajuda precisa saber que a casinha representa uma ONG real. O CNPJ ativo, o tempo mínimo de
+                  existência e a análise documental ajudam a verificar a organização antes de sua aprovação. O meio
+                  confiável de confirmação permite conferir os valores destinados a ela.
+                </p>
+                <p>
+                  Esses cuidados protegem o caminho da doação: identificar quem recebe, confirmar o recebimento e
+                  apresentar com clareza os projetos da ONG na Vila.{" "}
+                  <strong>
+                    Comprovar que os recursos foram efetivamente usados nesses projetos exige também prestação de contas
+                    e evidências da aplicação dos valores.
+                  </strong>{" "}
+                  Essas regras ainda serão definidas; não afirmaremos que essa comprovação existe antes de poder
+                  realizá-la.
+                </p>
+              </aside>
+            </div>
+
+            <div className="apply-footer">
+              <p className="note apply-note">
+                O cadastro e o formulário de candidatura ainda não estão abertos na versão pública. Esta página mostrará
+                o caminho para iniciá-los assim que forem liberados.
+              </p>
+              <a className="inline-cta" href="#faq">
+                Ver como funciona a candidatura
+                <VoxelArrowIcon />
+              </a>
+            </div>
           </div>
         </section>
 
-        <section className="cta-banner" aria-labelledby="cta-title">
+        <section id="visitantes" className="section section--tonal" aria-labelledby="visitantes-title">
+          <div className="section__inner">
+            <div className="section__intro">
+              <h2 id="visitantes-title">Como funciona para quem visita</h2>
+            </div>
+
+            <ol className="visit-steps">
+              <li>
+                <h3>Entre, explore e brinque</h3>
+                <p>
+                  A Vila Noel do Bem é uma experiência natalina que funciona no navegador. Você pode passear pelo
+                  cenário e jogar gratuitamente.
+                </p>
+              </li>
+              <li>
+                <h3>Encontre causas durante o passeio</h3>
+                <p>
+                  À medida que as casinhas de ONGs aprovadas forem publicadas, a exploração também será uma forma de
+                  conhecer organizações e seus projetos.
+                </p>
+              </li>
+              <li>
+                <h3>Escolha se e como deseja ajudar</h3>
+                <p>
+                  A diversão não depende de uma doação. Quando os recursos de contribuição estiverem disponíveis, você
+                  poderá decidir se quer apoiar uma causa, com o destino do pagamento informado antes de concluir
+                  qualquer ação.
+                </p>
+              </li>
+            </ol>
+
+            <div className="actions">
+              <a className="btn btn--primary" href={GAME_URL}>
+                Explorar a Vila
+              </a>
+            </div>
+          </div>
+        </section>
+
+        <section id="doacoes" className="section" aria-labelledby="doacoes-title">
+          <div className="section__inner">
+            <div className="donation-layout">
+              <div className="section__intro">
+                <h2 id="doacoes-title">Doações com destino claro</h2>
+                <p className="donation-status">
+                  <VoxelClockIcon />
+                  <strong>As doações pela Vila ainda não estão disponíveis.</strong>
+                </p>
+              </div>
+              <div className="donation-body">
+                <p>
+                  Quando forem ativadas, a proposta é mostrar com clareza quem receberá cada contribuição. Uma doação
+                  ligada à casinha de uma ONG será destinada à organização identificada. A opção de doação geral terá um
+                  parceiro responsável próprio; ela não será dividida automaticamente entre todas as ONGs.
+                </p>
+                <p>
+                  Jogar, visitar uma casinha ou participar de uma atividade não gera uma doação automática.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="faq" className="section" aria-labelledby="faq-title">
+          <div className="section__inner">
+            <div className="section__intro">
+              <h2 id="faq-title">Perguntas frequentes</h2>
+            </div>
+
+            <div className="faq">
+              <div className="faq__item">
+                <h3>Preciso doar para entrar ou jogar?</h3>
+                <p>Não. A visita e os jogos disponíveis são gratuitos. Doar será uma escolha separada, quando essa função estiver ativa.</p>
+              </div>
+              <div className="faq__item">
+                <h3>Preciso criar uma conta de ONG antes da candidatura?</h3>
+                <p>
+                  Não. Um responsável cria primeiro uma <strong>conta de usuário comum</strong>. Com ela, preenche e
+                  envia o formulário de candidatura da ONG quando o cadastro estiver disponível.
+                </p>
+              </div>
+              <div className="faq__item">
+                <h3>Basta enviar o formulário para ganhar uma casinha?</h3>
+                <p>Não. A candidatura passa por análise documental. A casinha só poderá ser publicada depois da aprovação.</p>
+              </div>
+              <div className="faq__item">
+                <h3>Quais são os requisitos iniciais para a ONG?</h3>
+                <p>CNPJ ativo, pelo menos um ano de existência e um meio confiável de confirmar os valores destinados à organização.</p>
+              </div>
+              <div className="faq__item">
+                <h3>A ONG poderá atualizar sua casinha?</h3>
+                <p>
+                  Esse é o objetivo: permitir que o espaço acompanhe projetos e novidades da organização. O processo de
+                  atualização e moderação ainda está em definição.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="proximo-passo" className="cta-banner" aria-labelledby="proximo-passo-title">
           <div className="cta-banner__inner">
-            <h2 id="cta-title">A Vila já está acesa.</h2>
-            <p>Ela cresce até o lançamento, previsto para 30 de novembro de 2026.</p>
-            <a className="btn btn--primary btn--lg" href={GAME_URL}>
-              Entrar na Vila
-            </a>
+            <h2 id="proximo-passo-title">Seu próximo passo</h2>
+            <div className="next-steps">
+              <div className="next-step">
+                <p>
+                  <strong>Quer descobrir a Vila?</strong> Entre, explore e divirta-se.
+                </p>
+                <a className="btn btn--primary btn--lg" href={GAME_URL}>
+                  Explorar a Vila
+                </a>
+              </div>
+              <div className="next-step">
+                <p>
+                  <strong>Representa uma ONG?</strong> Conheça os critérios e as etapas para preparar sua candidatura.
+                </p>
+                <a className="btn btn--secondary btn--lg" href="#como-candidatar">
+                  Ver como candidatar minha ONG
+                </a>
+              </div>
+            </div>
           </div>
         </section>
       </main>
@@ -443,11 +627,13 @@ export function App() {
       <footer className="footer">
         <div className="footer__inner">
           <img className="footer__logo" src="/logo-vilanoeldobem.png" width={380} height={360} alt="" />
-          <p>© 2026 Vila Noel do Bem</p>
-          <p className="footer__note">
-            Transformar a magia do Natal em experiências que aproximam pessoas, despertam alegria e estimulam a
-            solidariedade.
+          <p className="footer__tagline">
+            <strong>Vila Noel do Bem</strong> — Uma vila para brincar, descobrir causas e criar novas conexões.
           </p>
+          <p>
+            Contato: <a className="footer__contact" href="mailto:vilanoeldobem@gmail.com">vilanoeldobem@gmail.com</a>
+          </p>
+          <p className="footer__copy">© 2026 Vila Noel do Bem</p>
         </div>
       </footer>
     </>

@@ -82,23 +82,6 @@ export function VoxelMissionIcon({ size = 44 }: { size?: number }) {
   );
 }
 
-/** 32×32: the central plaza tree inside a stepped globe (global donation, DEC-026). */
-export function VoxelTreeGlobeIcon({ size = 44 }: { size?: number }) {
-  return (
-    <svg className="voxel-icon" width={size} height={size} viewBox="0 0 32 32" {...crisp}>
-      <rect x="8" y="3" width="16" height="26" fill="var(--surface-frost)" />
-      <rect x="4" y="7" width="24" height="18" fill="var(--surface-frost)" />
-      <rect x="15" y="4" width="2" height="2" fill="var(--accent-gold)" />
-      <rect x="14" y="8" width="4" height="4" fill="var(--accent-leaf)" />
-      <rect x="12" y="12" width="8" height="4" fill="var(--accent-leaf)" />
-      <rect x="10" y="16" width="12" height="4" fill="var(--accent-leaf)" />
-      <rect x="14" y="20" width="4" height="4" fill="var(--accent-gold-strong)" />
-      <rect x="4" y="7" width="24" height="2" fill="var(--snow)" />
-      <rect x="4" y="23" width="24" height="2" fill="var(--snow)" />
-    </svg>
-  );
-}
-
 /** 32×32: an approved NGO chalet with a heart-lit window. */
 export function VoxelChaletHeartIcon({ size = 44 }: { size?: number }) {
   return (
